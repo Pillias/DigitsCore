@@ -13,7 +13,6 @@ import com.digitscore.app.data.entity.DailyScoreHistoryEntity
 import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.model.AppCategoryType
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.DispatchMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 

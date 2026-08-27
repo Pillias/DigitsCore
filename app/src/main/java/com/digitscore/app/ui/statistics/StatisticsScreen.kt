@@ -116,7 +116,7 @@ fun StatisticsScreen(
                     selectedTabIndex = selectedTabIndex,
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     indicator = { tabPositions ->
-                        TabRowDefaults.SecondaryIndicator(
+                        TabRowDefaults.Indicator(
                             Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
                             color = MaterialTheme.colorScheme.primary
                         )
