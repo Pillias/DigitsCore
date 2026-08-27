@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">DigitsCore</string>
+    <string name="notification_channel_name">DigitsCore 실시간 점수</string>
+    <string name="notification_channel_description">스마트폰 사용 습관에 따른 실시간 디지털 디톡스 점수를 상태바에 표시합니다.</string>
+</resources>
