@@ -132,6 +132,24 @@ class ScoreCalculatorTest {
         assertEquals(0, detail.finalScore)
         assertEquals(ScoreGrade.F, detail.grade)
     }
+
+    @Test
+    fun testYesterdayPenalty_reducesStartingScore() {
+        // 전날 점수가 50점(D등급)이어서 15점의 시작 페널티(부채)를 안고 시작하는 상황
+        val ruleWithYesterdayPenalty = ScoreRule(
+            yesterdayPenalty = 15.0f,
+            isYesterdayPenaltyEnabled = true
+        )
+        val detail = ScoreCalculator.calculateScore(
+            appsUsage = emptyList(),
+            idleMinutes = 0,
+            unlockCount = 0,
+            rule = ruleWithYesterdayPenalty
+        )
+        assertEquals(15.0f, detail.yesterdayPenalty, 0.01f)
+        assertEquals(85, detail.finalScore)
+        assertEquals(ScoreGrade.A, detail.grade)
+    }
 }
 
 

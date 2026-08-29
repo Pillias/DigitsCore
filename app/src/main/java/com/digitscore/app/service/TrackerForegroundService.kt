@@ -71,6 +71,13 @@ class TrackerForegroundService : Service() {
             val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
             return sdf.format(Date())
         }
+
+        private fun getYesterdayDateString(): String {
+            val cal = java.util.Calendar.getInstance()
+            cal.add(java.util.Calendar.DAY_OF_YEAR, -1)
+            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            return sdf.format(cal.time)
+        }
     }
 
     override fun onCreate() {
@@ -179,6 +186,17 @@ class TrackerForegroundService : Service() {
             val settings = db.settingsDao().getSettings()
             val presetMode = PresetMode.fromId(settings?.selectedPresetModeId ?: "balanced")
             val baseRule = presetMode.scoreRule
+
+            // 전날 과사용 페널티 (디톡스 부채) 산출: 전날 점수가 80점 미만일 때 (80 - 점수) * 0.5 감점 (최대 30점)
+            val yesterdayDate = getYesterdayDateString()
+            val yesterdayHistory = db.scoreDao().getScoreHistoryForDate(yesterdayDate)
+            val yesterdayScore = yesterdayHistory?.finalScore ?: 100
+            val yesterdayPenalty = if (settings?.isYesterdayPenaltyEnabled != false && yesterdayScore < 80) {
+                kotlin.math.min(30.0f, (80 - yesterdayScore) * 0.5f)
+            } else {
+                0f
+            }
+
             val effectiveRule = if (settings != null) {
                 baseRule.copy(
                     distractingWeightPerMinute = settings.distractingWeightPerMinute,
@@ -189,10 +207,12 @@ class TrackerForegroundService : Service() {
                     unlockPenaltyThreshold = settings.targetUnlockCount,
                     unlockPenaltyPerCount = settings.unlockPenaltyPerCount,
                     lateNightMultiplier = settings.lateNightMultiplier,
-                    isLogAccelerationEnabled = settings.isLogAccelerationEnabled
+                    isLogAccelerationEnabled = settings.isLogAccelerationEnabled,
+                    isYesterdayPenaltyEnabled = settings.isYesterdayPenaltyEnabled,
+                    yesterdayPenalty = yesterdayPenalty
                 )
             } else {
-                baseRule
+                baseRule.copy(yesterdayPenalty = yesterdayPenalty)
             }
 
             // DB에 저장된 앱 가중치 맵 조회

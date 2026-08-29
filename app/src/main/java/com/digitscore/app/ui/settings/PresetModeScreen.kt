@@ -367,6 +367,48 @@ fun PresetModeScreen(
                 }
             }
 
+            // 전날 과사용 시작 페널티 (디톡스 부채) 스위치
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "⏳ 전날 과사용 시작 페널티 (디톡스 부채)",
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                text = "전날 점수가 80점 미만(과사용)일 경우 다음 날 시작 점수에서 최대 30점 감점된 채로 시작합니다.",
+                                fontSize = 12.sp,
+                                color = Color.Gray,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
+                        androidx.compose.material3.Switch(
+                            checked = settings.isYesterdayPenaltyEnabled,
+                            onCheckedChange = { isChecked ->
+                                scope.launch(Dispatchers.IO) {
+                                    db.settingsDao().insertOrUpdateSettings(
+                                        settings.copy(isYesterdayPenaltyEnabled = isChecked)
+                                    )
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+
             // 방해 앱 감점 가중치
             item {
                 Card(

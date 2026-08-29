@@ -21,6 +21,7 @@ data class UserSettingsEntity(
     val unlockPenaltyPerCount: Float = 0.5f,      // 언락 1회 초과당 감점치
     val lateNightMultiplier: Float = 1.6f,        // 심야 시간(24시~05시) 감점 배수
     val isLogAccelerationEnabled: Boolean = true, // 장시간 사용 로그 가속 적용 여부
+    val isYesterdayPenaltyEnabled: Boolean = true, // 전날 과사용 시작 페널티(디톡스 부채) 적용 여부
     val isTrackingEnabled: Boolean = true,
     val isNotificationEnabled: Boolean = true
 )

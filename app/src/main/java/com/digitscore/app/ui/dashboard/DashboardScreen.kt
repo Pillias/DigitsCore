@@ -129,7 +129,11 @@ fun DashboardScreen(
         ) {
             // 1. 원형 점수 인디케이터
             item {
-                ScoreGaugeCard(score = currentScore, grade = grade)
+                ScoreGaugeCard(
+                    score = currentScore,
+                    grade = grade,
+                    yesterdayPenalty = scoreDetail?.yesterdayPenalty ?: 0f
+                )
             }
 
             // 2. 주요 3단 통계 카드
@@ -192,7 +196,7 @@ fun DashboardScreen(
 }
 
 @Composable
-fun ScoreGaugeCard(score: Int, grade: ScoreGrade) {
+fun ScoreGaugeCard(score: Int, grade: ScoreGrade, yesterdayPenalty: Float = 0f) {
     val animatedScore by animateFloatAsState(
         targetValue = score.toFloat(),
         animationSpec = tween(durationMillis = 800),
@@ -278,6 +282,16 @@ fun ScoreGaugeCard(score: Int, grade: ScoreGrade) {
                 color = Color.LightGray,
                 fontWeight = FontWeight.Medium
             )
+
+            if (yesterdayPenalty > 0f) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "⚠️ 전날 과사용 시작 페널티 -${yesterdayPenalty.toInt()}점 적용 중",
+                    fontSize = 12.sp,
+                    color = ScoreOrange,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
     }
 }

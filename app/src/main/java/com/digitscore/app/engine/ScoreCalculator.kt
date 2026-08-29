@@ -17,6 +17,7 @@ data class ScoreDetail(
     val idleBonus: Float,
     val unlockPenalty: Float,
     val lateNightPenalty: Float = 0f,
+    val yesterdayPenalty: Float = 0f,
     val grade: ScoreGrade,
     val totalScreenTimeMinutes: Long,
     val distractingTimeMinutes: Long,
@@ -112,8 +113,11 @@ object ScoreCalculator {
         val excessUnlocks = max(0, unlockCount - rule.unlockPenaltyThreshold)
         val unlockPenalty = excessUnlocks * rule.unlockPenaltyPerCount
 
-        // 5. 총합 계산 및 경계값(0~100) 클램핑
-        val rawScore = rule.initialScore - overallDistractingPenalty + productiveBonus + idleBonus - unlockPenalty
+        // 5. 전날 과사용 페널티 (디톡스 부채)
+        val appliedYesterdayPenalty = if (rule.isYesterdayPenaltyEnabled) rule.yesterdayPenalty else 0f
+
+        // 6. 총합 계산 및 경계값(0~100) 클램핑
+        val rawScore = rule.initialScore - appliedYesterdayPenalty - overallDistractingPenalty + productiveBonus + idleBonus - unlockPenalty
         val clampedScore = min(rule.maxScoreBoundary, max(rule.minScoreBoundary, rawScore))
         val finalScore = clampedScore.roundToInt()
 
@@ -124,6 +128,7 @@ object ScoreCalculator {
             idleBonus = idleBonus,
             unlockPenalty = unlockPenalty,
             lateNightPenalty = totalLateNightPenalty,
+            yesterdayPenalty = appliedYesterdayPenalty,
             grade = ScoreGrade.fromScore(finalScore),
             totalScreenTimeMinutes = totalScreenMinutes,
             distractingTimeMinutes = distractingMinutes,
