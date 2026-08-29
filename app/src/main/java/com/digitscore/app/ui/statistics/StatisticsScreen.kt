@@ -38,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -55,11 +56,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.digitscore.app.data.DigitsDatabase
+import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
+import com.digitscore.app.model.PresetMode
 import com.digitscore.app.ui.theme.ScoreGreen
 import com.digitscore.app.ui.theme.ScoreOrange
 import com.digitscore.app.ui.theme.ScoreRed
 import com.digitscore.app.ui.theme.ScoreYellow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,6 +82,29 @@ fun StatisticsScreen(
     val userSettings by db.settingsDao().getSettingsFlow().collectAsState(initial = null)
 
     val targetDefense = userSettings?.minimumScoreDefenseLine ?: 60
+
+    // 통계 화면 진입 시 과거 기록이 부족하면 30일치 자동 소급 분석 실행
+    LaunchedEffect(Unit) {
+        if (UsageStatsHelper.hasUsageStatsPermission(context)) {
+            withContext(Dispatchers.IO) {
+                val existing = db.scoreDao().getAllScoreHistories().firstOrNull() ?: emptyList()
+                if (existing.size < 7) {
+                    val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
+                    val weightMap = appWeights.associateBy { it.packageName }
+                    val currentPreset = PresetMode.fromId(userSettings?.selectedPresetModeId ?: "balanced")
+                    val pastHistories = UsageStatsHelper.syncPastDaysUsageStats(
+                        context = context,
+                        appWeightMap = weightMap,
+                        scoreRule = currentPreset.scoreRule,
+                        days = 30
+                    )
+                    for (h in pastHistories) {
+                        db.scoreDao().insertOrUpdateScoreHistory(h)
+                    }
+                }
+            }
+        }
+    }
 
     // 날짜 오름차순(과거->최신)으로 정렬하여 차트에 표시
     val histories = remember(rawHistories) {
