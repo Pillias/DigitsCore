@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -49,7 +50,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -66,6 +72,7 @@ import com.digitscore.app.ui.theme.ScoreYellow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
+import kotlin.math.max
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -177,15 +184,22 @@ fun StatisticsScreen(
                 }
             }
 
-            // 2. 점수 추세 차트 카드
+            // 2. 일별 점수 추세 (꺾은선 그래프)
             item {
-                ScoreTrendChartCard(
+                ScoreTrendLineChartCard(
                     histories = histories,
                     targetDefense = targetDefense
                 )
             }
 
-            // 3. 주요 메트릭 지표 요약
+            // 3. 일별 사용 시간 & 언락 횟수 (바 차트)
+            item {
+                UsageAndUnlockBarChartCard(
+                    histories = histories
+                )
+            }
+
+            // 4. 주요 메트릭 지표 요약
             item {
                 AnalyticsSummaryCards(
                     histories = histories,
@@ -194,14 +208,17 @@ fun StatisticsScreen(
             }
 
             item {
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
     }
 }
 
+/**
+ * 📈 1. 일별 점수 추세 꺾은선 그래프 (Line Chart)
+ */
 @Composable
-fun ScoreTrendChartCard(
+fun ScoreTrendLineChartCard(
     histories: List<DailyScoreHistoryEntity>,
     targetDefense: Int
 ) {
@@ -223,7 +240,7 @@ fun ScoreTrendChartCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "일별 점수 추세",
+                    text = "📈 일별 점수 추세 (0~100점)",
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
                     color = Color.White
@@ -242,7 +259,7 @@ fun ScoreTrendChartCard(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(180.dp),
+                        .height(190.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -255,59 +272,252 @@ fun ScoreTrendChartCard(
                 Canvas(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(180.dp)
+                        .height(190.dp)
                 ) {
                     val width = size.width
-                    val height = size.height
-                    val barSpacing = width / (histories.size.coerceAtLeast(1) * 1.5f)
-                    val barWidth = (width / histories.size) * 0.55f
+                    val height = size.height - 35f // X축 라벨용 여백
 
-                    // 1. 방어선 가이드 라인 그리기 (점선/실선)
+                    // 1. 방어선 가이드 라인 (점선)
                     val defenseY = height - (height * (targetDefense / 100f))
                     drawLine(
-                        color = Color.DarkGray,
+                        color = Color(0xFFE65100).copy(alpha = 0.6f),
                         start = Offset(0f, defenseY),
                         end = Offset(width, defenseY),
-                        strokeWidth = 2f
+                        strokeWidth = 2.5f,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), 0f)
                     )
 
-                    // 2. 바 차트 그리기
-                    val totalBars = histories.size
-                    val stepX = width / totalBars
+                    // 2. 꺾은선 좌표 계산
+                    val n = histories.size
+                    val stepX = if (n > 1) width / (n - 1) else width / 2
+                    val points = histories.mapIndexed { index, item ->
+                        val x = if (n > 1) index * stepX else width / 2
+                        val y = height - (height * (item.finalScore.coerceIn(0, 100) / 100f))
+                        Offset(x, y)
+                    }
 
-                    histories.forEachIndexed { index, item ->
-                        val barHeight = height * (item.finalScore / 100f)
-                        val startX = (index * stepX) + (stepX - barWidth) / 2
-                        val startY = height - barHeight
+                    // 3. 하단 그라데이션 채우기 (Fill Path)
+                    if (points.isNotEmpty()) {
+                        val fillPath = Path().apply {
+                            moveTo(points.first().x, height)
+                            points.forEach { lineTo(it.x, it.y) }
+                            lineTo(points.last().x, height)
+                            close()
+                        }
+                        drawPath(
+                            path = fillPath,
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    ScoreGreen.copy(alpha = 0.35f),
+                                    Color.Transparent
+                                ),
+                                startY = 0f,
+                                endY = height
+                            )
+                        )
+                    }
 
-                        val barColor = when {
-                            item.finalScore >= 80 -> ScoreGreen
-                            item.finalScore >= 60 -> ScoreYellow
-                            item.finalScore >= 40 -> ScoreOrange
+                    // 4. 메인 꺾은선 그리기 (Stroke Path)
+                    if (points.size > 1) {
+                        val linePath = Path().apply {
+                            moveTo(points.first().x, points.first().y)
+                            for (i in 1 until points.size) {
+                                lineTo(points[i].x, points[i].y)
+                            }
+                        }
+                        drawPath(
+                            path = linePath,
+                            color = ScoreGreen,
+                            style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round)
+                        )
+                    }
+
+                    // 5. 각 포인트 원형 점 및 라벨
+                    points.forEachIndexed { index, pt ->
+                        val score = histories[index].finalScore
+                        val dotColor = when {
+                            score >= 80 -> ScoreGreen
+                            score >= 60 -> ScoreYellow
+                            score >= 40 -> ScoreOrange
                             else -> ScoreRed
                         }
 
-                        // 바
-                        drawRoundRect(
-                            color = barColor,
-                            topLeft = Offset(startX, startY),
-                            size = Size(barWidth, barHeight),
-                            cornerRadius = CornerRadius(8f, 8f)
+                        // 외부 글로우 링
+                        drawCircle(
+                            color = Color(0xFF1E2630),
+                            radius = 6.dp.toPx(),
+                            center = pt
+                        )
+                        // 내부 점
+                        drawCircle(
+                            color = dotColor,
+                            radius = 4.dp.toPx(),
+                            center = pt
                         )
 
-                        // 텍스트 라벨 (일자 마지막 2자리 e.g., '27')
-                        val dayText = if (item.dateString.length >= 10) item.dateString.substring(8) else "${index + 1}"
-                        drawContext.canvas.nativeCanvas.apply {
-                            val paint = android.graphics.Paint().apply {
-                                color = android.graphics.Color.GRAY
-                                textSize = 26f
-                                textAlign = android.graphics.Paint.Align.CENTER
+                        // 텍스트 라벨 (7일일 때는 매일, 30일일 때는 5일 간격 또는 시작/끝)
+                        val shouldShowLabel = if (n <= 7) true else (index % 5 == 0 || index == n - 1)
+                        if (shouldShowLabel) {
+                            val dateStr = histories[index].dateString
+                            val dayLabel = if (dateStr.length >= 10) dateStr.substring(8) else "${index + 1}"
+                            drawContext.canvas.nativeCanvas.apply {
+                                val paint = android.graphics.Paint().apply {
+                                    color = android.graphics.Color.LTGRAY
+                                    textSize = 24f
+                                    textAlign = android.graphics.Paint.Align.CENTER
+                                }
+                                drawText("${dayLabel}일", pt.x, height + 28f, paint)
+
+                                // 7일 뷰에서는 포인트 위에 점수도 작게 표시
+                                if (n <= 7) {
+                                    val scorePaint = android.graphics.Paint().apply {
+                                        color = android.graphics.Color.WHITE
+                                        textSize = 22f
+                                        isFakeBoldText = true
+                                        textAlign = android.graphics.Paint.Align.CENTER
+                                    }
+                                    val textY = (pt.y - 12f).coerceAtLeast(20f)
+                                    drawText("$score", pt.x, textY, scorePaint)
+                                }
                             }
-                            drawText(dayText, startX + (barWidth / 2), height + 30f, paint)
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+        }
+    }
+}
+
+/**
+ * 📊 2. 일별 사용 시간 & 언락 횟수 복합 바 차트 (Bar Chart)
+ */
+@Composable
+fun UsageAndUnlockBarChartCard(
+    histories: List<DailyScoreHistoryEntity>
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp)
+        ) {
+            Text(
+                text = "📊 사용 시간 & 언락 횟수",
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                color = Color.White
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 범례 (Legend)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(10.dp).background(Color(0xFF26A69A), RoundedCornerShape(2.dp)))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(text = "총 화면시간", fontSize = 11.sp, color = Color.LightGray)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(10.dp).background(ScoreRed, RoundedCornerShape(2.dp)))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(text = "방해 앱", fontSize = 11.sp, color = Color.LightGray)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(10.dp).background(ScoreYellow, CircleShape))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(text = "언락(회)", fontSize = 11.sp, color = Color.LightGray)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (histories.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "기록된 사용량 데이터가 없습니다.",
+                        color = Color.Gray,
+                        fontSize = 13.sp
+                    )
+                }
+            } else {
+                val maxMinutes = max(180L, histories.maxOfOrNull { it.totalScreenTimeMinutes } ?: 180L).toFloat()
+
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp)
+                ) {
+                    val width = size.width
+                    val height = size.height - 30f
+                    val n = histories.size
+                    val stepX = width / n
+                    val barWidth = (stepX * 0.55f).coerceAtMost(24f)
+
+                    histories.forEachIndexed { index, item ->
+                        val startX = (index * stepX) + (stepX - barWidth) / 2
+
+                        // 1. 총 화면 시간 바 (청록색)
+                        val totalH = height * (item.totalScreenTimeMinutes / maxMinutes).coerceIn(0f, 1f)
+                        val totalY = height - totalH
+                        drawRoundRect(
+                            color = Color(0xFF26A69A).copy(alpha = 0.5f),
+                            topLeft = Offset(startX, totalY),
+                            size = Size(barWidth, totalH),
+                            cornerRadius = CornerRadius(4f, 4f)
+                        )
+
+                        // 2. 방해 앱 시간 바 (빨간색 - 내부 중첩)
+                        val distH = height * (item.distractingTimeMinutes / maxMinutes).coerceIn(0f, 1f)
+                        val distY = height - distH
+                        drawRoundRect(
+                            color = ScoreRed.copy(alpha = 0.85f),
+                            topLeft = Offset(startX, distY),
+                            size = Size(barWidth, distH),
+                            cornerRadius = CornerRadius(4f, 4f)
+                        )
+
+                        // 3. 언락 횟수 포인트 (상단 노란 점 인디케이터)
+                        val unlockRatio = (item.unlockCount / 60f).coerceIn(0.1f, 1f)
+                        val unlockY = height - (height * unlockRatio)
+                        drawCircle(
+                            color = ScoreYellow,
+                            radius = 3.dp.toPx(),
+                            center = Offset(startX + barWidth / 2, unlockY)
+                        )
+
+                        // X축 날짜 라벨
+                        val shouldShowLabel = if (n <= 7) true else (index % 5 == 0 || index == n - 1)
+                        if (shouldShowLabel) {
+                            val dateStr = item.dateString
+                            val dayLabel = if (dateStr.length >= 10) dateStr.substring(8) else "${index + 1}"
+                            drawContext.canvas.nativeCanvas.apply {
+                                val paint = android.graphics.Paint().apply {
+                                    color = android.graphics.Color.GRAY
+                                    textSize = 22f
+                                    textAlign = android.graphics.Paint.Align.CENTER
+                                }
+                                drawText("${dayLabel}일", startX + (barWidth / 2), height + 24f, paint)
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
             }
         }
     }
@@ -436,3 +646,4 @@ fun MetricCard(
         }
     }
 }
+

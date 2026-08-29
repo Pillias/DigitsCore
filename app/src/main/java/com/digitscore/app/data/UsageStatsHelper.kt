@@ -210,101 +210,64 @@ object UsageStatsHelper {
             set(Calendar.MILLISECOND, 0)
         }
 
-        val thirtyDaysAgoMillis = (todayCalendar.clone() as Calendar).apply {
-            add(Calendar.DAY_OF_YEAR, -days)
-        }.timeInMillis
-
-        // 1. 30일 전체 구간을 한 번에 INTERVAL_DAILY로 조회
-        val all30DaysStats = usageStatsManager.queryUsageStats(
-            UsageStatsManager.INTERVAL_DAILY,
-            thirtyDaysAgoMillis,
-            System.currentTimeMillis()
-        )
-
-        // 일자별(yyyy-MM-dd)로 매핑
-        val statsByDate = mutableMapOf<String, MutableList<AppUsage>>()
-
-        if (!all30DaysStats.isNullOrEmpty()) {
-            for (stat in all30DaysStats) {
-                if (stat.totalTimeInForeground > 10_000L) {
-                    val dateStr = sdf.format(Date(stat.firstTimeStamp))
-                    val todayStr = sdf.format(Date())
-                    if (dateStr == todayStr) continue // 오늘은 실시간 추적으로 관리
-
-                    val pkgName = stat.packageName
-                    val savedEntity = appWeightMap[pkgName]
-                    val appName = savedEntity?.appName ?: try {
-                        val appInfo = pm.getApplicationInfo(pkgName, 0)
-                        pm.getApplicationLabel(appInfo).toString()
-                    } catch (e: Exception) {
-                        pkgName
-                    }
-                    val category = savedEntity?.categoryType ?: AppCategoryType.NEUTRAL
-
-                    val list = statsByDate.getOrPut(dateStr) { mutableListOf() }
-                    list.add(
-                        AppUsage(
-                            packageName = pkgName,
-                            appName = appName,
-                            usageTimeMillis = stat.totalTimeInForeground,
-                            categoryType = category,
-                            lastTimeUsedMillis = stat.lastTimeStamp
-                        )
-                    )
-                }
-            }
-        }
-
-        // 2. 만약 INTERVAL_DAILY가 비어있거나 특정 날짜가 비어있는 경우 일별 개별 쿼리 fallback
+        // 과거 days일 전부터 어제(1일 전)까지 30개 일자 순회
         for (i in days downTo 1) {
             val dayCalStart = (todayCalendar.clone() as Calendar).apply {
                 add(Calendar.DAY_OF_YEAR, -i)
             }
-            val dateString = sdf.format(dayCalStart.time)
-
-            val dayAppUsages = statsByDate[dateString] ?: run {
-                val dayCalEnd = (dayCalStart.clone() as Calendar).apply {
-                    set(Calendar.HOUR_OF_DAY, 23)
-                    set(Calendar.MINUTE, 59)
-                    set(Calendar.SECOND, 59)
-                    set(Calendar.MILLISECOND, 999)
-                }
-                val singleDayStats = usageStatsManager.queryUsageStats(
-                    UsageStatsManager.INTERVAL_BEST,
-                    dayCalStart.timeInMillis,
-                    dayCalEnd.timeInMillis
-                )
-                val list = mutableListOf<AppUsage>()
-                if (!singleDayStats.isNullOrEmpty()) {
-                    for (stat in singleDayStats) {
-                        if (stat.totalTimeInForeground > 10_000L) {
-                            val pkgName = stat.packageName
-                            val savedEntity = appWeightMap[pkgName]
-                            val appName = savedEntity?.appName ?: try {
-                                val appInfo = pm.getApplicationInfo(pkgName, 0)
-                                pm.getApplicationLabel(appInfo).toString()
-                            } catch (e: Exception) {
-                                pkgName
-                            }
-                            val category = savedEntity?.categoryType ?: AppCategoryType.NEUTRAL
-                            list.add(
-                                AppUsage(
-                                    packageName = pkgName,
-                                    appName = appName,
-                                    usageTimeMillis = stat.totalTimeInForeground,
-                                    categoryType = category,
-                                    lastTimeUsedMillis = stat.lastTimeStamp
-                                )
-                            )
-                        }
-                    }
-                }
-                list
+            val dayCalEnd = (dayCalStart.clone() as Calendar).apply {
+                set(Calendar.HOUR_OF_DAY, 23)
+                set(Calendar.MINUTE, 59)
+                set(Calendar.SECOND, 59)
+                set(Calendar.MILLISECOND, 999)
             }
 
-            if (dayAppUsages.isEmpty()) continue
+            val startTime = dayCalStart.timeInMillis
+            val endTime = dayCalEnd.timeInMillis
+            val dateString = sdf.format(dayCalStart.time)
 
-            // 중복 패키지 합산 및 정규화
+            // 1) 해당 일자의 사용량 조회 (INTERVAL_BEST 우선, 실패 시 INTERVAL_DAILY)
+            var statsList = usageStatsManager.queryUsageStats(
+                UsageStatsManager.INTERVAL_BEST,
+                startTime,
+                endTime
+            )
+            if (statsList.isNullOrEmpty()) {
+                statsList = usageStatsManager.queryUsageStats(
+                    UsageStatsManager.INTERVAL_DAILY,
+                    startTime,
+                    endTime
+                )
+            }
+
+            val dayAppUsages = mutableListOf<AppUsage>()
+            if (!statsList.isNullOrEmpty()) {
+                for (stat in statsList) {
+                    val fgTime = stat.totalTimeInForeground
+                    if (fgTime > 1000L) { // 1초 이상 사용
+                        val pkgName = stat.packageName
+                        val savedEntity = appWeightMap[pkgName]
+                        val appName = savedEntity?.appName ?: try {
+                            val appInfo = pm.getApplicationInfo(pkgName, 0)
+                            pm.getApplicationLabel(appInfo).toString()
+                        } catch (e: Exception) {
+                            pkgName
+                        }
+                        val category = savedEntity?.categoryType ?: AppCategoryType.NEUTRAL
+                        dayAppUsages.add(
+                            AppUsage(
+                                packageName = pkgName,
+                                appName = appName,
+                                usageTimeMillis = fgTime,
+                                categoryType = category,
+                                lastTimeUsedMillis = stat.lastTimeStamp
+                            )
+                        )
+                    }
+                }
+            }
+
+            // 동일 앱 패키지 중복 합산
             val combinedMap = mutableMapOf<String, AppUsage>()
             for (app in dayAppUsages) {
                 val existing = combinedMap[app.packageName]
@@ -319,7 +282,7 @@ object UsageStatsHelper {
             val finalDayApps = combinedMap.values.toList()
 
             var totalScreenMinutes = finalDayApps.sumOf { it.usageTimeMinutes }
-            // 하루 1440분 초과 시 비례 축소 보정
+            // 하루 1440분(24시간) 초과 시 1440분으로 상한 클램핑
             if (totalScreenMinutes > 1440L) {
                 totalScreenMinutes = 1440L
             }
@@ -332,14 +295,28 @@ object UsageStatsHelper {
                 .sumOf { it.usageTimeMinutes }
 
             val estimatedIdleMinutes = max(0L, 1440L - totalScreenMinutes)
-            val estimatedUnlockCount = (totalScreenMinutes / 12L).coerceIn(10L, 60L).toInt()
+            val estimatedUnlockCount = if (totalScreenMinutes > 0) {
+                (totalScreenMinutes / 12L).coerceIn(10L, 60L).toInt()
+            } else {
+                0
+            }
 
-            val scoreDetail = ScoreCalculator.calculateScore(
-                appsUsage = finalDayApps,
-                idleMinutes = estimatedIdleMinutes,
-                unlockCount = estimatedUnlockCount,
-                rule = scoreRule
-            )
+            val scoreDetail = if (finalDayApps.isNotEmpty()) {
+                ScoreCalculator.calculateScore(
+                    appsUsage = finalDayApps,
+                    idleMinutes = estimatedIdleMinutes,
+                    unlockCount = estimatedUnlockCount,
+                    rule = scoreRule
+                )
+            } else {
+                // 사용 기록이 전혀 없는 날은 기본 100점 (완벽한 디톡스)
+                ScoreCalculator.calculateScore(
+                    appsUsage = emptyList(),
+                    idleMinutes = 1440L,
+                    unlockCount = 0,
+                    rule = scoreRule
+                )
+            }
 
             result.add(
                 DailyScoreHistoryEntity(
