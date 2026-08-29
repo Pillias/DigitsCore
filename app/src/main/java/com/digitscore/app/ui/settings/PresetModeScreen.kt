@@ -42,11 +42,24 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import com.digitscore.app.data.DigitsDatabase
+import com.digitscore.app.data.UsageStatsHelper
+import com.digitscore.app.data.backup.DataBackupManager
 import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.model.PresetMode
 import com.digitscore.app.ui.theme.ScoreGreen
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,6 +74,34 @@ fun PresetModeScreen(
     val userSettings by db.settingsDao().getSettingsFlow().collectAsState(initial = null)
     val settings = userSettings ?: UserSettingsEntity()
     val selectedModeId = settings.selectedPresetModeId
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val content = context.contentResolver.openInputStream(uri)?.use { stream ->
+                        stream.bufferedReader().readText()
+                    }
+                    if (content != null) {
+                        val success = DataBackupManager.importFromJson(context, content)
+                        launch(Dispatchers.Main) {
+                            if (success) {
+                                Toast.makeText(context, "데이터가 성공적으로 복원되었습니다!", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "백업 파일 형식이 올바르지 않습니다.", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    launch(Dispatchers.Main) {
+                        Toast.makeText(context, "복원 중 오류가 발생했습니다: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -559,8 +600,108 @@ fun PresetModeScreen(
                 }
             }
 
+            // 4. 데이터 관리 및 백업
             item {
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "📦 데이터 관리 및 백업",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "점수 히스토리 및 설정을 안전하게 파일로 백업하거나 과거 30일치 사용량을 소급 분석합니다.",
+                            fontSize = 12.sp,
+                            color = Color.LightGray
+                        )
+
+                        // 1) 과거 30일 소급 분석
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch(Dispatchers.IO) {
+                                    if (!UsageStatsHelper.hasUsageStatsPermission(context)) {
+                                        launch(Dispatchers.Main) {
+                                            Toast.makeText(context, "사용 정보 접근 권한이 필요합니다.", Toast.LENGTH_SHORT).show()
+                                        }
+                                        return@launch
+                                    }
+                                    val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
+                                    val weightMap = appWeights.associateBy { it.packageName }
+                                    val currentPreset = PresetMode.fromId(settings.selectedPresetModeId)
+                                    val pastHistories = UsageStatsHelper.syncPastDaysUsageStats(
+                                        context = context,
+                                        appWeightMap = weightMap,
+                                        scoreRule = currentPreset.scoreRule,
+                                        days = 30
+                                    )
+                                    for (h in pastHistories) {
+                                        db.scoreDao().insertOrUpdateScoreHistory(h)
+                                    }
+                                    launch(Dispatchers.Main) {
+                                        Toast.makeText(context, "과거 ${pastHistories.size}일 치 데이터 분석이 완료되었습니다!", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Sync, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                            Text(text = "과거 30일 사용량 소급 분석", fontWeight = FontWeight.SemiBold)
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // 2) 데이터 백업
+                            Button(
+                                onClick = {
+                                    scope.launch(Dispatchers.IO) {
+                                        val json = DataBackupManager.exportToJson(context)
+                                        launch(Dispatchers.Main) {
+                                            DataBackupManager.shareBackup(context, json)
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                            ) {
+                                Icon(imageVector = Icons.Default.Backup, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
+                                Text(text = "데이터 백업", fontSize = 13.sp)
+                            }
+
+                            // 3) 데이터 복원
+                            Button(
+                                onClick = {
+                                    importLauncher.launch("*/*")
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                            ) {
+                                Icon(imageVector = Icons.Default.Restore, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
+                                Text(text = "데이터 복원", fontSize = 13.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(30.dp))
             }
         }
     }

@@ -34,11 +34,15 @@ jobs:
       - name: Build Debug APK
         run: gradle :app:assembleDebug --stacktrace --no-daemon
 
+      - name: Prepare Named APK
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/DigitsCore-v1.0.${{ github.run_number }}-debug.apk
+
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: DigitsCore-Debug-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: DigitsCore-v1.0.${{ github.run_number }}-debug
+          path: app/build/outputs/apk/debug/DigitsCore-v1.0.${{ github.run_number }}-debug.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -50,7 +54,7 @@ jobs:
           name: DigitsCore Android v1.0.${{ github.run_number }}
           body: |
             ### 📱 DigitsCore APK 다운로드
-            아래 Assets 목록에서 `app-debug.apk`를 다운로드하여 안드로이드 기기에 설치하세요.
-          files: app/build/outputs/apk/debug/app-debug.apk
+            아래 Assets 목록에서 `DigitsCore-v1.0.${{ github.run_number }}-debug.apk`를 다운로드하여 안드로이드 기기에 설치하세요.
+          files: app/build/outputs/apk/debug/DigitsCore-v1.0.${{ github.run_number }}-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
