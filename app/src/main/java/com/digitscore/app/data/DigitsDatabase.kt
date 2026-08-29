@@ -68,7 +68,7 @@ abstract class DigitsDatabase : RoomDatabase() {
                     id = 1,
                     selectedPresetModeId = "balanced",
                     minimumScoreDefenseLine = 60,
-                    targetUnlockCount = 30,
+                    targetUnlockCount = 25,
                     isTrackingEnabled = true,
                     isNotificationEnabled = true
                 )

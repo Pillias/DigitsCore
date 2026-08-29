@@ -178,6 +178,12 @@ class TrackerForegroundService : Service() {
             val db = DigitsDatabase.getInstance(applicationContext)
             val settings = db.settingsDao().getSettings()
             val presetMode = PresetMode.fromId(settings?.selectedPresetModeId ?: "balanced")
+            val baseRule = presetMode.scoreRule
+            val effectiveRule = if (settings != null && settings.targetUnlockCount > 0) {
+                baseRule.copy(unlockPenaltyThreshold = settings.targetUnlockCount)
+            } else {
+                baseRule
+            }
 
             // DB에 저장된 앱 가중치 맵 조회
             val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
@@ -192,7 +198,7 @@ class TrackerForegroundService : Service() {
                 appsUsage = appsUsage,
                 idleMinutes = accumulatedIdleMinutes,
                 unlockCount = todayUnlockCount,
-                rule = presetMode.scoreRule
+                rule = effectiveRule
             )
             _currentScoreDetail.value = scoreDetail
 

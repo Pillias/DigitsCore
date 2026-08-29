@@ -12,7 +12,7 @@ data class UserSettingsEntity(
     val id: Int = 1,
     val selectedPresetModeId: String = "balanced",
     val minimumScoreDefenseLine: Int = 60, // 최저 점수 방어선
-    val targetUnlockCount: Int = 30,       // 일일 목표 언락 횟수
+    val targetUnlockCount: Int = 25,       // 일일 목표 언락 횟수
     val isTrackingEnabled: Boolean = true,
     val isNotificationEnabled: Boolean = true
 )

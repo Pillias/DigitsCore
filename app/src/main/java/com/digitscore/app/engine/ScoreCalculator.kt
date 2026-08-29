@@ -73,11 +73,13 @@ object ScoreCalculator {
         // 1. 방해 앱 페널티
         val distractingPenalty = distractingMinutes * rule.distractingWeightPerMinute
 
-        // 2. 생산성 앱 보너스
-        val productiveBonus = productiveMinutes * rule.productiveBonusPerMinute
+        // 2. 생산성 앱 보너스 (최대 상한선 적용)
+        val rawProductiveBonus = productiveMinutes * rule.productiveBonusPerMinute
+        val productiveBonus = min(rule.maxProductiveBonus, rawProductiveBonus)
 
-        // 3. 화면 미사용(Idle) 회복 보너스 (10분 단위 계산)
-        val idleBonus = (idleMinutes / 10f) * rule.idleBonusPer10Minutes
+        // 3. 화면 미사용(Idle) 회복 보너스 (10분 단위 계산, 최대 상한선 적용)
+        val rawIdleBonus = (idleMinutes / 10f) * rule.idleBonusPer10Minutes
+        val idleBonus = min(rule.maxIdleBonus, rawIdleBonus)
 
         // 4. 언락 초과 페널티
         val excessUnlocks = max(0, unlockCount - rule.unlockPenaltyThreshold)

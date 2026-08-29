@@ -31,15 +31,15 @@ class ScoreCalculatorTest {
                 categoryType = AppCategoryType.DISTRACTING
             )
         )
-        // 기본 룰: 60분 * 0.5 = 30점 감점 -> 70점
+        // 기본 룰: 60분 * 0.8 = 48점 감점 -> 100 - 48 = 52점
         val detail = ScoreCalculator.calculateScore(apps, 0, 0)
-        assertEquals(70, detail.finalScore)
-        assertEquals(30.0f, detail.distractingPenalty, 0.01f)
-        assertEquals(ScoreGrade.B, detail.grade)
+        assertEquals(52, detail.finalScore)
+        assertEquals(48.0f, detail.distractingPenalty, 0.01f)
+        assertEquals(ScoreGrade.D, detail.grade)
     }
 
     @Test
-    fun testProductiveBonus_andIdleBonus() {
+    fun testProductiveBonus_andIdleBonus_withBalancedWeights() {
         val apps = listOf(
             AppUsage(
                 packageName = "com.duolingo",
@@ -50,36 +50,66 @@ class ScoreCalculatorTest {
             AppUsage(
                 packageName = "com.instagram.android",
                 appName = "Instagram",
-                usageTimeMillis = 40 * 60 * 1000L, // 40분
+                usageTimeMillis = 30 * 60 * 1000L, // 30분
                 categoryType = AppCategoryType.DISTRACTING
             )
         )
         // initial: 100
-        // distracting: 40 * 0.5 = 20점 감점
-        // productive: 20 * 0.3 = 6점 가산
-        // idle: 120분 -> (120/10)*1.0 = 12점 가산
-        // 총합: 100 - 20 + 6 + 12 = 98점 (100 상한선에 의해 98점)
+        // distracting: 30 * 0.8 = 24점 감점
+        // productive: 20 * 0.2 = 4점 가산 (상한 15 이하)
+        // idle: 120분 -> (120/10)*0.25 = 3점 가산 (상한 15 이하)
+        // 총합: 100 - 24 + 4 + 3 = 83점
         val detail = ScoreCalculator.calculateScore(
             appsUsage = apps,
             idleMinutes = 120,
             unlockCount = 10
         )
-        assertEquals(98, detail.finalScore)
-        assertEquals(20.0f, detail.distractingPenalty, 0.01f)
-        assertEquals(6.0f, detail.productiveBonus, 0.01f)
-        assertEquals(12.0f, detail.idleBonus, 0.01f)
+        assertEquals(83, detail.finalScore)
+        assertEquals(24.0f, detail.distractingPenalty, 0.01f)
+        assertEquals(4.0f, detail.productiveBonus, 0.01f)
+        assertEquals(3.0f, detail.idleBonus, 0.01f)
+        assertEquals(ScoreGrade.A, detail.grade)
+    }
+
+    @Test
+    fun testIdleBonus_cappedAtMaximum() {
+        // 수면 시간 8시간(480분) 및 장시간 미사용(1200분) 시에도 최대 15점으로 캡핑
+        val detail = ScoreCalculator.calculateScore(
+            appsUsage = emptyList(),
+            idleMinutes = 1200,
+            unlockCount = 0
+        )
+        assertEquals(15.0f, detail.idleBonus, 0.01f)
+        assertEquals(100, detail.finalScore)
+    }
+
+    @Test
+    fun testProductiveBonus_cappedAtMaximum() {
+        // 생산성 앱을 200분(3시간 20분) 켜두어도 최대 15점으로 캡핑
+        val apps = listOf(
+            AppUsage(
+                packageName = "notion.id",
+                appName = "Notion",
+                usageTimeMillis = 200 * 60 * 1000L,
+                categoryType = AppCategoryType.PRODUCTIVE
+            )
+        )
+        val detail = ScoreCalculator.calculateScore(apps, 0, 0)
+        assertEquals(15.0f, detail.productiveBonus, 0.01f)
+        assertEquals(100, detail.finalScore)
     }
 
     @Test
     fun testUnlockPenalty_whenThresholdExceeded() {
-        // threshold 30회, unlock 50회 -> excess 20회 * 0.2 = 4점 감점
+        // threshold 25회, unlock 45회 -> excess 20회 * 0.5 = 10점 감점
         val detail = ScoreCalculator.calculateScore(
             appsUsage = emptyList(),
             idleMinutes = 0,
-            unlockCount = 50
+            unlockCount = 45
         )
-        assertEquals(96, detail.finalScore)
-        assertEquals(4.0f, detail.unlockPenalty, 0.01f)
+        assertEquals(90, detail.finalScore)
+        assertEquals(10.0f, detail.unlockPenalty, 0.01f)
+        assertEquals(ScoreGrade.S, detail.grade)
     }
 
     @Test
@@ -88,30 +118,14 @@ class ScoreCalculatorTest {
             AppUsage(
                 packageName = "com.tiktok.android",
                 appName = "TikTok",
-                usageTimeMillis = 300 * 60 * 1000L, // 300분 (5시간)
+                usageTimeMillis = 200 * 60 * 1000L, // 200분
                 categoryType = AppCategoryType.DISTRACTING
             )
         )
-        // 300 * 0.5 = 150점 감점 -> 100 - 150 = -50 -> 하한 0으로 클램핑
-        val detail = ScoreCalculator.calculateScore(apps, 0, 100)
+        // 200 * 0.8 = 160점 감점 -> 100 - 160 = -60 -> 하한 0으로 클램핑
+        val detail = ScoreCalculator.calculateScore(apps, 0, 50)
         assertEquals(0, detail.finalScore)
         assertEquals(ScoreGrade.F, detail.grade)
-    }
-
-    @Test
-    fun testScoreClamping_maximumOneHundred() {
-        // 생산성 앱 100분, idle 500분으로 보너스가 넘쳐도 100점 상한 유지
-        val apps = listOf(
-            AppUsage(
-                packageName = "com.study.app",
-                appName = "Study",
-                usageTimeMillis = 100 * 60 * 1000L,
-                categoryType = AppCategoryType.PRODUCTIVE
-            )
-        )
-        val detail = ScoreCalculator.calculateScore(apps, 500, 5)
-        assertEquals(100, detail.finalScore)
-        assertEquals(ScoreGrade.S, detail.grade)
     }
 
     @Test
@@ -125,16 +139,17 @@ class ScoreCalculatorTest {
                 categoryType = AppCategoryType.DISTRACTING
             )
         )
-        // Study 모드: 30분 * 1.0 = 30점 감점 (일반 모드는 15점)
-        // 언락: 30회 (threshold 20회 초과 10회 * 0.5 = 5점 감점)
-        // 100 - 30 - 5 = 65점
+        // Study 모드: 30분 * 1.2 = 36점 감점
+        // 언락: 25회 (threshold 15회 초과 10회 * 0.8 = 8점 감점)
+        // 100 - 36 - 8 = 56점 -> C등급 (55점 이상)
         val detail = ScoreCalculator.calculateScore(
             appsUsage = apps,
             idleMinutes = 0,
-            unlockCount = 30,
+            unlockCount = 25,
             rule = studyRule
         )
-        assertEquals(65, detail.finalScore)
+        assertEquals(56, detail.finalScore)
         assertEquals(ScoreGrade.C, detail.grade)
     }
 }
+

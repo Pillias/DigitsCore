@@ -15,11 +15,13 @@ enum class PresetMode(
         description = "방해 앱 페널티를 대폭 강화하고 화면 언락에 엄격한 모드",
         scoreRule = ScoreRule(
             initialScore = 100f,
-            distractingWeightPerMinute = 1.0f,
-            productiveBonusPerMinute = 0.5f,
-            idleBonusPer10Minutes = 1.5f,
-            unlockPenaltyThreshold = 20,
-            unlockPenaltyPerCount = 0.5f
+            distractingWeightPerMinute = 1.2f,
+            productiveBonusPerMinute = 0.3f,
+            idleBonusPer10Minutes = 0.2f,
+            maxIdleBonus = 10.0f,
+            maxProductiveBonus = 15.0f,
+            unlockPenaltyThreshold = 15,
+            unlockPenaltyPerCount = 0.8f
         )
     ),
     EYE_HEALTH(
@@ -28,11 +30,13 @@ enum class PresetMode(
         description = "총 화면 사용 시간에 민감하며 충분한 화면 휴식(Idle)을 장려하는 모드",
         scoreRule = ScoreRule(
             initialScore = 100f,
-            distractingWeightPerMinute = 0.6f,
-            productiveBonusPerMinute = 0.2f,
-            idleBonusPer10Minutes = 2.0f,
-            unlockPenaltyThreshold = 40,
-            unlockPenaltyPerCount = 0.2f
+            distractingWeightPerMinute = 0.8f,
+            productiveBonusPerMinute = 0.1f,
+            idleBonusPer10Minutes = 0.4f,
+            maxIdleBonus = 20.0f,
+            maxProductiveBonus = 10.0f,
+            unlockPenaltyThreshold = 30,
+            unlockPenaltyPerCount = 0.4f
         )
     ),
     WORKER(
@@ -41,11 +45,13 @@ enum class PresetMode(
         description = "업무 시간 방해 앱 사용을 억제하고 적정 수준의 스마트폰 사용을 유지하는 모드",
         scoreRule = ScoreRule(
             initialScore = 100f,
-            distractingWeightPerMinute = 0.5f,
-            productiveBonusPerMinute = 0.3f,
-            idleBonusPer10Minutes = 1.0f,
-            unlockPenaltyThreshold = 35,
-            unlockPenaltyPerCount = 0.3f
+            distractingWeightPerMinute = 0.8f,
+            productiveBonusPerMinute = 0.2f,
+            idleBonusPer10Minutes = 0.25f,
+            maxIdleBonus = 15.0f,
+            maxProductiveBonus = 15.0f,
+            unlockPenaltyThreshold = 30,
+            unlockPenaltyPerCount = 0.5f
         )
     ),
     KIDS(
@@ -54,11 +60,13 @@ enum class PresetMode(
         description = "게임 및 영상 시청 시간을 집중 관리하는 부모 안심 모드",
         scoreRule = ScoreRule(
             initialScore = 100f,
-            distractingWeightPerMinute = 0.8f,
-            productiveBonusPerMinute = 0.4f,
-            idleBonusPer10Minutes = 1.2f,
-            unlockPenaltyThreshold = 25,
-            unlockPenaltyPerCount = 0.4f
+            distractingWeightPerMinute = 1.0f,
+            productiveBonusPerMinute = 0.25f,
+            idleBonusPer10Minutes = 0.2f,
+            maxIdleBonus = 12.0f,
+            maxProductiveBonus = 12.0f,
+            unlockPenaltyThreshold = 20,
+            unlockPenaltyPerCount = 0.6f
         )
     ),
     BALANCED(

@@ -216,15 +216,15 @@ fun ScoreGaugeCard(score: Int, grade: ScoreGrade) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp),
+                .padding(vertical = 28.dp, horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
-                modifier = Modifier.size(180.dp),
+                modifier = Modifier.size(240.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    val strokeWidth = 14.dp.toPx()
+                    val strokeWidth = 18.dp.toPx()
                     val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
                     val topLeft = Offset(strokeWidth / 2, strokeWidth / 2)
 
@@ -255,20 +255,22 @@ fun ScoreGaugeCard(score: Int, grade: ScoreGrade) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         text = "${animatedScore.toInt()}",
-                        fontSize = 48.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color.White
+                        fontSize = 76.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White,
+                        lineHeight = 76.sp
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "GRADE ${grade.gradeText.take(1)}",
-                        fontSize = 14.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = scoreColor
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             Text(
                 text = grade.description,

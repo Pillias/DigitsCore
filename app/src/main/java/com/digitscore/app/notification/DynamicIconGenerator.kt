@@ -34,39 +34,50 @@ object DynamicIconGenerator {
         }
         val circleColor = Color.parseColor(colorHex)
 
-        // 1. 원형 배경 그리기
+        // 1. 원형 배경 그리기 (여백을 최소화하여 폰트 렌더링 영역 극대화)
         val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = circleColor
             style = Paint.Style.FILL
         }
         val radius = size / 2f
-        canvas.drawCircle(radius, radius, radius - (2 * density), bgPaint)
+        canvas.drawCircle(radius, radius, radius - 1f, bgPaint)
 
-        // 2. 외곽 테두리 (가독성 향상)
-        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
-            style = Paint.Style.STROKE
-            strokeWidth = 1.5f * density
-        }
-        canvas.drawCircle(radius, radius, radius - (2 * density), strokePaint)
-
-        // 3. 점수 텍스트 그리기
+        // 2. 점수 텍스트 그리기 (상태바에서 가장 크고 선명하게 보이도록 동적 최대화)
         val text = score.toString()
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            // 글자수에 따라 폰트 크기 조절 (100점은 3자리이므로 작게)
-            textSize = when (text.length) {
-                3 -> size * 0.42f
-                2 -> size * 0.52f
-                else -> size * 0.60f
-            }
+            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
         }
 
+        // 원형 내에서 글자가 잘리지 않는 최대 허용 너비 및 높이
+        val maxAllowedWidth = size * if (text.length == 3) 0.90f else 0.84f
+        val maxAllowedHeight = size * 0.78f
+
+        // 글자수 기준 기본 초대형 폰트 크기 지정
+        var targetTextSize = size * when (text.length) {
+            1 -> 0.82f
+            2 -> 0.76f
+            else -> 0.58f
+        }
+        textPaint.textSize = targetTextSize
+
         val bounds = Rect()
         textPaint.getTextBounds(text, 0, text.length, bounds)
-        // 수직 가운데 정렬 계산
+        val measuredWidth = textPaint.measureText(text)
+        val measuredHeight = bounds.height().toFloat()
+
+        // 허용 범위 초과 시 정밀 비례 축소
+        if (measuredWidth > maxAllowedWidth) {
+            targetTextSize *= (maxAllowedWidth / measuredWidth)
+        }
+        if (measuredHeight > maxAllowedHeight) {
+            targetTextSize *= (maxAllowedHeight / measuredHeight)
+        }
+        textPaint.textSize = targetTextSize
+
+        // 최종 텍스트 수직/수평 정밀 가운데 정렬
+        textPaint.getTextBounds(text, 0, text.length, bounds)
         val yPos = (size / 2f) - bounds.exactCenterY()
 
         canvas.drawText(text, size / 2f, yPos, textPaint)
