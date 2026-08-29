@@ -64,6 +64,7 @@ object UsageStatsHelper {
         val startTime = getStartOfTodayMillis()
         val endTime = System.currentTimeMillis()
 
+        // 1. 오늘 전체 사용량 통계 조회
         val usageStatsList = usageStatsManager.queryUsageStats(
             UsageStatsManager.INTERVAL_DAILY,
             startTime,
@@ -73,6 +74,19 @@ object UsageStatsHelper {
         if (usageStatsList.isNullOrEmpty()) {
             return emptyList()
         }
+
+        // 2. 심야 시간(00:00 ~ 05:00) 구간 사용량 통계 조회
+        val lateNightEndTime = startTime + (5 * 60 * 60 * 1000L) // 오늘 새벽 5시
+        val lateNightStatsList = if (endTime > startTime) {
+            usageStatsManager.queryUsageStats(
+                UsageStatsManager.INTERVAL_BEST,
+                startTime,
+                kotlin.math.min(endTime, lateNightEndTime)
+            )
+        } else {
+            null
+        }
+        val lateNightMap = lateNightStatsList?.associate { it.packageName to it.totalTimeInForeground } ?: emptyMap()
 
         val pm = context.packageManager
         val result = mutableListOf<AppUsage>()
@@ -92,6 +106,7 @@ object UsageStatsHelper {
                 }
 
                 val category = savedEntity?.categoryType ?: AppCategoryType.NEUTRAL
+                val lateNightTime = lateNightMap[pkgName] ?: 0L
 
                 result.add(
                     AppUsage(
@@ -99,7 +114,8 @@ object UsageStatsHelper {
                         appName = appName,
                         usageTimeMillis = totalTimeInForeground,
                         categoryType = category,
-                        lastTimeUsedMillis = stat.lastTimeUsed
+                        lastTimeUsedMillis = stat.lastTimeUsed,
+                        lateNightUsageMillis = lateNightTime
                     )
                 )
             }

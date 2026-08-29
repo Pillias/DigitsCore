@@ -179,8 +179,18 @@ class TrackerForegroundService : Service() {
             val settings = db.settingsDao().getSettings()
             val presetMode = PresetMode.fromId(settings?.selectedPresetModeId ?: "balanced")
             val baseRule = presetMode.scoreRule
-            val effectiveRule = if (settings != null && settings.targetUnlockCount > 0) {
-                baseRule.copy(unlockPenaltyThreshold = settings.targetUnlockCount)
+            val effectiveRule = if (settings != null) {
+                baseRule.copy(
+                    distractingWeightPerMinute = settings.distractingWeightPerMinute,
+                    productiveBonusPerMinute = settings.productiveBonusPerMinute,
+                    idleBonusPer10Minutes = settings.idleBonusPer10Minutes,
+                    maxIdleBonus = settings.maxIdleBonus,
+                    maxProductiveBonus = settings.maxProductiveBonus,
+                    unlockPenaltyThreshold = settings.targetUnlockCount,
+                    unlockPenaltyPerCount = settings.unlockPenaltyPerCount,
+                    lateNightMultiplier = settings.lateNightMultiplier,
+                    isLogAccelerationEnabled = settings.isLogAccelerationEnabled
+                )
             } else {
                 baseRule
             }

@@ -59,12 +59,13 @@ fun PresetModeScreen(
     val db = remember { DigitsDatabase.getInstance(context) }
 
     val userSettings by db.settingsDao().getSettingsFlow().collectAsState(initial = null)
-    val selectedModeId = userSettings?.selectedPresetModeId ?: "balanced"
+    val settings = userSettings ?: UserSettingsEntity()
+    val selectedModeId = settings.selectedPresetModeId
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("디톡스 모드 및 목표 설정", fontWeight = FontWeight.Bold) },
+                title = { Text("디톡스 모드 및 가중치 설정", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
@@ -89,6 +90,7 @@ fun PresetModeScreen(
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // 1. 프리셋 모드 선택
             item {
                 Text(
                     text = "디톡스 프리셋 모드 선택",
@@ -106,9 +108,20 @@ fun PresetModeScreen(
                         .fillMaxWidth()
                         .clickable {
                             scope.launch(Dispatchers.IO) {
-                                val current = userSettings ?: UserSettingsEntity()
+                                val rule = mode.scoreRule
                                 db.settingsDao().insertOrUpdateSettings(
-                                    current.copy(selectedPresetModeId = mode.id)
+                                    settings.copy(
+                                        selectedPresetModeId = mode.id,
+                                        distractingWeightPerMinute = rule.distractingWeightPerMinute,
+                                        productiveBonusPerMinute = rule.productiveBonusPerMinute,
+                                        idleBonusPer10Minutes = rule.idleBonusPer10Minutes,
+                                        maxIdleBonus = rule.maxIdleBonus,
+                                        maxProductiveBonus = rule.maxProductiveBonus,
+                                        targetUnlockCount = rule.unlockPenaltyThreshold,
+                                        unlockPenaltyPerCount = rule.unlockPenaltyPerCount,
+                                        lateNightMultiplier = rule.lateNightMultiplier,
+                                        isLogAccelerationEnabled = rule.isLogAccelerationEnabled
+                                    )
                                 )
                             }
                         },
@@ -154,8 +167,9 @@ fun PresetModeScreen(
                 }
             }
 
+            // 2. 개인 목표 방어선
             item {
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "개인 목표 방어선",
                     fontSize = 16.sp,
@@ -168,14 +182,11 @@ fun PresetModeScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        val defenseScore = userSettings?.minimumScoreDefenseLine ?: 60
                         Text(
-                            text = "최저 점수 방어선: ${defenseScore}점",
+                            text = "최저 점수 방어선: ${settings.minimumScoreDefenseLine}점",
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
                             fontSize = 14.sp
@@ -187,12 +198,11 @@ fun PresetModeScreen(
                             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
                         )
                         Slider(
-                            value = defenseScore.toFloat(),
+                            value = settings.minimumScoreDefenseLine.toFloat(),
                             onValueChange = { newValue ->
                                 scope.launch(Dispatchers.IO) {
-                                    val current = userSettings ?: UserSettingsEntity()
                                     db.settingsDao().insertOrUpdateSettings(
-                                        current.copy(minimumScoreDefenseLine = newValue.toInt())
+                                        settings.copy(minimumScoreDefenseLine = newValue.toInt())
                                     )
                                 }
                             },
@@ -207,14 +217,11 @@ fun PresetModeScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        val targetUnlock = userSettings?.targetUnlockCount ?: 30
                         Text(
-                            text = "일일 목표 언락 제한: ${targetUnlock}회",
+                            text = "일일 목표 언락 제한: ${settings.targetUnlockCount}회",
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
                             fontSize = 14.sp
@@ -226,17 +233,285 @@ fun PresetModeScreen(
                             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
                         )
                         Slider(
-                            value = targetUnlock.toFloat(),
+                            value = settings.targetUnlockCount.toFloat(),
                             onValueChange = { newValue ->
                                 scope.launch(Dispatchers.IO) {
-                                    val current = userSettings ?: UserSettingsEntity()
                                     db.settingsDao().insertOrUpdateSettings(
-                                        current.copy(targetUnlockCount = newValue.toInt())
+                                        settings.copy(targetUnlockCount = newValue.toInt())
                                     )
                                 }
                             },
                             valueRange = 10f..80f,
                             steps = 13
+                        )
+                    }
+                }
+            }
+
+            // 3. 세부 가중치 커스텀 설정
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "세부 가중치 커스텀 설정",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            scope.launch(Dispatchers.IO) {
+                                val currentPreset = PresetMode.fromId(settings.selectedPresetModeId)
+                                val rule = currentPreset.scoreRule
+                                db.settingsDao().insertOrUpdateSettings(
+                                    settings.copy(
+                                        distractingWeightPerMinute = rule.distractingWeightPerMinute,
+                                        productiveBonusPerMinute = rule.productiveBonusPerMinute,
+                                        idleBonusPer10Minutes = rule.idleBonusPer10Minutes,
+                                        maxIdleBonus = rule.maxIdleBonus,
+                                        maxProductiveBonus = rule.maxProductiveBonus,
+                                        targetUnlockCount = rule.unlockPenaltyThreshold,
+                                        unlockPenaltyPerCount = rule.unlockPenaltyPerCount,
+                                        lateNightMultiplier = rule.lateNightMultiplier,
+                                        isLogAccelerationEnabled = rule.isLogAccelerationEnabled
+                                    )
+                                )
+                            }
+                        }
+                    ) {
+                        Text(text = "기본값 초기화", fontSize = 12.sp)
+                    }
+                }
+            }
+
+            // 심야(24시~05시) 감점 가속 배수
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        val lateNightMult = String.format(java.util.Locale.US, "%.1f", settings.lateNightMultiplier)
+                        Text(
+                            text = "🌙 심야(24시~05시) 감점 배수: ${lateNightMult}배",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = "자정부터 새벽 5시까지 방해 앱 사용 시 감점을 배수로 가속합니다.",
+                            fontSize = 12.sp,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
+                        )
+                        Slider(
+                            value = settings.lateNightMultiplier,
+                            onValueChange = { newValue ->
+                                scope.launch(Dispatchers.IO) {
+                                    db.settingsDao().insertOrUpdateSettings(
+                                        settings.copy(lateNightMultiplier = (newValue * 10).toInt() / 10f)
+                                    )
+                                }
+                            },
+                            valueRange = 1.0f..3.0f,
+                            steps = 19
+                        )
+                    }
+                }
+            }
+
+            // 장시간 연속 사용 로그(Log) 가속 스위치
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "📈 장시간 사용 로그(Log) 가속",
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                text = "방해 앱을 15분 이상 오래 사용할수록 감점 속도가 비선형으로 빨라집니다.",
+                                fontSize = 12.sp,
+                                color = Color.Gray,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
+                        androidx.compose.material3.Switch(
+                            checked = settings.isLogAccelerationEnabled,
+                            onCheckedChange = { isChecked ->
+                                scope.launch(Dispatchers.IO) {
+                                    db.settingsDao().insertOrUpdateSettings(
+                                        settings.copy(isLogAccelerationEnabled = isChecked)
+                                    )
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+
+            // 방해 앱 감점 가중치
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        val dWeight = String.format(java.util.Locale.US, "%.1f", settings.distractingWeightPerMinute)
+                        Text(
+                            text = "⚠️ 방해 앱 1분당 감점치: ${dWeight}점",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = "SNS, 영상 등 방해 앱 사용 1분당 차감되는 기본 점수입니다.",
+                            fontSize = 12.sp,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
+                        )
+                        Slider(
+                            value = settings.distractingWeightPerMinute,
+                            onValueChange = { newValue ->
+                                scope.launch(Dispatchers.IO) {
+                                    db.settingsDao().insertOrUpdateSettings(
+                                        settings.copy(distractingWeightPerMinute = (newValue * 10).toInt() / 10f)
+                                    )
+                                }
+                            },
+                            valueRange = 0.1f..2.0f,
+                            steps = 18
+                        )
+                    }
+                }
+            }
+
+            // 화면 미사용(Idle) 회복 가중치
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        val idleVal = String.format(java.util.Locale.US, "%.2f", settings.idleBonusPer10Minutes)
+                        Text(
+                            text = "🌿 화면 미사용 10분당 회복치: ${idleVal}점",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = "스마트폰 화면을 끄고 휴식할 때 10분당 회복되는 점수입니다.",
+                            fontSize = 12.sp,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
+                        )
+                        Slider(
+                            value = settings.idleBonusPer10Minutes,
+                            onValueChange = { newValue ->
+                                scope.launch(Dispatchers.IO) {
+                                    db.settingsDao().insertOrUpdateSettings(
+                                        settings.copy(idleBonusPer10Minutes = (newValue * 20).toInt() / 20f)
+                                    )
+                                }
+                            },
+                            valueRange = 0.05f..1.0f,
+                            steps = 18
+                        )
+                    }
+                }
+            }
+
+            // 일일 보너스 최대 상한선(Cap)
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "🛡️ 일일 회복 보너스 최대 상한: ${settings.maxIdleBonus.toInt()}점",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = "수면 및 장시간 미사용으로 하루에 얻을 수 있는 보너스 최대 한도입니다.",
+                            fontSize = 12.sp,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
+                        )
+                        Slider(
+                            value = settings.maxIdleBonus,
+                            onValueChange = { newValue ->
+                                scope.launch(Dispatchers.IO) {
+                                    db.settingsDao().insertOrUpdateSettings(
+                                        settings.copy(
+                                            maxIdleBonus = newValue.toInt().toFloat(),
+                                            maxProductiveBonus = newValue.toInt().toFloat()
+                                        )
+                                    )
+                                }
+                            },
+                            valueRange = 5f..30f,
+                            steps = 4
+                        )
+                    }
+                }
+            }
+
+            // 언락 초과당 감점치
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        val unlVal = String.format(java.util.Locale.US, "%.1f", settings.unlockPenaltyPerCount)
+                        Text(
+                            text = "🔓 언락 기준 초과 1회당 감점치: ${unlVal}점",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = "일일 목표 언락 횟수를 초과할 때마다 차감되는 페널티 점수입니다.",
+                            fontSize = 12.sp,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
+                        )
+                        Slider(
+                            value = settings.unlockPenaltyPerCount,
+                            onValueChange = { newValue ->
+                                scope.launch(Dispatchers.IO) {
+                                    db.settingsDao().insertOrUpdateSettings(
+                                        settings.copy(unlockPenaltyPerCount = (newValue * 10).toInt() / 10f)
+                                    )
+                                }
+                            },
+                            valueRange = 0.1f..2.0f,
+                            steps = 18
                         )
                     }
                 }

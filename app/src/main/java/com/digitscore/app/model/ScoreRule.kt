@@ -10,6 +10,10 @@ package com.digitscore.app.model
  * @property maxProductiveBonus 하루 동안 획득 가능한 생산성 보너스 최대 상한선 (기본 15점)
  * @property unlockPenaltyThreshold 하루 기준 언락 횟수 초과 허용치 (기본 25회)
  * @property unlockPenaltyPerCount 기준 초과 언락 1회당 감점 (기본 0.5점 감점)
+ * @property lateNightMultiplier 심야 시간(24시~05시) 방해 앱 감점 가속 배수 (기본 1.6배)
+ * @property isLogAccelerationEnabled 장시간 사용 시 로그(Log) 가속 감점 적용 여부 (기본 true)
+ * @property logAccelerationThresholdMinutes 로그 가속이 시작되는 연속 사용 기준 시간 (기본 15분)
+ * @property logAccelerationScaleMinutes 로그 가속도 곡선 스케일 매개변수 (기본 30분)
  * @property minScoreBoundary 최저 점수 하한선 (0)
  * @property maxScoreBoundary 최고 점수 상한선 (100)
  */
@@ -22,6 +26,10 @@ data class ScoreRule(
     val maxProductiveBonus: Float = 15.0f,
     val unlockPenaltyThreshold: Int = 25,
     val unlockPenaltyPerCount: Float = 0.5f,
+    val lateNightMultiplier: Float = 1.6f,
+    val isLogAccelerationEnabled: Boolean = true,
+    val logAccelerationThresholdMinutes: Float = 15.0f,
+    val logAccelerationScaleMinutes: Float = 30.0f,
     val minScoreBoundary: Float = 0f,
     val maxScoreBoundary: Float = 100f
 )

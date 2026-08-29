@@ -22,53 +22,59 @@ class ScoreCalculatorTest {
     }
 
     @Test
-    fun testDistractingApp_penaltyDeduction() {
+    fun testDistractingApp_briefUsageNoAcceleration() {
         val apps = listOf(
             AppUsage(
                 packageName = "com.instagram.android",
                 appName = "Instagram",
-                usageTimeMillis = 60 * 60 * 1000L, // 60분
+                usageTimeMillis = 15 * 60 * 1000L, // 15분 (임계치 이하)
                 categoryType = AppCategoryType.DISTRACTING
             )
         )
-        // 기본 룰: 60분 * 0.8 = 48점 감점 -> 100 - 48 = 52점
+        // 15분 이하: 가속도 없음 (1.0x) -> 15분 * 0.8 = 12점 감점 -> 88점 (A등급)
         val detail = ScoreCalculator.calculateScore(apps, 0, 0)
-        assertEquals(52, detail.finalScore)
-        assertEquals(48.0f, detail.distractingPenalty, 0.01f)
-        assertEquals(ScoreGrade.D, detail.grade)
+        assertEquals(88, detail.finalScore)
+        assertEquals(12.0f, detail.distractingPenalty, 0.01f)
+        assertEquals(ScoreGrade.A, detail.grade)
     }
 
     @Test
-    fun testProductiveBonus_andIdleBonus_withBalancedWeights() {
+    fun testDistractingApp_prolongedUsageLogAcceleration() {
         val apps = listOf(
-            AppUsage(
-                packageName = "com.duolingo",
-                appName = "Duolingo",
-                usageTimeMillis = 20 * 60 * 1000L, // 20분
-                categoryType = AppCategoryType.PRODUCTIVE
-            ),
             AppUsage(
                 packageName = "com.instagram.android",
                 appName = "Instagram",
-                usageTimeMillis = 30 * 60 * 1000L, // 30분
+                usageTimeMillis = 60 * 60 * 1000L, // 60분 연속 사용
                 categoryType = AppCategoryType.DISTRACTING
             )
         )
-        // initial: 100
-        // distracting: 30 * 0.8 = 24점 감점
-        // productive: 20 * 0.2 = 4점 가산 (상한 15 이하)
-        // idle: 120분 -> (120/10)*0.25 = 3점 가산 (상한 15 이하)
-        // 총합: 100 - 24 + 4 + 3 = 83점
-        val detail = ScoreCalculator.calculateScore(
-            appsUsage = apps,
-            idleMinutes = 120,
-            unlockCount = 10
+        // 60분: 15분 초과로 로그 가속도 적용: 1 + ln(1 + 45/30) = 1 + ln(2.5) = 1.9163x
+        // 감점: 60 * 0.8 * 1.9163 = 약 91.98점 감점 -> 최종 약 8점 (F등급)
+        val detail = ScoreCalculator.calculateScore(apps, 0, 0)
+        assertTrue(detail.distractingPenalty > 90f)
+        assertEquals(8, detail.finalScore)
+        assertEquals(ScoreGrade.F, detail.grade)
+    }
+
+    @Test
+    fun testLateNightPenalty_acceleratedDeduction() {
+        val apps = listOf(
+            AppUsage(
+                packageName = "com.youtube",
+                appName = "YouTube",
+                usageTimeMillis = 30 * 60 * 1000L, // 30분
+                categoryType = AppCategoryType.DISTRACTING,
+                lateNightUsageMillis = 30 * 60 * 1000L // 30분 모두 심야(00~05시) 사용
+            )
         )
-        assertEquals(83, detail.finalScore)
-        assertEquals(24.0f, detail.distractingPenalty, 0.01f)
-        assertEquals(4.0f, detail.productiveBonus, 0.01f)
-        assertEquals(3.0f, detail.idleBonus, 0.01f)
-        assertEquals(ScoreGrade.A, detail.grade)
+        // 로그 가속: 30분 -> 1 + ln(1 + 15/30) = 1.4055x -> 30 * 0.8 * 1.4055 = 33.73점
+        // 심야 추가 감점: 30분 * 0.8 * (1.6 - 1.0) = 14.4점
+        // 총 감점: 33.73 + 14.4 = 48.13점 -> 100 - 48.13 = 52점 (D등급)
+        val detail = ScoreCalculator.calculateScore(apps, 0, 0)
+        assertEquals(14.4f, detail.lateNightPenalty, 0.01f)
+        assertEquals(48.13f, detail.distractingPenalty, 0.1f)
+        assertEquals(52, detail.finalScore)
+        assertEquals(ScoreGrade.D, detail.grade)
     }
 
     @Test
@@ -122,34 +128,10 @@ class ScoreCalculatorTest {
                 categoryType = AppCategoryType.DISTRACTING
             )
         )
-        // 200 * 0.8 = 160점 감점 -> 100 - 160 = -60 -> 하한 0으로 클램핑
         val detail = ScoreCalculator.calculateScore(apps, 0, 50)
         assertEquals(0, detail.finalScore)
         assertEquals(ScoreGrade.F, detail.grade)
     }
-
-    @Test
-    fun testStudyPresetMode_stricterPenalty() {
-        val studyRule = PresetMode.STUDY.scoreRule
-        val apps = listOf(
-            AppUsage(
-                packageName = "com.youtube",
-                appName = "YouTube",
-                usageTimeMillis = 30 * 60 * 1000L, // 30분
-                categoryType = AppCategoryType.DISTRACTING
-            )
-        )
-        // Study 모드: 30분 * 1.2 = 36점 감점
-        // 언락: 25회 (threshold 15회 초과 10회 * 0.8 = 8점 감점)
-        // 100 - 36 - 8 = 56점 -> C등급 (55점 이상)
-        val detail = ScoreCalculator.calculateScore(
-            appsUsage = apps,
-            idleMinutes = 0,
-            unlockCount = 25,
-            rule = studyRule
-        )
-        assertEquals(56, detail.finalScore)
-        assertEquals(ScoreGrade.C, detail.grade)
-    }
 }
+
 

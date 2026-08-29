@@ -16,10 +16,12 @@ data class ScoreDetail(
     val productiveBonus: Float,
     val idleBonus: Float,
     val unlockPenalty: Float,
+    val lateNightPenalty: Float = 0f,
     val grade: ScoreGrade,
     val totalScreenTimeMinutes: Long,
     val distractingTimeMinutes: Long,
-    val productiveTimeMinutes: Long
+    val productiveTimeMinutes: Long,
+    val lateNightDistractingMinutes: Long = 0L
 )
 
 enum class ScoreGrade(val gradeText: String, val description: String) {
@@ -59,19 +61,44 @@ object ScoreCalculator {
         var distractingMinutes = 0L
         var productiveMinutes = 0L
         var totalScreenMinutes = 0L
+        var lateNightDistractingMinutes = 0L
+        var totalDistractingPenalty = 0f
+        var totalLateNightPenalty = 0f
 
         for (app in appsUsage) {
             val mins = app.usageTimeMinutes
             totalScreenMinutes += mins
             when (app.categoryType) {
-                AppCategoryType.DISTRACTING -> distractingMinutes += mins
-                AppCategoryType.PRODUCTIVE -> productiveMinutes += mins
+                AppCategoryType.DISTRACTING -> {
+                    distractingMinutes += mins
+                    val lateNightMins = app.lateNightUsageMinutes
+                    lateNightDistractingMinutes += lateNightMins
+
+                    // 1) 로그(Log) 기반 연속 사용 가속도 계수 계산
+                    val accelerationFactor = if (rule.isLogAccelerationEnabled && mins > rule.logAccelerationThresholdMinutes) {
+                        1.0f + kotlin.math.ln(1.0f + (mins - rule.logAccelerationThresholdMinutes) / rule.logAccelerationScaleMinutes).toFloat()
+                    } else {
+                        1.0f
+                    }
+
+                    val appPenalty = mins * rule.distractingWeightPerMinute * accelerationFactor
+                    totalDistractingPenalty += appPenalty
+
+                    // 2) 심야 시간(24시~05시) 추가 가속 페널티
+                    if (lateNightMins > 0L && rule.lateNightMultiplier > 1.0f) {
+                        val lateNightExtra = lateNightMins * rule.distractingWeightPerMinute * (rule.lateNightMultiplier - 1.0f)
+                        totalLateNightPenalty += lateNightExtra
+                    }
+                }
+                AppCategoryType.PRODUCTIVE -> {
+                    productiveMinutes += mins
+                }
                 AppCategoryType.NEUTRAL -> { /* 중립 앱은 페널티/보너스 없음 */ }
             }
         }
 
-        // 1. 방해 앱 페널티
-        val distractingPenalty = distractingMinutes * rule.distractingWeightPerMinute
+        // 방해 앱 총 페널티 (로그 가속 감점 + 심야 추가 감점)
+        val overallDistractingPenalty = totalDistractingPenalty + totalLateNightPenalty
 
         // 2. 생산성 앱 보너스 (최대 상한선 적용)
         val rawProductiveBonus = productiveMinutes * rule.productiveBonusPerMinute
@@ -86,20 +113,22 @@ object ScoreCalculator {
         val unlockPenalty = excessUnlocks * rule.unlockPenaltyPerCount
 
         // 5. 총합 계산 및 경계값(0~100) 클램핑
-        val rawScore = rule.initialScore - distractingPenalty + productiveBonus + idleBonus - unlockPenalty
+        val rawScore = rule.initialScore - overallDistractingPenalty + productiveBonus + idleBonus - unlockPenalty
         val clampedScore = min(rule.maxScoreBoundary, max(rule.minScoreBoundary, rawScore))
         val finalScore = clampedScore.roundToInt()
 
         return ScoreDetail(
             finalScore = finalScore,
-            distractingPenalty = distractingPenalty,
+            distractingPenalty = overallDistractingPenalty,
             productiveBonus = productiveBonus,
             idleBonus = idleBonus,
             unlockPenalty = unlockPenalty,
+            lateNightPenalty = totalLateNightPenalty,
             grade = ScoreGrade.fromScore(finalScore),
             totalScreenTimeMinutes = totalScreenMinutes,
             distractingTimeMinutes = distractingMinutes,
-            productiveTimeMinutes = productiveMinutes
+            productiveTimeMinutes = productiveMinutes,
+            lateNightDistractingMinutes = lateNightDistractingMinutes
         )
     }
 }

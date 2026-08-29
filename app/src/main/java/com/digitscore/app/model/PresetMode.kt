@@ -21,7 +21,9 @@ enum class PresetMode(
             maxIdleBonus = 10.0f,
             maxProductiveBonus = 15.0f,
             unlockPenaltyThreshold = 15,
-            unlockPenaltyPerCount = 0.8f
+            unlockPenaltyPerCount = 0.8f,
+            lateNightMultiplier = 1.8f,
+            isLogAccelerationEnabled = true
         )
     ),
     EYE_HEALTH(
@@ -36,7 +38,9 @@ enum class PresetMode(
             maxIdleBonus = 20.0f,
             maxProductiveBonus = 10.0f,
             unlockPenaltyThreshold = 30,
-            unlockPenaltyPerCount = 0.4f
+            unlockPenaltyPerCount = 0.4f,
+            lateNightMultiplier = 2.0f,
+            isLogAccelerationEnabled = true
         )
     ),
     WORKER(
@@ -51,7 +55,9 @@ enum class PresetMode(
             maxIdleBonus = 15.0f,
             maxProductiveBonus = 15.0f,
             unlockPenaltyThreshold = 30,
-            unlockPenaltyPerCount = 0.5f
+            unlockPenaltyPerCount = 0.5f,
+            lateNightMultiplier = 1.6f,
+            isLogAccelerationEnabled = true
         )
     ),
     KIDS(
@@ -66,7 +72,9 @@ enum class PresetMode(
             maxIdleBonus = 12.0f,
             maxProductiveBonus = 12.0f,
             unlockPenaltyThreshold = 20,
-            unlockPenaltyPerCount = 0.6f
+            unlockPenaltyPerCount = 0.6f,
+            lateNightMultiplier = 2.0f,
+            isLogAccelerationEnabled = true
         )
     ),
     BALANCED(
