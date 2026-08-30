@@ -18,7 +18,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
@@ -30,16 +30,12 @@ jobs:
         run: yes | sdkmanager --licenses || true
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - name: Run Unit Tests
-        run: gradle :app:testDebugUnitTest --stacktrace --no-daemon
-        continue-on-error: true
-
-      - name: Build Debug APK
-        run: gradle :app:assembleDebug --stacktrace --no-daemon
+      - name: Test and Build Debug APK
+        run: gradle :app:testDebugUnitTest :app:assembleDebug --stacktrace --no-daemon
 
       - name: Prepare Named APK
         run: |
@@ -60,8 +56,8 @@ jobs:
           tag_name: v1.0.${{ github.run_number }}
           name: DigitsCore Android v1.0.${{ github.run_number }}
           body: |
-            ### 📱 DigitsCore APK 다운로드
-            아래 Assets 목록에서 `DigitsCore-v1.0.${{ github.run_number }}-debug.apk`를 다운로드하여 안드로이드 기기에 설치하세요.
+            ### DigitsCore APK 다운로드
+            아래 Assets 목록에서 DigitsCore-v1.0.${{ github.run_number }}-debug.apk 파일을 다운로드하여 안드로이드 기기에 설치하세요.
           files: app/build/outputs/apk/debug/DigitsCore-v1.0.${{ github.run_number }}-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
