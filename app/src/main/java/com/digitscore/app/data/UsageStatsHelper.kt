@@ -82,6 +82,12 @@ object UsageStatsHelper {
     ): ForegroundUsageResult {
         val queryStart = (startTime - FOREGROUND_STATE_LOOKBACK_MILLIS).coerceAtLeast(0L)
         val usageEvents = usageStatsManager.queryEvents(queryStart, endTime)
+            ?: return ForegroundUsageAggregator.aggregate(
+                startTimeMillis = startTime,
+                endTimeMillis = endTime,
+                lateNightEndTimeMillis = lateNightEndTime,
+                events = emptyList()
+            )
         val androidEvent = UsageEvents.Event()
         val timelineEvents = mutableListOf<ForegroundTimelineEvent>()
 
@@ -140,6 +146,14 @@ object UsageStatsHelper {
         )
         val useEventTimeline = exclusiveUsage.hasForegroundEvidence
         if (!useEventTimeline && aggregatedStats.isEmpty()) return emptyList()
+        val fallbackLateNightStats = if (!useEventTimeline && endTime > startTime) {
+            usageStatsManager.queryAndAggregateUsageStats(
+                startTime,
+                minOf(endTime, lateNightEndTime)
+            ).orEmpty()
+        } else {
+            emptyMap()
+        }
 
         val pm = context.packageManager
         val result = mutableListOf<AppUsage>()
@@ -181,7 +195,7 @@ object UsageStatsHelper {
                 val lateNightTime = if (useEventTimeline) {
                     exclusiveUsage.lateNightUsageMillisByPackage[pkgName] ?: 0L
                 } else {
-                    0L
+                    fallbackLateNightStats[pkgName]?.totalTimeInForeground ?: 0L
                 }.coerceIn(0L, timeMillis)
 
                 result.add(
