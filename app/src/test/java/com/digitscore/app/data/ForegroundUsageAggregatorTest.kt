@@ -118,6 +118,53 @@ class ForegroundUsageAggregatorTest {
     }
 
     @Test
+    fun partialEventTimeline_keepsAppsMissingFromEventsUsingAggregateFallback() {
+        val exclusiveUsage = ForegroundUsageResult(
+            usageMillisByPackage = mapOf("files" to 30_000L),
+            lateNightUsageMillisByPackage = mapOf("files" to 30_000L),
+            lastUsedMillisByPackage = emptyMap(),
+            hasForegroundEvidence = true
+        )
+
+        val result = ForegroundUsageReconciler.reconcile(
+            exclusiveUsage = exclusiveUsage,
+            aggregateUsageMillisByPackage = mapOf(
+                "files" to 120_000L,
+                "chess" to 660_000L
+            ),
+            aggregateLateNightMillisByPackage = mapOf(
+                "files" to 120_000L,
+                "chess" to 660_000L
+            ),
+            maximumUsageMillis = 3_600_000L
+        )
+
+        // 이벤트가 존재하는 앱은 과대 집계될 수 있는 OS 누적값으로 덮어쓰지 않습니다.
+        assertEquals(30_000L, result.usageMillisByPackage["files"])
+        // 이벤트에서 통째로 누락된 앱은 OS 누적값으로 반드시 복구합니다.
+        assertEquals(660_000L, result.usageMillisByPackage["chess"])
+        assertEquals(660_000L, result.lateNightUsageMillisByPackage["chess"])
+    }
+
+    @Test
+    fun aggregateFallback_isClampedToElapsedDayAndLateNightToUsage() {
+        val result = ForegroundUsageReconciler.reconcile(
+            exclusiveUsage = ForegroundUsageResult(
+                usageMillisByPackage = emptyMap(),
+                lateNightUsageMillisByPackage = emptyMap(),
+                lastUsedMillisByPackage = emptyMap(),
+                hasForegroundEvidence = false
+            ),
+            aggregateUsageMillisByPackage = mapOf("video" to 7_200_000L),
+            aggregateLateNightMillisByPackage = mapOf("video" to 6_000_000L),
+            maximumUsageMillis = 3_600_000L
+        )
+
+        assertEquals(3_600_000L, result.usageMillisByPackage["video"])
+        assertEquals(3_600_000L, result.lateNightUsageMillisByPackage["video"])
+    }
+
+    @Test
     fun audioAndVideoApps_defaultToDistractingCategory() {
         assertEquals(
             AppCategoryType.DISTRACTING,

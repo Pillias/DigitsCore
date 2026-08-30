@@ -26,6 +26,50 @@ internal data class ForegroundUsageResult(
     val hasForegroundEvidence: Boolean
 )
 
+internal data class ReconciledForegroundUsageResult(
+    val usageMillisByPackage: Map<String, Long>,
+    val lateNightUsageMillisByPackage: Map<String, Long>
+)
+
+/**
+ * 상세 foreground 이벤트가 존재하는 앱은 단일 전면 앱 타임라인을 사용하고,
+ * 제조사 구현에서 이벤트가 통째로 빠진 앱만 OS 누적 통계로 보완합니다.
+ */
+internal object ForegroundUsageReconciler {
+    fun reconcile(
+        exclusiveUsage: ForegroundUsageResult,
+        aggregateUsageMillisByPackage: Map<String, Long>,
+        aggregateLateNightMillisByPackage: Map<String, Long>,
+        maximumUsageMillis: Long
+    ): ReconciledForegroundUsageResult {
+        val usage = mutableMapOf<String, Long>()
+        val lateNightUsage = mutableMapOf<String, Long>()
+        val packageNames = aggregateUsageMillisByPackage.keys +
+            exclusiveUsage.usageMillisByPackage.keys
+
+        for (packageName in packageNames) {
+            val eventUsage = exclusiveUsage.usageMillisByPackage[packageName]
+            val reconciledUsage = (eventUsage
+                ?: aggregateUsageMillisByPackage[packageName]
+                ?: 0L).coerceIn(0L, maximumUsageMillis)
+            if (reconciledUsage <= 0L) continue
+
+            usage[packageName] = reconciledUsage
+            val reconciledLateNightUsage = if (eventUsage != null) {
+                exclusiveUsage.lateNightUsageMillisByPackage[packageName] ?: 0L
+            } else {
+                aggregateLateNightMillisByPackage[packageName] ?: 0L
+            }
+            lateNightUsage[packageName] = reconciledLateNightUsage.coerceIn(0L, reconciledUsage)
+        }
+
+        return ReconciledForegroundUsageResult(
+            usageMillisByPackage = usage,
+            lateNightUsageMillisByPackage = lateNightUsage
+        )
+    }
+}
+
 internal object ForegroundUsageAggregator {
     fun aggregate(
         startTimeMillis: Long,
