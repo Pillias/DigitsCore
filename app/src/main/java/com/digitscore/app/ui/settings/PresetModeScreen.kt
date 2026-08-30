@@ -56,6 +56,8 @@ import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.backup.DataBackupManager
 import com.digitscore.app.data.entity.UserSettingsEntity
+import com.digitscore.app.data.entity.applyTo
+import com.digitscore.app.engine.ScoringBenchmark
 import com.digitscore.app.model.PresetMode
 import com.digitscore.app.ui.theme.ScoreGreen
 import kotlinx.coroutines.Dispatchers
@@ -92,6 +94,8 @@ fun PresetModeScreen(
     val userSettings by db.settingsDao().getSettingsFlow().collectAsState(initial = null)
     val settings = userSettings ?: UserSettingsEntity()
     val selectedModeId = settings.selectedPresetModeId
+    val selectedPreset = PresetMode.fromId(selectedModeId)
+    val selectedBenchmark = ScoringBenchmark.forPreset(selectedModeId)
 
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -179,7 +183,13 @@ fun PresetModeScreen(
                                         targetUnlockCount = rule.unlockPenaltyThreshold,
                                         unlockPenaltyPerCount = rule.unlockPenaltyPerCount,
                                         lateNightMultiplier = rule.lateNightMultiplier,
-                                        isLogAccelerationEnabled = rule.isLogAccelerationEnabled
+                                        isLogAccelerationEnabled = rule.isLogAccelerationEnabled,
+                                        logAccelerationThresholdMinutes = rule.logAccelerationThresholdMinutes,
+                                        logAccelerationScaleMinutes = rule.logAccelerationScaleMinutes,
+                                        isYesterdayPenaltyEnabled = rule.isYesterdayPenaltyEnabled,
+                                        yesterdayPenaltyTriggerScore = rule.yesterdayPenaltyTriggerScore,
+                                        yesterdayPenaltyRate = rule.yesterdayPenaltyRate,
+                                        maxYesterdayPenalty = rule.maxYesterdayPenalty
                                     )
                                 )
                             }
@@ -223,6 +233,16 @@ fun PresetModeScreen(
                             )
                         }
                     }
+                }
+            }
+
+            if (selectedBenchmark != null) {
+                item {
+                    BenchmarkPreviewCard(
+                        benchmark = selectedBenchmark,
+                        settings = settings,
+                        preset = selectedPreset
+                    )
                 }
             }
 
@@ -336,7 +356,13 @@ fun PresetModeScreen(
                                         targetUnlockCount = rule.unlockPenaltyThreshold,
                                         unlockPenaltyPerCount = rule.unlockPenaltyPerCount,
                                         lateNightMultiplier = rule.lateNightMultiplier,
-                                        isLogAccelerationEnabled = rule.isLogAccelerationEnabled
+                                        isLogAccelerationEnabled = rule.isLogAccelerationEnabled,
+                                        logAccelerationThresholdMinutes = rule.logAccelerationThresholdMinutes,
+                                        logAccelerationScaleMinutes = rule.logAccelerationScaleMinutes,
+                                        isYesterdayPenaltyEnabled = rule.isYesterdayPenaltyEnabled,
+                                        yesterdayPenaltyTriggerScore = rule.yesterdayPenaltyTriggerScore,
+                                        yesterdayPenaltyRate = rule.yesterdayPenaltyRate,
+                                        maxYesterdayPenalty = rule.maxYesterdayPenalty
                                     )
                                 )
                             }
@@ -406,7 +432,7 @@ fun PresetModeScreen(
                                 fontSize = 14.sp
                             )
                             Text(
-                                text = "방해 앱을 15분 이상 오래 사용할수록 감점 속도가 비선형으로 빨라집니다.",
+                                text = "설정한 앱별 누적시간 이후 감점 속도가 비선형으로 빨라집니다.",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.outline,
                                 modifier = Modifier.padding(top = 2.dp)
@@ -422,6 +448,64 @@ fun PresetModeScreen(
                                 }
                             }
                         )
+                    }
+                }
+            }
+
+            if (settings.isLogAccelerationEnabled) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "가속 시작: ${settings.logAccelerationThresholdMinutes.toInt()}분",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                text = "이 시간까지는 기본 감점만 적용합니다.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                            Slider(
+                                value = settings.logAccelerationThresholdMinutes,
+                                onValueChange = { value ->
+                                    scope.launch(Dispatchers.IO) {
+                                        db.settingsDao().insertOrUpdateSettings(
+                                            settings.copy(logAccelerationThresholdMinutes = value.toInt().toFloat())
+                                        )
+                                    }
+                                },
+                                valueRange = 30f..180f,
+                                steps = 9
+                            )
+
+                            Text(
+                                text = "가속 완만함: ${settings.logAccelerationScaleMinutes.toInt()}분",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                text = "값이 클수록 장시간 사용 감점 증가가 완만합니다.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                            Slider(
+                                value = settings.logAccelerationScaleMinutes,
+                                onValueChange = { value ->
+                                    scope.launch(Dispatchers.IO) {
+                                        db.settingsDao().insertOrUpdateSettings(
+                                            settings.copy(logAccelerationScaleMinutes = value.toInt().toFloat())
+                                        )
+                                    }
+                                },
+                                valueRange = 60f..300f,
+                                steps = 7
+                            )
+                        }
                     }
                 }
             }
@@ -448,7 +532,7 @@ fun PresetModeScreen(
                                 fontSize = 14.sp
                             )
                             Text(
-                                text = "전날 점수가 80점 미만(과사용)일 경우 다음 날 시작 점수에서 최대 30점 감점된 채로 시작합니다.",
+                                text = "전날 점수가 설정 기준보다 낮을 때 다음 날 일부만 이월합니다.",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.outline,
                                 modifier = Modifier.padding(top = 2.dp)
@@ -464,6 +548,72 @@ fun PresetModeScreen(
                                 }
                             }
                         )
+                    }
+                }
+            }
+
+            if (settings.isYesterdayPenaltyEnabled) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "부채 발동 점수: ${settings.yesterdayPenaltyTriggerScore}점 미만",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                            Slider(
+                                value = settings.yesterdayPenaltyTriggerScore.toFloat(),
+                                onValueChange = { value ->
+                                    scope.launch(Dispatchers.IO) {
+                                        db.settingsDao().insertOrUpdateSettings(
+                                            settings.copy(yesterdayPenaltyTriggerScore = value.toInt())
+                                        )
+                                    }
+                                },
+                                valueRange = 40f..90f,
+                                steps = 9
+                            )
+
+                            Text(
+                                text = "기준 미달 1점당 이월: ${String.format(java.util.Locale.US, "%.2f", settings.yesterdayPenaltyRate)}점",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                            Slider(
+                                value = settings.yesterdayPenaltyRate,
+                                onValueChange = { value ->
+                                    scope.launch(Dispatchers.IO) {
+                                        db.settingsDao().insertOrUpdateSettings(
+                                            settings.copy(yesterdayPenaltyRate = (value * 20).toInt() / 20f)
+                                        )
+                                    }
+                                },
+                                valueRange = 0.05f..1.0f,
+                                steps = 18
+                            )
+
+                            Text(
+                                text = "하루 최대 디톡스 부채: ${settings.maxYesterdayPenalty.toInt()}점",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                            Slider(
+                                value = settings.maxYesterdayPenalty,
+                                onValueChange = { value ->
+                                    scope.launch(Dispatchers.IO) {
+                                        db.settingsDao().insertOrUpdateSettings(
+                                            settings.copy(maxYesterdayPenalty = value.toInt().toFloat())
+                                        )
+                                    }
+                                },
+                                valueRange = 0f..30f,
+                                steps = 5
+                            )
+                        }
                     }
                 }
             }
@@ -661,7 +811,7 @@ fun PresetModeScreen(
                                     val pastHistories = UsageStatsHelper.syncPastDaysUsageStats(
                                         context = context,
                                         appWeightMap = weightMap,
-                                        scoreRule = currentPreset.scoreRule,
+                                        scoreRule = settings.applyTo(currentPreset.scoreRule),
                                         days = 30
                                     )
                                     for (h in pastHistories) {
@@ -721,6 +871,57 @@ fun PresetModeScreen(
             item {
                 Spacer(modifier = Modifier.height(30.dp))
             }
+        }
+    }
+}
+
+@Composable
+private fun BenchmarkPreviewCard(
+    benchmark: ScoringBenchmark,
+    settings: UserSettingsEntity,
+    preset: PresetMode
+) {
+    val previewRule = settings.applyTo(preset.scoreRule)
+    val expectedScore = benchmark.evaluate(previewRule).finalScore
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = "📊 ${benchmark.title} · 60점 보정",
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "기준 사용 ${benchmark.totalScreenMinutes}분 · 방해 ${benchmark.distractingMinutes}분 · " +
+                    "생산성 ${benchmark.productiveMinutes}분 · 언락 ${benchmark.unlockCount}회",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Text(
+                text = "현재 설정 예상 점수: ${expectedScore}점 (목표 ${benchmark.targetScore}점)",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (expectedScore in 55..65) ScoreGreen else MaterialTheme.colorScheme.error
+            )
+            Text(
+                text = benchmark.sourceLabel,
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.outline
+            )
+            Text(
+                text = "건강 진단 기준이 아닌 초기 보정용 시나리오입니다. 학업·업무·콘텐츠 품질에 맞게 세부값을 조정하세요.",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.outline
+            )
         }
     }
 }
