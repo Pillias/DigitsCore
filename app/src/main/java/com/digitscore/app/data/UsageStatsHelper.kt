@@ -74,7 +74,7 @@ object UsageStatsHelper {
 
     /**
      * 오늘 0시부터 현재까지의 실제 사용자 앱별 사용 시간 및 정보 집계
-     * (삼성/구글 디지털 웰빙과 100% 동일한 queryAndAggregateUsageStats 기반)
+     * 제조사와 Android 버전에 따라 일부 차이가 날 수 있는 근사 집계입니다.
      */
     fun getTodayAppUsageStats(
         context: Context,
@@ -87,7 +87,7 @@ object UsageStatsHelper {
         val endTime = System.currentTimeMillis()
         val lateNightEndTime = startTime + (5 * 60 * 60 * 1000L) // 오늘 새벽 5시
 
-        // 1. Android OS 공식 queryAndAggregateUsageStats로 오늘 전체 구간 집계 (삼성 디지털 웰빙과 일치)
+        // 1. Android OS의 queryAndAggregateUsageStats로 오늘 전체 구간을 근사 집계
         val aggregatedStats = usageStatsManager.queryAndAggregateUsageStats(startTime, endTime)
         if (aggregatedStats.isNullOrEmpty()) {
             return emptyList()
@@ -159,7 +159,7 @@ object UsageStatsHelper {
 
     /**
      * 오늘 0시부터 현재까지의 실제 기기 잠금 해제(Unlock) 횟수 조회
-     * (삼성/구글 디지털 웰빙과 동일하게 KEYGUARD_HIDDEN / SCREEN_INTERACTIVE 이벤트 기반)
+     * KEYGUARD_HIDDEN / SCREEN_INTERACTIVE 이벤트 기반 근사치입니다.
      */
     fun getTodayUnlockCount(context: Context): Int {
         val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
