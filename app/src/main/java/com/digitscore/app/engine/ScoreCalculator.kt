@@ -67,12 +67,12 @@ object ScoreCalculator {
         var totalLateNightPenalty = 0f
 
         for (app in appsUsage) {
-            val mins = app.usageTimeMinutes
+            val mins = app.usageTimeMinutes.coerceAtLeast(0L)
             totalScreenMinutes += mins
             when (app.categoryType) {
                 AppCategoryType.DISTRACTING -> {
                     distractingMinutes += mins
-                    val lateNightMins = app.lateNightUsageMinutes
+                    val lateNightMins = app.lateNightUsageMinutes.coerceIn(0L, mins)
                     lateNightDistractingMinutes += lateNightMins
 
                     // 1) 로그(Log) 기반 연속 사용 가속도 계수 계산
@@ -106,7 +106,7 @@ object ScoreCalculator {
         val productiveBonus = min(rule.maxProductiveBonus, rawProductiveBonus)
 
         // 3. 화면 미사용(Idle) 회복 보너스 (10분 단위 계산, 최대 상한선 적용)
-        val rawIdleBonus = (idleMinutes / 10f) * rule.idleBonusPer10Minutes
+        val rawIdleBonus = (idleMinutes.coerceAtLeast(0L) / 10f) * rule.idleBonusPer10Minutes
         val idleBonus = min(rule.maxIdleBonus, rawIdleBonus)
 
         // 4. 언락 초과 페널티
