@@ -64,6 +64,8 @@ import androidx.compose.ui.unit.sp
 import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
+import com.digitscore.app.data.entity.applyTo
+import com.digitscore.app.engine.ScoringBenchmark
 import com.digitscore.app.model.PresetMode
 import com.digitscore.app.ui.theme.ScoreGreen
 import com.digitscore.app.ui.theme.ScoreOrange
@@ -99,10 +101,12 @@ fun StatisticsScreen(
                     val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
                     val weightMap = appWeights.associateBy { it.packageName }
                     val currentPreset = PresetMode.fromId(userSettings?.selectedPresetModeId ?: "balanced")
+                    val effectiveRule = userSettings?.applyTo(currentPreset.scoreRule)
+                        ?: currentPreset.scoreRule
                     val pastHistories = UsageStatsHelper.syncPastDaysUsageStats(
                         context = context,
                         appWeightMap = weightMap,
-                        scoreRule = currentPreset.scoreRule,
+                        scoreRule = effectiveRule,
                         days = 30
                     )
                     for (h in pastHistories) {
@@ -184,6 +188,18 @@ fun StatisticsScreen(
                 }
             }
 
+            val selectedBenchmark = ScoringBenchmark.forPreset(
+                userSettings?.selectedPresetModeId ?: "balanced"
+            )
+            if (selectedBenchmark != null) {
+                item {
+                    BenchmarkComparisonCard(
+                        histories = histories,
+                        benchmark = selectedBenchmark
+                    )
+                }
+            }
+
             // 2. 일별 점수 추세 (꺾은선 그래프)
             item {
                 ScoreTrendLineChartCard(
@@ -210,6 +226,65 @@ fun StatisticsScreen(
             item {
                 Spacer(modifier = Modifier.height(24.dp))
             }
+        }
+    }
+}
+
+@Composable
+private fun BenchmarkComparisonCard(
+    histories: List<DailyScoreHistoryEntity>,
+    benchmark: ScoringBenchmark
+) {
+    val count = histories.size.coerceAtLeast(1)
+    val averageScore = histories.sumOf { it.finalScore } / count
+    val averageScreen = histories.sumOf { it.totalScreenTimeMinutes } / count
+    val averageDistracting = histories.sumOf { it.distractingTimeMinutes } / count
+    val averageUnlocks = histories.sumOf { it.unlockCount } / count
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Text(
+                text = "📊 ${benchmark.title} 비교",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
+            if (histories.isEmpty()) {
+                Text(
+                    text = "기록이 쌓이면 선택한 기준과 실제 평균을 비교합니다.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            } else {
+                Text(
+                    text = "실제 평균 ${averageScore}점 · 화면 ${averageScreen}분 · " +
+                        "방해 ${averageDistracting}분 · 언락 ${averageUnlocks}회",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "보정 기준 ${benchmark.targetScore}점 · 화면 ${benchmark.totalScreenMinutes}분 · " +
+                        "방해 ${benchmark.distractingMinutes}분 · 언락 ${benchmark.unlockCount}회",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            Text(
+                text = benchmark.sourceLabel,
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.outline
+            )
+            Text(
+                text = "조사 평균은 건강 권고가 아니며, 앱 분류와 생활 맥락에 따라 직접 조정해야 합니다.",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.outline
+            )
         }
     }
 }
@@ -656,4 +731,3 @@ fun MetricCard(
         }
     }
 }
-
