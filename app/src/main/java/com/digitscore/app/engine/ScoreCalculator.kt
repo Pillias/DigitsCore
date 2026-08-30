@@ -50,6 +50,13 @@ enum class ScoreGrade(val gradeText: String, val description: String) {
  */
 object ScoreCalculator {
 
+    fun calculateYesterdayPenalty(yesterdayScore: Int, rule: ScoreRule): Float {
+        if (!rule.isYesterdayPenaltyEnabled) return 0f
+        val scoreGap = max(0, rule.yesterdayPenaltyTriggerScore - yesterdayScore.coerceIn(0, 100))
+        val rawPenalty = scoreGap * rule.yesterdayPenaltyRate.coerceAtLeast(0f)
+        return min(rule.maxYesterdayPenalty.coerceAtLeast(0f), rawPenalty)
+    }
+
     /**
      * 앱 사용 목록, 화면 꺼짐(Idle) 시간, 언락 횟수를 기반으로 점수를 계산합니다.
      */
@@ -76,8 +83,10 @@ object ScoreCalculator {
                     lateNightDistractingMinutes += lateNightMins
 
                     // 1) 로그(Log) 기반 연속 사용 가속도 계수 계산
-                    val accelerationFactor = if (rule.isLogAccelerationEnabled && mins > rule.logAccelerationThresholdMinutes) {
-                        1.0f + kotlin.math.ln(1.0f + (mins - rule.logAccelerationThresholdMinutes) / rule.logAccelerationScaleMinutes).toFloat()
+                    val accelerationThreshold = rule.logAccelerationThresholdMinutes.coerceAtLeast(0f)
+                    val accelerationScale = rule.logAccelerationScaleMinutes.coerceAtLeast(1f)
+                    val accelerationFactor = if (rule.isLogAccelerationEnabled && mins > accelerationThreshold) {
+                        1.0f + kotlin.math.ln(1.0f + (mins - accelerationThreshold) / accelerationScale).toFloat()
                     } else {
                         1.0f
                     }
