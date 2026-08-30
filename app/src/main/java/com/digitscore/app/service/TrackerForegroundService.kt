@@ -242,11 +242,23 @@ class TrackerForegroundService : Service() {
             val appsUsage = UsageStatsHelper.getTodayAppUsageStats(applicationContext, weightMap)
             _currentAppsUsage.value = appsUsage
 
+            // 시스템 실제 언락 횟수 동기화 (삼성 디지털 웰빙과 일치)
+            val systemUnlocks = UsageStatsHelper.getTodayUnlockCount(applicationContext)
+            val finalUnlockCount = kotlin.math.max(todayUnlockCount, systemUnlocks)
+            todayUnlockCount = finalUnlockCount
+            _currentUnlockCount.value = finalUnlockCount
+
+            // 오늘 자정부터 현재까지 경과 시간(분) 및 실제 유휴(Idle) 시간 산출
+            val startOfToday = UsageStatsHelper.getStartOfTodayMillis()
+            val minutesSinceMidnight = ((System.currentTimeMillis() - startOfToday) / (1000 * 60L)).coerceAtLeast(0L)
+            val totalScreenMinutes = appsUsage.sumOf { it.usageTimeMinutes }
+            val realIdleMinutes = kotlin.math.max(0L, minutesSinceMidnight - totalScreenMinutes)
+
             // 점수 계산
             val scoreDetail = ScoreCalculator.calculateScore(
                 appsUsage = appsUsage,
-                idleMinutes = accumulatedIdleMinutes,
-                unlockCount = todayUnlockCount,
+                idleMinutes = realIdleMinutes,
+                unlockCount = finalUnlockCount,
                 rule = effectiveRule
             )
             _currentScoreDetail.value = scoreDetail
@@ -256,7 +268,7 @@ class TrackerForegroundService : Service() {
                 ScoreNotificationManager.updateScoreNotification(
                     applicationContext,
                     scoreDetail,
-                    todayUnlockCount
+                    finalUnlockCount
                 )
             }
 
@@ -268,8 +280,8 @@ class TrackerForegroundService : Service() {
                     totalScreenTimeMinutes = scoreDetail.totalScreenTimeMinutes,
                     distractingTimeMinutes = scoreDetail.distractingTimeMinutes,
                     productiveTimeMinutes = scoreDetail.productiveTimeMinutes,
-                    idleMinutes = accumulatedIdleMinutes,
-                    unlockCount = todayUnlockCount
+                    idleMinutes = realIdleMinutes,
+                    unlockCount = finalUnlockCount
                 )
             )
         }
