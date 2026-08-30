@@ -12,17 +12,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -102,6 +105,34 @@ fun PresetModeScreen(
     val selectedPreset = PresetMode.fromId(selectedModeId)
     val selectedBenchmark = ScoringBenchmark.forPreset(selectedModeId)
     var showPrivacyPolicy by remember { mutableStateOf(false) }
+    var isPresetMenuExpanded by remember { mutableStateOf(false) }
+
+    fun selectPreset(mode: PresetMode) {
+        isPresetMenuExpanded = false
+        scope.launch(Dispatchers.IO) {
+            val rule = mode.scoreRule
+            db.settingsDao().insertOrUpdateSettings(
+                settings.copy(
+                    selectedPresetModeId = mode.id,
+                    distractingWeightPerMinute = rule.distractingWeightPerMinute,
+                    productiveBonusPerMinute = rule.productiveBonusPerMinute,
+                    idleBonusPer10Minutes = rule.idleBonusPer10Minutes,
+                    maxIdleBonus = rule.maxIdleBonus,
+                    maxProductiveBonus = rule.maxProductiveBonus,
+                    targetUnlockCount = rule.unlockPenaltyThreshold,
+                    unlockPenaltyPerCount = rule.unlockPenaltyPerCount,
+                    lateNightMultiplier = rule.lateNightMultiplier,
+                    isLogAccelerationEnabled = rule.isLogAccelerationEnabled,
+                    logAccelerationThresholdMinutes = rule.logAccelerationThresholdMinutes,
+                    logAccelerationScaleMinutes = rule.logAccelerationScaleMinutes,
+                    isYesterdayPenaltyEnabled = rule.isYesterdayPenaltyEnabled,
+                    yesterdayPenaltyTriggerScore = rule.yesterdayPenaltyTriggerScore,
+                    yesterdayPenaltyRate = rule.yesterdayPenaltyRate,
+                    maxYesterdayPenalty = rule.maxYesterdayPenalty
+                )
+            )
+        }
+    }
 
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -170,74 +201,67 @@ fun PresetModeScreen(
                 )
             }
 
-            items(PresetMode.entries) { mode ->
-                val isSelected = (mode.id == selectedModeId)
+            item {
                 Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            scope.launch(Dispatchers.IO) {
-                                val rule = mode.scoreRule
-                                db.settingsDao().insertOrUpdateSettings(
-                                    settings.copy(
-                                        selectedPresetModeId = mode.id,
-                                        distractingWeightPerMinute = rule.distractingWeightPerMinute,
-                                        productiveBonusPerMinute = rule.productiveBonusPerMinute,
-                                        idleBonusPer10Minutes = rule.idleBonusPer10Minutes,
-                                        maxIdleBonus = rule.maxIdleBonus,
-                                        maxProductiveBonus = rule.maxProductiveBonus,
-                                        targetUnlockCount = rule.unlockPenaltyThreshold,
-                                        unlockPenaltyPerCount = rule.unlockPenaltyPerCount,
-                                        lateNightMultiplier = rule.lateNightMultiplier,
-                                        isLogAccelerationEnabled = rule.isLogAccelerationEnabled,
-                                        logAccelerationThresholdMinutes = rule.logAccelerationThresholdMinutes,
-                                        logAccelerationScaleMinutes = rule.logAccelerationScaleMinutes,
-                                        isYesterdayPenaltyEnabled = rule.isYesterdayPenaltyEnabled,
-                                        yesterdayPenaltyTriggerScore = rule.yesterdayPenaltyTriggerScore,
-                                        yesterdayPenaltyRate = rule.yesterdayPenaltyRate,
-                                        maxYesterdayPenalty = rule.maxYesterdayPenalty
-                                    )
-                                )
-                            }
-                        },
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (isSelected) {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant
-                        }
-                    )
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = mode.title,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
-                                fontSize = 15.sp
+                        ExposedDropdownMenuBox(
+                            expanded = isPresetMenuExpanded,
+                            onExpandedChange = { isPresetMenuExpanded = !isPresetMenuExpanded }
+                        ) {
+                            OutlinedTextField(
+                                value = selectedPreset.title,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("현재 프리셋") },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(
+                                        expanded = isPresetMenuExpanded
+                                    )
+                                },
+                                modifier = Modifier
+                                    .menuAnchor()
+                                    .fillMaxWidth()
                             )
-                            Text(
-                                text = mode.description,
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
+
+                            ExposedDropdownMenu(
+                                expanded = isPresetMenuExpanded,
+                                onDismissRequest = { isPresetMenuExpanded = false }
+                            ) {
+                                PresetMode.entries.forEach { mode ->
+                                    DropdownMenuItem(
+                                        text = { Text(mode.title) },
+                                        onClick = { selectPreset(mode) },
+                                        trailingIcon = if (mode.id == selectedModeId) {
+                                            {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = "선택됨",
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        } else {
+                                            null
+                                        }
+                                    )
+                                }
+                            }
                         }
 
-                        if (isSelected) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = "선택됨",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
+                        Text(
+                            text = selectedPreset.description,
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
