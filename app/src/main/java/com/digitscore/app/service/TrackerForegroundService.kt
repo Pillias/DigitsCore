@@ -12,6 +12,7 @@ import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.data.ScoreRepository
 import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
+import com.digitscore.app.data.entity.applyTo
 import com.digitscore.app.engine.ScoreCalculator
 import com.digitscore.app.engine.ScoreDetail
 import com.digitscore.app.model.AppUsage
@@ -217,10 +218,11 @@ class TrackerForegroundService : Service() {
                 val weightMap = appWeights.associateBy { it.packageName }
                 val settings = db.settingsDao().getSettings()
                 val presetMode = PresetMode.fromId(settings?.selectedPresetModeId ?: "balanced")
+                val effectiveRule = settings?.applyTo(presetMode.scoreRule) ?: presetMode.scoreRule
                 val pastHistories = UsageStatsHelper.syncPastDaysUsageStats(
                     context = applicationContext,
                     appWeightMap = weightMap,
-                    scoreRule = presetMode.scoreRule,
+                    scoreRule = effectiveRule,
                     days = 30
                 )
                 for (h in pastHistories) {
@@ -248,33 +250,16 @@ class TrackerForegroundService : Service() {
                 val presetMode = PresetMode.fromId(settings?.selectedPresetModeId ?: "balanced")
                 val baseRule = presetMode.scoreRule
 
-                // 전날 과사용 페널티 (디톡스 부채) 산출: 전날 점수가 80점 미만일 때 (80 - 점수) * 0.5 감점 (최대 30점)
+                // 사용자가 설정한 발동점·비율·상한으로 디톡스 부채를 계산합니다.
                 val yesterdayDate = getYesterdayDateString()
                 val yesterdayHistory = db.scoreDao().getScoreHistoryForDate(yesterdayDate)
                 val yesterdayScore = yesterdayHistory?.finalScore ?: 100
-                val yesterdayPenalty = if (settings?.isYesterdayPenaltyEnabled != false && yesterdayScore < 80) {
-                    kotlin.math.min(30.0f, (80 - yesterdayScore) * 0.5f)
-                } else {
-                    0f
-                }
-
-                val effectiveRule = if (settings != null) {
-                    baseRule.copy(
-                        distractingWeightPerMinute = settings.distractingWeightPerMinute,
-                        productiveBonusPerMinute = settings.productiveBonusPerMinute,
-                        idleBonusPer10Minutes = settings.idleBonusPer10Minutes,
-                        maxIdleBonus = settings.maxIdleBonus,
-                        maxProductiveBonus = settings.maxProductiveBonus,
-                        unlockPenaltyThreshold = settings.targetUnlockCount,
-                        unlockPenaltyPerCount = settings.unlockPenaltyPerCount,
-                        lateNightMultiplier = settings.lateNightMultiplier,
-                        isLogAccelerationEnabled = settings.isLogAccelerationEnabled,
-                        isYesterdayPenaltyEnabled = settings.isYesterdayPenaltyEnabled,
-                        yesterdayPenalty = yesterdayPenalty
-                    )
-                } else {
-                    baseRule.copy(yesterdayPenalty = yesterdayPenalty)
-                }
+                val configuredRule = settings?.applyTo(baseRule) ?: baseRule
+                val yesterdayPenalty = ScoreCalculator.calculateYesterdayPenalty(
+                    yesterdayScore = yesterdayScore,
+                    rule = configuredRule
+                )
+                val effectiveRule = configuredRule.copy(yesterdayPenalty = yesterdayPenalty)
 
                 // DB에 저장된 앱 가중치 맵 조회
                 val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
