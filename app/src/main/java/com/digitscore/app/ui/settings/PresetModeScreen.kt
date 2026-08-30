@@ -61,6 +61,24 @@ import com.digitscore.app.ui.theme.ScoreGreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
+
+private const val MAX_IMPORT_BYTES = 2 * 1024 * 1024
+
+private fun InputStream.readUtf8WithLimit(maxBytes: Int = MAX_IMPORT_BYTES): String {
+    val output = ByteArrayOutputStream()
+    val buffer = ByteArray(8 * 1024)
+    var total = 0
+    while (true) {
+        val read = read(buffer)
+        if (read < 0) break
+        total += read
+        require(total <= maxBytes) { "백업 파일은 2MB 이하여야 합니다." }
+        output.write(buffer, 0, read)
+    }
+    return output.toString(Charsets.UTF_8.name())
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,7 +100,7 @@ fun PresetModeScreen(
             scope.launch(Dispatchers.IO) {
                 try {
                     val content = context.contentResolver.openInputStream(uri)?.use { stream ->
-                        stream.bufferedReader().readText()
+                        stream.readUtf8WithLimit()
                     }
                     if (content != null) {
                         val success = DataBackupManager.importFromJson(context, content)
