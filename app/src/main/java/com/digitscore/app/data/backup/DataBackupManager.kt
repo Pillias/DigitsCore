@@ -3,6 +3,7 @@ package com.digitscore.app.data.backup
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
+import androidx.room.withTransaction
 import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.data.entity.AppWeightEntity
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
@@ -20,6 +21,10 @@ import java.util.Locale
 
 object DataBackupManager {
 
+    private const val BACKUP_SCHEMA_VERSION = 1
+    private const val MAX_BACKUP_BYTES = 2 * 1024 * 1024
+    private val DATE_PATTERN = Regex("\\d{4}-\\d{2}-\\d{2}")
+
     /**
      * DB의 모든 데이터(점수 히스토리, 설정, 앱 분류 가중치)를 JSON 문자열로 직렬화합니다.
      */
@@ -30,7 +35,7 @@ object DataBackupManager {
         val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
 
         val rootJson = JSONObject()
-        rootJson.put("version", 1)
+        rootJson.put("version", BACKUP_SCHEMA_VERSION)
         rootJson.put("exportDate", SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()))
 
         // 1. 점수 히스토리
@@ -64,7 +69,12 @@ object DataBackupManager {
                 put("unlockPenaltyPerCount", settings.unlockPenaltyPerCount.toDouble())
                 put("lateNightMultiplier", settings.lateNightMultiplier.toDouble())
                 put("isLogAccelerationEnabled", settings.isLogAccelerationEnabled)
+                put("logAccelerationThresholdMinutes", settings.logAccelerationThresholdMinutes.toDouble())
+                put("logAccelerationScaleMinutes", settings.logAccelerationScaleMinutes.toDouble())
                 put("isYesterdayPenaltyEnabled", settings.isYesterdayPenaltyEnabled)
+                put("yesterdayPenaltyTriggerScore", settings.yesterdayPenaltyTriggerScore)
+                put("yesterdayPenaltyRate", settings.yesterdayPenaltyRate.toDouble())
+                put("maxYesterdayPenalty", settings.maxYesterdayPenalty.toDouble())
                 put("isTrackingEnabled", settings.isTrackingEnabled)
                 put("isNotificationEnabled", settings.isNotificationEnabled)
             }
@@ -91,22 +101,33 @@ object DataBackupManager {
      */
     suspend fun importFromJson(context: Context, jsonString: String): Boolean = withContext(Dispatchers.IO) {
         try {
+            require(jsonString.toByteArray(Charsets.UTF_8).size <= MAX_BACKUP_BYTES) {
+                "Backup file is too large"
+            }
             val db = DigitsDatabase.getInstance(context)
             val rootJson = JSONObject(jsonString)
+            require(rootJson.optInt("version", -1) == BACKUP_SCHEMA_VERSION) {
+                "Unsupported backup schema version"
+            }
+
+            db.withTransaction {
 
             // 1. 점수 히스토리 복원
             if (rootJson.has("scoreHistories")) {
                 val historiesArray = rootJson.getJSONArray("scoreHistories")
+                require(historiesArray.length() <= 3660) { "Too many history records" }
                 for (i in 0 until historiesArray.length()) {
                     val hObj = historiesArray.getJSONObject(i)
+                    val dateString = hObj.getString("dateString")
+                    require(DATE_PATTERN.matches(dateString)) { "Invalid history date" }
                     val history = DailyScoreHistoryEntity(
-                        dateString = hObj.getString("dateString"),
-                        finalScore = hObj.getInt("finalScore"),
-                        totalScreenTimeMinutes = hObj.getLong("totalScreenTimeMinutes"),
-                        distractingTimeMinutes = hObj.getLong("distractingTimeMinutes"),
-                        productiveTimeMinutes = hObj.getLong("productiveTimeMinutes"),
-                        idleMinutes = hObj.getLong("idleMinutes"),
-                        unlockCount = hObj.getInt("unlockCount"),
+                        dateString = dateString,
+                        finalScore = hObj.getInt("finalScore").coerceIn(0, 100),
+                        totalScreenTimeMinutes = hObj.getLong("totalScreenTimeMinutes").coerceIn(0L, 1_440L),
+                        distractingTimeMinutes = hObj.getLong("distractingTimeMinutes").coerceIn(0L, 1_440L),
+                        productiveTimeMinutes = hObj.getLong("productiveTimeMinutes").coerceIn(0L, 1_440L),
+                        idleMinutes = hObj.getLong("idleMinutes").coerceIn(0L, 1_440L),
+                        unlockCount = hObj.getInt("unlockCount").coerceIn(0, 10_000),
                         lastUpdatedTimestamp = hObj.optLong("lastUpdatedTimestamp", System.currentTimeMillis())
                     )
                     db.scoreDao().insertOrUpdateScoreHistory(history)
@@ -119,17 +140,22 @@ object DataBackupManager {
                 val settings = UserSettingsEntity(
                     id = 1,
                     selectedPresetModeId = sObj.optString("selectedPresetModeId", "balanced"),
-                    minimumScoreDefenseLine = sObj.optInt("minimumScoreDefenseLine", 60),
-                    targetUnlockCount = sObj.optInt("targetUnlockCount", 25),
-                    distractingWeightPerMinute = sObj.optDouble("distractingWeightPerMinute", 0.8).toFloat(),
-                    productiveBonusPerMinute = sObj.optDouble("productiveBonusPerMinute", 0.2).toFloat(),
-                    idleBonusPer10Minutes = sObj.optDouble("idleBonusPer10Minutes", 0.25).toFloat(),
-                    maxIdleBonus = sObj.optDouble("maxIdleBonus", 15.0).toFloat(),
-                    maxProductiveBonus = sObj.optDouble("maxProductiveBonus", 15.0).toFloat(),
-                    unlockPenaltyPerCount = sObj.optDouble("unlockPenaltyPerCount", 0.5).toFloat(),
-                    lateNightMultiplier = sObj.optDouble("lateNightMultiplier", 1.6).toFloat(),
+                    minimumScoreDefenseLine = sObj.optInt("minimumScoreDefenseLine", 60).coerceIn(0, 100),
+                    targetUnlockCount = sObj.optInt("targetUnlockCount", 30).coerceIn(0, 1_000),
+                    distractingWeightPerMinute = sObj.optDouble("distractingWeightPerMinute", 0.6).toFloat().coerceIn(0f, 10f),
+                    productiveBonusPerMinute = sObj.optDouble("productiveBonusPerMinute", 0.2).toFloat().coerceIn(0f, 10f),
+                    idleBonusPer10Minutes = sObj.optDouble("idleBonusPer10Minutes", 0.25).toFloat().coerceIn(0f, 10f),
+                    maxIdleBonus = sObj.optDouble("maxIdleBonus", 15.0).toFloat().coerceIn(0f, 100f),
+                    maxProductiveBonus = sObj.optDouble("maxProductiveBonus", 15.0).toFloat().coerceIn(0f, 100f),
+                    unlockPenaltyPerCount = sObj.optDouble("unlockPenaltyPerCount", 0.3).toFloat().coerceIn(0f, 10f),
+                    lateNightMultiplier = sObj.optDouble("lateNightMultiplier", 1.5).toFloat().coerceIn(1f, 10f),
                     isLogAccelerationEnabled = sObj.optBoolean("isLogAccelerationEnabled", true),
+                    logAccelerationThresholdMinutes = sObj.optDouble("logAccelerationThresholdMinutes", 60.0).toFloat().coerceIn(30f, 180f),
+                    logAccelerationScaleMinutes = sObj.optDouble("logAccelerationScaleMinutes", 120.0).toFloat().coerceIn(60f, 300f),
                     isYesterdayPenaltyEnabled = sObj.optBoolean("isYesterdayPenaltyEnabled", true),
+                    yesterdayPenaltyTriggerScore = sObj.optInt("yesterdayPenaltyTriggerScore", 60).coerceIn(40, 90),
+                    yesterdayPenaltyRate = sObj.optDouble("yesterdayPenaltyRate", 0.2).toFloat().coerceIn(0.05f, 1f),
+                    maxYesterdayPenalty = sObj.optDouble("maxYesterdayPenalty", 10.0).toFloat().coerceIn(0f, 30f),
                     isTrackingEnabled = sObj.optBoolean("isTrackingEnabled", true),
                     isNotificationEnabled = sObj.optBoolean("isNotificationEnabled", true)
                 )
@@ -139,6 +165,7 @@ object DataBackupManager {
             // 3. 앱 가중치 복원
             if (rootJson.has("appWeights")) {
                 val appsArray = rootJson.getJSONArray("appWeights")
+                require(appsArray.length() <= 10_000) { "Too many app records" }
                 for (i in 0 until appsArray.length()) {
                     val aObj = appsArray.getJSONObject(i)
                     val catName = aObj.optString("categoryType", "NEUTRAL")
@@ -147,13 +174,17 @@ object DataBackupManager {
                     } catch (e: Exception) {
                         AppCategoryType.NEUTRAL
                     }
+                    val packageName = aObj.getString("packageName").trim()
+                    val appName = aObj.getString("appName").trim()
+                    require(packageName.length in 1..255 && appName.length in 1..255) { "Invalid app record" }
                     val entity = AppWeightEntity(
-                        packageName = aObj.getString("packageName"),
-                        appName = aObj.getString("appName"),
+                        packageName = packageName,
+                        appName = appName,
                         categoryType = cat
                     )
                     db.appDao().insertOrUpdateAppWeight(entity)
                 }
+            }
             }
 
             true

@@ -50,6 +50,13 @@ enum class ScoreGrade(val gradeText: String, val description: String) {
  */
 object ScoreCalculator {
 
+    fun calculateYesterdayPenalty(yesterdayScore: Int, rule: ScoreRule): Float {
+        if (!rule.isYesterdayPenaltyEnabled) return 0f
+        val scoreGap = max(0, rule.yesterdayPenaltyTriggerScore - yesterdayScore.coerceIn(0, 100))
+        val rawPenalty = scoreGap * rule.yesterdayPenaltyRate.coerceAtLeast(0f)
+        return min(rule.maxYesterdayPenalty.coerceAtLeast(0f), rawPenalty)
+    }
+
     /**
      * 앱 사용 목록, 화면 꺼짐(Idle) 시간, 언락 횟수를 기반으로 점수를 계산합니다.
      */
@@ -67,17 +74,19 @@ object ScoreCalculator {
         var totalLateNightPenalty = 0f
 
         for (app in appsUsage) {
-            val mins = app.usageTimeMinutes
+            val mins = app.usageTimeMinutes.coerceAtLeast(0L)
             totalScreenMinutes += mins
             when (app.categoryType) {
                 AppCategoryType.DISTRACTING -> {
                     distractingMinutes += mins
-                    val lateNightMins = app.lateNightUsageMinutes
+                    val lateNightMins = app.lateNightUsageMinutes.coerceIn(0L, mins)
                     lateNightDistractingMinutes += lateNightMins
 
                     // 1) 로그(Log) 기반 연속 사용 가속도 계수 계산
-                    val accelerationFactor = if (rule.isLogAccelerationEnabled && mins > rule.logAccelerationThresholdMinutes) {
-                        1.0f + kotlin.math.ln(1.0f + (mins - rule.logAccelerationThresholdMinutes) / rule.logAccelerationScaleMinutes).toFloat()
+                    val accelerationThreshold = rule.logAccelerationThresholdMinutes.coerceAtLeast(0f)
+                    val accelerationScale = rule.logAccelerationScaleMinutes.coerceAtLeast(1f)
+                    val accelerationFactor = if (rule.isLogAccelerationEnabled && mins > accelerationThreshold) {
+                        1.0f + kotlin.math.ln(1.0f + (mins - accelerationThreshold) / accelerationScale).toFloat()
                     } else {
                         1.0f
                     }
@@ -106,7 +115,7 @@ object ScoreCalculator {
         val productiveBonus = min(rule.maxProductiveBonus, rawProductiveBonus)
 
         // 3. 화면 미사용(Idle) 회복 보너스 (10분 단위 계산, 최대 상한선 적용)
-        val rawIdleBonus = (idleMinutes / 10f) * rule.idleBonusPer10Minutes
+        val rawIdleBonus = (idleMinutes.coerceAtLeast(0L) / 10f) * rule.idleBonusPer10Minutes
         val idleBonus = min(rule.maxIdleBonus, rawIdleBonus)
 
         // 4. 언락 초과 페널티

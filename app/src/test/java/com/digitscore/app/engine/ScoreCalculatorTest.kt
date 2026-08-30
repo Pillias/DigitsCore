@@ -32,7 +32,12 @@ class ScoreCalculatorTest {
             )
         )
         // 15분 이하: 가속도 없음 (1.0x) -> 15분 * 0.8 = 12점 감점 -> 88점 (A등급)
-        val detail = ScoreCalculator.calculateScore(apps, 0, 0)
+        val detail = ScoreCalculator.calculateScore(
+            apps,
+            0,
+            0,
+            ScoreRule(distractingWeightPerMinute = 0.8f)
+        )
         assertEquals(88, detail.finalScore)
         assertEquals(12.0f, detail.distractingPenalty, 0.01f)
         assertEquals(ScoreGrade.A, detail.grade)
@@ -50,7 +55,16 @@ class ScoreCalculatorTest {
         )
         // 60분: 15분 초과로 로그 가속도 적용: 1 + ln(1 + 45/30) = 1 + ln(2.5) = 1.9163x
         // 감점: 60 * 0.8 * 1.9163 = 약 91.98점 감점 -> 최종 약 8점 (F등급)
-        val detail = ScoreCalculator.calculateScore(apps, 0, 0)
+        val detail = ScoreCalculator.calculateScore(
+            apps,
+            0,
+            0,
+            ScoreRule(
+                distractingWeightPerMinute = 0.8f,
+                logAccelerationThresholdMinutes = 15f,
+                logAccelerationScaleMinutes = 30f
+            )
+        )
         assertTrue(detail.distractingPenalty > 90f)
         assertEquals(8, detail.finalScore)
         assertEquals(ScoreGrade.F, detail.grade)
@@ -70,7 +84,17 @@ class ScoreCalculatorTest {
         // 로그 가속: 30분 -> 1 + ln(1 + 15/30) = 1.4055x -> 30 * 0.8 * 1.4055 = 33.73점
         // 심야 추가 감점: 30분 * 0.8 * (1.6 - 1.0) = 14.4점
         // 총 감점: 33.73 + 14.4 = 48.13점 -> 100 - 48.13 = 52점 (D등급)
-        val detail = ScoreCalculator.calculateScore(apps, 0, 0)
+        val detail = ScoreCalculator.calculateScore(
+            apps,
+            0,
+            0,
+            ScoreRule(
+                distractingWeightPerMinute = 0.8f,
+                lateNightMultiplier = 1.6f,
+                logAccelerationThresholdMinutes = 15f,
+                logAccelerationScaleMinutes = 30f
+            )
+        )
         assertEquals(14.4f, detail.lateNightPenalty, 0.01f)
         assertEquals(48.13f, detail.distractingPenalty, 0.1f)
         assertEquals(52, detail.finalScore)
@@ -87,6 +111,32 @@ class ScoreCalculatorTest {
         )
         assertEquals(15.0f, detail.idleBonus, 0.01f)
         assertEquals(100, detail.finalScore)
+    }
+
+    @Test
+    fun testInvalidNegativeIdle_isClampedToZero() {
+        val detail = ScoreCalculator.calculateScore(
+            appsUsage = emptyList(),
+            idleMinutes = -30,
+            unlockCount = 0
+        )
+        assertEquals(0.0f, detail.idleBonus, 0.01f)
+        assertEquals(100, detail.finalScore)
+    }
+
+    @Test
+    fun testLateNightUsage_cannotExceedTotalUsage() {
+        val apps = listOf(
+            AppUsage(
+                packageName = "com.example.video",
+                appName = "Video",
+                usageTimeMillis = 10 * 60 * 1000L,
+                categoryType = AppCategoryType.DISTRACTING,
+                lateNightUsageMillis = 60 * 60 * 1000L
+            )
+        )
+        val detail = ScoreCalculator.calculateScore(apps, 0, 0)
+        assertEquals(10L, detail.lateNightDistractingMinutes)
     }
 
     @Test
@@ -111,7 +161,8 @@ class ScoreCalculatorTest {
         val detail = ScoreCalculator.calculateScore(
             appsUsage = emptyList(),
             idleMinutes = 0,
-            unlockCount = 45
+            unlockCount = 45,
+            rule = ScoreRule(unlockPenaltyThreshold = 25, unlockPenaltyPerCount = 0.5f)
         )
         assertEquals(90, detail.finalScore)
         assertEquals(10.0f, detail.unlockPenalty, 0.01f)
@@ -150,6 +201,52 @@ class ScoreCalculatorTest {
         assertEquals(85, detail.finalScore)
         assertEquals(ScoreGrade.A, detail.grade)
     }
+
+    @Test
+    fun testYesterdayPenalty_usesCustomTriggerRateAndCap() {
+        val rule = ScoreRule(
+            yesterdayPenaltyTriggerScore = 60,
+            yesterdayPenaltyRate = 0.2f,
+            maxYesterdayPenalty = 10f
+        )
+
+        assertEquals(4f, ScoreCalculator.calculateYesterdayPenalty(40, rule), 0.01f)
+        assertEquals(10f, ScoreCalculator.calculateYesterdayPenalty(0, rule), 0.01f)
+        assertEquals(0f, ScoreCalculator.calculateYesterdayPenalty(70, rule), 0.01f)
+    }
+
+    @Test
+    fun testLogAcceleration_customThresholdChangesWhenAccelerationStarts() {
+        val apps = listOf(
+            AppUsage(
+                packageName = "media.app",
+                appName = "Media",
+                usageTimeMillis = 45 * 60_000L,
+                categoryType = AppCategoryType.DISTRACTING
+            )
+        )
+        val gentle = ScoreCalculator.calculateScore(
+            apps,
+            0,
+            0,
+            ScoreRule(
+                distractingWeightPerMinute = 0.5f,
+                logAccelerationThresholdMinutes = 60f,
+                logAccelerationScaleMinutes = 120f
+            )
+        )
+        val early = ScoreCalculator.calculateScore(
+            apps,
+            0,
+            0,
+            ScoreRule(
+                distractingWeightPerMinute = 0.5f,
+                logAccelerationThresholdMinutes = 30f,
+                logAccelerationScaleMinutes = 120f
+            )
+        )
+
+        assertEquals(22.5f, gentle.distractingPenalty, 0.01f)
+        assertTrue(early.distractingPenalty > gentle.distractingPenalty)
+    }
 }
-
-

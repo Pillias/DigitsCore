@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.digitscore.app.data.dao.AppDao
 import com.digitscore.app.data.dao.ScoreDao
@@ -22,8 +23,8 @@ import kotlinx.coroutines.launch
         DailyScoreHistoryEntity::class,
         UserSettingsEntity::class
     ],
-    version = 1,
-    exportSchema = false
+    version = 2,
+    exportSchema = true
 )
 abstract class DigitsDatabase : RoomDatabase() {
     abstract fun appDao(): AppDao
@@ -31,12 +32,15 @@ abstract class DigitsDatabase : RoomDatabase() {
     abstract fun settingsDao(): SettingsDao
 
     companion object {
-        // Future migrations should be added here
-        // private val MIGRATION_1_2 = object : Migration(1, 2) {
-        //     override fun migrate(db: SupportSQLiteDatabase) {
-        //         db.execSQL("ALTER TABLE ...")
-        //     }
-        // }
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE user_settings ADD COLUMN logAccelerationThresholdMinutes REAL NOT NULL DEFAULT 60")
+                db.execSQL("ALTER TABLE user_settings ADD COLUMN logAccelerationScaleMinutes REAL NOT NULL DEFAULT 120")
+                db.execSQL("ALTER TABLE user_settings ADD COLUMN yesterdayPenaltyTriggerScore INTEGER NOT NULL DEFAULT 60")
+                db.execSQL("ALTER TABLE user_settings ADD COLUMN yesterdayPenaltyRate REAL NOT NULL DEFAULT 0.2")
+                db.execSQL("ALTER TABLE user_settings ADD COLUMN maxYesterdayPenalty REAL NOT NULL DEFAULT 10")
+            }
+        }
 
         @Volatile
         private var INSTANCE: DigitsDatabase? = null
@@ -49,6 +53,7 @@ abstract class DigitsDatabase : RoomDatabase() {
                     "digitscore_database"
                 )
                     .addCallback(DatabaseCallback(context.applicationContext))
+                    .addMigrations(MIGRATION_1_2)
                     .fallbackToDestructiveMigrationOnDowngrade()
                     .build()
                 INSTANCE = instance
@@ -75,7 +80,7 @@ abstract class DigitsDatabase : RoomDatabase() {
                     id = 1,
                     selectedPresetModeId = "balanced",
                     minimumScoreDefenseLine = 60,
-                    targetUnlockCount = 25,
+                    targetUnlockCount = 30,
                     isTrackingEnabled = true,
                     isNotificationEnabled = true
                 )
