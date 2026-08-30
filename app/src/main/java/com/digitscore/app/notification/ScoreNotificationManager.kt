@@ -11,6 +11,7 @@ import androidx.core.app.NotificationCompat
 import com.digitscore.app.R
 import com.digitscore.app.engine.ScoreDetail
 import com.digitscore.app.ui.MainActivity
+import com.digitscore.app.service.TrackerForegroundService
 
 object ScoreNotificationManager {
 
@@ -48,6 +49,14 @@ object ScoreNotificationManager {
             launchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val stopTrackingIntent = PendingIntent.getService(
+            context,
+            1,
+            Intent(context, TrackerForegroundService::class.java).apply {
+                action = TrackerForegroundService.ACTION_STOP_TRACKING
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 
         val score = scoreDetail.finalScore
         val grade = scoreDetail.grade
@@ -69,6 +78,11 @@ object ScoreNotificationManager {
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setContentIntent(pendingIntent)
+            .addAction(
+                android.R.drawable.ic_media_pause,
+                "추적 중지",
+                stopTrackingIntent
+            )
             .build()
     }
 

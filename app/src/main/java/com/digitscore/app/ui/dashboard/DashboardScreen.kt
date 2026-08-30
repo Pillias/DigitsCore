@@ -40,7 +40,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -90,7 +89,6 @@ fun DashboardScreen(
     val scoreDetail by viewModel.scoreDetail.collectAsState()
     val appsUsage by viewModel.appsUsage.collectAsState()
     val unlockCount by viewModel.unlockCount.collectAsState()
-    val isRunning by viewModel.isServiceRunning.collectAsState()
 
     // 모달 / 다이얼로그 상태 관리
     var showScoreDetailModal by remember { mutableStateOf(false) }
@@ -99,12 +97,6 @@ fun DashboardScreen(
     var showDistractingModal by remember { mutableStateOf(false) }
     var selectedAppDetail by remember { mutableStateOf<AppUsage?>(null) }
     var showAllAppsModal by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        if (!isRunning) {
-            TrackerForegroundService.start(context)
-        }
-    }
 
     val currentScore = scoreDetail?.finalScore ?: 100
     val grade = scoreDetail?.grade ?: ScoreGrade.S

@@ -7,14 +7,14 @@ plugins {
 
 android {
     namespace = "com.digitscore.app"
-    compileSdk = 34
+    compileSdk = 36
 
     val runNumber = (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1)
 
     defaultConfig {
         applicationId = "com.digitscore.app"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 100 + runNumber
         versionName = "1.0.$runNumber"
 
@@ -35,12 +35,33 @@ android {
             enableV3Signing = true
             enableV4Signing = false
         }
+        val uploadStorePath = System.getenv("DIGITSCORE_UPLOAD_STORE_FILE")
+        val uploadStorePassword = System.getenv("DIGITSCORE_UPLOAD_STORE_PASSWORD")
+        val uploadKeyAlias = System.getenv("DIGITSCORE_UPLOAD_KEY_ALIAS")
+        val uploadKeyPassword = System.getenv("DIGITSCORE_UPLOAD_KEY_PASSWORD")
+        if (!uploadStorePath.isNullOrBlank() &&
+            !uploadStorePassword.isNullOrBlank() &&
+            !uploadKeyAlias.isNullOrBlank() &&
+            !uploadKeyPassword.isNullOrBlank()
+        ) {
+            create("release") {
+                storeFile = file(uploadStorePath)
+                storePassword = uploadStorePassword
+                keyAlias = uploadKeyAlias
+                keyPassword = uploadKeyPassword
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.findByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

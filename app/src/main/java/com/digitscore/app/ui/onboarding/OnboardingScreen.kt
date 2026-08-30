@@ -7,6 +7,8 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +35,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -54,6 +57,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.ui.theme.ScoreGreen
 import com.digitscore.app.ui.theme.ScoreYellow
+import com.digitscore.app.ui.privacy.PrivacyPolicyDialog
 
 @Composable
 fun OnboardingScreen(
@@ -73,6 +77,7 @@ fun OnboardingScreen(
             } else true
         )
     }
+    var showPrivacyPolicy by remember { mutableStateOf(false) }
 
     val notificationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -104,7 +109,10 @@ fun OnboardingScreen(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
         ) {
             Spacer(modifier = Modifier.height(32.dp))
 
@@ -142,6 +150,34 @@ fun OnboardingScreen(
             )
 
             Spacer(modifier = Modifier.height(32.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "사용 기록은 기기 안에서만 처리됩니다",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        text = "앱 이름·사용 시간·잠금 해제 횟수의 근사치를 점수 계산에 사용하며 서버나 개발자에게 전송하지 않습니다. 권한과 추적은 언제든 끌 수 있습니다.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp,
+                        lineHeight = 17.sp,
+                        modifier = Modifier.padding(top = 6.dp)
+                    )
+                    TextButton(onClick = { showPrivacyPolicy = true }) {
+                        Text("개인정보 처리 안내 자세히 보기")
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // 권한 안내 카드 1: 사용 정보 접근 권한
             PermissionCard(
@@ -189,6 +225,10 @@ fun OnboardingScreen(
                 fontWeight = FontWeight.Bold
             )
         }
+    }
+
+    if (showPrivacyPolicy) {
+        PrivacyPolicyDialog(onDismiss = { showPrivacyPolicy = false })
     }
 }
 

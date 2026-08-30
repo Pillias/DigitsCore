@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.text.SimpleDateFormat
@@ -53,6 +54,8 @@ class TrackerForegroundService : Service() {
     }
 
     companion object {
+        const val ACTION_STOP_TRACKING = "com.digitscore.app.action.STOP_TRACKING"
+
         fun start(context: Context) {
             val intent = Intent(context, TrackerForegroundService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -320,11 +323,30 @@ class TrackerForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP_TRACKING) {
+            serviceScope.launch(Dispatchers.IO) {
+                val dao = DigitsDatabase.getInstance(applicationContext).settingsDao()
+                val settings = dao.getSettings()
+                if (settings != null) {
+                    dao.insertOrUpdateSettings(settings.copy(isTrackingEnabled = false))
+                }
+                withContext(Dispatchers.Main) {
+                    stopSelf()
+                }
+            }
+            return START_NOT_STICKY
+        }
         recalculateAndNotify()
         return START_STICKY
     }
 
     override fun onDestroy() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
         super.onDestroy()
         ScoreRepository.setServiceRunning(false)
         serviceScope.cancel()

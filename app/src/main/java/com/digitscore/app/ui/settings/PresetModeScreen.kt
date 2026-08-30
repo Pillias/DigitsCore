@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -60,10 +61,13 @@ import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.data.entity.applyTo
 import com.digitscore.app.engine.ScoringBenchmark
 import com.digitscore.app.model.PresetMode
+import com.digitscore.app.service.TrackerForegroundService
+import com.digitscore.app.ui.privacy.PrivacyPolicyDialog
 import com.digitscore.app.ui.theme.ScoreGreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 
@@ -97,6 +101,7 @@ fun PresetModeScreen(
     val selectedModeId = settings.selectedPresetModeId
     val selectedPreset = PresetMode.fromId(selectedModeId)
     val selectedBenchmark = ScoringBenchmark.forPreset(selectedModeId)
+    var showPrivacyPolicy by remember { mutableStateOf(false) }
 
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -248,6 +253,63 @@ fun PresetModeScreen(
             }
 
             // 2. 개인 목표 방어선
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "백그라운드 추적",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (settings.isTrackingEnabled) "사용 기록 추적 중" else "사용 기록 추적 중지됨",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                text = "끄면 백그라운드 서비스와 상태바 점수 알림이 즉시 종료됩니다.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.padding(top = 3.dp)
+                            )
+                        }
+                        androidx.compose.material3.Switch(
+                            checked = settings.isTrackingEnabled,
+                            onCheckedChange = { enabled ->
+                                scope.launch {
+                                    withContext(Dispatchers.IO) {
+                                        db.settingsDao().insertOrUpdateSettings(
+                                            settings.copy(isTrackingEnabled = enabled)
+                                        )
+                                    }
+                                    if (enabled) {
+                                        TrackerForegroundService.start(context)
+                                    } else {
+                                        TrackerForegroundService.stop(context)
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+
             item {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -915,9 +977,23 @@ fun PresetModeScreen(
             }
 
             item {
+                OutlinedButton(
+                    onClick = { showPrivacyPolicy = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("개인정보 처리 안내")
+                }
+            }
+
+            item {
                 Spacer(modifier = Modifier.height(30.dp))
             }
         }
+    }
+
+    if (showPrivacyPolicy) {
+        PrivacyPolicyDialog(onDismiss = { showPrivacyPolicy = false })
     }
 }
 
