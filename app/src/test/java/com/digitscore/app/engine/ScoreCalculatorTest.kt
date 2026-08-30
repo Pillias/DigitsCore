@@ -90,6 +90,32 @@ class ScoreCalculatorTest {
     }
 
     @Test
+    fun testInvalidNegativeIdle_isClampedToZero() {
+        val detail = ScoreCalculator.calculateScore(
+            appsUsage = emptyList(),
+            idleMinutes = -30,
+            unlockCount = 0
+        )
+        assertEquals(0.0f, detail.idleBonus, 0.01f)
+        assertEquals(100, detail.finalScore)
+    }
+
+    @Test
+    fun testLateNightUsage_cannotExceedTotalUsage() {
+        val apps = listOf(
+            AppUsage(
+                packageName = "com.example.video",
+                appName = "Video",
+                usageTimeMillis = 10 * 60 * 1000L,
+                categoryType = AppCategoryType.DISTRACTING,
+                lateNightUsageMillis = 60 * 60 * 1000L
+            )
+        )
+        val detail = ScoreCalculator.calculateScore(apps, 0, 0)
+        assertEquals(10L, detail.lateNightDistractingMinutes)
+    }
+
+    @Test
     fun testProductiveBonus_cappedAtMaximum() {
         // 생산성 앱을 200분(3시간 20분) 켜두어도 최대 15점으로 캡핑
         val apps = listOf(
@@ -151,5 +177,4 @@ class ScoreCalculatorTest {
         assertEquals(ScoreGrade.A, detail.grade)
     }
 }
-
 
