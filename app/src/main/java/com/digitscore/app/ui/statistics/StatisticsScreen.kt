@@ -127,13 +127,13 @@ fun StatisticsScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "뒤로가기",
-                            tint = Color.White
+                            tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = Color.White
+                    titleContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
         },
@@ -166,7 +166,7 @@ fun StatisticsScreen(
                             Text(
                                 "최근 7일",
                                 fontWeight = if (selectedTabIndex == 0) FontWeight.Bold else FontWeight.Normal,
-                                color = if (selectedTabIndex == 0) MaterialTheme.colorScheme.primary else Color.Gray
+                                color = if (selectedTabIndex == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
                             )
                         }
                     )
@@ -177,7 +177,7 @@ fun StatisticsScreen(
                             Text(
                                 "최근 30일",
                                 fontWeight = if (selectedTabIndex == 1) FontWeight.Bold else FontWeight.Normal,
-                                color = if (selectedTabIndex == 1) MaterialTheme.colorScheme.primary else Color.Gray
+                                color = if (selectedTabIndex == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
                             )
                         }
                     )
@@ -243,7 +243,7 @@ fun ScoreTrendLineChartCard(
                     text = "📈 일별 점수 추세 (0~100점)",
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
                     text = "방어선: ${targetDefense}점",
@@ -264,7 +264,7 @@ fun ScoreTrendLineChartCard(
                 ) {
                     Text(
                         text = "기록된 이전 히스토리가 없습니다.\n오늘부터 점수가 기록됩니다.",
-                        color = Color.Gray,
+                        color = MaterialTheme.colorScheme.outline,
                         fontSize = 13.sp
                     )
                 }
@@ -412,7 +412,7 @@ fun UsageAndUnlockBarChartCard(
                 text = "📊 사용 시간 & 언락 횟수",
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onBackground
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -426,17 +426,17 @@ fun UsageAndUnlockBarChartCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.size(10.dp).background(Color(0xFF26A69A), RoundedCornerShape(2.dp)))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = "총 화면시간", fontSize = 11.sp, color = Color.LightGray)
+                    Text(text = "총 화면시간", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.size(10.dp).background(ScoreRed, RoundedCornerShape(2.dp)))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = "방해 앱", fontSize = 11.sp, color = Color.LightGray)
+                    Text(text = "방해 앱", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.size(10.dp).background(ScoreYellow, CircleShape))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = "언락(회)", fontSize = 11.sp, color = Color.LightGray)
+                    Text(text = "언락(회)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
@@ -451,7 +451,7 @@ fun UsageAndUnlockBarChartCard(
                 ) {
                     Text(
                         text = "기록된 사용량 데이터가 없습니다.",
-                        color = Color.Gray,
+                        color = MaterialTheme.colorScheme.outline,
                         fontSize = 13.sp
                     )
                 }
@@ -551,7 +551,7 @@ fun AnalyticsSummaryCards(
             text = "디톡스 성과 분석",
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.White
+            color = MaterialTheme.colorScheme.onBackground
         )
 
         Row(
@@ -583,7 +583,7 @@ fun AnalyticsSummaryCards(
             MetricCard(
                 modifier = Modifier.weight(1f),
                 title = "일평균 화면 시간",
-                value = "${avgScreenTime}분",
+                value = formatMinutesToHoursAndMinutes(avgScreenTime.toLong()),
                 icon = Icons.Default.PhoneAndroid,
                 iconColor = ScoreYellow,
                 subtitle = "하루 평균 사용량"
@@ -597,6 +597,16 @@ fun AnalyticsSummaryCards(
                 subtitle = "하루 폰 켠 횟수"
             )
         }
+    }
+}
+
+private fun formatMinutesToHoursAndMinutes(minutes: Long): String {
+    val hours = minutes / 60
+    val mins = minutes % 60
+    return when {
+        hours > 0 && mins > 0 -> "${hours}시간 ${mins}분"
+        hours > 0 -> "${hours}시간"
+        else -> "${mins}분"
     }
 }
 
@@ -622,10 +632,10 @@ fun MetricCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(text = title, fontSize = 12.sp, color = Color.Gray)
+                Text(text = title, fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
                 Icon(
                     imageVector = icon,
-                    contentDescription = null,
+                    contentDescription = "$title $value",
                     tint = iconColor,
                     modifier = Modifier.size(18.dp)
                 )
@@ -635,12 +645,12 @@ fun MetricCard(
                 text = value,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onBackground
             )
             Text(
                 text = subtitle,
                 fontSize = 11.sp,
-                color = Color.LightGray,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 2.dp)
             )
         }

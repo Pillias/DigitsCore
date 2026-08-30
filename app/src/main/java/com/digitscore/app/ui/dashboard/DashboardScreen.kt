@@ -45,9 +45,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.digitscore.app.engine.ScoreGrade
 import com.digitscore.app.model.AppCategoryType
 import com.digitscore.app.model.AppUsage
@@ -65,10 +68,11 @@ fun DashboardScreen(
     onNavigateToPresetSettings: () -> Unit
 ) {
     val context = LocalContext.current
-    val scoreDetail by TrackerForegroundService.currentScoreDetail.collectAsState()
-    val appsUsage by TrackerForegroundService.currentAppsUsage.collectAsState()
-    val unlockCount by TrackerForegroundService.currentUnlockCount.collectAsState()
-    val isRunning by TrackerForegroundService.isServiceRunning.collectAsState()
+    val viewModel: DashboardViewModel = viewModel()
+    val scoreDetail by viewModel.scoreDetail.collectAsState()
+    val appsUsage by viewModel.appsUsage.collectAsState()
+    val unlockCount by viewModel.unlockCount.collectAsState()
+    val isRunning by viewModel.isServiceRunning.collectAsState()
 
     LaunchedEffect(Unit) {
         if (!isRunning) {
@@ -91,28 +95,28 @@ fun DashboardScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = Color.White
+                    titleContentColor = MaterialTheme.colorScheme.onBackground
                 ),
                 actions = {
                     IconButton(onClick = onNavigateToStatistics) {
                         Icon(
                             imageVector = Icons.Default.TrendingUp,
                             contentDescription = "통계 리포트",
-                            tint = Color.White
+                            tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
                     IconButton(onClick = onNavigateToAppSettings) {
                         Icon(
                             imageVector = Icons.Default.Category,
                             contentDescription = "앱 가중치 설정",
-                            tint = Color.White
+                            tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
                     IconButton(onClick = onNavigateToPresetSettings) {
                         Icon(
                             imageVector = Icons.Default.Tune,
                             contentDescription = "모드 설정",
-                            tint = Color.White
+                            tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
                 }
@@ -156,12 +160,12 @@ fun DashboardScreen(
                         text = "오늘의 앱 사용 현황",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
                         text = "상위 ${appsUsage.take(5).size}개 앱",
                         fontSize = 12.sp,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.outline
                     )
                 }
             }
@@ -176,7 +180,7 @@ fun DashboardScreen(
                     ) {
                         Text(
                             text = "아직 집계된 앱 사용 기록이 없습니다.",
-                            color = Color.Gray,
+                            color = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.padding(24.dp),
                             fontSize = 14.sp
                         )
@@ -227,33 +231,35 @@ fun ScoreGaugeCard(score: Int, grade: ScoreGrade, yesterdayPenalty: Float = 0f) 
                 modifier = Modifier.size(240.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val strokeWidth = 18.dp.toPx()
-                    val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
-                    val topLeft = Offset(strokeWidth / 2, strokeWidth / 2)
+                Box(modifier = Modifier.matchParentSize().semantics { contentDescription = "디톡스 점수 ${score}점, ${grade.gradeText} 등급" }) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val strokeWidth = 18.dp.toPx()
+                        val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
+                        val topLeft = Offset(strokeWidth / 2, strokeWidth / 2)
 
-                    // 배경 트랙
-                    drawArc(
-                        color = Color(0xFF2C333D),
-                        startAngle = 135f,
-                        sweepAngle = 270f,
-                        useCenter = false,
-                        topLeft = topLeft,
-                        size = arcSize,
-                        style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
-                    )
+                        // 배경 트랙
+                        drawArc(
+                            color = Color(0xFF2C333D),
+                            startAngle = 135f,
+                            sweepAngle = 270f,
+                            useCenter = false,
+                            topLeft = topLeft,
+                            size = arcSize,
+                            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                        )
 
-                    // 활성 게이지
-                    val sweep = (animatedScore / 100f) * 270f
-                    drawArc(
-                        color = scoreColor,
-                        startAngle = 135f,
-                        sweepAngle = sweep,
-                        useCenter = false,
-                        topLeft = topLeft,
-                        size = arcSize,
-                        style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
-                    )
+                        // 활성 게이지
+                        val sweep = (animatedScore / 100f) * 270f
+                        drawArc(
+                            color = scoreColor,
+                            startAngle = 135f,
+                            sweepAngle = sweep,
+                            useCenter = false,
+                            topLeft = topLeft,
+                            size = arcSize,
+                            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                        )
+                    }
                 }
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -261,7 +267,7 @@ fun ScoreGaugeCard(score: Int, grade: ScoreGrade, yesterdayPenalty: Float = 0f) 
                         text = "${animatedScore.toInt()}",
                         fontSize = 76.sp,
                         fontWeight = FontWeight.Black,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onBackground,
                         lineHeight = 76.sp
                     )
                     Spacer(modifier = Modifier.height(4.dp))
@@ -279,8 +285,25 @@ fun ScoreGaugeCard(score: Int, grade: ScoreGrade, yesterdayPenalty: Float = 0f) 
             Text(
                 text = grade.description,
                 fontSize = 13.sp,
-                color = Color.LightGray,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.Medium
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // 현재 시간 기준 안내
+            val currentHour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+            val timeContext = when {
+                currentHour < 12 -> "오전 중간 점검"
+                currentHour < 18 -> "오후 중간 점검"
+                else -> "하루 마무리 평가"
+            }
+
+            Text(
+                text = "⏰ $timeContext · 실시간 반영",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.outline,
+                fontWeight = FontWeight.Normal
             )
 
             if (yesterdayPenalty > 0f) {
@@ -309,7 +332,7 @@ fun ScoreStatsRow(
         StatMiniCard(
             modifier = Modifier.weight(1f),
             title = "화면 시간",
-            value = "${screenTimeMinutes}분",
+            value = formatMinutesToHoursAndMinutes(screenTimeMinutes),
             icon = Icons.Default.PhoneAndroid,
             iconColor = MaterialTheme.colorScheme.primary
         )
@@ -323,10 +346,20 @@ fun ScoreStatsRow(
         StatMiniCard(
             modifier = Modifier.weight(1f),
             title = "방해 앱",
-            value = "${distractingMinutes}분",
+            value = formatMinutesToHoursAndMinutes(distractingMinutes),
             icon = Icons.Default.Warning,
             iconColor = ScoreRed
         )
+    }
+}
+
+private fun formatMinutesToHoursAndMinutes(minutes: Long): String {
+    val hours = minutes / 60
+    val mins = minutes % 60
+    return when {
+        hours > 0 && mins > 0 -> "${hours}시간 ${mins}분"
+        hours > 0 -> "${hours}시간"
+        else -> "${mins}분"
     }
 }
 
@@ -351,17 +384,17 @@ fun StatMiniCard(
         ) {
             Icon(
                 imageVector = icon,
-                contentDescription = null,
+                contentDescription = title,
                 tint = iconColor,
                 modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.height(6.dp))
-            Text(text = title, fontSize = 11.sp, color = Color.Gray)
+            Text(text = title, fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
             Text(
                 text = value,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onBackground
             )
         }
     }
@@ -371,7 +404,7 @@ fun StatMiniCard(
 fun AppUsageItemCard(appUsage: AppUsage) {
     val tagColor = when (appUsage.categoryType) {
         AppCategoryType.PRODUCTIVE -> ScoreGreen
-        AppCategoryType.NEUTRAL -> Color.Gray
+        AppCategoryType.NEUTRAL -> MaterialTheme.colorScheme.outline
         AppCategoryType.DISTRACTING -> ScoreRed
     }
 
@@ -393,7 +426,7 @@ fun AppUsageItemCard(appUsage: AppUsage) {
                 Text(
                     text = appUsage.appName,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onBackground,
                     fontSize = 14.sp
                 )
                 Text(
@@ -407,7 +440,7 @@ fun AppUsageItemCard(appUsage: AppUsage) {
             Text(
                 text = "${appUsage.usageTimeMinutes}분",
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontSize = 14.sp
             )
         }

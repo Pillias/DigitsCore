@@ -1,19 +1,20 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.kotlin.kapt)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
 }
 
 android {
     namespace = "com.digitscore.app"
-    compileSdk = 34
+    compileSdk = 35
 
     val runNumber = (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1)
 
     defaultConfig {
         applicationId = "com.digitscore.app"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 100 + runNumber
         versionName = "1.0.$runNumber"
 
@@ -60,9 +61,6 @@ android {
     buildFeatures {
         compose = true
     }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.11"
-    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -88,7 +86,11 @@ dependencies {
     // Room
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
-    kapt(libs.androidx.room.compiler)
+    ksp(libs.androidx.room.compiler)
+
+    // Glance Widgets
+    implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.glance.material3)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)

@@ -25,3 +25,13 @@
 # Android App Icons & Notification Bitmaps
 -keepclassmembers class android.graphics.Bitmap { *; }
 -keepclassmembers class android.graphics.Canvas { *; }
+
+# DigitsCore - Room entities and models
+-keep class com.digitscore.app.data.entity.** { *; }
+-keep class com.digitscore.app.model.** { *; }
+-keep class com.digitscore.app.engine.ScoreDetail { *; }
+-keep class com.digitscore.app.engine.ScoreGrade { *; }
+
+# Room
+-keep class * extends androidx.room.RoomDatabase
+-dontwarn androidx.room.paging.**

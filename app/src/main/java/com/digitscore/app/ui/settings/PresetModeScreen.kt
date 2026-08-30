@@ -112,13 +112,13 @@ fun PresetModeScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "뒤로가기",
-                            tint = Color.White
+                            tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = Color.White
+                    titleContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
         },
@@ -137,7 +137,7 @@ fun PresetModeScreen(
                     text = "디톡스 프리셋 모드 선택",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier.padding(top = 12.dp)
                 )
             }
@@ -186,13 +186,13 @@ fun PresetModeScreen(
                             Text(
                                 text = mode.title,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
                                 fontSize = 15.sp
                             )
                             Text(
                                 text = mode.description,
                                 fontSize = 12.sp,
-                                color = Color.Gray,
+                                color = MaterialTheme.colorScheme.outline,
                                 modifier = Modifier.padding(top = 4.dp)
                             )
                         }
@@ -215,7 +215,7 @@ fun PresetModeScreen(
                     text = "개인 목표 방어선",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             }
 
@@ -229,13 +229,13 @@ fun PresetModeScreen(
                         Text(
                             text = "최저 점수 방어선: ${settings.minimumScoreDefenseLine}점",
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onBackground,
                             fontSize = 14.sp
                         )
                         Text(
                             text = "점수가 이 이하로 떨어지면 디톡스 경고를 강조합니다.",
                             fontSize = 12.sp,
-                            color = Color.Gray,
+                            color = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
                         )
                         Slider(
@@ -264,13 +264,13 @@ fun PresetModeScreen(
                         Text(
                             text = "일일 목표 언락 제한: ${settings.targetUnlockCount}회",
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onBackground,
                             fontSize = 14.sp
                         )
                         Text(
                             text = "이 횟수를 초과하여 스마트폰을 켤 때 페널티가 누적됩니다.",
                             fontSize = 12.sp,
-                            color = Color.Gray,
+                            color = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
                         )
                         Slider(
@@ -301,7 +301,7 @@ fun PresetModeScreen(
                         text = "세부 가중치 커스텀 설정",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                     androidx.compose.material3.TextButton(
                         onClick = {
@@ -341,13 +341,13 @@ fun PresetModeScreen(
                         Text(
                             text = "🌙 심야(24시~05시) 감점 배수: ${lateNightMult}배",
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onBackground,
                             fontSize = 14.sp
                         )
                         Text(
                             text = "자정부터 새벽 5시까지 방해 앱 사용 시 감점을 배수로 가속합니다.",
                             fontSize = 12.sp,
-                            color = Color.Gray,
+                            color = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
                         )
                         Slider(
@@ -384,13 +384,13 @@ fun PresetModeScreen(
                             Text(
                                 text = "📈 장시간 사용 로그(Log) 가속",
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onBackground,
                                 fontSize = 14.sp
                             )
                             Text(
                                 text = "방해 앱을 15분 이상 오래 사용할수록 감점 속도가 비선형으로 빨라집니다.",
                                 fontSize = 12.sp,
-                                color = Color.Gray,
+                                color = MaterialTheme.colorScheme.outline,
                                 modifier = Modifier.padding(top = 2.dp)
                             )
                         }
@@ -426,13 +426,13 @@ fun PresetModeScreen(
                             Text(
                                 text = "⏳ 전날 과사용 시작 페널티 (디톡스 부채)",
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onBackground,
                                 fontSize = 14.sp
                             )
                             Text(
                                 text = "전날 점수가 80점 미만(과사용)일 경우 다음 날 시작 점수에서 최대 30점 감점된 채로 시작합니다.",
                                 fontSize = 12.sp,
-                                color = Color.Gray,
+                                color = MaterialTheme.colorScheme.outline,
                                 modifier = Modifier.padding(top = 2.dp)
                             )
                         }
@@ -462,13 +462,13 @@ fun PresetModeScreen(
                         Text(
                             text = "⚠️ 방해 앱 1분당 감점치: ${dWeight}점",
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onBackground,
                             fontSize = 14.sp
                         )
                         Text(
                             text = "SNS, 영상 등 방해 앱 사용 1분당 차감되는 기본 점수입니다.",
                             fontSize = 12.sp,
-                            color = Color.Gray,
+                            color = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
                         )
                         Slider(
@@ -499,13 +499,13 @@ fun PresetModeScreen(
                         Text(
                             text = "🌿 화면 미사용 10분당 회복치: ${idleVal}점",
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onBackground,
                             fontSize = 14.sp
                         )
                         Text(
                             text = "스마트폰 화면을 끄고 휴식할 때 10분당 회복되는 점수입니다.",
                             fontSize = 12.sp,
-                            color = Color.Gray,
+                            color = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
                         )
                         Slider(
@@ -535,13 +535,13 @@ fun PresetModeScreen(
                         Text(
                             text = "🛡️ 일일 회복 보너스 최대 상한: ${settings.maxIdleBonus.toInt()}점",
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onBackground,
                             fontSize = 14.sp
                         )
                         Text(
                             text = "수면 및 장시간 미사용으로 하루에 얻을 수 있는 보너스 최대 한도입니다.",
                             fontSize = 12.sp,
-                            color = Color.Gray,
+                            color = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
                         )
                         Slider(
@@ -575,13 +575,13 @@ fun PresetModeScreen(
                         Text(
                             text = "🔓 언락 기준 초과 1회당 감점치: ${unlVal}점",
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onBackground,
                             fontSize = 14.sp
                         )
                         Text(
                             text = "일일 목표 언락 횟수를 초과할 때마다 차감되는 페널티 점수입니다.",
                             fontSize = 12.sp,
-                            color = Color.Gray,
+                            color = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
                         )
                         Slider(
@@ -607,7 +607,7 @@ fun PresetModeScreen(
                     text = "📦 데이터 관리 및 백업",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             }
 
@@ -624,7 +624,7 @@ fun PresetModeScreen(
                         Text(
                             text = "점수 히스토리 및 설정을 안전하게 파일로 백업하거나 과거 30일치 사용량을 소급 분석합니다.",
                             fontSize = 12.sp,
-                            color = Color.LightGray
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         // 1) 과거 30일 소급 분석

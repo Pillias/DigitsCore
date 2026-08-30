@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import com.digitscore.app.data.DigitsDatabase
+import com.digitscore.app.data.ScoreRepository
 import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
 import com.digitscore.app.engine.ScoreCalculator
@@ -19,19 +20,24 @@ import com.digitscore.app.receiver.ScreenEventReceiver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 class TrackerForegroundService : Service() {
 
-    private val serviceScope = CoroutineScope(Dispatchers.Default + Job())
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val recalcMutex = Mutex()
     private var trackingJob: Job? = null
     private var screenEventReceiver: ScreenEventReceiver? = null
 
@@ -41,18 +47,6 @@ class TrackerForegroundService : Service() {
     private var currentDateString: String = getTodayDateString()
 
     companion object {
-        private val _currentScoreDetail = MutableStateFlow<ScoreDetail?>(null)
-        val currentScoreDetail = _currentScoreDetail.asStateFlow()
-
-        private val _currentAppsUsage = MutableStateFlow<List<AppUsage>>(emptyList())
-        val currentAppsUsage = _currentAppsUsage.asStateFlow()
-
-        private val _currentUnlockCount = MutableStateFlow(0)
-        val currentUnlockCount = _currentUnlockCount.asStateFlow()
-
-        private val _isServiceRunning = MutableStateFlow(false)
-        val isServiceRunning = _isServiceRunning.asStateFlow()
-
         fun start(context: Context) {
             val intent = Intent(context, TrackerForegroundService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -82,7 +76,7 @@ class TrackerForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        _isServiceRunning.value = true
+        ScoreRepository.setServiceRunning(true)
         ScoreNotificationManager.createNotificationChannel(this)
 
         // 초기 알림 띄우기
@@ -138,7 +132,7 @@ class TrackerForegroundService : Service() {
     private fun onUserUnlocked() {
         checkDateRollover()
         todayUnlockCount++
-        _currentUnlockCount.value = todayUnlockCount
+        ScoreRepository.updateUnlockCount(todayUnlockCount)
         recalculateAndNotify()
     }
 
@@ -159,7 +153,7 @@ class TrackerForegroundService : Service() {
             currentDateString = today
             todayUnlockCount = 0
             accumulatedIdleMinutes = 0L
-            _currentUnlockCount.value = 0
+            ScoreRepository.updateUnlockCount(0)
         }
     }
 
@@ -170,7 +164,7 @@ class TrackerForegroundService : Service() {
             if (history != null) {
                 todayUnlockCount = history.unlockCount
                 accumulatedIdleMinutes = history.idleMinutes
-                _currentUnlockCount.value = todayUnlockCount
+                ScoreRepository.updateUnlockCount(todayUnlockCount)
             }
 
             // 과거 히스토리가 부족한 경우 최초 1회 자동 30일치 소급 분석 실행
@@ -197,93 +191,95 @@ class TrackerForegroundService : Service() {
 
     private fun recalculateAndNotify() {
         serviceScope.launch {
-            if (!UsageStatsHelper.hasUsageStatsPermission(applicationContext)) {
-                return@launch
-            }
+            recalcMutex.withLock {
+                if (!UsageStatsHelper.hasUsageStatsPermission(applicationContext)) {
+                    return@launch
+                }
 
-            val db = DigitsDatabase.getInstance(applicationContext)
-            val settings = db.settingsDao().getSettings()
-            val presetMode = PresetMode.fromId(settings?.selectedPresetModeId ?: "balanced")
-            val baseRule = presetMode.scoreRule
+                val db = DigitsDatabase.getInstance(applicationContext)
+                val settings = db.settingsDao().getSettings()
+                val presetMode = PresetMode.fromId(settings?.selectedPresetModeId ?: "balanced")
+                val baseRule = presetMode.scoreRule
 
-            // 전날 과사용 페널티 (디톡스 부채) 산출: 전날 점수가 80점 미만일 때 (80 - 점수) * 0.5 감점 (최대 30점)
-            val yesterdayDate = getYesterdayDateString()
-            val yesterdayHistory = db.scoreDao().getScoreHistoryForDate(yesterdayDate)
-            val yesterdayScore = yesterdayHistory?.finalScore ?: 100
-            val yesterdayPenalty = if (settings?.isYesterdayPenaltyEnabled != false && yesterdayScore < 80) {
-                kotlin.math.min(30.0f, (80 - yesterdayScore) * 0.5f)
-            } else {
-                0f
-            }
+                // 전날 과사용 페널티 (디톡스 부채) 산출: 전날 점수가 80점 미만일 때 (80 - 점수) * 0.5 감점 (최대 30점)
+                val yesterdayDate = getYesterdayDateString()
+                val yesterdayHistory = db.scoreDao().getScoreHistoryForDate(yesterdayDate)
+                val yesterdayScore = yesterdayHistory?.finalScore ?: 100
+                val yesterdayPenalty = if (settings?.isYesterdayPenaltyEnabled != false && yesterdayScore < 80) {
+                    kotlin.math.min(30.0f, (80 - yesterdayScore) * 0.5f)
+                } else {
+                    0f
+                }
 
-            val effectiveRule = if (settings != null) {
-                baseRule.copy(
-                    distractingWeightPerMinute = settings.distractingWeightPerMinute,
-                    productiveBonusPerMinute = settings.productiveBonusPerMinute,
-                    idleBonusPer10Minutes = settings.idleBonusPer10Minutes,
-                    maxIdleBonus = settings.maxIdleBonus,
-                    maxProductiveBonus = settings.maxProductiveBonus,
-                    unlockPenaltyThreshold = settings.targetUnlockCount,
-                    unlockPenaltyPerCount = settings.unlockPenaltyPerCount,
-                    lateNightMultiplier = settings.lateNightMultiplier,
-                    isLogAccelerationEnabled = settings.isLogAccelerationEnabled,
-                    isYesterdayPenaltyEnabled = settings.isYesterdayPenaltyEnabled,
-                    yesterdayPenalty = yesterdayPenalty
-                )
-            } else {
-                baseRule.copy(yesterdayPenalty = yesterdayPenalty)
-            }
+                val effectiveRule = if (settings != null) {
+                    baseRule.copy(
+                        distractingWeightPerMinute = settings.distractingWeightPerMinute,
+                        productiveBonusPerMinute = settings.productiveBonusPerMinute,
+                        idleBonusPer10Minutes = settings.idleBonusPer10Minutes,
+                        maxIdleBonus = settings.maxIdleBonus,
+                        maxProductiveBonus = settings.maxProductiveBonus,
+                        unlockPenaltyThreshold = settings.targetUnlockCount,
+                        unlockPenaltyPerCount = settings.unlockPenaltyPerCount,
+                        lateNightMultiplier = settings.lateNightMultiplier,
+                        isLogAccelerationEnabled = settings.isLogAccelerationEnabled,
+                        isYesterdayPenaltyEnabled = settings.isYesterdayPenaltyEnabled,
+                        yesterdayPenalty = yesterdayPenalty
+                    )
+                } else {
+                    baseRule.copy(yesterdayPenalty = yesterdayPenalty)
+                }
 
-            // DB에 저장된 앱 가중치 맵 조회
-            val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
-            val weightMap = appWeights.associateBy { it.packageName }
+                // DB에 저장된 앱 가중치 맵 조회
+                val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
+                val weightMap = appWeights.associateBy { it.packageName }
 
-            // 오늘 사용량 통계 조회
-            val appsUsage = UsageStatsHelper.getTodayAppUsageStats(applicationContext, weightMap)
-            _currentAppsUsage.value = appsUsage
+                // 오늘 사용량 통계 조회
+                val appsUsage = UsageStatsHelper.getTodayAppUsageStats(applicationContext, weightMap)
+                ScoreRepository.updateAppsUsage(appsUsage)
 
-            // 시스템 실제 언락 횟수 동기화 (삼성 디지털 웰빙과 일치)
-            val systemUnlocks = UsageStatsHelper.getTodayUnlockCount(applicationContext)
-            val finalUnlockCount = kotlin.math.max(todayUnlockCount, systemUnlocks)
-            todayUnlockCount = finalUnlockCount
-            _currentUnlockCount.value = finalUnlockCount
+                // 시스템 실제 언락 횟수 동기화 (삼성 디지털 웰빙과 일치)
+                val systemUnlocks = UsageStatsHelper.getTodayUnlockCount(applicationContext)
+                val finalUnlockCount = kotlin.math.max(todayUnlockCount, systemUnlocks)
+                todayUnlockCount = finalUnlockCount
+                ScoreRepository.updateUnlockCount(finalUnlockCount)
 
-            // 오늘 자정부터 현재까지 경과 시간(분) 및 실제 유휴(Idle) 시간 산출
-            val startOfToday = UsageStatsHelper.getStartOfTodayMillis()
-            val minutesSinceMidnight = ((System.currentTimeMillis() - startOfToday) / (1000 * 60L)).coerceAtLeast(0L)
-            val totalScreenMinutes = appsUsage.sumOf { it.usageTimeMinutes }
-            val realIdleMinutes = kotlin.math.max(0L, minutesSinceMidnight - totalScreenMinutes)
+                // 오늘 자정부터 현재까지 경과 시간(분) 및 실제 유휴(Idle) 시간 산출
+                val startOfToday = UsageStatsHelper.getStartOfTodayMillis()
+                val minutesSinceMidnight = ((System.currentTimeMillis() - startOfToday) / (1000 * 60L)).coerceAtLeast(0L)
+                val totalScreenMinutes = appsUsage.sumOf { it.usageTimeMinutes }
+                val realIdleMinutes = kotlin.math.max(0L, minutesSinceMidnight - totalScreenMinutes)
 
-            // 점수 계산
-            val scoreDetail = ScoreCalculator.calculateScore(
-                appsUsage = appsUsage,
-                idleMinutes = realIdleMinutes,
-                unlockCount = finalUnlockCount,
-                rule = effectiveRule
-            )
-            _currentScoreDetail.value = scoreDetail
-
-            // 알림 갱신
-            if (settings?.isNotificationEnabled != false) {
-                ScoreNotificationManager.updateScoreNotification(
-                    applicationContext,
-                    scoreDetail,
-                    finalUnlockCount
-                )
-            }
-
-            // DB 일일 히스토리 업데이트
-            db.scoreDao().insertOrUpdateScoreHistory(
-                DailyScoreHistoryEntity(
-                    dateString = currentDateString,
-                    finalScore = scoreDetail.finalScore,
-                    totalScreenTimeMinutes = scoreDetail.totalScreenTimeMinutes,
-                    distractingTimeMinutes = scoreDetail.distractingTimeMinutes,
-                    productiveTimeMinutes = scoreDetail.productiveTimeMinutes,
+                // 점수 계산
+                val scoreDetail = ScoreCalculator.calculateScore(
+                    appsUsage = appsUsage,
                     idleMinutes = realIdleMinutes,
-                    unlockCount = finalUnlockCount
+                    unlockCount = finalUnlockCount,
+                    rule = effectiveRule
                 )
-            )
+                ScoreRepository.updateScoreDetail(scoreDetail)
+
+                // 알림 갱신
+                if (settings?.isNotificationEnabled != false) {
+                    ScoreNotificationManager.updateScoreNotification(
+                        applicationContext,
+                        scoreDetail,
+                        finalUnlockCount
+                    )
+                }
+
+                // DB 일일 히스토리 업데이트
+                db.scoreDao().insertOrUpdateScoreHistory(
+                    DailyScoreHistoryEntity(
+                        dateString = currentDateString,
+                        finalScore = scoreDetail.finalScore,
+                        totalScreenTimeMinutes = scoreDetail.totalScreenTimeMinutes,
+                        distractingTimeMinutes = scoreDetail.distractingTimeMinutes,
+                        productiveTimeMinutes = scoreDetail.productiveTimeMinutes,
+                        idleMinutes = realIdleMinutes,
+                        unlockCount = finalUnlockCount
+                    )
+                )
+            }
         }
     }
 
@@ -294,7 +290,8 @@ class TrackerForegroundService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        _isServiceRunning.value = false
+        ScoreRepository.setServiceRunning(false)
+        serviceScope.cancel()
         trackingJob?.cancel()
         screenEventReceiver?.let {
             try {

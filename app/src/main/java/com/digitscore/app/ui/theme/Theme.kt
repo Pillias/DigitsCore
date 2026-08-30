@@ -31,9 +31,17 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+    primary = AccentCyan,
+    secondary = ScoreGreen,
+    tertiary = ScoreYellow,
+    background = Color(0xFFF5F5F5),
+    surface = Color.White,
+    surfaceVariant = Color(0xFFEEEEEE),
+    onPrimary = Color.White,
+    onSecondary = Color.White,
+    onTertiary = Color.Black,
+    onBackground = Color(0xFF1C1B1F),
+    onSurface = Color(0xFF1C1B1F)
 )
 
 @Composable
@@ -48,7 +56,7 @@ fun DigitsCoreTheme(
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
         darkTheme -> DarkColorScheme
-        else -> DarkColorScheme // 모던한 다크 테마 기본 적용
+        else -> LightColorScheme
     }
     val view = LocalView.current
     if (!view.isInEditMode) {

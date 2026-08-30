@@ -2,6 +2,7 @@ package com.digitscore.app.data.backup
 
 import android.content.Context
 import android.content.Intent
+import androidx.core.content.FileProvider
 import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.data.entity.AppWeightEntity
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
@@ -171,10 +172,17 @@ object DataBackupManager {
         val backupFile = File(backupDir, "DigitsCore_Backup_$dateStr.json")
         backupFile.writeText(jsonContent)
 
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            backupFile
+        )
+
         val sendIntent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
+            type = "application/json"
+            putExtra(Intent.EXTRA_STREAM, uri)
             putExtra(Intent.EXTRA_SUBJECT, "DigitsCore Backup ($dateStr)")
-            putExtra(Intent.EXTRA_TEXT, jsonContent)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         val chooser = Intent.createChooser(sendIntent, "DigitsCore 데이터 백업 공유/저장").apply {

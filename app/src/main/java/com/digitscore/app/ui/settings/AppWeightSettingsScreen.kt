@@ -104,13 +104,13 @@ fun AppWeightSettingsScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "뒤로가기",
-                            tint = Color.White
+                            tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = Color.White
+                    titleContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
         },
@@ -128,12 +128,12 @@ fun AppWeightSettingsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 12.dp),
-                placeholder = { Text("앱 이름 또는 패키지 검색", color = Color.Gray) },
+                placeholder = { Text("앱 이름 또는 패키지 검색", color = MaterialTheme.colorScheme.outline) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = "검색",
-                        tint = Color.Gray
+                        tint = MaterialTheme.colorScheme.outline
                     )
                 },
                 singleLine = true,
@@ -141,8 +141,8 @@ fun AppWeightSettingsScreen(
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                     unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
+                    focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onBackground
                 )
             )
 
@@ -153,7 +153,7 @@ fun AppWeightSettingsScreen(
                 items(filteredApps) { app ->
                     val tagColor = when (app.categoryType) {
                         AppCategoryType.PRODUCTIVE -> ScoreGreen
-                        AppCategoryType.NEUTRAL -> Color.Gray
+                        AppCategoryType.NEUTRAL -> MaterialTheme.colorScheme.outline
                         AppCategoryType.DISTRACTING -> ScoreRed
                     }
 
@@ -177,13 +177,13 @@ fun AppWeightSettingsScreen(
                                 Text(
                                     text = app.appName,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White,
+                                    color = MaterialTheme.colorScheme.onBackground,
                                     fontSize = 15.sp
                                 )
                                 Text(
                                     text = app.packageName,
                                     fontSize = 11.sp,
-                                    color = Color.Gray
+                                    color = MaterialTheme.colorScheme.outline
                                 )
                             }
 
@@ -215,7 +215,7 @@ fun AppWeightSettingsScreen(
                     Text(
                         text = "이 앱의 성격을 선택해 주세요:",
                         fontSize = 13.sp,
-                        color = Color.LightGray,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
                     AppCategoryType.entries.forEach { cat ->
@@ -231,7 +231,7 @@ fun AppWeightSettingsScreen(
                                 onClick = { currentCategory = cat }
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(cat.displayName, color = Color.White, fontSize = 14.sp)
+                            Text(cat.displayName, color = MaterialTheme.colorScheme.onBackground, fontSize = 14.sp)
                         }
                     }
                 }

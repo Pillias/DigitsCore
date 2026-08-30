@@ -130,14 +130,14 @@ fun OnboardingScreen(
                 style = MaterialTheme.typography.titleLarge,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onBackground
             )
 
             Text(
                 text = "스마트폰 사용 습관을 실시간 점수로 확인하고\n스스로 디톡스 목표를 달성하세요.",
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
-                color = Color.Gray,
+                color = MaterialTheme.colorScheme.outline,
                 modifier = Modifier.padding(top = 8.dp)
             )
 
@@ -229,13 +229,13 @@ private fun PermissionCard(
                     Text(
                         text = title,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onBackground,
                         fontSize = 14.sp
                     )
                 }
                 Text(
                     text = description,
-                    color = Color.LightGray,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.sp,
                     lineHeight = 16.sp,
                     modifier = Modifier.padding(top = 4.dp)

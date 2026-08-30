@@ -31,6 +31,13 @@ abstract class DigitsDatabase : RoomDatabase() {
     abstract fun settingsDao(): SettingsDao
 
     companion object {
+        // Future migrations should be added here
+        // private val MIGRATION_1_2 = object : Migration(1, 2) {
+        //     override fun migrate(db: SupportSQLiteDatabase) {
+        //         db.execSQL("ALTER TABLE ...")
+        //     }
+        // }
+
         @Volatile
         private var INSTANCE: DigitsDatabase? = null
 
@@ -42,7 +49,7 @@ abstract class DigitsDatabase : RoomDatabase() {
                     "digitscore_database"
                 )
                     .addCallback(DatabaseCallback(context.applicationContext))
-                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigrationOnDowngrade()
                     .build()
                 INSTANCE = instance
                 instance

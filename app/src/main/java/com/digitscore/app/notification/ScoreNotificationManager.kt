@@ -53,7 +53,7 @@ object ScoreNotificationManager {
         val grade = scoreDetail.grade
 
         val title = "오늘의 디톡스 점수: ${score}점 (${grade.gradeText})"
-        val contentText = "화면: ${scoreDetail.totalScreenTimeMinutes}분 | 언락: ${unlockCount}회 | 방해: ${scoreDetail.distractingTimeMinutes}분"
+        val contentText = "화면: ${formatMinutesToHoursAndMinutes(scoreDetail.totalScreenTimeMinutes)} | 언락: ${unlockCount}회 | 방해: ${formatMinutesToHoursAndMinutes(scoreDetail.distractingTimeMinutes)}"
 
         val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, score)
 
@@ -80,5 +80,15 @@ object ScoreNotificationManager {
         val notification = buildScoreNotification(context, scoreDetail, unlockCount)
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(NOTIFICATION_ID, notification)
+    }
+
+    private fun formatMinutesToHoursAndMinutes(minutes: Long): String {
+        val hours = minutes / 60
+        val mins = minutes % 60
+        return when {
+            hours > 0 && mins > 0 -> "${hours}시간 ${mins}분"
+            hours > 0 -> "${hours}시간"
+            else -> "${mins}분"
+        }
     }
 }
