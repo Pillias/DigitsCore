@@ -1,5 +1,7 @@
 package com.digitscore.app.data
 
+import android.content.pm.ApplicationInfo
+import com.digitscore.app.model.AppCategoryType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -113,5 +115,25 @@ class ForegroundUsageAggregatorTest {
 
         assertEquals(20_000L, result.usageMillisByPackage["youtube"])
         assertEquals(10_000L, result.lateNightUsageMillisByPackage["youtube"])
+    }
+
+    @Test
+    fun audioAndVideoApps_defaultToDistractingCategory() {
+        assertEquals(
+            AppCategoryType.DISTRACTING,
+            UsageStatsHelper.defaultCategoryForApplicationCategory(ApplicationInfo.CATEGORY_AUDIO)
+        )
+        assertEquals(
+            AppCategoryType.DISTRACTING,
+            UsageStatsHelper.defaultCategoryForApplicationCategory(ApplicationInfo.CATEGORY_VIDEO)
+        )
+    }
+
+    @Test
+    fun nonMediaApps_doNotReceiveAutomaticDistractingCategory() {
+        assertEquals(
+            AppCategoryType.NEUTRAL,
+            UsageStatsHelper.defaultCategoryForApplicationCategory(ApplicationInfo.CATEGORY_PRODUCTIVITY)
+        )
     }
 }
