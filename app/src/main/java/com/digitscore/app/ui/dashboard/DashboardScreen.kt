@@ -337,6 +337,159 @@ fun DashboardScreen(
     }
 }
 
+@Composable
+private fun ScoreGaugeCard(
+    score: Int,
+    grade: ScoreGrade,
+    yesterdayPenalty: Float,
+    onClick: () -> Unit
+) {
+    val animatedScore by animateFloatAsState(
+        targetValue = score.coerceIn(0, 100).toFloat(),
+        animationSpec = tween(durationMillis = 700),
+        label = "scoreGauge"
+    )
+    val scoreColor = when {
+        score >= 80 -> ScoreGreen
+        score >= 60 -> ScoreYellow
+        score >= 40 -> ScoreOrange
+        else -> ScoreRed
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = "오늘의 디톡스 점수 ${score}점, ${grade.gradeText}" },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(190.dp)) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val strokeWidth = 16.dp.toPx()
+                    drawArc(
+                        color = Color.Gray.copy(alpha = 0.2f),
+                        startAngle = 135f,
+                        sweepAngle = 270f,
+                        useCenter = false,
+                        topLeft = Offset(strokeWidth / 2f, strokeWidth / 2f),
+                        size = Size(size.width - strokeWidth, size.height - strokeWidth),
+                        style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                    )
+                    drawArc(
+                        color = scoreColor,
+                        startAngle = 135f,
+                        sweepAngle = 270f * (animatedScore / 100f),
+                        useCenter = false,
+                        topLeft = Offset(strokeWidth / 2f, strokeWidth / 2f),
+                        size = Size(size.width - strokeWidth, size.height - strokeWidth),
+                        style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                    )
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = score.toString(), fontSize = 54.sp, fontWeight = FontWeight.Black, color = scoreColor)
+                    Text(text = grade.gradeText, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            if (yesterdayPenalty > 0f) {
+                Text(
+                    text = "전날 디톡스 부채 -${String.format("%.1f", yesterdayPenalty)}점 반영",
+                    fontSize = 12.sp,
+                    color = ScoreOrange
+                )
+            }
+            Text(text = "탭하여 점수 계산 내역 보기", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+        }
+    }
+}
+
+@Composable
+private fun ScoreStatsRow(
+    screenTimeMinutes: Long,
+    unlockCount: Int,
+    distractingMinutes: Long,
+    onScreenTimeClick: () -> Unit,
+    onUnlockClick: () -> Unit,
+    onDistractingClick: () -> Unit
+) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        StatisticCard("화면", formatMinutesToHoursAndMinutes(screenTimeMinutes), Icons.Default.PhoneAndroid, onScreenTimeClick, Modifier.weight(1f))
+        StatisticCard("언락", "${unlockCount}회", Icons.Default.LockOpen, onUnlockClick, Modifier.weight(1f))
+        StatisticCard("방해", formatMinutesToHoursAndMinutes(distractingMinutes), Icons.Default.Warning, onDistractingClick, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun StatisticCard(
+    label: String,
+    value: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 14.dp, horizontal = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Text(text = value, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text(text = label, fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+        }
+    }
+}
+
+@Composable
+private fun AppUsageItemCard(appUsage: AppUsage, onClick: () -> Unit) {
+    val categoryColor = when (appUsage.categoryType) {
+        AppCategoryType.PRODUCTIVE -> ScoreGreen
+        AppCategoryType.DISTRACTING -> ScoreRed
+        AppCategoryType.NEUTRAL -> MaterialTheme.colorScheme.outline
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = appUsage.appName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(text = appUsage.categoryType.displayName, fontSize = 11.sp, color = categoryColor)
+            }
+            Text(text = formatMinutesToHoursAndMinutes(appUsage.usageTimeMinutes), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+private fun formatMinutesToHoursAndMinutes(minutes: Long): String {
+    val safeMinutes = minutes.coerceAtLeast(0L)
+    val hours = safeMinutes / 60
+    val remainingMinutes = safeMinutes % 60
+    return when {
+        hours > 0 && remainingMinutes > 0 -> "${hours}시간 ${remainingMinutes}분"
+        hours > 0 -> "${hours}시간"
+        else -> "${remainingMinutes}분"
+    }
+}
+
 // =========================================================================
 // 📱 상세 다이얼로그 컴포넌트들
 // =========================================================================
