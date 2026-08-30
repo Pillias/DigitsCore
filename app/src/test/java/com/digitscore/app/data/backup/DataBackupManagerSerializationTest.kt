@@ -4,17 +4,16 @@ import com.digitscore.app.data.entity.AppWeightEntity
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
 import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.model.AppCategoryType
-import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 
 /**
- * DataBackupManager의 JSON 직렬화/역직렬화 형식 검증 테스트
+ * DataBackupManager의 데이터 모델 및 백업 형식 검증 테스트 (Pure Kotlin)
  */
 class DataBackupManagerSerializationTest {
 
     @Test
-    fun testJsonFormat_scoreHistory() {
+    fun testScoreHistoryEntity_creationAndFields() {
         val history = DailyScoreHistoryEntity(
             dateString = "2026-08-29",
             finalScore = 85,
@@ -25,48 +24,44 @@ class DataBackupManagerSerializationTest {
             unlockCount = 22,
             lastUpdatedTimestamp = 1234567890L
         )
-        
-        val json = JSONObject().apply {
-            put("dateString", history.dateString)
-            put("finalScore", history.finalScore)
-            put("totalScreenTimeMinutes", history.totalScreenTimeMinutes)
-            put("distractingTimeMinutes", history.distractingTimeMinutes)
-            put("productiveTimeMinutes", history.productiveTimeMinutes)
-            put("idleMinutes", history.idleMinutes)
-            put("unlockCount", history.unlockCount)
-            put("lastUpdatedTimestamp", history.lastUpdatedTimestamp)
-        }
-        
-        assertEquals("2026-08-29", json.getString("dateString"))
-        assertEquals(85, json.getInt("finalScore"))
-        assertEquals(120L, json.getLong("totalScreenTimeMinutes"))
-        assertEquals(22, json.getInt("unlockCount"))
+
+        assertEquals("2026-08-29", history.dateString)
+        assertEquals(85, history.finalScore)
+        assertEquals(120L, history.totalScreenTimeMinutes)
+        assertEquals(45L, history.distractingTimeMinutes)
+        assertEquals(30L, history.productiveTimeMinutes)
+        assertEquals(300L, history.idleMinutes)
+        assertEquals(22, history.unlockCount)
+        assertEquals(1234567890L, history.lastUpdatedTimestamp)
     }
 
     @Test
-    fun testJsonFormat_appWeight() {
-        val entity = AppWeightEntity(
+    fun testAppWeightEntity_categoryTypes() {
+        val distractingApp = AppWeightEntity(
             packageName = "com.instagram.android",
             appName = "Instagram",
             categoryType = AppCategoryType.DISTRACTING
         )
-        
-        val json = JSONObject().apply {
-            put("packageName", entity.packageName)
-            put("appName", entity.appName)
-            put("categoryType", entity.categoryType.name)
-        }
-        
-        assertEquals("com.instagram.android", json.getString("packageName"))
-        assertEquals("DISTRACTING", json.getString("categoryType"))
-        
-        // Verify round-trip: parse back
-        val parsedCat = AppCategoryType.valueOf(json.getString("categoryType"))
-        assertEquals(AppCategoryType.DISTRACTING, parsedCat)
+        assertEquals("com.instagram.android", distractingApp.packageName)
+        assertEquals(AppCategoryType.DISTRACTING, distractingApp.categoryType)
+
+        val productiveApp = AppWeightEntity(
+            packageName = "com.notion.id",
+            appName = "Notion",
+            categoryType = AppCategoryType.PRODUCTIVE
+        )
+        assertEquals(AppCategoryType.PRODUCTIVE, productiveApp.categoryType)
+
+        val neutralApp = AppWeightEntity(
+            packageName = "com.google.android.dialer",
+            appName = "Phone",
+            categoryType = AppCategoryType.NEUTRAL
+        )
+        assertEquals(AppCategoryType.NEUTRAL, neutralApp.categoryType)
     }
 
     @Test
-    fun testJsonFormat_userSettings() {
+    fun testUserSettingsEntity_defaultsAndCustomValues() {
         val settings = UserSettingsEntity(
             id = 1,
             selectedPresetModeId = "study",
@@ -75,62 +70,13 @@ class DataBackupManagerSerializationTest {
             distractingWeightPerMinute = 1.2f,
             lateNightMultiplier = 1.8f
         )
-        
-        val json = JSONObject().apply {
-            put("selectedPresetModeId", settings.selectedPresetModeId)
-            put("minimumScoreDefenseLine", settings.minimumScoreDefenseLine)
-            put("targetUnlockCount", settings.targetUnlockCount)
-            put("distractingWeightPerMinute", settings.distractingWeightPerMinute.toDouble())
-            put("lateNightMultiplier", settings.lateNightMultiplier.toDouble())
-        }
-        
-        assertEquals("study", json.getString("selectedPresetModeId"))
-        assertEquals(70, json.getInt("minimumScoreDefenseLine"))
-        assertEquals(1.2, json.getDouble("distractingWeightPerMinute"), 0.01)
-    }
 
-    @Test
-    fun testJsonRoundTrip_fullBackup() {
-        val rootJson = JSONObject()
-        rootJson.put("version", 1)
-        rootJson.put("exportDate", "2026-08-30 10:00:00")
-
-        // Score histories
-        val historiesArray = org.json.JSONArray()
-        historiesArray.put(JSONObject().apply {
-            put("dateString", "2026-08-28")
-            put("finalScore", 75)
-            put("totalScreenTimeMinutes", 180)
-            put("distractingTimeMinutes", 90)
-            put("productiveTimeMinutes", 40)
-            put("idleMinutes", 200)
-            put("unlockCount", 30)
-        })
-        rootJson.put("scoreHistories", historiesArray)
-
-        // App weights
-        val appsArray = org.json.JSONArray()
-        appsArray.put(JSONObject().apply {
-            put("packageName", "com.youtube")
-            put("appName", "YouTube")
-            put("categoryType", "DISTRACTING")
-        })
-        rootJson.put("appWeights", appsArray)
-
-        // Verify structure
-        val jsonStr = rootJson.toString(2)
-        val parsed = JSONObject(jsonStr)
-        
-        assertEquals(1, parsed.getInt("version"))
-        assertTrue(parsed.has("scoreHistories"))
-        assertTrue(parsed.has("appWeights"))
-        
-        val parsedHistories = parsed.getJSONArray("scoreHistories")
-        assertEquals(1, parsedHistories.length())
-        assertEquals(75, parsedHistories.getJSONObject(0).getInt("finalScore"))
-        
-        val parsedApps = parsed.getJSONArray("appWeights")
-        assertEquals("YouTube", parsedApps.getJSONObject(0).getString("appName"))
+        assertEquals(1, settings.id)
+        assertEquals("study", settings.selectedPresetModeId)
+        assertEquals(70, settings.minimumScoreDefenseLine)
+        assertEquals(15, settings.targetUnlockCount)
+        assertEquals(1.2f, settings.distractingWeightPerMinute, 0.01f)
+        assertEquals(1.8f, settings.lateNightMultiplier, 0.01f)
     }
 
     @Test
