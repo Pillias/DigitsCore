@@ -69,7 +69,12 @@ object DataBackupManager {
                 put("unlockPenaltyPerCount", settings.unlockPenaltyPerCount.toDouble())
                 put("lateNightMultiplier", settings.lateNightMultiplier.toDouble())
                 put("isLogAccelerationEnabled", settings.isLogAccelerationEnabled)
+                put("logAccelerationThresholdMinutes", settings.logAccelerationThresholdMinutes.toDouble())
+                put("logAccelerationScaleMinutes", settings.logAccelerationScaleMinutes.toDouble())
                 put("isYesterdayPenaltyEnabled", settings.isYesterdayPenaltyEnabled)
+                put("yesterdayPenaltyTriggerScore", settings.yesterdayPenaltyTriggerScore)
+                put("yesterdayPenaltyRate", settings.yesterdayPenaltyRate.toDouble())
+                put("maxYesterdayPenalty", settings.maxYesterdayPenalty.toDouble())
                 put("isTrackingEnabled", settings.isTrackingEnabled)
                 put("isNotificationEnabled", settings.isNotificationEnabled)
             }
@@ -136,16 +141,21 @@ object DataBackupManager {
                     id = 1,
                     selectedPresetModeId = sObj.optString("selectedPresetModeId", "balanced"),
                     minimumScoreDefenseLine = sObj.optInt("minimumScoreDefenseLine", 60).coerceIn(0, 100),
-                    targetUnlockCount = sObj.optInt("targetUnlockCount", 25).coerceIn(0, 1_000),
-                    distractingWeightPerMinute = sObj.optDouble("distractingWeightPerMinute", 0.8).toFloat().coerceIn(0f, 10f),
+                    targetUnlockCount = sObj.optInt("targetUnlockCount", 30).coerceIn(0, 1_000),
+                    distractingWeightPerMinute = sObj.optDouble("distractingWeightPerMinute", 0.6).toFloat().coerceIn(0f, 10f),
                     productiveBonusPerMinute = sObj.optDouble("productiveBonusPerMinute", 0.2).toFloat().coerceIn(0f, 10f),
                     idleBonusPer10Minutes = sObj.optDouble("idleBonusPer10Minutes", 0.25).toFloat().coerceIn(0f, 10f),
                     maxIdleBonus = sObj.optDouble("maxIdleBonus", 15.0).toFloat().coerceIn(0f, 100f),
                     maxProductiveBonus = sObj.optDouble("maxProductiveBonus", 15.0).toFloat().coerceIn(0f, 100f),
-                    unlockPenaltyPerCount = sObj.optDouble("unlockPenaltyPerCount", 0.5).toFloat().coerceIn(0f, 10f),
-                    lateNightMultiplier = sObj.optDouble("lateNightMultiplier", 1.6).toFloat().coerceIn(1f, 10f),
+                    unlockPenaltyPerCount = sObj.optDouble("unlockPenaltyPerCount", 0.3).toFloat().coerceIn(0f, 10f),
+                    lateNightMultiplier = sObj.optDouble("lateNightMultiplier", 1.5).toFloat().coerceIn(1f, 10f),
                     isLogAccelerationEnabled = sObj.optBoolean("isLogAccelerationEnabled", true),
+                    logAccelerationThresholdMinutes = sObj.optDouble("logAccelerationThresholdMinutes", 60.0).toFloat().coerceIn(30f, 180f),
+                    logAccelerationScaleMinutes = sObj.optDouble("logAccelerationScaleMinutes", 120.0).toFloat().coerceIn(60f, 300f),
                     isYesterdayPenaltyEnabled = sObj.optBoolean("isYesterdayPenaltyEnabled", true),
+                    yesterdayPenaltyTriggerScore = sObj.optInt("yesterdayPenaltyTriggerScore", 60).coerceIn(40, 90),
+                    yesterdayPenaltyRate = sObj.optDouble("yesterdayPenaltyRate", 0.2).toFloat().coerceIn(0.05f, 1f),
+                    maxYesterdayPenalty = sObj.optDouble("maxYesterdayPenalty", 10.0).toFloat().coerceIn(0f, 30f),
                     isTrackingEnabled = sObj.optBoolean("isTrackingEnabled", true),
                     isNotificationEnabled = sObj.optBoolean("isNotificationEnabled", true)
                 )
