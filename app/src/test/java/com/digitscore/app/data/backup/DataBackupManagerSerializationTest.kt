@@ -68,7 +68,12 @@ class DataBackupManagerSerializationTest {
             minimumScoreDefenseLine = 70,
             targetUnlockCount = 15,
             distractingWeightPerMinute = 1.2f,
-            lateNightMultiplier = 1.8f
+            lateNightMultiplier = 1.8f,
+            logAccelerationThresholdMinutes = 90f,
+            logAccelerationScaleMinutes = 180f,
+            yesterdayPenaltyTriggerScore = 55,
+            yesterdayPenaltyRate = 0.1f,
+            maxYesterdayPenalty = 5f
         )
 
         assertEquals(1, settings.id)
@@ -77,6 +82,11 @@ class DataBackupManagerSerializationTest {
         assertEquals(15, settings.targetUnlockCount)
         assertEquals(1.2f, settings.distractingWeightPerMinute, 0.01f)
         assertEquals(1.8f, settings.lateNightMultiplier, 0.01f)
+        assertEquals(90f, settings.logAccelerationThresholdMinutes, 0.01f)
+        assertEquals(180f, settings.logAccelerationScaleMinutes, 0.01f)
+        assertEquals(55, settings.yesterdayPenaltyTriggerScore)
+        assertEquals(0.1f, settings.yesterdayPenaltyRate, 0.01f)
+        assertEquals(5f, settings.maxYesterdayPenalty, 0.01f)
     }
 
     @Test
