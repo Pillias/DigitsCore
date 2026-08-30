@@ -74,6 +74,28 @@ object UsageStatsHelper {
 
     private const val FOREGROUND_STATE_LOOKBACK_MILLIS = 24 * 60 * 60 * 1000L
 
+    internal fun defaultCategoryForApplicationCategory(applicationCategory: Int): AppCategoryType =
+        when (applicationCategory) {
+            ApplicationInfo.CATEGORY_AUDIO,
+            ApplicationInfo.CATEGORY_VIDEO -> AppCategoryType.DISTRACTING
+            else -> AppCategoryType.NEUTRAL
+        }
+
+    private fun resolveCategory(
+        pm: PackageManager,
+        packageName: String,
+        savedEntity: AppWeightEntity?
+    ): AppCategoryType {
+        // 사용자가 직접 지정한 분류를 최우선으로 존중합니다.
+        savedEntity?.let { return it.categoryType }
+        val applicationCategory = try {
+            pm.getApplicationInfo(packageName, 0).category
+        } catch (_: Exception) {
+            ApplicationInfo.CATEGORY_UNDEFINED
+        }
+        return defaultCategoryForApplicationCategory(applicationCategory)
+    }
+
     private fun queryExclusiveForegroundUsage(
         usageStatsManager: UsageStatsManager,
         startTime: Long,
@@ -190,7 +212,7 @@ object UsageStatsHelper {
                     pkgName
                 }
 
-                val category = savedEntity?.categoryType ?: AppCategoryType.NEUTRAL
+                val category = resolveCategory(pm, pkgName, savedEntity)
 
                 val lateNightTime = if (useEventTimeline) {
                     exclusiveUsage.lateNightUsageMillisByPackage[pkgName] ?: 0L
@@ -315,7 +337,7 @@ object UsageStatsHelper {
                         } catch (e: Exception) {
                             pkgName
                         }
-                        val category = savedEntity?.categoryType ?: AppCategoryType.NEUTRAL
+                        val category = resolveCategory(pm, pkgName, savedEntity)
                         dayAppUsages.add(
                             AppUsage(
                                 packageName = pkgName,
