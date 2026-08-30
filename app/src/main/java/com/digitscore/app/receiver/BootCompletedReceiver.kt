@@ -12,8 +12,11 @@ import kotlinx.coroutines.launch
 
 class BootCompletedReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            CoroutineScope(Dispatchers.IO).launch {
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+
+        val pendingResult = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
                 val db = DigitsDatabase.getInstance(context)
                 val settings = db.settingsDao().getSettings()
                 if (settings == null || settings.isTrackingEnabled) {
@@ -24,6 +27,8 @@ class BootCompletedReceiver : BroadcastReceiver() {
                         context.startService(serviceIntent)
                     }
                 }
+            } finally {
+                pendingResult.finish()
             }
         }
     }
