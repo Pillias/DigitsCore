@@ -7,14 +7,14 @@ plugins {
 
 android {
     namespace = "com.digitscore.app"
-    compileSdk = 35
+    compileSdk = 34
 
     val runNumber = (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1)
 
     defaultConfig {
         applicationId = "com.digitscore.app"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 34
         versionCode = 100 + runNumber
         versionName = "1.0.$runNumber"
 
