@@ -21,9 +21,34 @@ data class TodayUsageSnapshot(
     val hasForegroundEvidence: Boolean
 )
 
+data class DailyAppUsage(
+    val dayStartMillis: Long,
+    val usageMillis: Long,
+    val isToday: Boolean
+)
+
+data class AppUsageInsights(
+    val hourlyUsageMillis: List<Long>,
+    val sessionDurationsMillis: List<Long>,
+    val dailyUsage: List<DailyAppUsage>
+)
+
+data class UnlockInsights(
+    val unlockCount: Int,
+    val hourlyUnlockCounts: List<Int>,
+    val averageIntervalMinutes: Int?,
+    val notificationCount: Int,
+    val notificationEventsSupported: Boolean
+)
+
 object UsageStatsHelper {
 
     private const val FOREGROUND_STATE_LOOKBACK_MILLIS = 6 * 60 * 60 * 1_000L
+
+    private data class QueriedUsageEvents(
+        val timelineEvents: List<ForegroundTimelineEvent>,
+        val notificationTimestamps: List<Long>
+    )
 
     /**
      * PACKAGE_USAGE_STATS 권한이 허용되었는지 확인
@@ -146,18 +171,32 @@ object UsageStatsHelper {
         lateNightEndTime: Long
     ): ForegroundUsageResult {
         val queryStart = (startTime - FOREGROUND_STATE_LOOKBACK_MILLIS).coerceAtLeast(0L)
+        val queriedEvents = queryUsageEvents(usageStatsManager, queryStart, endTime)
+        return ForegroundUsageAggregator.aggregate(
+            startTimeMillis = startTime,
+            endTimeMillis = endTime,
+            lateNightEndTimeMillis = lateNightEndTime,
+            events = queriedEvents.timelineEvents
+        )
+    }
+
+    private fun queryUsageEvents(
+        usageStatsManager: UsageStatsManager,
+        queryStart: Long,
+        endTime: Long
+    ): QueriedUsageEvents {
         val usageEvents = usageStatsManager.queryEvents(queryStart, endTime)
-            ?: return ForegroundUsageAggregator.aggregate(
-                startTimeMillis = startTime,
-                endTimeMillis = endTime,
-                lateNightEndTimeMillis = lateNightEndTime,
-                events = emptyList()
-            )
+            ?: return QueriedUsageEvents(emptyList(), emptyList())
         val androidEvent = UsageEvents.Event()
         val timelineEvents = mutableListOf<ForegroundTimelineEvent>()
+        val notificationTimestamps = mutableListOf<Long>()
 
         while (usageEvents.hasNextEvent()) {
             usageEvents.getNextEvent(androidEvent)
+            if (androidEvent.eventType == UsageEvents.Event.NOTIFICATION_INTERRUPTION) {
+                notificationTimestamps += androidEvent.timeStamp
+                continue
+            }
             val type = when (androidEvent.eventType) {
                 UsageEvents.Event.ACTIVITY_RESUMED -> ForegroundTimelineEventType.APP_RESUMED
                 UsageEvents.Event.ACTIVITY_PAUSED -> ForegroundTimelineEventType.APP_PAUSED
@@ -179,11 +218,119 @@ object UsageStatsHelper {
             )
         }
 
-        return ForegroundUsageAggregator.aggregate(
-            startTimeMillis = startTime,
-            endTimeMillis = endTime,
-            lateNightEndTimeMillis = lateNightEndTime,
-            events = timelineEvents
+        return QueriedUsageEvents(timelineEvents, notificationTimestamps)
+    }
+
+    /** 앱 상세를 열 때만 최근 7일 이벤트를 한 번 조회해 세션·시간대·추세를 계산합니다. */
+    fun getAppUsageInsights(context: Context, packageName: String): AppUsageInsights {
+        val manager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+            ?: return AppUsageInsights(List(24) { 0L }, emptyList(), emptyList())
+        val now = System.currentTimeMillis()
+        val today = Calendar.getInstance().apply {
+            timeInMillis = now
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val dayStarts = (6 downTo 0).map { daysAgo ->
+            (today.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -daysAgo) }.timeInMillis
+        }
+        val queried = queryUsageEvents(
+            manager,
+            (dayStarts.first() - FOREGROUND_STATE_LOOKBACK_MILLIS).coerceAtLeast(0L),
+            now
+        )
+
+        val daily = dayStarts.mapIndexed { index, dayStart ->
+            val dayEnd = if (index == dayStarts.lastIndex) {
+                now
+            } else {
+                dayStarts[index + 1]
+            }
+            val result = ForegroundUsageAggregator.aggregate(
+                startTimeMillis = dayStart,
+                endTimeMillis = dayEnd,
+                lateNightEndTimeMillis = dayStart,
+                events = queried.timelineEvents
+            )
+            DailyAppUsage(
+                dayStartMillis = dayStart,
+                usageMillis = result.usageMillisByPackage[packageName] ?: 0L,
+                isToday = index == dayStarts.lastIndex
+            )
+        }
+
+        val todayResult = ForegroundUsageAggregator.aggregate(
+            startTimeMillis = dayStarts.last(),
+            endTimeMillis = now,
+            lateNightEndTimeMillis = dayStarts.last(),
+            events = queried.timelineEvents
+        )
+        val appSegments = todayResult.segments.filter { it.packageName == packageName }
+        val hourly = LongArray(24)
+        appSegments.forEach { segment ->
+            var cursor = segment.startTimeMillis
+            while (cursor < segment.endTimeMillis) {
+                val calendar = Calendar.getInstance().apply { timeInMillis = cursor }
+                val hour = calendar.get(Calendar.HOUR_OF_DAY)
+                val nextHour = (calendar.clone() as Calendar).apply {
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                    add(Calendar.HOUR_OF_DAY, 1)
+                }.timeInMillis
+                val intervalEnd = minOf(segment.endTimeMillis, nextHour)
+                hourly[hour] += intervalEnd - cursor
+                cursor = intervalEnd
+            }
+        }
+
+        return AppUsageInsights(
+            hourlyUsageMillis = hourly.toList(),
+            sessionDurationsMillis = appSegments.map { it.durationMillis },
+            dailyUsage = daily
+        )
+    }
+
+    /** 오늘 언락 시간대와 OS UsageEvents가 제공하는 알림 interruption 수를 함께 계산합니다. */
+    fun getTodayUnlockInsights(context: Context): UnlockInsights {
+        val manager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+            ?: return UnlockInsights(0, List(24) { 0 }, null, 0, false)
+        val start = getStartOfTodayMillis()
+        val end = System.currentTimeMillis()
+        val queried = queryUsageEvents(
+            manager,
+            (start - FOREGROUND_STATE_LOOKBACK_MILLIS).coerceAtLeast(0L),
+            end
+        )
+        val todayEvents = queried.timelineEvents.filter { it.timestampMillis in start..end }
+        val hiddenEvents = todayEvents.filter { it.type == ForegroundTimelineEventType.KEYGUARD_HIDDEN }
+        val unlockEvents = if (hiddenEvents.isNotEmpty()) {
+            hiddenEvents
+        } else {
+            todayEvents.filter { it.type == ForegroundTimelineEventType.SCREEN_INTERACTIVE }
+        }
+        val hourly = MutableList(24) { 0 }
+        unlockEvents.forEach { event ->
+            val hour = Calendar.getInstance().apply { timeInMillis = event.timestampMillis }
+                .get(Calendar.HOUR_OF_DAY)
+            hourly[hour]++
+        }
+        val averageIntervalMinutes = unlockEvents.map { it.timestampMillis }
+            .zipWithNext { first, second -> (second - first).coerceAtLeast(0L) }
+            .takeIf { it.isNotEmpty() }
+            ?.average()
+            ?.div(60_000.0)
+            ?.toInt()
+        val notificationCount = queried.notificationTimestamps.count { it in start..end }
+
+        return UnlockInsights(
+            unlockCount = unlockEvents.size,
+            hourlyUnlockCounts = hourly,
+            averageIntervalMinutes = averageIntervalMinutes,
+            notificationCount = notificationCount,
+            notificationEventsSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
         )
     }
 

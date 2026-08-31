@@ -168,6 +168,39 @@ class ForegroundUsageAggregatorTest {
     }
 
     @Test
+    fun keyguardStateBeforeDay_doesNotDisableTodayScreenInteractiveFallback() {
+        val result = aggregate(
+            endSecond = 20,
+            events = listOf(
+                event(-5, ForegroundTimelineEventType.KEYGUARD_HIDDEN),
+                event(2, ForegroundTimelineEventType.SCREEN_INTERACTIVE),
+                event(10, ForegroundTimelineEventType.SCREEN_NON_INTERACTIVE),
+                event(15, ForegroundTimelineEventType.SCREEN_INTERACTIVE)
+            )
+        )
+
+        assertEquals(2, result.unlockCount)
+    }
+
+    @Test
+    fun sessionsMergeAcrossActivityEventsButSplitAcrossScreenOff() {
+        val result = aggregate(
+            endSecond = 50,
+            events = listOf(
+                event(0, ForegroundTimelineEventType.APP_RESUMED, "youtube", "Home"),
+                event(10, ForegroundTimelineEventType.APP_RESUMED, "youtube", "Watch"),
+                event(20, ForegroundTimelineEventType.KEYGUARD_SHOWN),
+                event(20, ForegroundTimelineEventType.SCREEN_NON_INTERACTIVE),
+                event(30, ForegroundTimelineEventType.SCREEN_INTERACTIVE),
+                event(32, ForegroundTimelineEventType.KEYGUARD_HIDDEN),
+                event(50, ForegroundTimelineEventType.APP_PAUSED, "youtube", "Watch")
+            )
+        )
+
+        assertEquals(listOf(20_000L, 18_000L), result.segments.map { it.durationMillis })
+    }
+
+    @Test
     fun totalAssignedTime_neverExceedsElapsedRange() {
         val result = aggregate(
             endSecond = 30,

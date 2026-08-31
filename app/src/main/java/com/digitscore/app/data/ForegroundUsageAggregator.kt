@@ -28,10 +28,19 @@ internal data class ForegroundUsageResult(
     val usageMillisByPackage: Map<String, Long>,
     val lateNightUsageMillisByPackage: Map<String, Long>,
     val lastUsedMillisByPackage: Map<String, Long>,
+    val segments: List<ForegroundUsageSegment>,
     val unlockCount: Int,
     val assignedUsageMillis: Long,
     val hasForegroundEvidence: Boolean
 )
+
+internal data class ForegroundUsageSegment(
+    val packageName: String,
+    val startTimeMillis: Long,
+    val endTimeMillis: Long
+) {
+    val durationMillis: Long get() = (endTimeMillis - startTimeMillis).coerceAtLeast(0L)
+}
 
 /**
  * 화면이 상호작용 가능하고 잠금이 해제된 동안 가장 최근에 RESUMED 된 앱 하나만
@@ -49,6 +58,7 @@ internal object ForegroundUsageAggregator {
         val usage = mutableMapOf<String, Long>()
         val lateNightUsage = mutableMapOf<String, Long>()
         val lastUsed = mutableMapOf<String, Long>()
+        val segments = mutableListOf<ForegroundUsageSegment>()
 
         var activePackage: String? = null
         var activeClass: String? = null
@@ -72,6 +82,13 @@ internal object ForegroundUsageAggregator {
             val packageName = activePackage ?: return
             val duration = intervalEnd - intervalStart
             usage[packageName] = (usage[packageName] ?: 0L) + duration
+
+            val previous = segments.lastOrNull()
+            if (previous?.packageName == packageName && previous.endTimeMillis == intervalStart) {
+                segments[segments.lastIndex] = previous.copy(endTimeMillis = intervalEnd)
+            } else {
+                segments += ForegroundUsageSegment(packageName, intervalStart, intervalEnd)
+            }
 
             val lateStart = maxOf(intervalStart, startTimeMillis)
             val lateEnd = minOf(intervalEnd, lateNightEndTimeMillis)
@@ -122,12 +139,12 @@ internal object ForegroundUsageAggregator {
                 }
 
                 ForegroundTimelineEventType.KEYGUARD_SHOWN -> {
-                    hasKeyguardEvents = true
+                    if (countUnlock) hasKeyguardEvents = true
                     keyguardHidden = false
                 }
 
                 ForegroundTimelineEventType.KEYGUARD_HIDDEN -> {
-                    hasKeyguardEvents = true
+                    if (countUnlock) hasKeyguardEvents = true
                     keyguardHidden = true
                     if (countUnlock) unlockCount++
                 }
@@ -164,6 +181,7 @@ internal object ForegroundUsageAggregator {
             usageMillisByPackage = usage,
             lateNightUsageMillisByPackage = lateNightUsage,
             lastUsedMillisByPackage = lastUsed,
+            segments = segments,
             unlockCount = if (hasKeyguardEvents) unlockCount else screenInteractiveCount,
             assignedUsageMillis = assignedUsageMillis,
             hasForegroundEvidence = hasForegroundEvidence || usage.isNotEmpty()
