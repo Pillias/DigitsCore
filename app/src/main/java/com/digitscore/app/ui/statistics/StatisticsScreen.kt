@@ -92,26 +92,24 @@ fun StatisticsScreen(
 
     val targetDefense = userSettings?.minimumScoreDefenseLine ?: 60
 
-    // 통계 화면 진입 시 과거 기록이 부족하면 30일치 자동 소급 분석 실행
-    LaunchedEffect(Unit) {
+    // 통계 화면 진입 시 30일 범위를 다시 동기화합니다. 기존처럼 7개가 있다는 이유로
+    // 나머지 23일을 건너뛰지 않으며, 앱 등급 변경도 과거 점수에 다시 반영됩니다.
+    LaunchedEffect(userSettings) {
+        val loadedSettings = userSettings ?: return@LaunchedEffect
         if (UsageStatsHelper.hasUsageStatsPermission(context)) {
             withContext(Dispatchers.IO) {
-                val existing = db.scoreDao().getAllScoreHistories().firstOrNull() ?: emptyList()
-                if (existing.size < 7) {
-                    val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
-                    val weightMap = appWeights.associateBy { it.packageName }
-                    val currentPreset = PresetMode.fromId(userSettings?.selectedPresetModeId ?: "balanced")
-                    val effectiveRule = userSettings?.applyTo(currentPreset.scoreRule)
-                        ?: currentPreset.scoreRule
-                    val pastHistories = UsageStatsHelper.syncPastDaysUsageStats(
-                        context = context,
-                        appWeightMap = weightMap,
-                        scoreRule = effectiveRule,
-                        days = 30
-                    )
-                    for (h in pastHistories) {
-                        db.scoreDao().insertOrUpdateScoreHistory(h)
-                    }
+                val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
+                val weightMap = appWeights.associateBy { it.packageName }
+                val currentPreset = PresetMode.fromId(loadedSettings.selectedPresetModeId)
+                val effectiveRule = loadedSettings.applyTo(currentPreset.scoreRule)
+                val pastHistories = UsageStatsHelper.syncPastDaysUsageStats(
+                    context = context,
+                    appWeightMap = weightMap,
+                    scoreRule = effectiveRule,
+                    days = 30
+                )
+                for (h in pastHistories) {
+                    db.scoreDao().insertOrUpdateScoreHistory(h)
                 }
             }
         }
@@ -185,6 +183,25 @@ fun StatisticsScreen(
                             )
                         }
                     )
+                }
+            }
+
+            if (selectedTabIndex == 1 && histories.size < 30) {
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "기기에서 확인 가능한 ${histories.size}일의 기록을 표시하고 있어요. " +
+                                "오래된 사용 기록은 기기 정책에 따라 제공되지 않을 수 있습니다.",
+                            modifier = Modifier.padding(14.dp),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 

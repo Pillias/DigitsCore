@@ -214,25 +214,6 @@ class TrackerForegroundService : Service() {
                 ScoreRepository.updateUnlockCount(todayUnlockCount)
             }
 
-            // 과거 히스토리가 부족한 경우 최초 1회 자동 30일치 소급 분석 실행
-            val allHistories = db.scoreDao().getAllScoreHistories().firstOrNull() ?: emptyList()
-            if (allHistories.size < 7 && UsageStatsHelper.hasUsageStatsPermission(applicationContext)) {
-                val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
-                val weightMap = appWeights.associateBy { it.packageName }
-                val settings = db.settingsDao().getSettings()
-                val presetMode = PresetMode.fromId(settings?.selectedPresetModeId ?: "balanced")
-                val effectiveRule = settings?.applyTo(presetMode.scoreRule) ?: presetMode.scoreRule
-                val pastHistories = UsageStatsHelper.syncPastDaysUsageStats(
-                    context = applicationContext,
-                    appWeightMap = weightMap,
-                    scoreRule = effectiveRule,
-                    days = 30
-                )
-                for (h in pastHistories) {
-                    db.scoreDao().insertOrUpdateScoreHistory(h)
-                }
-            }
-
             recalculateAndNotify()
         }
     }

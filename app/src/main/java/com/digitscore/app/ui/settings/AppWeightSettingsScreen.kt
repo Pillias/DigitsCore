@@ -98,7 +98,7 @@ fun AppWeightSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("앱 분류 및 가중치 설정", fontWeight = FontWeight.Bold) },
+                title = { Text("앱별 균형 등급", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
@@ -151,11 +151,7 @@ fun AppWeightSettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(filteredApps) { app ->
-                    val tagColor = when (app.categoryType) {
-                        AppCategoryType.PRODUCTIVE -> ScoreGreen
-                        AppCategoryType.NEUTRAL -> MaterialTheme.colorScheme.outline
-                        AppCategoryType.DISTRACTING -> ScoreRed
-                    }
+                    val tagColor = ratingColor(app.categoryType)
 
                     Card(
                         modifier = Modifier
@@ -213,12 +209,12 @@ fun AppWeightSettingsScreen(
             text = {
                 Column {
                     Text(
-                        text = "이 앱의 성격을 선택해 주세요:",
+                        text = "이 앱이 디지털 균형에 미치는 정도를 선택해 주세요.",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
-                    AppCategoryType.entries.forEach { cat ->
+                    AppCategoryType.orderedEntries.forEach { cat ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -231,7 +227,19 @@ fun AppWeightSettingsScreen(
                                 onClick = { currentCategory = cat }
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(cat.displayName, color = MaterialTheme.colorScheme.onBackground, fontSize = 14.sp)
+                            Column {
+                                Text(
+                                    text = cat.displayName,
+                                    color = ratingColor(cat),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = cat.description,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    fontSize = 11.sp
+                                )
+                            }
                         }
                     }
                 }
@@ -263,4 +271,13 @@ fun AppWeightSettingsScreen(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
     }
+}
+
+@Composable
+private fun ratingColor(category: AppCategoryType): Color = when (category.level) {
+    1 -> ScoreRed
+    2 -> Color(0xFFE58A3A)
+    3 -> MaterialTheme.colorScheme.outline
+    4 -> Color(0xFF38A6A5)
+    else -> ScoreGreen
 }

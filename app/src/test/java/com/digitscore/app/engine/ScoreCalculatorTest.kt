@@ -156,6 +156,42 @@ class ScoreCalculatorTest {
     }
 
     @Test
+    fun testFiveLevelRatings_applyHalfStrengthAtLevelsTwoAndFour() {
+        val apps = listOf(
+            AppUsage(
+                packageName = "level.two",
+                appName = "Level 2",
+                usageTimeMillis = 20 * 60_000L,
+                categoryType = AppCategoryType.MILDLY_DISTRACTING
+            ),
+            AppUsage(
+                packageName = "level.four",
+                appName = "Level 4",
+                usageTimeMillis = 20 * 60_000L,
+                categoryType = AppCategoryType.MILDLY_PRODUCTIVE
+            )
+        )
+
+        val detail = ScoreCalculator.calculateScore(
+            appsUsage = apps,
+            idleMinutes = 0,
+            unlockCount = 0,
+            rule = ScoreRule(
+                distractingWeightPerMinute = 1f,
+                productiveBonusPerMinute = 1f,
+                maxProductiveBonus = 100f,
+                isLogAccelerationEnabled = false
+            )
+        )
+
+        assertEquals(10f, detail.distractingPenalty, 0.01f)
+        assertEquals(10f, detail.productiveBonus, 0.01f)
+        assertEquals(100, detail.finalScore)
+        assertEquals(20L, detail.distractingTimeMinutes)
+        assertEquals(20L, detail.productiveTimeMinutes)
+    }
+
+    @Test
     fun testUnlockPenalty_whenThresholdExceeded() {
         // threshold 25회, unlock 45회 -> excess 20회 * 0.5 = 10점 감점
         val detail = ScoreCalculator.calculateScore(

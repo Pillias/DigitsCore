@@ -225,10 +225,7 @@ object UsageStatsHelper {
                 add(Calendar.DAY_OF_YEAR, -i)
             }
             val dayCalEnd = (dayCalStart.clone() as Calendar).apply {
-                set(Calendar.HOUR_OF_DAY, 23)
-                set(Calendar.MINUTE, 59)
-                set(Calendar.SECOND, 59)
-                set(Calendar.MILLISECOND, 999)
+                add(Calendar.DAY_OF_YEAR, 1)
             }
 
             val startTime = dayCalStart.timeInMillis
@@ -241,6 +238,7 @@ object UsageStatsHelper {
 
             if (!aggregatedStats.isNullOrEmpty()) {
                 for ((pkgName, stat) in aggregatedStats) {
+                    // endTime은 UsageStatsManager 규약상 exclusive(다음 날 00:00)입니다.
                     val timeMillis = stat.totalTimeInForeground.coerceIn(0L, endTime - startTime)
 
                     if (shouldIncludeUsagePackage(pkgName, timeMillis)) {
@@ -283,11 +281,17 @@ object UsageStatsHelper {
             }
 
             val distractingMinutes = dayAppUsages
-                .filter { it.categoryType == AppCategoryType.DISTRACTING }
+                .filter { it.categoryType.isPenalty }
                 .sumOf { it.usageTimeMinutes }
             val productiveMinutes = dayAppUsages
-                .filter { it.categoryType == AppCategoryType.PRODUCTIVE }
+                .filter { it.categoryType.isBonus }
                 .sumOf { it.usageTimeMinutes }
+
+            // OS가 사용 기록을 반환하지 않은 날을 임의의 100점으로 만들지 않습니다.
+            // 권한 부재, 제조사별 보존 기간, 실제 미사용을 구분할 수 없기 때문입니다.
+            if (dayAppUsages.isEmpty() && pastUnlockCount == 0) {
+                continue
+            }
 
             val estimatedIdleMinutes = max(0L, 1440L - totalScreenMinutes)
             val finalUnlockCount = if (pastUnlockCount > 0) {
@@ -298,22 +302,12 @@ object UsageStatsHelper {
                 0
             }
 
-            val scoreDetail = if (dayAppUsages.isNotEmpty()) {
-                ScoreCalculator.calculateScore(
-                    appsUsage = dayAppUsages,
-                    idleMinutes = estimatedIdleMinutes,
-                    unlockCount = finalUnlockCount,
-                    rule = scoreRule
-                )
-            } else {
-                // 사용 기록이 전혀 없는 날은 기본 100점 (완벽한 디톡스)
-                ScoreCalculator.calculateScore(
-                    appsUsage = emptyList(),
-                    idleMinutes = 1440L,
-                    unlockCount = 0,
-                    rule = scoreRule
-                )
-            }
+            val scoreDetail = ScoreCalculator.calculateScore(
+                appsUsage = dayAppUsages,
+                idleMinutes = estimatedIdleMinutes,
+                unlockCount = finalUnlockCount,
+                rule = scoreRule
+            )
 
             result.add(
                 DailyScoreHistoryEntity(

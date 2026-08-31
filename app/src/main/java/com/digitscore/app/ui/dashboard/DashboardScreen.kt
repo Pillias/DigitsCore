@@ -279,7 +279,7 @@ fun DashboardScreen(
             distractingMinutes = scoreDetail?.distractingTimeMinutes ?: 0L,
             distractingPenalty = scoreDetail?.distractingPenalty ?: 0f,
             lateNightPenalty = scoreDetail?.lateNightPenalty ?: 0f,
-            appsUsage = appsUsage.filter { it.categoryType == AppCategoryType.DISTRACTING },
+            appsUsage = appsUsage.filter { it.categoryType.isPenalty },
             onDismiss = { showDistractingModal = false },
             onNavigateToAppSettings = {
                 showDistractingModal = false
@@ -447,11 +447,7 @@ private fun StatisticCard(
 
 @Composable
 private fun AppUsageItemCard(appUsage: AppUsage, onClick: () -> Unit) {
-    val categoryColor = when (appUsage.categoryType) {
-        AppCategoryType.PRODUCTIVE -> ScoreGreen
-        AppCategoryType.DISTRACTING -> ScoreRed
-        AppCategoryType.NEUTRAL -> MaterialTheme.colorScheme.outline
-    }
+    val categoryColor = appRatingColor(appUsage.categoryType)
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -632,8 +628,8 @@ fun ScreenTimeDetailDialog(
     onNavigateToStatistics: () -> Unit,
     onSelectApp: (AppUsage) -> Unit
 ) {
-    val distractingMins = appsUsage.filter { it.categoryType == AppCategoryType.DISTRACTING }.sumOf { it.usageTimeMinutes }
-    val productiveMins = appsUsage.filter { it.categoryType == AppCategoryType.PRODUCTIVE }.sumOf { it.usageTimeMinutes }
+    val distractingMins = appsUsage.filter { it.categoryType.isPenalty }.sumOf { it.usageTimeMinutes }
+    val productiveMins = appsUsage.filter { it.categoryType.isBonus }.sumOf { it.usageTimeMinutes }
     val neutralMins = (totalScreenMinutes - distractingMins - productiveMins).coerceAtLeast(0L)
 
     AlertDialog(
@@ -699,11 +695,11 @@ fun ScreenTimeDetailDialog(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = app.appName, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                            Text(text = app.categoryType.displayName, fontSize = 11.sp, color = when(app.categoryType) {
-                                AppCategoryType.PRODUCTIVE -> ScoreGreen
-                                AppCategoryType.DISTRACTING -> ScoreRed
-                                AppCategoryType.NEUTRAL -> MaterialTheme.colorScheme.outline
-                            })
+                            Text(
+                                text = app.categoryType.displayName,
+                                fontSize = 11.sp,
+                                color = appRatingColor(app.categoryType)
+                            )
                         }
                         Text(
                             text = formatMinutesToHoursAndMinutes(app.usageTimeMinutes),
@@ -923,11 +919,7 @@ fun AllAppsUsageDialog(
                             Text(
                                 text = app.categoryType.displayName,
                                 fontSize = 11.sp,
-                                color = when (app.categoryType) {
-                                    AppCategoryType.PRODUCTIVE -> ScoreGreen
-                                    AppCategoryType.DISTRACTING -> ScoreRed
-                                    AppCategoryType.NEUTRAL -> MaterialTheme.colorScheme.outline
-                                }
+                                color = appRatingColor(app.categoryType)
                             )
                         }
                         Text(
@@ -1002,35 +994,23 @@ fun AppDetailDialog(
                 }
 
                 Text(
-                    text = "디톡스 카테고리 분류 변경",
+                    text = "앱별 균형 등급 변경",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
 
-                // 카테고리 라디오 버튼 그룹
+                // 5단계 등급 라디오 버튼 그룹
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    CategoryRadioOption(
-                        title = "🔴 방해 앱 (감점 대상)",
-                        description = "SNS, 동영상, 게임 등 사용을 줄여야 하는 앱",
-                        selected = selectedCategory == AppCategoryType.DISTRACTING,
-                        color = ScoreRed,
-                        onClick = { selectedCategory = AppCategoryType.DISTRACTING }
-                    )
-                    CategoryRadioOption(
-                        title = "🟢 생산성 앱 (보너스 가산)",
-                        description = "공부, 업무, 독서 등 권장되는 앱",
-                        selected = selectedCategory == AppCategoryType.PRODUCTIVE,
-                        color = ScoreGreen,
-                        onClick = { selectedCategory = AppCategoryType.PRODUCTIVE }
-                    )
-                    CategoryRadioOption(
-                        title = "⚪ 중립 앱 (점수 영향 없음)",
-                        description = "통화, 지도, 금융 등 일상 필수 유틸리티 앱",
-                        selected = selectedCategory == AppCategoryType.NEUTRAL,
-                        color = MaterialTheme.colorScheme.outline,
-                        onClick = { selectedCategory = AppCategoryType.NEUTRAL }
-                    )
+                    AppCategoryType.orderedEntries.forEach { category ->
+                        CategoryRadioOption(
+                            title = category.displayName,
+                            description = category.description,
+                            selected = selectedCategory == category,
+                            color = appRatingColor(category),
+                            onClick = { selectedCategory = category }
+                        )
+                    }
                 }
             }
         },
@@ -1078,4 +1058,13 @@ private fun CategoryRadioOption(
             Text(text = description, fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
         }
     }
+}
+
+@Composable
+private fun appRatingColor(category: AppCategoryType): Color = when (category.level) {
+    1 -> ScoreRed
+    2 -> ScoreOrange
+    3 -> MaterialTheme.colorScheme.outline
+    4 -> Color(0xFF38A6A5)
+    else -> ScoreGreen
 }
