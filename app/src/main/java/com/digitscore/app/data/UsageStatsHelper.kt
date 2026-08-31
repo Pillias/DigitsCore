@@ -135,12 +135,7 @@ object UsageStatsHelper {
                 timestampMillis = androidEvent.timeStamp,
                 type = type,
                 packageName = androidEvent.packageName,
-                className = androidEvent.className,
-                instanceId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    androidEvent.instanceId
-                } else {
-                    null
-                }
+                className = androidEvent.className
             )
         }
 
