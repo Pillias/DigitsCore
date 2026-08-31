@@ -39,7 +39,11 @@ class UsageStatsHelperTest {
     }
 
     @Test
-    fun audioAndVideoApps_defaultToDistractingCategory() {
+    fun gameAudioAndVideoApps_defaultToLevelFive() {
+        assertEquals(
+            AppCategoryType.DISTRACTING,
+            UsageStatsHelper.defaultCategoryForApplicationCategory(ApplicationInfo.CATEGORY_GAME)
+        )
         assertEquals(
             AppCategoryType.DISTRACTING,
             UsageStatsHelper.defaultCategoryForApplicationCategory(ApplicationInfo.CATEGORY_AUDIO)
@@ -51,10 +55,46 @@ class UsageStatsHelperTest {
     }
 
     @Test
-    fun nonMediaApps_doNotReceiveAutomaticDistractingCategory() {
+    fun productivityApps_defaultToLevelTwo() {
         assertEquals(
-            AppCategoryType.NEUTRAL,
+            AppCategoryType.MILDLY_PRODUCTIVE,
             UsageStatsHelper.defaultCategoryForApplicationCategory(ApplicationInfo.CATEGORY_PRODUCTIVITY)
+        )
+    }
+
+    @Test
+    fun shoppingPackages_defaultToLevelFour() {
+        assertEquals(
+            AppCategoryType.MILDLY_DISTRACTING,
+            UsageStatsHelper.defaultCategoryForPackage(
+                "com.alibaba.aliexpresshd",
+                ApplicationInfo.CATEGORY_UNDEFINED
+            )
+        )
+        assertEquals(
+            AppCategoryType.MILDLY_DISTRACTING,
+            UsageStatsHelper.defaultCategoryForPackage(
+                "com.shopee.my",
+                ApplicationInfo.CATEGORY_UNDEFINED
+            )
+        )
+    }
+
+    @Test
+    fun educationPackages_defaultToLevelOne() {
+        assertEquals(
+            AppCategoryType.PRODUCTIVE,
+            UsageStatsHelper.defaultCategoryForPackage(
+                "com.duolingo",
+                ApplicationInfo.CATEGORY_UNDEFINED
+            )
+        )
+        assertEquals(
+            AppCategoryType.PRODUCTIVE,
+            UsageStatsHelper.defaultCategoryForPackage(
+                "org.khanacademy.android",
+                ApplicationInfo.CATEGORY_UNDEFINED
+            )
         )
     }
 }

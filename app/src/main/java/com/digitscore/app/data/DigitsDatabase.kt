@@ -88,22 +88,27 @@ abstract class DigitsDatabase : RoomDatabase() {
 
             // 2. 대표적인 앱들에 대한 기본 카테고리 프리셋 시딩
             val initialAppWeights = listOf(
-                // 방해 / SNS / 오락 앱
-                AppWeightEntity("com.instagram.android", "Instagram", AppCategoryType.DISTRACTING),
+                // 4단계: SNS·뉴스·쇼핑처럼 사용량 조절을 권장하는 앱
+                AppWeightEntity("com.instagram.android", "Instagram", AppCategoryType.MILDLY_DISTRACTING),
+                AppWeightEntity("com.facebook.katana", "Facebook", AppCategoryType.MILDLY_DISTRACTING),
+                AppWeightEntity("com.twitter.android", "X (Twitter)", AppCategoryType.MILDLY_DISTRACTING),
+                AppWeightEntity("com.alibaba.aliexpresshd", "AliExpress", AppCategoryType.MILDLY_DISTRACTING),
+
+                // 5단계: 게임·동영상·음악처럼 몰입 시간이 길어지기 쉬운 앱
                 AppWeightEntity("com.zhiliaoapp.musically", "TikTok", AppCategoryType.DISTRACTING),
                 AppWeightEntity("com.google.android.youtube", "YouTube", AppCategoryType.DISTRACTING),
-                AppWeightEntity("com.facebook.katana", "Facebook", AppCategoryType.DISTRACTING),
-                AppWeightEntity("com.twitter.android", "X (Twitter)", AppCategoryType.DISTRACTING),
                 AppWeightEntity("com.netflix.mediaclient", "Netflix", AppCategoryType.DISTRACTING),
                 AppWeightEntity("com.roblox.client", "Roblox", AppCategoryType.DISTRACTING),
 
-                // 생산성 / 학습 / 유틸리티 앱
+                // 1단계: 교육·학습 앱
                 AppWeightEntity("com.duolingo", "Duolingo", AppCategoryType.PRODUCTIVE),
-                AppWeightEntity("notion.id", "Notion", AppCategoryType.PRODUCTIVE),
-                AppWeightEntity("com.todoist", "Todoist", AppCategoryType.PRODUCTIVE),
-                AppWeightEntity("com.google.android.apps.docs", "Google Docs", AppCategoryType.PRODUCTIVE),
-                AppWeightEntity("com.slack", "Slack", AppCategoryType.PRODUCTIVE),
-                AppWeightEntity("com.ankiandroid", "AnkiDroid", AppCategoryType.PRODUCTIVE)
+                AppWeightEntity("com.ichi2.anki", "AnkiDroid", AppCategoryType.PRODUCTIVE),
+
+                // 2단계: 생산성과 목표 달성을 지원하는 앱
+                AppWeightEntity("notion.id", "Notion", AppCategoryType.MILDLY_PRODUCTIVE),
+                AppWeightEntity("com.todoist", "Todoist", AppCategoryType.MILDLY_PRODUCTIVE),
+                AppWeightEntity("com.google.android.apps.docs", "Google Docs", AppCategoryType.MILDLY_PRODUCTIVE),
+                AppWeightEntity("com.slack", "Slack", AppCategoryType.MILDLY_PRODUCTIVE)
             )
             db.appDao().insertAppWeights(initialAppWeights)
         }

@@ -1062,9 +1062,9 @@ private fun CategoryRadioOption(
 
 @Composable
 private fun appRatingColor(category: AppCategoryType): Color = when (category.level) {
-    1 -> ScoreRed
-    2 -> ScoreOrange
+    1 -> ScoreGreen
+    2 -> Color(0xFF38A6A5)
     3 -> MaterialTheme.colorScheme.outline
-    4 -> Color(0xFF38A6A5)
-    else -> ScoreGreen
+    4 -> ScoreOrange
+    else -> ScoreRed
 }

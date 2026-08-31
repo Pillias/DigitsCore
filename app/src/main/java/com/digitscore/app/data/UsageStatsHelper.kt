@@ -76,10 +76,50 @@ object UsageStatsHelper {
 
     internal fun defaultCategoryForApplicationCategory(applicationCategory: Int): AppCategoryType =
         when (applicationCategory) {
+            ApplicationInfo.CATEGORY_GAME,
             ApplicationInfo.CATEGORY_AUDIO,
             ApplicationInfo.CATEGORY_VIDEO -> AppCategoryType.DISTRACTING
+
+            ApplicationInfo.CATEGORY_SOCIAL,
+            ApplicationInfo.CATEGORY_NEWS -> AppCategoryType.MILDLY_DISTRACTING
+
+            ApplicationInfo.CATEGORY_PRODUCTIVITY -> AppCategoryType.MILDLY_PRODUCTIVE
             else -> AppCategoryType.NEUTRAL
         }
+
+    private val EDUCATION_PACKAGE_PREFIXES = listOf(
+        "com.duolingo",
+        "com.ichi2.anki",
+        "com.ankiandroid",
+        "org.khanacademy",
+        "com.coursera",
+        "com.udemy",
+        "com.quizlet",
+        "com.google.android.apps.classroom",
+        "org.edx"
+    )
+
+    private val SHOPPING_PACKAGE_PREFIXES = listOf(
+        "com.alibaba.aliexpress",
+        "com.amazon.mshop",
+        "com.shopee",
+        "com.ebay.mobile",
+        "com.einnovation.temu",
+        "com.contextlogic.wish",
+        "com.coupang.mobile"
+    )
+
+    internal fun defaultCategoryForPackage(
+        packageName: String,
+        applicationCategory: Int
+    ): AppCategoryType {
+        val normalizedPackage = packageName.lowercase()
+        return when {
+            EDUCATION_PACKAGE_PREFIXES.any(normalizedPackage::startsWith) -> AppCategoryType.PRODUCTIVE
+            SHOPPING_PACKAGE_PREFIXES.any(normalizedPackage::startsWith) -> AppCategoryType.MILDLY_DISTRACTING
+            else -> defaultCategoryForApplicationCategory(applicationCategory)
+        }
+    }
 
     private fun resolveCategory(
         pm: PackageManager,
@@ -93,7 +133,7 @@ object UsageStatsHelper {
         } catch (_: Exception) {
             ApplicationInfo.CATEGORY_UNDEFINED
         }
-        return defaultCategoryForApplicationCategory(applicationCategory)
+        return defaultCategoryForPackage(packageName, applicationCategory)
     }
 
     internal fun shouldIncludeUsagePackage(packageName: String, usageTimeMillis: Long): Boolean =
@@ -222,12 +262,17 @@ object UsageStatsHelper {
         for (resolveInfo in resolveInfos) {
             val pkgName = resolveInfo.activityInfo.packageName
             val appName = resolveInfo.loadLabel(pm).toString()
+            val applicationCategory = try {
+                pm.getApplicationInfo(pkgName, 0).category
+            } catch (_: Exception) {
+                ApplicationInfo.CATEGORY_UNDEFINED
+            }
             list.add(
                 AppUsage(
                     packageName = pkgName,
                     appName = appName,
                     usageTimeMillis = 0L,
-                    categoryType = AppCategoryType.NEUTRAL
+                    categoryType = defaultCategoryForPackage(pkgName, applicationCategory)
                 )
             )
         }
