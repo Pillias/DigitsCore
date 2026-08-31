@@ -44,6 +44,9 @@ data class UnlockInsights(
 object UsageStatsHelper {
 
     private const val FOREGROUND_STATE_LOOKBACK_MILLIS = 6 * 60 * 60 * 1_000L
+    // UsageEvents.Event.NOTIFICATION_INTERRUPTION은 event type 12이지만 일부 공개 SDK에서
+    // 심볼이 노출되지 않으므로 플랫폼에 정의된 안정된 정수 값을 사용합니다.
+    private const val EVENT_TYPE_NOTIFICATION_INTERRUPTION = 12
 
     private data class QueriedUsageEvents(
         val timelineEvents: List<ForegroundTimelineEvent>,
@@ -193,7 +196,7 @@ object UsageStatsHelper {
 
         while (usageEvents.hasNextEvent()) {
             usageEvents.getNextEvent(androidEvent)
-            if (androidEvent.eventType == UsageEvents.Event.NOTIFICATION_INTERRUPTION) {
+            if (androidEvent.eventType == EVENT_TYPE_NOTIFICATION_INTERRUPTION) {
                 notificationTimestamps += androidEvent.timeStamp
                 continue
             }
