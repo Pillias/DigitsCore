@@ -62,17 +62,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.digitscore.app.data.DigitsDatabase
-import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
-import com.digitscore.app.data.entity.applyTo
 import com.digitscore.app.engine.ScoringBenchmark
-import com.digitscore.app.model.PresetMode
 import com.digitscore.app.ui.theme.ScoreGreen
 import com.digitscore.app.ui.theme.ScoreOrange
 import com.digitscore.app.ui.theme.ScoreRed
 import com.digitscore.app.ui.theme.ScoreYellow
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -95,41 +91,25 @@ fun StatisticsScreen(
 
     val targetDefense = userSettings?.minimumScoreDefenseLine ?: 60
 
-    // 통계 화면 진입 시 30일 범위를 다시 동기화합니다. 기존처럼 7개가 있다는 이유로
-    // 나머지 23일을 건너뛰지 않으며, 앱 등급 변경도 과거 점수에 다시 반영됩니다.
-    LaunchedEffect(userSettings) {
-        val loadedSettings = userSettings ?: return@LaunchedEffect
-        if (UsageStatsHelper.hasUsageStatsPermission(context)) {
-            withContext(Dispatchers.IO) {
-                val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                val today = Calendar.getInstance().apply {
-                    set(Calendar.HOUR_OF_DAY, 0)
-                    set(Calendar.MINUTE, 0)
-                    set(Calendar.SECOND, 0)
-                    set(Calendar.MILLISECOND, 0)
-                }
-                val rangeStart = (today.clone() as Calendar).apply {
-                    add(Calendar.DAY_OF_YEAR, -30)
-                }
-                db.scoreDao().deleteLegacyEmptyBackfills(
-                    startDateString = dateFormat.format(rangeStart.time),
-                    endDateString = dateFormat.format(today.time)
-                )
-
-                val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
-                val weightMap = appWeights.associateBy { it.packageName }
-                val currentPreset = PresetMode.fromId(loadedSettings.selectedPresetModeId)
-                val effectiveRule = loadedSettings.applyTo(currentPreset.scoreRule)
-                val pastHistories = UsageStatsHelper.syncPastDaysUsageStats(
-                    context = context,
-                    appWeightMap = weightMap,
-                    scoreRule = effectiveRule,
-                    days = 30
-                )
-                for (h in pastHistories) {
-                    db.scoreDao().insertOrUpdateScoreHistory(h)
-                }
+    // 누적 UsageStats 기반 30일 소급은 정확한 전면 앱 시간을 보장하지 못하므로 중단합니다.
+    // 과거 버전이 데이터 없는 날을 100점으로 만든 행만 정리하고, 이후 기록은 실시간
+    // UsageEvents 측정 결과가 매일 쌓이도록 둡니다.
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val today = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
             }
+            val rangeStart = (today.clone() as Calendar).apply {
+                add(Calendar.DAY_OF_YEAR, -30)
+            }
+            db.scoreDao().deleteLegacyEmptyBackfills(
+                startDateString = dateFormat.format(rangeStart.time),
+                endDateString = dateFormat.format(today.time)
+            )
         }
     }
 

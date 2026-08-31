@@ -52,13 +52,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Restore
-import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import com.digitscore.app.BuildConfig
 import com.digitscore.app.data.DigitsDatabase
-import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.backup.DataBackupManager
 import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.data.entity.applyTo
@@ -68,7 +66,6 @@ import com.digitscore.app.service.TrackerForegroundService
 import com.digitscore.app.ui.privacy.PrivacyPolicyDialog
 import com.digitscore.app.ui.theme.ScoreGreen
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -877,44 +874,10 @@ fun PresetModeScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            text = "점수 히스토리 및 설정을 안전하게 파일로 백업하거나 과거 30일치 사용량을 소급 분석합니다.",
+                            text = "점수 히스토리와 설정을 파일로 백업할 수 있습니다. 앱별 사용시간은 추적을 켠 뒤 화면이 켜지고 잠금 해제된 전면 앱만 기록합니다.",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-
-                        // 1) 과거 30일 소급 분석
-                        OutlinedButton(
-                            onClick = {
-                                scope.launch(Dispatchers.IO) {
-                                    if (!UsageStatsHelper.hasUsageStatsPermission(context)) {
-                                        launch(Dispatchers.Main) {
-                                            Toast.makeText(context, "사용 정보 접근 권한이 필요합니다.", Toast.LENGTH_SHORT).show()
-                                        }
-                                        return@launch
-                                    }
-                                    val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
-                                    val weightMap = appWeights.associateBy { it.packageName }
-                                    val currentPreset = PresetMode.fromId(settings.selectedPresetModeId)
-                                    val pastHistories = UsageStatsHelper.syncPastDaysUsageStats(
-                                        context = context,
-                                        appWeightMap = weightMap,
-                                        scoreRule = settings.applyTo(currentPreset.scoreRule),
-                                        days = 30
-                                    )
-                                    for (h in pastHistories) {
-                                        db.scoreDao().insertOrUpdateScoreHistory(h)
-                                    }
-                                    launch(Dispatchers.Main) {
-                                        Toast.makeText(context, "과거 ${pastHistories.size}일 치 데이터 분석이 완료되었습니다!", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.Sync, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
-                            Text(text = "과거 30일 사용량 소급 분석", fontWeight = FontWeight.SemiBold)
-                        }
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),

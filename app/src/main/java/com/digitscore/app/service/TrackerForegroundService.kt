@@ -249,12 +249,14 @@ class TrackerForegroundService : Service() {
                 val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
                 val weightMap = appWeights.associateBy { it.packageName }
 
-                // 오늘 사용량 통계 조회
-                val appsUsage = UsageStatsHelper.getTodayAppUsageStats(applicationContext, weightMap)
+                // 화면이 켜지고 잠금 해제된 동안 최상단 앱 하나만 이벤트 타임라인으로 집계합니다.
+                // 앱 사용시간과 잠금 해제를 한 번의 UsageEvents 조회로 함께 계산합니다.
+                val usageSnapshot = UsageStatsHelper.getTodayUsageSnapshot(applicationContext, weightMap)
+                val appsUsage = usageSnapshot.appsUsage
                 ScoreRepository.updateAppsUsage(appsUsage)
 
-                // 시스템 이벤트에서 얻은 언락 횟수 근사치와 동기화
-                val systemUnlocks = UsageStatsHelper.getTodayUnlockCount(applicationContext)
+                // 시스템 이벤트에서 얻은 언락 횟수와 동기화
+                val systemUnlocks = usageSnapshot.unlockCount
                 val finalUnlockCount = kotlin.math.max(todayUnlockCount, systemUnlocks)
                 todayUnlockCount = finalUnlockCount
                 ScoreRepository.updateUnlockCount(finalUnlockCount)
