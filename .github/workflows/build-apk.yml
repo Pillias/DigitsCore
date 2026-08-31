@@ -90,8 +90,13 @@ jobs:
             echo "signed=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Test and build release bundle
-        run: gradle :app:testDebugUnitTest :app:bundleRelease --stacktrace --no-daemon
+      # Debug/Release KSP 작업이 같은 Room schema 파일을 동시에 갱신하면
+      # 간헐적으로 "Empty schema file" 오류가 발생하므로 별도 실행으로 직렬화합니다.
+      - name: Run unit tests before release
+        run: gradle :app:testDebugUnitTest --stacktrace --no-daemon
+
+      - name: Build release bundle
+        run: gradle :app:bundleRelease --stacktrace --no-daemon
 
       - name: Upload Play-ready signed AAB
         if: steps.signing.outputs.signed == 'true'
