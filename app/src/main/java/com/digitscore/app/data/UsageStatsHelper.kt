@@ -72,8 +72,6 @@ object UsageStatsHelper {
         "com.digitscore.app"
     )
 
-    private const val FOREGROUND_STATE_LOOKBACK_MILLIS = 24 * 60 * 60 * 1000L
-
     internal fun defaultCategoryForApplicationCategory(applicationCategory: Int): AppCategoryType =
         when (applicationCategory) {
             ApplicationInfo.CATEGORY_AUDIO,
@@ -96,49 +94,8 @@ object UsageStatsHelper {
         return defaultCategoryForApplicationCategory(applicationCategory)
     }
 
-    private fun queryExclusiveForegroundUsage(
-        usageStatsManager: UsageStatsManager,
-        startTime: Long,
-        endTime: Long,
-        lateNightEndTime: Long
-    ): ForegroundUsageResult {
-        val queryStart = (startTime - FOREGROUND_STATE_LOOKBACK_MILLIS).coerceAtLeast(0L)
-        val usageEvents = usageStatsManager.queryEvents(queryStart, endTime)
-            ?: return ForegroundUsageAggregator.aggregate(
-                startTimeMillis = startTime,
-                endTimeMillis = endTime,
-                lateNightEndTimeMillis = lateNightEndTime,
-                events = emptyList()
-            )
-        val androidEvent = UsageEvents.Event()
-        val timelineEvents = mutableListOf<ForegroundTimelineEvent>()
-
-        while (usageEvents.hasNextEvent()) {
-            usageEvents.getNextEvent(androidEvent)
-            val type = when (androidEvent.eventType) {
-                UsageEvents.Event.MOVE_TO_FOREGROUND -> ForegroundTimelineEventType.APP_RESUMED
-                UsageEvents.Event.MOVE_TO_BACKGROUND -> ForegroundTimelineEventType.APP_PAUSED
-                UsageEvents.Event.ACTIVITY_STOPPED -> ForegroundTimelineEventType.APP_STOPPED
-                UsageEvents.Event.SCREEN_NON_INTERACTIVE -> ForegroundTimelineEventType.SCREEN_NON_INTERACTIVE
-                UsageEvents.Event.DEVICE_SHUTDOWN -> ForegroundTimelineEventType.DEVICE_SHUTDOWN
-                else -> null
-            } ?: continue
-
-            timelineEvents += ForegroundTimelineEvent(
-                timestampMillis = androidEvent.timeStamp,
-                type = type,
-                packageName = androidEvent.packageName,
-                className = androidEvent.className
-            )
-        }
-
-        return ForegroundUsageAggregator.aggregate(
-            startTimeMillis = startTime,
-            endTimeMillis = endTime,
-            lateNightEndTimeMillis = lateNightEndTime,
-            events = timelineEvents
-        )
-    }
+    internal fun shouldIncludeUsagePackage(packageName: String, usageTimeMillis: Long): Boolean =
+        usageTimeMillis >= 10_000L && packageName !in IGNORED_SYSTEM_PACKAGES
 
     /**
      * 오늘 0시부터 현재까지의 실제 사용자 앱별 사용 시간 및 정보 집계
@@ -155,19 +112,10 @@ object UsageStatsHelper {
         val endTime = System.currentTimeMillis()
         val lateNightEndTime = startTime + (5 * 60 * 60 * 1000L) // 오늘 새벽 5시
 
-        // 메타데이터 및 이벤트 누락 시 fallback을 위해 OS 집계값도 조회합니다.
+        // Android OS가 제공하는 앱별 전면 사용시간을 단일 기준으로 사용합니다.
         val aggregatedStats = usageStatsManager.queryAndAggregateUsageStats(startTime, endTime).orEmpty()
-
-        // RESUMED/PAUSED 이벤트로 한 시점에 하나의 foreground 앱만 집계합니다.
-        // totalTimeVisible은 PIP·분할 화면처럼 보이기만 하는 앱도 포함하므로 사용하지 않습니다.
-        val exclusiveUsage = queryExclusiveForegroundUsage(
-            usageStatsManager = usageStatsManager,
-            startTime = startTime,
-            endTime = endTime,
-            lateNightEndTime = minOf(endTime, lateNightEndTime)
-        )
-        if (!exclusiveUsage.hasForegroundEvidence && aggregatedStats.isEmpty()) return emptyList()
-        val fallbackLateNightStats = if (endTime > startTime) {
+        if (aggregatedStats.isEmpty()) return emptyList()
+        val lateNightStats = if (endTime > startTime) {
             usageStatsManager.queryAndAggregateUsageStats(
                 startTime,
                 minOf(endTime, lateNightEndTime)
@@ -176,39 +124,14 @@ object UsageStatsHelper {
             emptyMap()
         }
 
-        // 이벤트가 하나라도 있다는 이유로 OS 누적 통계를 전부 버리지 않습니다.
-        // 이벤트가 있는 앱은 exclusive 타임라인을 우선하고, 삼성 등 일부 제조사에서
-        // 이벤트가 통째로 누락된 앱만 totalTimeInForeground로 보완합니다.
-        val reconciledUsage = ForegroundUsageReconciler.reconcile(
-            exclusiveUsage = exclusiveUsage,
-            aggregateUsageMillisByPackage = aggregatedStats.mapValues { (_, stat) ->
-                stat.totalTimeInForeground
-            },
-            aggregateLateNightMillisByPackage = fallbackLateNightStats.mapValues { (_, stat) ->
-                stat.totalTimeInForeground
-            },
-            maximumUsageMillis = endTime - startTime
-        )
-
         val pm = context.packageManager
         val result = mutableListOf<AppUsage>()
-        val packageNames = reconciledUsage.usageMillisByPackage.keys
 
-        for (pkgName in packageNames) {
-            if (IGNORED_SYSTEM_PACKAGES.contains(pkgName)) continue
-            val stat = aggregatedStats[pkgName]
+        for ((pkgName, stat) in aggregatedStats) {
+            val timeMillis = stat.totalTimeInForeground.coerceIn(0L, endTime - startTime)
 
-            val timeMillis = reconciledUsage.usageMillisByPackage[pkgName] ?: 0L
-
-            // 10초 이상 사용된 앱만 처리
-            if (timeMillis >= 10_000L) {
+            if (shouldIncludeUsagePackage(pkgName, timeMillis)) {
                 val savedEntity = appWeightMap[pkgName]
-                // 런처 앱이거나 사용자 정의 등록 앱인지 검증 (시스템 백그라운드 프로세스 필터링)
-                val launchIntent = pm.getLaunchIntentForPackage(pkgName)
-                if (launchIntent == null && savedEntity == null) {
-                    continue
-                }
-
                 val appName = savedEntity?.appName ?: try {
                     val appInfo = pm.getApplicationInfo(pkgName, 0)
                     pm.getApplicationLabel(appInfo).toString()
@@ -217,8 +140,8 @@ object UsageStatsHelper {
                 }
 
                 val category = resolveCategory(pm, pkgName, savedEntity)
-
-                val lateNightTime = reconciledUsage.lateNightUsageMillisByPackage[pkgName] ?: 0L
+                val lateNightTime = (lateNightStats[pkgName]?.totalTimeInForeground ?: 0L)
+                    .coerceIn(0L, timeMillis)
 
                 result.add(
                     AppUsage(
@@ -226,9 +149,7 @@ object UsageStatsHelper {
                         appName = appName,
                         usageTimeMillis = timeMillis,
                         categoryType = category,
-                        lastTimeUsedMillis = exclusiveUsage.lastUsedMillisByPackage[pkgName]
-                            ?: stat?.lastTimeUsed
-                            ?: 0L,
+                        lastTimeUsedMillis = stat.lastTimeUsed,
                         lateNightUsageMillis = lateNightTime
                     )
                 )
@@ -320,17 +241,10 @@ object UsageStatsHelper {
 
             if (!aggregatedStats.isNullOrEmpty()) {
                 for ((pkgName, stat) in aggregatedStats) {
-                    if (IGNORED_SYSTEM_PACKAGES.contains(pkgName)) continue
-
-                    // 과거 상세 이벤트는 OS가 며칠만 보관하므로 foreground 집계값을 사용합니다.
-                    // visible 시간은 PIP·분할 화면에서 앱별 시간이 중복될 수 있어 제외합니다.
                     val timeMillis = stat.totalTimeInForeground.coerceIn(0L, endTime - startTime)
 
-                    if (timeMillis >= 10_000L) {
+                    if (shouldIncludeUsagePackage(pkgName, timeMillis)) {
                         val savedEntity = appWeightMap[pkgName]
-                        val launchIntent = pm.getLaunchIntentForPackage(pkgName)
-                        if (launchIntent == null && savedEntity == null) continue
-
                         val appName = savedEntity?.appName ?: try {
                             val appInfo = pm.getApplicationInfo(pkgName, 0)
                             pm.getApplicationLabel(appInfo).toString()
@@ -443,6 +357,8 @@ object UsageStatsHelper {
             )
         }
 
-        return list.sortedBy { it.appName }
+        return list
+            .distinctBy { it.packageName }
+            .sortedBy { it.appName }
     }
 }
