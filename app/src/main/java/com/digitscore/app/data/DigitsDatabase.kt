@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
         DailyScoreHistoryEntity::class,
         UserSettingsEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 abstract class DigitsDatabase : RoomDatabase() {
@@ -42,6 +42,38 @@ abstract class DigitsDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 사용자가 직접 바꾼 등급은 보존하고, 앱이 제공한 초기 추천만 새 기준으로 정렬합니다.
+                db.execSQL(
+                    """UPDATE app_weights SET categoryType = 'MILDLY_DISTRACTING'
+                       WHERE isUserModified = 0 AND packageName IN (
+                           'com.instagram.android', 'com.facebook.katana', 'com.twitter.android',
+                           'com.alibaba.aliexpresshd'
+                       )""".trimIndent()
+                )
+                db.execSQL(
+                    """UPDATE app_weights SET categoryType = 'DISTRACTING'
+                       WHERE isUserModified = 0 AND packageName IN (
+                           'com.zhiliaoapp.musically', 'com.google.android.youtube',
+                           'com.netflix.mediaclient', 'com.roblox.client'
+                       )""".trimIndent()
+                )
+                db.execSQL(
+                    """UPDATE app_weights SET categoryType = 'PRODUCTIVE'
+                       WHERE isUserModified = 0 AND packageName IN (
+                           'com.duolingo', 'com.ichi2.anki', 'com.ankiandroid'
+                       )""".trimIndent()
+                )
+                db.execSQL(
+                    """UPDATE app_weights SET categoryType = 'MILDLY_PRODUCTIVE'
+                       WHERE isUserModified = 0 AND packageName IN (
+                           'notion.id', 'com.todoist', 'com.google.android.apps.docs', 'com.slack'
+                       )""".trimIndent()
+                )
+            }
+        }
+
         @Volatile
         private var INSTANCE: DigitsDatabase? = null
 
@@ -53,7 +85,7 @@ abstract class DigitsDatabase : RoomDatabase() {
                     "digitscore_database"
                 )
                     .addCallback(DatabaseCallback(context.applicationContext))
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .fallbackToDestructiveMigrationOnDowngrade()
                     .build()
                 INSTANCE = instance
