@@ -10,6 +10,9 @@
 - [x] 앱 설정 및 알림에서 추적 중지
 - [x] 권한 요청 전 기기 내 처리 고지
 - [x] 앱 내 개인정보 처리 안내
+- [x] 전면 앱 단독 집계와 화면 OFF·잠금 경계 회귀 테스트
+- [x] 앱 시간대·세션·7일 추세 및 언락/알림 비교 그래프
+- [x] GitHub 정식 Release와 직접 다운로드 가능한 APK
 
 ## 저장소 관리자가 입력할 값
 
@@ -20,6 +23,7 @@
 - [ ] GitHub Actions secret `DIGITSCORE_UPLOAD_KEY_PASSWORD`
 - [ ] `PRIVACY_POLICY.md`의 개발자명·지원 이메일 입력
 - [ ] 개인정보처리방침을 공개 HTTPS URL에 게시
+- [ ] 실사용 debug APK와 별도로 Play 업로드용 release AAB 최종 서명 확인
 
 keystore는 저장소에 커밋하지 않습니다. Base64 값은 macOS에서 다음처럼 만들 수 있습니다.
 
