@@ -74,6 +74,9 @@ import com.digitscore.app.ui.theme.ScoreYellow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -98,6 +101,21 @@ fun StatisticsScreen(
         val loadedSettings = userSettings ?: return@LaunchedEffect
         if (UsageStatsHelper.hasUsageStatsPermission(context)) {
             withContext(Dispatchers.IO) {
+                val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                val today = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                val rangeStart = (today.clone() as Calendar).apply {
+                    add(Calendar.DAY_OF_YEAR, -30)
+                }
+                db.scoreDao().deleteLegacyEmptyBackfills(
+                    startDateString = dateFormat.format(rangeStart.time),
+                    endDateString = dateFormat.format(today.time)
+                )
+
                 val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
                 val weightMap = appWeights.associateBy { it.packageName }
                 val currentPreset = PresetMode.fromId(loadedSettings.selectedPresetModeId)
