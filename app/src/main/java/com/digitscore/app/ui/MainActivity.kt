@@ -4,10 +4,25 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -15,6 +30,7 @@ import androidx.lifecycle.lifecycleScope
 import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.entity.UserSettingsEntity
+import com.digitscore.app.data.security.DatabaseEncryptionManager
 import com.digitscore.app.service.TrackerForegroundService
 import com.digitscore.app.ui.dashboard.DashboardScreen
 import com.digitscore.app.ui.navigation.Screen
@@ -25,6 +41,7 @@ import com.digitscore.app.ui.statistics.StatisticsScreen
 import com.digitscore.app.ui.theme.DigitsCoreTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
@@ -33,17 +50,6 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val hasPermission = UsageStatsHelper.hasUsageStatsPermission(this)
-        if (hasPermission) {
-            lifecycleScope.launch(Dispatchers.IO) {
-                val settings = DigitsDatabase.getInstance(applicationContext)
-                    .settingsDao()
-                    .getSettings()
-                if (settings?.isTrackingEnabled == true) {
-                    TrackerForegroundService.start(applicationContext)
-                }
-            }
-        }
-
         val startDestination = if (hasPermission) {
             Screen.Dashboard.route
         } else {
@@ -56,68 +62,179 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    val navController = rememberNavController()
-
-                    NavHost(
-                        navController = navController,
-                        startDestination = startDestination
+                    var retryAttempt by remember { mutableIntStateOf(0) }
+                    val startupState by produceState<DatabaseStartupState>(
+                        initialValue = DatabaseStartupState.Initializing,
+                        key1 = retryAttempt
                     ) {
-                        composable(Screen.Onboarding.route) {
-                            OnboardingScreen(
-                                onNavigateToDashboard = {
-                                    lifecycleScope.launch(Dispatchers.IO) {
-                                        val dao = DigitsDatabase.getInstance(applicationContext).settingsDao()
-                                        val current = dao.getSettings() ?: UserSettingsEntity()
-                                        dao.insertOrUpdateSettings(current.copy(isTrackingEnabled = true))
-                                        TrackerForegroundService.start(applicationContext)
-                                    }
-                                    navController.navigate(Screen.Dashboard.route) {
-                                        popUpTo(Screen.Onboarding.route) { inclusive = true }
-                                    }
-                                }
-                            )
-                        }
+                        value = initializeDatabase(hasPermission)
+                    }
 
-                        composable(Screen.Dashboard.route) {
-                            DashboardScreen(
-                                onNavigateToStatistics = {
-                                    navController.navigate(Screen.Statistics.route)
-                                },
-                                onNavigateToAppSettings = {
-                                    navController.navigate(Screen.AppSettings.route)
-                                },
-                                onNavigateToPresetSettings = {
-                                    navController.navigate(Screen.PresetSettings.route)
+                    when (val state = startupState) {
+                        DatabaseStartupState.Initializing -> DatabaseInitializingScreen()
+                        is DatabaseStartupState.Error -> DatabaseStartupErrorScreen(
+                            message = state.message,
+                            onRetry = { retryAttempt++ }
+                        )
+                        DatabaseStartupState.Ready -> {
+                            val navController = rememberNavController()
+                            NavHost(
+                                navController = navController,
+                                startDestination = startDestination
+                            ) {
+                                composable(Screen.Onboarding.route) {
+                                    OnboardingScreen(
+                                        onNavigateToDashboard = {
+                                            lifecycleScope.launch(Dispatchers.IO) {
+                                                val dao = DigitsDatabase.getInstance(applicationContext).settingsDao()
+                                                val current = dao.getSettings() ?: UserSettingsEntity()
+                                                dao.insertOrUpdateSettings(current.copy(isTrackingEnabled = true))
+                                                TrackerForegroundService.start(applicationContext)
+                                            }
+                                            navController.navigate(Screen.Dashboard.route) {
+                                                popUpTo(Screen.Onboarding.route) { inclusive = true }
+                                            }
+                                        }
+                                    )
                                 }
-                            )
-                        }
 
-                        composable(Screen.Statistics.route) {
-                            StatisticsScreen(
-                                onNavigateBack = {
-                                    navController.popBackStack()
+                                composable(Screen.Dashboard.route) {
+                                    DashboardScreen(
+                                        onNavigateToStatistics = {
+                                            navController.navigate(Screen.Statistics.route)
+                                        },
+                                        onNavigateToAppSettings = {
+                                            navController.navigate(Screen.AppSettings.route)
+                                        },
+                                        onNavigateToPresetSettings = {
+                                            navController.navigate(Screen.PresetSettings.route)
+                                        }
+                                    )
                                 }
-                            )
-                        }
 
-                        composable(Screen.AppSettings.route) {
-                            AppWeightSettingsScreen(
-                                onNavigateBack = {
-                                    navController.popBackStack()
+                                composable(Screen.Statistics.route) {
+                                    StatisticsScreen(
+                                        onNavigateBack = {
+                                            navController.popBackStack()
+                                        }
+                                    )
                                 }
-                            )
-                        }
 
-                        composable(Screen.PresetSettings.route) {
-                            PresetModeScreen(
-                                onNavigateBack = {
-                                    navController.popBackStack()
+                                composable(Screen.AppSettings.route) {
+                                    AppWeightSettingsScreen(
+                                        onNavigateBack = {
+                                            navController.popBackStack()
+                                        }
+                                    )
                                 }
-                            )
+
+                                composable(Screen.PresetSettings.route) {
+                                    PresetModeScreen(
+                                        onNavigateBack = {
+                                            navController.popBackStack()
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
+        }
+    }
+
+    private suspend fun initializeDatabase(hasPermission: Boolean): DatabaseStartupState =
+        withContext(Dispatchers.IO) {
+            openDatabase(hasPermission, allowPlaintextRestore = true)
+        }
+
+    private suspend fun openDatabase(
+        hasPermission: Boolean,
+        allowPlaintextRestore: Boolean
+    ): DatabaseStartupState {
+        return try {
+            val database = DigitsDatabase.getInstance(applicationContext)
+            // Room은 build()만으로 파일을 열지 않으므로 여기서 암호와 스키마까지 검증합니다.
+            database.openHelper.writableDatabase
+            DigitsDatabase.finalizeSuccessfulOpen(applicationContext)
+            if (hasPermission) {
+                val settings = database.settingsDao().getSettings()
+                if (settings?.isTrackingEnabled == true) {
+                    TrackerForegroundService.start(applicationContext)
+                }
+            }
+            DatabaseStartupState.Ready
+        } catch (error: Exception) {
+            recoverOrShowDatabaseError(error, hasPermission, allowPlaintextRestore)
+        } catch (error: LinkageError) {
+            recoverOrShowDatabaseError(error, hasPermission, allowPlaintextRestore)
+        }
+    }
+
+    private suspend fun recoverOrShowDatabaseError(
+        error: Throwable,
+        hasPermission: Boolean,
+        allowPlaintextRestore: Boolean
+    ): DatabaseStartupState {
+        if (allowPlaintextRestore &&
+            DigitsDatabase.restorePlaintextAfterOpenFailure(applicationContext, error)
+        ) {
+            return openDatabase(hasPermission, allowPlaintextRestore = false)
+        }
+        DatabaseEncryptionManager.markUnavailable(error)
+        val message = if (error is LinkageError) {
+            "기기에서 보안 데이터베이스 구성요소를 불러올 수 없습니다."
+        } else {
+            error.message ?: "사용 기록 데이터베이스를 열 수 없습니다."
+        }
+        return DatabaseStartupState.Error(message)
+    }
+}
+
+private sealed interface DatabaseStartupState {
+    data object Initializing : DatabaseStartupState
+    data object Ready : DatabaseStartupState
+    data class Error(val message: String) : DatabaseStartupState
+}
+
+@androidx.compose.runtime.Composable
+private fun DatabaseInitializingScreen() {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        CircularProgressIndicator()
+        Text(
+            text = "사용 기록을 안전하게 준비하는 중…",
+            modifier = Modifier.padding(top = 16.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@androidx.compose.runtime.Composable
+private fun DatabaseStartupErrorScreen(message: String, onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "사용 기록을 열지 못했습니다",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = "기존 기록은 삭제하지 않았습니다.\n$message",
+            modifier = Modifier.padding(vertical = 16.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+        Button(onClick = onRetry) {
+            Text("다시 시도")
         }
     }
 }

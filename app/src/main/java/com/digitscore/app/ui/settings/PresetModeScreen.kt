@@ -62,6 +62,8 @@ import com.digitscore.app.BuildConfig
 import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.data.backup.DataBackupManager
 import com.digitscore.app.data.privacy.PrivacyDataManager
+import com.digitscore.app.data.security.DatabaseEncryptionManager
+import com.digitscore.app.data.security.DatabaseSecurityMode
 import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.data.entity.applyTo
 import com.digitscore.app.engine.ScoringBenchmark
@@ -99,6 +101,7 @@ fun PresetModeScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val db = remember { DigitsDatabase.getInstance(context) }
+    val databaseSecurityStatus = remember { DatabaseEncryptionManager.currentStatus() }
 
     val userSettings by db.settingsDao().getSettingsFlow().collectAsState(initial = null)
     val settings = userSettings ?: UserSettingsEntity()
@@ -887,10 +890,37 @@ fun PresetModeScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            text = "앱별 기록은 기기 내부 암호화 DB에 저장되며, 백업 파일도 사용자 비밀번호로 암호화됩니다.",
+                            text = if (databaseSecurityStatus.mode == DatabaseSecurityMode.ENCRYPTED) {
+                                "앱별 기록은 기기 내부 암호화 DB에 저장되며, 백업 파일도 사용자 비밀번호로 암호화됩니다."
+                            } else {
+                                "기존 기록을 보호하기 위해 이번 실행에서는 호환 모드로 열었습니다. 백업 파일은 계속 사용자 비밀번호로 암호화됩니다."
+                            },
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+
+                        if (databaseSecurityStatus.mode == DatabaseSecurityMode.PLAINTEXT_FALLBACK) {
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(
+                                        "DB 암호화 호환 모드",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                    Text(
+                                        "기록 손실과 실행 중단을 막기 위해 기존 DB를 그대로 사용하고 있습니다. 앱을 다시 시작하면 암호화를 재시도합니다.",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
+                        }
 
                         ExposedDropdownMenuBox(
                             expanded = isRetentionMenuExpanded,
