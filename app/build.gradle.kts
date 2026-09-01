@@ -10,13 +10,16 @@ android {
     compileSdk = 36
 
     val runNumber = (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1)
+    val tagVersion = System.getenv("GITHUB_REF_NAME")
+        ?.takeIf { System.getenv("GITHUB_REF_TYPE") == "tag" && it.startsWith("v") }
+        ?.removePrefix("v")
 
     defaultConfig {
         applicationId = "com.digitscore.app"
         minSdk = 26
         targetSdk = 36
         versionCode = 100 + runNumber
-        versionName = "1.0.$runNumber"
+        versionName = tagVersion ?: "1.0.$runNumber"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -113,6 +116,8 @@ dependencies {
     // Room
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
+    implementation(libs.androidx.sqlite)
+    implementation(libs.sqlcipher.android)
     ksp(libs.androidx.room.compiler)
 
     // Glance Widgets

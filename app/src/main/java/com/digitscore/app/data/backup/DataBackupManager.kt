@@ -26,6 +26,7 @@ object DataBackupManager {
     private const val BACKUP_SCHEMA_VERSION = 2
     private const val MAX_BACKUP_BYTES = 20 * 1024 * 1024
     private val DATE_PATTERN = Regex("\\d{4}-\\d{2}-\\d{2}")
+    private const val BACKUP_CACHE_MAX_AGE_MILLIS = 24 * 60 * 60 * 1_000L
 
     /**
      * DB의 모든 데이터(점수 히스토리, 설정, 앱 분류 가중치)를 JSON 문자열로 직렬화합니다.
@@ -81,6 +82,8 @@ object DataBackupManager {
                 put("maxYesterdayPenalty", settings.maxYesterdayPenalty.toDouble())
                 put("isTrackingEnabled", settings.isTrackingEnabled)
                 put("isNotificationEnabled", settings.isNotificationEnabled)
+                put("appHistoryRetentionDays", settings.appHistoryRetentionDays)
+                put("hideSensitiveNotificationOnLockScreen", settings.hideSensitiveNotificationOnLockScreen)
             }
             rootJson.put("settings", sObj)
         }
@@ -125,6 +128,25 @@ object DataBackupManager {
         rootJson.put("dailyUsageCoverage", coverageArray)
 
         rootJson.toString(2)
+    }
+
+    suspend fun exportEncrypted(context: Context, password: CharArray): ByteArray = withContext(Dispatchers.IO) {
+        val json = exportToJson(context)
+        BackupCrypto.encrypt(json.toByteArray(Charsets.UTF_8), password)
+    }
+
+    suspend fun importBackup(
+        context: Context,
+        bytes: ByteArray,
+        password: CharArray?
+    ): Boolean = withContext(Dispatchers.IO) {
+        val jsonBytes = if (BackupCrypto.isEncryptedBackup(bytes)) {
+            BackupCrypto.decrypt(bytes, password ?: charArrayOf())
+        } else {
+            bytes
+        }
+        require(jsonBytes.size <= MAX_BACKUP_BYTES) { "Backup file is too large" }
+        importFromJson(context, jsonBytes.toString(Charsets.UTF_8))
     }
 
     /**
@@ -188,7 +210,13 @@ object DataBackupManager {
                     yesterdayPenaltyRate = sObj.optDouble("yesterdayPenaltyRate", 0.2).toFloat().coerceIn(0.05f, 1f),
                     maxYesterdayPenalty = sObj.optDouble("maxYesterdayPenalty", 10.0).toFloat().coerceIn(0f, 30f),
                     isTrackingEnabled = sObj.optBoolean("isTrackingEnabled", false),
-                    isNotificationEnabled = sObj.optBoolean("isNotificationEnabled", true)
+                    isNotificationEnabled = sObj.optBoolean("isNotificationEnabled", true),
+                    appHistoryRetentionDays = sObj.optInt("appHistoryRetentionDays", 365)
+                        .let { if (it in listOf(30, 90, 180, 365)) it else 365 },
+                    hideSensitiveNotificationOnLockScreen = sObj.optBoolean(
+                        "hideSensitiveNotificationOnLockScreen",
+                        true
+                    )
                 )
                 db.settingsDao().insertOrUpdateSettings(settings)
             }
@@ -275,11 +303,12 @@ object DataBackupManager {
     /**
      * 백업 JSON을 임시 파일로 저장하고 공유 Intent를 실행합니다.
      */
-    fun shareBackup(context: Context, jsonContent: String) {
+    fun shareEncryptedBackup(context: Context, encryptedContent: ByteArray) {
+        cleanupStaleBackups(context, maxAgeMillis = 0L)
         val backupDir = File(context.cacheDir, "backups").apply { mkdirs() }
         val dateStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-        val backupFile = File(backupDir, "DigitsCore_Backup_$dateStr.json")
-        backupFile.writeText(jsonContent)
+        val backupFile = File(backupDir, "DigitsCore_Backup_$dateStr.dcorebackup")
+        backupFile.writeBytes(encryptedContent)
 
         val uri = FileProvider.getUriForFile(
             context,
@@ -288,7 +317,7 @@ object DataBackupManager {
         )
 
         val sendIntent = Intent(Intent.ACTION_SEND).apply {
-            type = "application/json"
+            type = "application/octet-stream"
             putExtra(Intent.EXTRA_STREAM, uri)
             putExtra(Intent.EXTRA_SUBJECT, "DigitsCore Backup ($dateStr)")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -298,5 +327,17 @@ object DataBackupManager {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(chooser)
+    }
+
+    fun cleanupStaleBackups(
+        context: Context,
+        maxAgeMillis: Long = BACKUP_CACHE_MAX_AGE_MILLIS
+    ) {
+        val now = System.currentTimeMillis()
+        File(context.cacheDir, "backups").listFiles()?.forEach { file ->
+            if (maxAgeMillis == 0L || now - file.lastModified() >= maxAgeMillis) {
+                file.delete()
+            }
+        }
     }
 }

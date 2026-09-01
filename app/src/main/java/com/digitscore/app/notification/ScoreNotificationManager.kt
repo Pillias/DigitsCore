@@ -38,7 +38,8 @@ object ScoreNotificationManager {
     fun buildScoreNotification(
         context: Context,
         scoreDetail: ScoreDetail,
-        unlockCount: Int
+        unlockCount: Int,
+        hideSensitiveOnLockScreen: Boolean = true
     ): Notification {
         val launchIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -66,7 +67,7 @@ object ScoreNotificationManager {
 
         val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, score)
 
-        return NotificationCompat.Builder(context, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(iconCompat)
             .setContentTitle(title)
             .setContentText(contentText)
@@ -77,21 +78,44 @@ object ScoreNotificationManager {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setVisibility(
+                if (hideSensitiveOnLockScreen) NotificationCompat.VISIBILITY_PRIVATE
+                else NotificationCompat.VISIBILITY_PUBLIC
+            )
             .setContentIntent(pendingIntent)
             .addAction(
                 android.R.drawable.ic_media_pause,
                 "추적 중지",
                 stopTrackingIntent
             )
-            .build()
+        if (hideSensitiveOnLockScreen) {
+            builder.setPublicVersion(
+                NotificationCompat.Builder(context, CHANNEL_ID)
+                    .setSmallIcon(iconCompat)
+                    .setContentTitle("DigitsCore 추적 중")
+                    .setContentText("잠금 해제 후 상세 정보를 확인할 수 있습니다.")
+                    .setOngoing(true)
+                    .setPriority(NotificationCompat.PRIORITY_LOW)
+                    .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                    .setContentIntent(pendingIntent)
+                    .build()
+            )
+        }
+        return builder.build()
     }
 
     fun updateScoreNotification(
         context: Context,
         scoreDetail: ScoreDetail,
-        unlockCount: Int
+        unlockCount: Int,
+        hideSensitiveOnLockScreen: Boolean = true
     ) {
-        val notification = buildScoreNotification(context, scoreDetail, unlockCount)
+        val notification = buildScoreNotification(
+            context,
+            scoreDetail,
+            unlockCount,
+            hideSensitiveOnLockScreen
+        )
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(NOTIFICATION_ID, notification)
     }

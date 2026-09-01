@@ -51,6 +51,12 @@ interface DailyAppUsageDao {
     @Query("DELETE FROM daily_usage_coverage WHERE dateString < :cutoffDateString")
     suspend fun deleteCoverageBefore(cutoffDateString: String)
 
+    @Query("DELETE FROM daily_app_usage")
+    suspend fun deleteAllUsage()
+
+    @Query("DELETE FROM daily_usage_coverage")
+    suspend fun deleteAllCoverage()
+
     @Transaction
     suspend fun replaceDay(
         dateString: String,
@@ -66,5 +72,11 @@ interface DailyAppUsageDao {
     suspend fun pruneBefore(cutoffDateString: String) {
         deleteUsageBefore(cutoffDateString)
         deleteCoverageBefore(cutoffDateString)
+    }
+
+    @Transaction
+    suspend fun deleteAllHistory() {
+        deleteAllUsage()
+        deleteAllCoverage()
     }
 }

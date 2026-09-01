@@ -29,7 +29,9 @@ data class UserSettingsEntity(
     val yesterdayPenaltyRate: Float = 0.2f,
     val maxYesterdayPenalty: Float = 10f,
     val isTrackingEnabled: Boolean = false,
-    val isNotificationEnabled: Boolean = true
+    val isNotificationEnabled: Boolean = true,
+    val appHistoryRetentionDays: Int = 365,
+    val hideSensitiveNotificationOnLockScreen: Boolean = true
 )
 
 fun UserSettingsEntity.applyTo(

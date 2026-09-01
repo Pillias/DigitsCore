@@ -13,6 +13,10 @@
 - [x] 전면 앱 단독 집계와 화면 OFF·잠금 경계 회귀 테스트
 - [x] 앱 시간대·세션·7일 추세 및 언락/알림 비교 그래프
 - [x] GitHub 정식 Release와 직접 다운로드 가능한 APK
+- [x] SQLCipher + Android Keystore 기반 기기 내 DB 암호화와 평문 DB 안전 이전
+- [x] 비밀번호 기반 AES-256-GCM 백업·복원
+- [x] OS 자동 백업·기기 이전 제외, 잠금 화면 상세 숨김, 즉시 기록 삭제
+- [x] 태그 릴리스에서 debug APK 대신 정식 서명 release APK/AAB만 게시
 
 ## 저장소 관리자가 입력할 값
 

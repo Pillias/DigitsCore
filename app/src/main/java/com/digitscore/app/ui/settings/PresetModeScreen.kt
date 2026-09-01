@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -44,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.net.Uri
@@ -51,6 +53,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -58,6 +61,7 @@ import androidx.compose.material3.OutlinedButton
 import com.digitscore.app.BuildConfig
 import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.data.backup.DataBackupManager
+import com.digitscore.app.data.privacy.PrivacyDataManager
 import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.data.entity.applyTo
 import com.digitscore.app.engine.ScoringBenchmark
@@ -71,9 +75,9 @@ import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 
-private const val MAX_IMPORT_BYTES = 2 * 1024 * 1024
+private const val MAX_IMPORT_BYTES = 20 * 1024 * 1024
 
-private fun InputStream.readUtf8WithLimit(maxBytes: Int = MAX_IMPORT_BYTES): String {
+private fun InputStream.readBytesWithLimit(maxBytes: Int = MAX_IMPORT_BYTES): ByteArray {
     val output = ByteArrayOutputStream()
     val buffer = ByteArray(8 * 1024)
     var total = 0
@@ -81,10 +85,10 @@ private fun InputStream.readUtf8WithLimit(maxBytes: Int = MAX_IMPORT_BYTES): Str
         val read = read(buffer)
         if (read < 0) break
         total += read
-        require(total <= maxBytes) { "백업 파일은 2MB 이하여야 합니다." }
+        require(total <= maxBytes) { "백업 파일은 20MB 이하여야 합니다." }
         output.write(buffer, 0, read)
     }
-    return output.toString(Charsets.UTF_8.name())
+    return output.toByteArray()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -103,6 +107,10 @@ fun PresetModeScreen(
     val selectedBenchmark = ScoringBenchmark.forPreset(selectedModeId)
     var showPrivacyPolicy by remember { mutableStateOf(false) }
     var isPresetMenuExpanded by remember { mutableStateOf(false) }
+    var showBackupPasswordDialog by remember { mutableStateOf(false) }
+    var pendingEncryptedImport by remember { mutableStateOf<ByteArray?>(null) }
+    var isRetentionMenuExpanded by remember { mutableStateOf(false) }
+    var showDeleteHistoryConfirmation by remember { mutableStateOf(false) }
 
     fun selectPreset(mode: PresetMode) {
         isPresetMenuExpanded = false
@@ -138,15 +146,20 @@ fun PresetModeScreen(
             scope.launch(Dispatchers.IO) {
                 try {
                     val content = context.contentResolver.openInputStream(uri)?.use { stream ->
-                        stream.readUtf8WithLimit()
+                        stream.readBytesWithLimit()
                     }
                     if (content != null) {
-                        val success = DataBackupManager.importFromJson(context, content)
-                        launch(Dispatchers.Main) {
-                            if (success) {
-                                Toast.makeText(context, "데이터가 성공적으로 복원되었습니다!", Toast.LENGTH_SHORT).show()
-                            } else {
-                                Toast.makeText(context, "백업 파일 형식이 올바르지 않습니다.", Toast.LENGTH_SHORT).show()
+                        if (com.digitscore.app.data.backup.BackupCrypto.isEncryptedBackup(content)) {
+                            launch(Dispatchers.Main) { pendingEncryptedImport = content }
+                        } else {
+                            val success = DataBackupManager.importBackup(context, content, null)
+                            launch(Dispatchers.Main) {
+                                Toast.makeText(
+                                    context,
+                                    if (success) "이전 평문 백업을 복원했습니다. 새 백업은 암호화됩니다."
+                                    else "백업 파일 형식이 올바르지 않습니다.",
+                                    Toast.LENGTH_LONG
+                                ).show()
                             }
                         }
                     }
@@ -874,10 +887,75 @@ fun PresetModeScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            text = "점수 히스토리와 설정을 파일로 백업할 수 있습니다. 앱별 사용시간은 추적을 켠 뒤 화면이 켜지고 잠금 해제된 전면 앱만 기록합니다.",
+                            text = "앱별 기록은 기기 내부 암호화 DB에 저장되며, 백업 파일도 사용자 비밀번호로 암호화됩니다.",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+
+                        ExposedDropdownMenuBox(
+                            expanded = isRetentionMenuExpanded,
+                            onExpandedChange = { isRetentionMenuExpanded = !isRetentionMenuExpanded }
+                        ) {
+                            OutlinedTextField(
+                                value = when (settings.appHistoryRetentionDays) {
+                                    30 -> "30일"
+                                    90 -> "90일"
+                                    180 -> "180일"
+                                    else -> "365일"
+                                },
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("앱별 기록 보존 기간") },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(isRetentionMenuExpanded)
+                                },
+                                modifier = Modifier.menuAnchor().fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = isRetentionMenuExpanded,
+                                onDismissRequest = { isRetentionMenuExpanded = false }
+                            ) {
+                                listOf(30, 90, 180, 365).forEach { days ->
+                                    DropdownMenuItem(
+                                        text = { Text("${days}일") },
+                                        onClick = {
+                                            isRetentionMenuExpanded = false
+                                            scope.launch(Dispatchers.IO) {
+                                                db.settingsDao().insertOrUpdateSettings(
+                                                    settings.copy(appHistoryRetentionDays = days)
+                                                )
+                                                PrivacyDataManager.applyAppHistoryRetention(context, days)
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("잠금 화면에서 상세 정보 숨기기", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                Text(
+                                    "점수·화면시간·언락 횟수를 잠금 해제 전에는 표시하지 않습니다.",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                            androidx.compose.material3.Switch(
+                                checked = settings.hideSensitiveNotificationOnLockScreen,
+                                onCheckedChange = { hidden ->
+                                    scope.launch(Dispatchers.IO) {
+                                        db.settingsDao().insertOrUpdateSettings(
+                                            settings.copy(hideSensitiveNotificationOnLockScreen = hidden)
+                                        )
+                                    }
+                                }
+                            )
+                        }
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -885,20 +963,13 @@ fun PresetModeScreen(
                         ) {
                             // 2) 데이터 백업
                             Button(
-                                onClick = {
-                                    scope.launch(Dispatchers.IO) {
-                                        val json = DataBackupManager.exportToJson(context)
-                                        launch(Dispatchers.Main) {
-                                            DataBackupManager.shareBackup(context, json)
-                                        }
-                                    }
-                                },
+                                onClick = { showBackupPasswordDialog = true },
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(10.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                             ) {
                                 Icon(imageVector = Icons.Default.Backup, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
-                                Text(text = "데이터 백업", fontSize = 13.sp)
+                                Text(text = "암호화 백업", fontSize = 13.sp)
                             }
 
                             // 3) 데이터 복원
@@ -913,6 +984,17 @@ fun PresetModeScreen(
                                 Icon(imageVector = Icons.Default.Restore, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
                                 Text(text = "데이터 복원", fontSize = 13.sp)
                             }
+                        }
+
+                        OutlinedButton(
+                            onClick = { showDeleteHistoryConfirmation = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Icon(Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
+                            Text("모든 사용 기록 즉시 삭제")
                         }
                     }
                 }
@@ -982,6 +1064,136 @@ fun PresetModeScreen(
     if (showPrivacyPolicy) {
         PrivacyPolicyDialog(onDismiss = { showPrivacyPolicy = false })
     }
+
+    if (showBackupPasswordDialog) {
+        BackupPasswordDialog(
+            title = "암호화 백업 만들기",
+            confirmPassword = true,
+            onDismiss = { showBackupPasswordDialog = false },
+            onConfirm = { password ->
+                showBackupPasswordDialog = false
+                scope.launch(Dispatchers.IO) {
+                    val chars = password.toCharArray()
+                    try {
+                        val encrypted = DataBackupManager.exportEncrypted(context, chars)
+                        launch(Dispatchers.Main) {
+                            DataBackupManager.shareEncryptedBackup(context, encrypted)
+                        }
+                    } catch (error: Exception) {
+                        launch(Dispatchers.Main) {
+                            Toast.makeText(context, "백업 실패: ${error.message}", Toast.LENGTH_LONG).show()
+                        }
+                    } finally {
+                        chars.fill('\u0000')
+                    }
+                }
+            }
+        )
+    }
+
+    pendingEncryptedImport?.let { encryptedBytes ->
+        BackupPasswordDialog(
+            title = "암호화 백업 복원",
+            confirmPassword = false,
+            onDismiss = { pendingEncryptedImport = null },
+            onConfirm = { password ->
+                pendingEncryptedImport = null
+                scope.launch(Dispatchers.IO) {
+                    val chars = password.toCharArray()
+                    try {
+                        val success = DataBackupManager.importBackup(context, encryptedBytes, chars)
+                        launch(Dispatchers.Main) {
+                            Toast.makeText(
+                                context,
+                                if (success) "암호화 백업을 복원했습니다."
+                                else "백업 데이터 형식이 올바르지 않습니다.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    } catch (error: Exception) {
+                        launch(Dispatchers.Main) {
+                            Toast.makeText(context, error.message ?: "복원에 실패했습니다.", Toast.LENGTH_LONG).show()
+                        }
+                    } finally {
+                        chars.fill('\u0000')
+                    }
+                }
+            }
+        )
+    }
+
+    if (showDeleteHistoryConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDeleteHistoryConfirmation = false },
+            title = { Text("모든 사용 기록을 삭제할까요?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("앱별 365일 기록, 점수 기록과 언락 통계가 삭제되고 추적이 중지됩니다. 앱 등급과 점수 설정은 유지되며 이 작업은 되돌릴 수 없습니다.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteHistoryConfirmation = false
+                        scope.launch(Dispatchers.IO) {
+                            PrivacyDataManager.deleteAllUsageHistory(context)
+                            launch(Dispatchers.Main) {
+                                Toast.makeText(context, "사용 기록을 삭제하고 추적을 중지했습니다.", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("삭제") }
+            },
+            dismissButton = { OutlinedButton(onClick = { showDeleteHistoryConfirmation = false }) { Text("취소") } }
+        )
+    }
+}
+
+@Composable
+private fun BackupPasswordDialog(
+    title: String,
+    confirmPassword: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var password by remember { mutableStateOf("") }
+    var confirmation by remember { mutableStateOf("") }
+    val isValid = password.length >= 8 && (!confirmPassword || password == confirmation)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "비밀번호는 백업에 저장되지 않으며 분실하면 복원할 수 없습니다.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("비밀번호 · 8자 이상") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (confirmPassword) {
+                    OutlinedTextField(
+                        value = confirmation,
+                        onValueChange = { confirmation = it },
+                        label = { Text("비밀번호 확인") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        isError = confirmation.isNotEmpty() && password != confirmation,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onConfirm(password) }, enabled = isValid) { Text("확인") }
+        },
+        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("취소") } }
+    )
 }
 
 @Composable
