@@ -74,6 +74,15 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      - name: Free space for emulator userdata
+        run: |
+          # This project consumes prebuilt SQLCipher binaries and does not build NDK code.
+          # Remove only the disposable runner's preinstalled NDK versions.
+          if [ -d /usr/local/lib/android/sdk/ndk ]; then
+            sudo find /usr/local/lib/android/sdk/ndk -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+          fi
+          df -h /
+
       - name: Run plaintext-to-encrypted upgrade test
         uses: reactivecircus/android-emulator-runner@v2
         with:
