@@ -6,7 +6,9 @@ import androidx.core.content.FileProvider
 import androidx.room.withTransaction
 import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.data.entity.AppWeightEntity
+import com.digitscore.app.data.entity.DailyAppUsageEntity
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
+import com.digitscore.app.data.entity.DailyUsageCoverageEntity
 import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.model.AppCategoryType
 import kotlinx.coroutines.Dispatchers
@@ -21,8 +23,8 @@ import java.util.Locale
 
 object DataBackupManager {
 
-    private const val BACKUP_SCHEMA_VERSION = 1
-    private const val MAX_BACKUP_BYTES = 2 * 1024 * 1024
+    private const val BACKUP_SCHEMA_VERSION = 2
+    private const val MAX_BACKUP_BYTES = 20 * 1024 * 1024
     private val DATE_PATTERN = Regex("\\d{4}-\\d{2}-\\d{2}")
 
     /**
@@ -33,6 +35,8 @@ object DataBackupManager {
         val histories = db.scoreDao().getAllScoreHistories().firstOrNull() ?: emptyList()
         val settings = db.settingsDao().getSettings()
         val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
+        val dailyAppUsage = db.dailyAppUsageDao().getAll()
+        val dailyCoverage = db.dailyAppUsageDao().getAllCoverage()
 
         val rootJson = JSONObject()
         rootJson.put("version", BACKUP_SCHEMA_VERSION)
@@ -93,6 +97,33 @@ object DataBackupManager {
         }
         rootJson.put("appWeights", appsArray)
 
+        // 4. 최대 365일 앱별 자체 집계와 측정일 표식
+        val dailyAppsArray = JSONArray()
+        for (record in dailyAppUsage) {
+            dailyAppsArray.put(JSONObject().apply {
+                put("dateString", record.dateString)
+                put("packageName", record.packageName)
+                put("appName", record.appName)
+                put("usageMillis", record.usageMillis)
+                put("sessionCount", record.sessionCount)
+                put("longestSessionMillis", record.longestSessionMillis)
+                put("lateNightUsageMillis", record.lateNightUsageMillis)
+                put("categoryLevel", record.categoryLevel)
+                put("lastUpdatedTimestamp", record.lastUpdatedTimestamp)
+            })
+        }
+        rootJson.put("dailyAppUsage", dailyAppsArray)
+
+        val coverageArray = JSONArray()
+        for (coverage in dailyCoverage) {
+            coverageArray.put(JSONObject().apply {
+                put("dateString", coverage.dateString)
+                put("isComplete", coverage.isComplete)
+                put("lastUpdatedTimestamp", coverage.lastUpdatedTimestamp)
+            })
+        }
+        rootJson.put("dailyUsageCoverage", coverageArray)
+
         rootJson.toString(2)
     }
 
@@ -106,7 +137,7 @@ object DataBackupManager {
             }
             val db = DigitsDatabase.getInstance(context)
             val rootJson = JSONObject(jsonString)
-            require(rootJson.optInt("version", -1) == BACKUP_SCHEMA_VERSION) {
+            require(rootJson.optInt("version", -1) in 1..BACKUP_SCHEMA_VERSION) {
                 "Unsupported backup schema version"
             }
 
@@ -183,6 +214,53 @@ object DataBackupManager {
                         categoryType = cat
                     )
                     db.appDao().insertOrUpdateAppWeight(entity)
+                }
+            }
+
+            // 4. v2부터 포함되는 앱별 장기 집계 복원
+            if (rootJson.has("dailyAppUsage")) {
+                val recordsArray = rootJson.getJSONArray("dailyAppUsage")
+                require(recordsArray.length() <= 100_000) { "Too many daily app usage records" }
+                val records = buildList {
+                    for (i in 0 until recordsArray.length()) {
+                        val obj = recordsArray.getJSONObject(i)
+                        val dateString = obj.getString("dateString")
+                        val packageName = obj.getString("packageName").trim()
+                        val appName = obj.getString("appName").trim()
+                        require(DATE_PATTERN.matches(dateString)) { "Invalid daily app usage date" }
+                        require(packageName.length in 1..255 && appName.length in 1..255) { "Invalid daily app record" }
+                        add(
+                            DailyAppUsageEntity(
+                                dateString = dateString,
+                                packageName = packageName,
+                                appName = appName,
+                                usageMillis = obj.getLong("usageMillis").coerceIn(0L, 86_400_000L),
+                                sessionCount = obj.optInt("sessionCount", 0).coerceIn(0, 10_000),
+                                longestSessionMillis = obj.optLong("longestSessionMillis", 0L).coerceIn(0L, 86_400_000L),
+                                lateNightUsageMillis = obj.optLong("lateNightUsageMillis", 0L).coerceIn(0L, 18_000_000L),
+                                categoryLevel = obj.optInt("categoryLevel", 3).coerceIn(1, 5),
+                                lastUpdatedTimestamp = obj.optLong("lastUpdatedTimestamp", System.currentTimeMillis())
+                            )
+                        )
+                    }
+                }
+                db.dailyAppUsageDao().insertAll(records)
+            }
+
+            if (rootJson.has("dailyUsageCoverage")) {
+                val coverageArray = rootJson.getJSONArray("dailyUsageCoverage")
+                require(coverageArray.length() <= 365) { "Too many daily coverage records" }
+                for (i in 0 until coverageArray.length()) {
+                    val obj = coverageArray.getJSONObject(i)
+                    val dateString = obj.getString("dateString")
+                    require(DATE_PATTERN.matches(dateString)) { "Invalid coverage date" }
+                    db.dailyAppUsageDao().insertCoverage(
+                        DailyUsageCoverageEntity(
+                            dateString = dateString,
+                            isComplete = obj.optBoolean("isComplete", true),
+                            lastUpdatedTimestamp = obj.optLong("lastUpdatedTimestamp", System.currentTimeMillis())
+                        )
+                    )
                 }
             }
             }

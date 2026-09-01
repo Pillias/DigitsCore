@@ -84,8 +84,7 @@ import com.digitscore.app.ui.theme.ScoreYellow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.Date
+import java.util.Calendar
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -1275,40 +1274,111 @@ private fun AppSessionInsight(insights: AppUsageInsights) {
 
 @Composable
 private fun AppTrendInsight(insights: AppUsageInsights) {
-    val completed = insights.dailyUsage.filterNot { it.isToday }
-    val recent = completed.takeLast(3).map { it.usageMillis }
-    val previous = completed.dropLast(3).takeLast(3).map { it.usageMillis }
+    val periods = listOf(
+        7 to "최근 7일",
+        28 to "최근 4주",
+        84 to "최근 12주",
+        182 to "최근 6개월",
+        365 to "최근 1년"
+    )
+    var selectedDays by remember { mutableStateOf(84) }
+    var periodMenuExpanded by remember { mutableStateOf(false) }
+    val periodStart = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+        add(Calendar.DAY_OF_YEAR, -(selectedDays - 1))
+    }.timeInMillis
+    val periodUsage = insights.dailyUsage.filter { it.dayStartMillis >= periodStart }
+    val completed = periodUsage.filterNot { it.isToday }
+    val comparisonWindow = minOf(28, completed.size / 2)
+    val recent = if (comparisonWindow > 0) completed.takeLast(comparisonWindow).map { it.usageMillis } else emptyList()
+    val previous = if (comparisonWindow > 0) {
+        completed.dropLast(comparisonWindow).takeLast(comparisonWindow).map { it.usageMillis }
+    } else {
+        emptyList()
+    }
     val recentAverage = recent.takeIf { it.isNotEmpty() }?.average() ?: 0.0
     val previousAverage = previous.takeIf { it.isNotEmpty() }?.average() ?: 0.0
     val trendText = when {
-        previous.isEmpty() -> "며칠 더 사용하면 이전 기간과 비교할 수 있습니다."
-        previousAverage == 0.0 && recentAverage > 0.0 -> "최근 3일에 새 사용 기록이 생겼습니다."
+        previous.isEmpty() -> "기록이 더 쌓이면 같은 길이의 이전 기간과 비교할 수 있습니다."
+        previousAverage == 0.0 && recentAverage > 0.0 -> "최근 ${comparisonWindow}일에 새 사용 기록이 생겼습니다."
         previousAverage == 0.0 -> "최근 사용량 변화가 없습니다."
         else -> {
             val percent = ((recentAverage - previousAverage) / previousAverage * 100).roundToInt()
             when {
-                percent >= 10 -> "최근 3일 평균이 이전 3일보다 ${percent}% 늘었습니다."
-                percent <= -10 -> "최근 3일 평균이 이전 3일보다 ${-percent}% 줄었습니다."
-                else -> "최근 3일 사용량은 이전 기간과 비슷합니다."
+                percent >= 10 -> "최근 ${comparisonWindow}일 평균이 이전 기간보다 ${percent}% 늘었습니다."
+                percent <= -10 -> "최근 ${comparisonWindow}일 평균이 이전 기간보다 ${-percent}% 줄었습니다."
+                else -> "최근 ${comparisonWindow}일 사용량은 이전 기간과 비슷합니다."
             }
         }
     }
-    val formatter = remember { SimpleDateFormat("M/d", Locale.getDefault()) }
-    InsightCard("최근 7일 트렌드") {
+
+    val weekdayTotals = LongArray(7)
+    val weekdayCounts = IntArray(7)
+    periodUsage.forEach { day ->
+        val calendar = Calendar.getInstance().apply { timeInMillis = day.dayStartMillis }
+        val mondayBasedIndex = (calendar.get(Calendar.DAY_OF_WEEK) + 5) % 7
+        weekdayTotals[mondayBasedIndex] += day.usageMillis
+        weekdayCounts[mondayBasedIndex]++
+    }
+    val weekdayAverages = weekdayTotals.mapIndexed { index, total ->
+        if (weekdayCounts[index] == 0) 0f else total / weekdayCounts[index] / 60_000f
+    }
+    val weekdayLabels = listOf("월", "화", "수", "목", "금", "토", "일")
+    val busiestWeekday = weekdayAverages.indices.maxByOrNull { weekdayAverages[it] }
+
+    InsightCard("장기 사용 추세") {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "최근 ${selectedDays}일 중 ${periodUsage.size}일 측정",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.outline
+            )
+            Box {
+                TextButton(onClick = { periodMenuExpanded = true }) {
+                    Text(periods.first { it.first == selectedDays }.second, fontSize = 11.sp)
+                    Icon(Icons.Default.ArrowDropDown, contentDescription = "추세 기간 선택", modifier = Modifier.size(16.dp))
+                }
+                DropdownMenu(
+                    expanded = periodMenuExpanded,
+                    onDismissRequest = { periodMenuExpanded = false }
+                ) {
+                    periods.forEach { (days, label) ->
+                        DropdownMenuItem(
+                            text = { Text(label) },
+                            onClick = {
+                                selectedDays = days
+                                periodMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
         Text(trendText, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
         CompactBarChart(
-            values = insights.dailyUsage.map { it.usageMillis / 60_000f },
+            values = weekdayAverages,
             barColor = MaterialTheme.colorScheme.primary,
-            contentDescription = "최근 7일 앱 사용량 그래프"
+            contentDescription = "요일별 평균 앱 사용량 그래프"
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            insights.dailyUsage.forEach { day ->
-                Text(
-                    if (day.isToday) "오늘" else formatter.format(Date(day.dayStartMillis)),
-                    fontSize = 9.sp,
-                    color = MaterialTheme.colorScheme.outline
-                )
+            weekdayLabels.forEach { label ->
+                Text(label, fontSize = 9.sp, color = MaterialTheme.colorScheme.outline)
             }
+        }
+        if (busiestWeekday != null && weekdayAverages[busiestWeekday] > 0f) {
+            Text(
+                "평균 사용이 가장 많은 요일은 ${weekdayLabels[busiestWeekday]}요일 · " +
+                    formatInsightDuration((weekdayAverages[busiestWeekday] * 60_000).toLong()) + "입니다.",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
         }
         val today = insights.dailyUsage.lastOrNull()
         if (today != null) {

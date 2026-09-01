@@ -7,10 +7,13 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.digitscore.app.data.dao.AppDao
+import com.digitscore.app.data.dao.DailyAppUsageDao
 import com.digitscore.app.data.dao.ScoreDao
 import com.digitscore.app.data.dao.SettingsDao
 import com.digitscore.app.data.entity.AppWeightEntity
+import com.digitscore.app.data.entity.DailyAppUsageEntity
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
+import com.digitscore.app.data.entity.DailyUsageCoverageEntity
 import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.model.AppCategoryType
 import kotlinx.coroutines.CoroutineScope
@@ -20,14 +23,17 @@ import kotlinx.coroutines.launch
 @Database(
     entities = [
         AppWeightEntity::class,
+        DailyAppUsageEntity::class,
+        DailyUsageCoverageEntity::class,
         DailyScoreHistoryEntity::class,
         UserSettingsEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 abstract class DigitsDatabase : RoomDatabase() {
     abstract fun appDao(): AppDao
+    abstract fun dailyAppUsageDao(): DailyAppUsageDao
     abstract fun scoreDao(): ScoreDao
     abstract fun settingsDao(): SettingsDao
 
@@ -74,6 +80,33 @@ abstract class DigitsDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `daily_app_usage` (
+                       `dateString` TEXT NOT NULL,
+                       `packageName` TEXT NOT NULL,
+                       `appName` TEXT NOT NULL,
+                       `usageMillis` INTEGER NOT NULL,
+                       `sessionCount` INTEGER NOT NULL,
+                       `longestSessionMillis` INTEGER NOT NULL,
+                       `lateNightUsageMillis` INTEGER NOT NULL,
+                       `categoryLevel` INTEGER NOT NULL,
+                       `lastUpdatedTimestamp` INTEGER NOT NULL,
+                       PRIMARY KEY(`dateString`, `packageName`))""".trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_daily_app_usage_packageName` ON `daily_app_usage` (`packageName`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_daily_app_usage_dateString` ON `daily_app_usage` (`dateString`)")
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `daily_usage_coverage` (
+                       `dateString` TEXT NOT NULL,
+                       `isComplete` INTEGER NOT NULL,
+                       `lastUpdatedTimestamp` INTEGER NOT NULL,
+                       PRIMARY KEY(`dateString`))""".trimIndent()
+                )
+            }
+        }
+
         @Volatile
         private var INSTANCE: DigitsDatabase? = null
 
@@ -85,7 +118,7 @@ abstract class DigitsDatabase : RoomDatabase() {
                     "digitscore_database"
                 )
                     .addCallback(DatabaseCallback(context.applicationContext))
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .fallbackToDestructiveMigrationOnDowngrade()
                     .build()
                 INSTANCE = instance

@@ -1,6 +1,7 @@
 package com.digitscore.app.data.backup
 
 import com.digitscore.app.data.entity.AppWeightEntity
+import com.digitscore.app.data.entity.DailyAppUsageEntity
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
 import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.model.AppCategoryType
@@ -11,6 +12,28 @@ import org.junit.Test
  * DataBackupManager의 데이터 모델 및 백업 형식 검증 테스트 (Pure Kotlin)
  */
 class DataBackupManagerSerializationTest {
+
+    @Test
+    fun testDailyAppUsageEntity_preservesLongTermAggregateFields() {
+        val record = DailyAppUsageEntity(
+            dateString = "2026-09-01",
+            packageName = "com.google.android.youtube",
+            appName = "YouTube",
+            usageMillis = 3_600_000L,
+            sessionCount = 4,
+            longestSessionMillis = 1_800_000L,
+            lateNightUsageMillis = 600_000L,
+            categoryLevel = 5,
+            lastUpdatedTimestamp = 123L
+        )
+
+        assertEquals("2026-09-01", record.dateString)
+        assertEquals(3_600_000L, record.usageMillis)
+        assertEquals(4, record.sessionCount)
+        assertEquals(1_800_000L, record.longestSessionMillis)
+        assertEquals(600_000L, record.lateNightUsageMillis)
+        assertEquals(5, record.categoryLevel)
+    }
 
     @Test
     fun testScoreHistoryEntity_creationAndFields() {
