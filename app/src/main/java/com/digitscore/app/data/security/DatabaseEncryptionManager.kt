@@ -199,14 +199,6 @@ object DatabaseEncryptionManager {
                 while (cursor.moveToNext()) Unit
             }
             sourceVersion = source.version
-            // Follow sqlcipher-android's own ImportUnencryptedDatabaseTest:
-            // bind ATTACH values, export, then detach before reopening the result.
-            source.execSQL(
-                "ATTACH DATABASE ? AS encrypted KEY ?;",
-                arrayOf(tempFile.absolutePath, passphraseText)
-            )
-            source.rawExecSQL("SELECT sqlcipher_export('encrypted');")
-            source.execSQL("DETACH DATABASE encrypted;")
         } catch (error: Exception) {
             deleteDatabaseFiles(tempFile)
             throw DatabaseEncryptionException("기존 사용 기록을 암호화하는 중 오류가 발생했습니다.", error)
@@ -214,9 +206,29 @@ object DatabaseEncryptionManager {
             source.close()
         }
 
-        // sqlcipher_export intentionally leaves user_version at zero. The source
-        // connection is closed first so its attached target cannot retain a lock.
-        setEncryptedDatabaseVersion(tempFile, passphraseText, sourceVersion)
+        val encrypted = SQLiteDatabase.openOrCreateDatabase(
+            tempFile,
+            passphraseText,
+            null,
+            null
+        )
+        try {
+            // Use the encrypted file as main, then import the closed plaintext DB.
+            // This avoids relying on ATTACH to create an encrypted target file.
+            encrypted.execSQL(
+                "ATTACH DATABASE ? AS plaintext KEY '';",
+                arrayOf(databaseFile.absolutePath)
+            )
+            encrypted.rawExecSQL("SELECT sqlcipher_export('main', 'plaintext');")
+            encrypted.execSQL("DETACH DATABASE plaintext;")
+            encrypted.version = sourceVersion
+        } catch (error: Exception) {
+            deleteDatabaseFiles(tempFile)
+            throw DatabaseEncryptionException("기존 사용 기록을 암호화하는 중 오류가 발생했습니다.", error)
+        } finally {
+            encrypted.close()
+        }
+
         verifyEncryptedDatabase(tempFile, passphraseText)
         deleteDatabaseFiles(backupFile)
         // 평문 WAL/SHM이 새 암호화 DB와 같은 이름으로 재사용되지 않도록 먼저 제거합니다.
@@ -254,21 +266,6 @@ object DatabaseEncryptionManager {
             ).use { cursor ->
                 require(cursor.moveToFirst() && cursor.getInt(0) == 1) { "필수 테이블이 누락되었습니다." }
             }
-        } finally {
-            database.close()
-        }
-    }
-
-    private fun setEncryptedDatabaseVersion(file: File, passphrase: String, version: Int) {
-        val database = SQLiteDatabase.openDatabase(
-            file.absolutePath,
-            passphrase,
-            null,
-            SQLiteDatabase.OPEN_READWRITE,
-            null
-        )
-        try {
-            database.version = version
         } finally {
             database.close()
         }
