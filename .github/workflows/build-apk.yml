@@ -97,6 +97,15 @@ jobs:
           disable-animations: true
           script: gradle :app:connectedDebugAndroidTest --stacktrace --no-daemon
 
+      - name: Upload database upgrade test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-upgrade-test-report
+          path: app/build/reports/androidTests/connected/debug
+          if-no-files-found: ignore
+          retention-days: 14
+
   release-bundle:
     name: Validate Release APK/AAB
     runs-on: ubuntu-latest

@@ -198,9 +198,11 @@ object DatabaseEncryptionManager {
                 while (cursor.moveToNext()) Unit
             }
             val sourceVersion = source.version
-            source.execSQL(
-                "ATTACH DATABASE ? AS encrypted KEY ?;",
-                arrayOf(tempFile.absolutePath, passphraseText)
+            // SQLCipher's ATTACH ... KEY grammar does not support Android's normal
+            // SQLite bind arguments here. Quote both values as SQL literals instead.
+            source.rawExecSQL(
+                "ATTACH DATABASE ${sqlLiteral(tempFile.absolutePath)} " +
+                    "AS encrypted KEY ${sqlLiteral(passphraseText)};"
             )
             source.rawExecSQL("SELECT sqlcipher_export('encrypted');")
             source.execSQL("PRAGMA encrypted.user_version = $sourceVersion")
@@ -280,6 +282,9 @@ object DatabaseEncryptionManager {
             input.read(header) == header.size && header.contentEquals(SQLITE_HEADER)
         }
     }
+
+    private fun sqlLiteral(value: String): String =
+        "'${value.replace("'", "''")}'"
 
     private fun deleteAuxiliaryFiles(databaseFile: File) {
         File("${databaseFile.absolutePath}-wal").delete()
