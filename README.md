@@ -2,7 +2,7 @@
 
 Android의 전면 앱 사용, 잠금 해제, 화면 미사용 시간을 기기 안에서 분석해 0~100점으로 보여주는 디지털 웰빙 앱입니다.
 
-[최신 Release v1.0.60](https://github.com/Pillias/DigitsCore/releases/tag/v1.0.60) · [APK 다운로드](https://github.com/Pillias/DigitsCore/releases/download/v1.0.60/DigitsCore-v1.0.60-debug.apk) · [개인정보처리방침](PRIVACY_POLICY.md)
+[최신 Release](https://github.com/Pillias/DigitsCore/releases/latest) · [개인정보처리방침](PRIVACY_POLICY.md)
 
 > 현재 GitHub Release의 APK는 실사용 검증용 debug 서명 빌드입니다. Google Play 배포용 서명 AAB와는 구분됩니다.
 
@@ -127,6 +127,6 @@ Google Play용 release AAB 준비 절차는 [PLAY_RELEASE_CHECKLIST.md](PLAY_REL
 
 ## 릴리스
 
-- 최신 공개 버전: [v1.0.60](https://github.com/Pillias/DigitsCore/releases/tag/v1.0.60)
+- 최신 공개 버전과 APK: [GitHub Releases](https://github.com/Pillias/DigitsCore/releases/latest)
 - CI: [GitHub Actions](https://github.com/Pillias/DigitsCore/actions)
 - 현재 릴리스 노트와 APK는 각 GitHub Release 페이지에서 확인할 수 있습니다.
