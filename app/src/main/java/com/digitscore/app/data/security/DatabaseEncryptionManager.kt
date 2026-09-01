@@ -193,22 +193,27 @@ object DatabaseEncryptionManager {
             null,
             SQLiteDatabase.OPEN_READWRITE
         )
+        var sourceVersion = 0
         try {
             source.rawQuery("PRAGMA wal_checkpoint(FULL);", emptyArray()).use { cursor ->
                 while (cursor.moveToNext()) Unit
             }
-            val sourceVersion = source.version
-            // SQLCipher's ATTACH ... KEY grammar does not support Android's normal
-            // SQLite bind arguments here. Quote both values as SQL literals instead.
-            source.rawExecSQL(
-                "ATTACH DATABASE ${sqlLiteral(tempFile.absolutePath)} " +
-                    "AS encrypted KEY ${sqlLiteral(passphraseText)};"
-            )
-            source.rawExecSQL("SELECT sqlcipher_export('encrypted');")
-            // ATTACH is connection-local. Keep the complete export sequence on
-            // SQLCipher's raw execution path instead of switching APIs mid-flow.
-            source.rawExecSQL("PRAGMA encrypted.user_version = $sourceVersion")
-            source.rawExecSQL("DETACH DATABASE encrypted;")
+            sourceVersion = source.version
+            // ATTACH is connection-local, so a transaction pins every export
+            // statement to one pooled SQLCipher connection until it commits.
+            source.beginTransaction()
+            try {
+                // SQLCipher's ATTACH ... KEY grammar does not support Android's
+                // normal SQLite bind arguments. Quote both values as SQL literals.
+                source.rawExecSQL(
+                    "ATTACH DATABASE ${sqlLiteral(tempFile.absolutePath)} " +
+                        "AS encrypted KEY ${sqlLiteral(passphraseText)};"
+                )
+                source.rawExecSQL("SELECT sqlcipher_export('encrypted');")
+                source.setTransactionSuccessful()
+            } finally {
+                source.endTransaction()
+            }
         } catch (error: Exception) {
             deleteDatabaseFiles(tempFile)
             throw DatabaseEncryptionException("기존 사용 기록을 암호화하는 중 오류가 발생했습니다.", error)
@@ -216,6 +221,9 @@ object DatabaseEncryptionManager {
             source.close()
         }
 
+        // sqlcipher_export intentionally leaves user_version at zero. The source
+        // connection is closed first so its attached target cannot retain a lock.
+        setEncryptedDatabaseVersion(tempFile, passphraseText, sourceVersion)
         verifyEncryptedDatabase(tempFile, passphraseText)
         deleteDatabaseFiles(backupFile)
         // 평문 WAL/SHM이 새 암호화 DB와 같은 이름으로 재사용되지 않도록 먼저 제거합니다.
@@ -253,6 +261,21 @@ object DatabaseEncryptionManager {
             ).use { cursor ->
                 require(cursor.moveToFirst() && cursor.getInt(0) == 1) { "필수 테이블이 누락되었습니다." }
             }
+        } finally {
+            database.close()
+        }
+    }
+
+    private fun setEncryptedDatabaseVersion(file: File, passphrase: String, version: Int) {
+        val database = SQLiteDatabase.openDatabase(
+            file.absolutePath,
+            passphrase,
+            null,
+            SQLiteDatabase.OPEN_READWRITE,
+            null
+        )
+        try {
+            database.version = version
         } finally {
             database.close()
         }
