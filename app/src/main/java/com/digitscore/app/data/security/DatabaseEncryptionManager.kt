@@ -199,21 +199,14 @@ object DatabaseEncryptionManager {
                 while (cursor.moveToNext()) Unit
             }
             sourceVersion = source.version
-            // ATTACH is connection-local, so a transaction pins every export
-            // statement to one pooled SQLCipher connection until it commits.
-            source.beginTransaction()
-            try {
-                // SQLCipher's ATTACH ... KEY grammar does not support Android's
-                // normal SQLite bind arguments. Quote both values as SQL literals.
-                source.rawExecSQL(
-                    "ATTACH DATABASE ${sqlLiteral(tempFile.absolutePath)} " +
-                        "AS encrypted KEY ${sqlLiteral(passphraseText)};"
-                )
-                source.rawExecSQL("SELECT sqlcipher_export('encrypted');")
-                source.setTransactionSuccessful()
-            } finally {
-                source.endTransaction()
-            }
+            // Follow sqlcipher-android's own ImportUnencryptedDatabaseTest:
+            // bind ATTACH values, export, then detach before reopening the result.
+            source.execSQL(
+                "ATTACH DATABASE ? AS encrypted KEY ?;",
+                arrayOf(tempFile.absolutePath, passphraseText)
+            )
+            source.rawExecSQL("SELECT sqlcipher_export('encrypted');")
+            source.execSQL("DETACH DATABASE encrypted;")
         } catch (error: Exception) {
             deleteDatabaseFiles(tempFile)
             throw DatabaseEncryptionException("기존 사용 기록을 암호화하는 중 오류가 발생했습니다.", error)
@@ -307,9 +300,6 @@ object DatabaseEncryptionManager {
             input.read(header) == header.size && header.contentEquals(SQLITE_HEADER)
         }
     }
-
-    private fun sqlLiteral(value: String): String =
-        "'${value.replace("'", "''")}'"
 
     private fun deleteAuxiliaryFiles(databaseFile: File) {
         File("${databaseFile.absolutePath}-wal").delete()
