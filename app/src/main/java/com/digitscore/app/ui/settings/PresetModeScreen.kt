@@ -12,17 +12,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -32,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -48,22 +52,22 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Restore
-import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import com.digitscore.app.BuildConfig
 import com.digitscore.app.data.DigitsDatabase
-import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.backup.DataBackupManager
 import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.data.entity.applyTo
 import com.digitscore.app.engine.ScoringBenchmark
 import com.digitscore.app.model.PresetMode
+import com.digitscore.app.service.TrackerForegroundService
+import com.digitscore.app.ui.privacy.PrivacyPolicyDialog
 import com.digitscore.app.ui.theme.ScoreGreen
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 
@@ -97,6 +101,35 @@ fun PresetModeScreen(
     val selectedModeId = settings.selectedPresetModeId
     val selectedPreset = PresetMode.fromId(selectedModeId)
     val selectedBenchmark = ScoringBenchmark.forPreset(selectedModeId)
+    var showPrivacyPolicy by remember { mutableStateOf(false) }
+    var isPresetMenuExpanded by remember { mutableStateOf(false) }
+
+    fun selectPreset(mode: PresetMode) {
+        isPresetMenuExpanded = false
+        scope.launch(Dispatchers.IO) {
+            val rule = mode.scoreRule
+            db.settingsDao().insertOrUpdateSettings(
+                settings.copy(
+                    selectedPresetModeId = mode.id,
+                    distractingWeightPerMinute = rule.distractingWeightPerMinute,
+                    productiveBonusPerMinute = rule.productiveBonusPerMinute,
+                    idleBonusPer10Minutes = rule.idleBonusPer10Minutes,
+                    maxIdleBonus = rule.maxIdleBonus,
+                    maxProductiveBonus = rule.maxProductiveBonus,
+                    targetUnlockCount = rule.unlockPenaltyThreshold,
+                    unlockPenaltyPerCount = rule.unlockPenaltyPerCount,
+                    lateNightMultiplier = rule.lateNightMultiplier,
+                    isLogAccelerationEnabled = rule.isLogAccelerationEnabled,
+                    logAccelerationThresholdMinutes = rule.logAccelerationThresholdMinutes,
+                    logAccelerationScaleMinutes = rule.logAccelerationScaleMinutes,
+                    isYesterdayPenaltyEnabled = rule.isYesterdayPenaltyEnabled,
+                    yesterdayPenaltyTriggerScore = rule.yesterdayPenaltyTriggerScore,
+                    yesterdayPenaltyRate = rule.yesterdayPenaltyRate,
+                    maxYesterdayPenalty = rule.maxYesterdayPenalty
+                )
+            )
+        }
+    }
 
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -165,74 +198,67 @@ fun PresetModeScreen(
                 )
             }
 
-            items(PresetMode.entries) { mode ->
-                val isSelected = (mode.id == selectedModeId)
+            item {
                 Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            scope.launch(Dispatchers.IO) {
-                                val rule = mode.scoreRule
-                                db.settingsDao().insertOrUpdateSettings(
-                                    settings.copy(
-                                        selectedPresetModeId = mode.id,
-                                        distractingWeightPerMinute = rule.distractingWeightPerMinute,
-                                        productiveBonusPerMinute = rule.productiveBonusPerMinute,
-                                        idleBonusPer10Minutes = rule.idleBonusPer10Minutes,
-                                        maxIdleBonus = rule.maxIdleBonus,
-                                        maxProductiveBonus = rule.maxProductiveBonus,
-                                        targetUnlockCount = rule.unlockPenaltyThreshold,
-                                        unlockPenaltyPerCount = rule.unlockPenaltyPerCount,
-                                        lateNightMultiplier = rule.lateNightMultiplier,
-                                        isLogAccelerationEnabled = rule.isLogAccelerationEnabled,
-                                        logAccelerationThresholdMinutes = rule.logAccelerationThresholdMinutes,
-                                        logAccelerationScaleMinutes = rule.logAccelerationScaleMinutes,
-                                        isYesterdayPenaltyEnabled = rule.isYesterdayPenaltyEnabled,
-                                        yesterdayPenaltyTriggerScore = rule.yesterdayPenaltyTriggerScore,
-                                        yesterdayPenaltyRate = rule.yesterdayPenaltyRate,
-                                        maxYesterdayPenalty = rule.maxYesterdayPenalty
-                                    )
-                                )
-                            }
-                        },
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (isSelected) {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant
-                        }
-                    )
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = mode.title,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
-                                fontSize = 15.sp
+                        ExposedDropdownMenuBox(
+                            expanded = isPresetMenuExpanded,
+                            onExpandedChange = { isPresetMenuExpanded = !isPresetMenuExpanded }
+                        ) {
+                            OutlinedTextField(
+                                value = selectedPreset.title,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("현재 프리셋") },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(
+                                        expanded = isPresetMenuExpanded
+                                    )
+                                },
+                                modifier = Modifier
+                                    .menuAnchor()
+                                    .fillMaxWidth()
                             )
-                            Text(
-                                text = mode.description,
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
+
+                            ExposedDropdownMenu(
+                                expanded = isPresetMenuExpanded,
+                                onDismissRequest = { isPresetMenuExpanded = false }
+                            ) {
+                                PresetMode.entries.forEach { mode ->
+                                    DropdownMenuItem(
+                                        text = { Text(mode.title) },
+                                        onClick = { selectPreset(mode) },
+                                        trailingIcon = if (mode.id == selectedModeId) {
+                                            {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = "선택됨",
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        } else {
+                                            null
+                                        }
+                                    )
+                                }
+                            }
                         }
 
-                        if (isSelected) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = "선택됨",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
+                        Text(
+                            text = selectedPreset.description,
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -248,6 +274,63 @@ fun PresetModeScreen(
             }
 
             // 2. 개인 목표 방어선
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "백그라운드 추적",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (settings.isTrackingEnabled) "사용 기록 추적 중" else "사용 기록 추적 중지됨",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                text = "끄면 백그라운드 서비스와 상태바 점수 알림이 즉시 종료됩니다.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.padding(top = 3.dp)
+                            )
+                        }
+                        androidx.compose.material3.Switch(
+                            checked = settings.isTrackingEnabled,
+                            onCheckedChange = { enabled ->
+                                scope.launch {
+                                    withContext(Dispatchers.IO) {
+                                        db.settingsDao().insertOrUpdateSettings(
+                                            settings.copy(isTrackingEnabled = enabled)
+                                        )
+                                    }
+                                    if (enabled) {
+                                        TrackerForegroundService.start(context)
+                                    } else {
+                                        TrackerForegroundService.stop(context)
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+
             item {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -791,44 +874,10 @@ fun PresetModeScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            text = "점수 히스토리 및 설정을 안전하게 파일로 백업하거나 과거 30일치 사용량을 소급 분석합니다.",
+                            text = "점수 히스토리와 설정을 파일로 백업할 수 있습니다. 앱별 사용시간은 추적을 켠 뒤 화면이 켜지고 잠금 해제된 전면 앱만 기록합니다.",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-
-                        // 1) 과거 30일 소급 분석
-                        OutlinedButton(
-                            onClick = {
-                                scope.launch(Dispatchers.IO) {
-                                    if (!UsageStatsHelper.hasUsageStatsPermission(context)) {
-                                        launch(Dispatchers.Main) {
-                                            Toast.makeText(context, "사용 정보 접근 권한이 필요합니다.", Toast.LENGTH_SHORT).show()
-                                        }
-                                        return@launch
-                                    }
-                                    val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
-                                    val weightMap = appWeights.associateBy { it.packageName }
-                                    val currentPreset = PresetMode.fromId(settings.selectedPresetModeId)
-                                    val pastHistories = UsageStatsHelper.syncPastDaysUsageStats(
-                                        context = context,
-                                        appWeightMap = weightMap,
-                                        scoreRule = settings.applyTo(currentPreset.scoreRule),
-                                        days = 30
-                                    )
-                                    for (h in pastHistories) {
-                                        db.scoreDao().insertOrUpdateScoreHistory(h)
-                                    }
-                                    launch(Dispatchers.Main) {
-                                        Toast.makeText(context, "과거 ${pastHistories.size}일 치 데이터 분석이 완료되었습니다!", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.Sync, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
-                            Text(text = "과거 30일 사용량 소급 분석", fontWeight = FontWeight.SemiBold)
-                        }
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -915,9 +964,23 @@ fun PresetModeScreen(
             }
 
             item {
+                OutlinedButton(
+                    onClick = { showPrivacyPolicy = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("개인정보 처리 안내")
+                }
+            }
+
+            item {
                 Spacer(modifier = Modifier.height(30.dp))
             }
         }
+    }
+
+    if (showPrivacyPolicy) {
+        PrivacyPolicyDialog(onDismiss = { showPrivacyPolicy = false })
     }
 }
 

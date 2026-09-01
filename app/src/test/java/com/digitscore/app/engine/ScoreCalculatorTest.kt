@@ -141,7 +141,7 @@ class ScoreCalculatorTest {
 
     @Test
     fun testProductiveBonus_cappedAtMaximum() {
-        // 생산성 앱을 200분(3시간 20분) 켜두어도 최대 15점으로 캡핑
+        // 1단계 성장 앱은 50%만 적용되며, 장시간 사용해도 최대 15점으로 제한됩니다.
         val apps = listOf(
             AppUsage(
                 packageName = "notion.id",
@@ -153,6 +153,74 @@ class ScoreCalculatorTest {
         val detail = ScoreCalculator.calculateScore(apps, 0, 0)
         assertEquals(15.0f, detail.productiveBonus, 0.01f)
         assertEquals(100, detail.finalScore)
+    }
+
+    @Test
+    fun testFiveLevelRatings_useAsymmetricBonusAndPenalty() {
+        val apps = listOf(
+            AppUsage(
+                packageName = "level.two",
+                appName = "Level 2",
+                usageTimeMillis = 20 * 60_000L,
+                categoryType = AppCategoryType.MILDLY_DISTRACTING
+            ),
+            AppUsage(
+                packageName = "level.four",
+                appName = "Level 4",
+                usageTimeMillis = 20 * 60_000L,
+                categoryType = AppCategoryType.MILDLY_PRODUCTIVE
+            )
+        )
+
+        val detail = ScoreCalculator.calculateScore(
+            appsUsage = apps,
+            idleMinutes = 0,
+            unlockCount = 0,
+            rule = ScoreRule(
+                distractingWeightPerMinute = 1f,
+                productiveBonusPerMinute = 1f,
+                maxProductiveBonus = 100f,
+                isLogAccelerationEnabled = false
+            )
+        )
+
+        assertEquals(10f, detail.distractingPenalty, 0.01f)
+        assertEquals(5f, detail.productiveBonus, 0.01f)
+        assertEquals(95, detail.finalScore)
+        assertEquals(20L, detail.distractingTimeMinutes)
+        assertEquals(20L, detail.productiveTimeMinutes)
+    }
+
+    @Test
+    fun levelOneAndFive_sameMinutesNeverFullyCancel() {
+        val detail = ScoreCalculator.calculateScore(
+            appsUsage = listOf(
+                AppUsage(
+                    packageName = "education",
+                    appName = "Education",
+                    usageTimeMillis = 30 * 60_000L,
+                    categoryType = AppCategoryType.PRODUCTIVE
+                ),
+                AppUsage(
+                    packageName = "video",
+                    appName = "Video",
+                    usageTimeMillis = 30 * 60_000L,
+                    categoryType = AppCategoryType.DISTRACTING
+                )
+            ),
+            idleMinutes = 0,
+            unlockCount = 0,
+            rule = ScoreRule(
+                distractingWeightPerMinute = 1f,
+                productiveBonusPerMinute = 1f,
+                maxProductiveBonus = 100f,
+                isLogAccelerationEnabled = false
+            )
+        )
+
+        assertEquals(30f, detail.distractingPenalty, 0.01f)
+        assertEquals(15f, detail.productiveBonus, 0.01f)
+        assertEquals(85, detail.finalScore)
     }
 
     @Test

@@ -28,7 +28,7 @@ data class UserSettingsEntity(
     val yesterdayPenaltyTriggerScore: Int = 60,
     val yesterdayPenaltyRate: Float = 0.2f,
     val maxYesterdayPenalty: Float = 10f,
-    val isTrackingEnabled: Boolean = true,
+    val isTrackingEnabled: Boolean = false,
     val isNotificationEnabled: Boolean = true
 )
 

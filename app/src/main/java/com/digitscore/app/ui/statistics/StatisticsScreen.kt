@@ -62,18 +62,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.digitscore.app.data.DigitsDatabase
-import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
-import com.digitscore.app.data.entity.applyTo
 import com.digitscore.app.engine.ScoringBenchmark
-import com.digitscore.app.model.PresetMode
 import com.digitscore.app.ui.theme.ScoreGreen
 import com.digitscore.app.ui.theme.ScoreOrange
 import com.digitscore.app.ui.theme.ScoreRed
 import com.digitscore.app.ui.theme.ScoreYellow
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -92,28 +91,25 @@ fun StatisticsScreen(
 
     val targetDefense = userSettings?.minimumScoreDefenseLine ?: 60
 
-    // 통계 화면 진입 시 과거 기록이 부족하면 30일치 자동 소급 분석 실행
+    // 누적 UsageStats 기반 30일 소급은 정확한 전면 앱 시간을 보장하지 못하므로 중단합니다.
+    // 과거 버전이 데이터 없는 날을 100점으로 만든 행만 정리하고, 이후 기록은 실시간
+    // UsageEvents 측정 결과가 매일 쌓이도록 둡니다.
     LaunchedEffect(Unit) {
-        if (UsageStatsHelper.hasUsageStatsPermission(context)) {
-            withContext(Dispatchers.IO) {
-                val existing = db.scoreDao().getAllScoreHistories().firstOrNull() ?: emptyList()
-                if (existing.size < 7) {
-                    val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
-                    val weightMap = appWeights.associateBy { it.packageName }
-                    val currentPreset = PresetMode.fromId(userSettings?.selectedPresetModeId ?: "balanced")
-                    val effectiveRule = userSettings?.applyTo(currentPreset.scoreRule)
-                        ?: currentPreset.scoreRule
-                    val pastHistories = UsageStatsHelper.syncPastDaysUsageStats(
-                        context = context,
-                        appWeightMap = weightMap,
-                        scoreRule = effectiveRule,
-                        days = 30
-                    )
-                    for (h in pastHistories) {
-                        db.scoreDao().insertOrUpdateScoreHistory(h)
-                    }
-                }
+        withContext(Dispatchers.IO) {
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val today = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
             }
+            val rangeStart = (today.clone() as Calendar).apply {
+                add(Calendar.DAY_OF_YEAR, -30)
+            }
+            db.scoreDao().deleteLegacyEmptyBackfills(
+                startDateString = dateFormat.format(rangeStart.time),
+                endDateString = dateFormat.format(today.time)
+            )
         }
     }
 
@@ -185,6 +181,25 @@ fun StatisticsScreen(
                             )
                         }
                     )
+                }
+            }
+
+            if (selectedTabIndex == 1 && histories.size < 30) {
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "기기에서 확인 가능한 ${histories.size}일의 기록을 표시하고 있어요. " +
+                                "오래된 사용 기록은 기기 정책에 따라 제공되지 않을 수 있습니다.",
+                            modifier = Modifier.padding(14.dp),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 

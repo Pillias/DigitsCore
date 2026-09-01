@@ -76,11 +76,12 @@ object ScoreCalculator {
         for (app in appsUsage) {
             val mins = app.usageTimeMinutes.coerceAtLeast(0L)
             totalScreenMinutes += mins
-            when (app.categoryType) {
-                AppCategoryType.DISTRACTING -> {
+            when {
+                app.categoryType.isPenalty -> {
                     distractingMinutes += mins
                     val lateNightMins = app.lateNightUsageMinutes.coerceIn(0L, mins)
                     lateNightDistractingMinutes += lateNightMins
+                    val ratingMultiplier = -app.categoryType.scoreMultiplier
 
                     // 1) 로그(Log) 기반 연속 사용 가속도 계수 계산
                     val accelerationThreshold = rule.logAccelerationThresholdMinutes.coerceAtLeast(0f)
@@ -91,19 +92,21 @@ object ScoreCalculator {
                         1.0f
                     }
 
-                    val appPenalty = mins * rule.distractingWeightPerMinute * accelerationFactor
+                    val appPenalty = mins * rule.distractingWeightPerMinute * accelerationFactor * ratingMultiplier
                     totalDistractingPenalty += appPenalty
 
                     // 2) 심야 시간(24시~05시) 추가 가속 페널티
                     if (lateNightMins > 0L && rule.lateNightMultiplier > 1.0f) {
-                        val lateNightExtra = lateNightMins * rule.distractingWeightPerMinute * (rule.lateNightMultiplier - 1.0f)
+                        val lateNightExtra = lateNightMins * rule.distractingWeightPerMinute *
+                            (rule.lateNightMultiplier - 1.0f) * ratingMultiplier
                         totalLateNightPenalty += lateNightExtra
                     }
                 }
-                AppCategoryType.PRODUCTIVE -> {
+                app.categoryType.isBonus -> {
                     productiveMinutes += mins
+                    // 보너스 강도는 아래에서 앱별로 합산합니다.
                 }
-                AppCategoryType.NEUTRAL -> { /* 중립 앱은 페널티/보너스 없음 */ }
+                else -> { /* 균형 등급은 페널티/보너스 없음 */ }
             }
         }
 
@@ -111,7 +114,14 @@ object ScoreCalculator {
         val overallDistractingPenalty = totalDistractingPenalty + totalLateNightPenalty
 
         // 2. 생산성 앱 보너스 (최대 상한선 적용)
-        val rawProductiveBonus = productiveMinutes * rule.productiveBonusPerMinute
+        val rawProductiveBonus = appsUsage.sumOf { app ->
+            if (app.categoryType.isBonus) {
+                app.usageTimeMinutes.coerceAtLeast(0L).toDouble() *
+                    rule.productiveBonusPerMinute * app.categoryType.scoreMultiplier
+            } else {
+                0.0
+            }
+        }.toFloat()
         val productiveBonus = min(rule.maxProductiveBonus, rawProductiveBonus)
 
         // 3. 화면 미사용(Idle) 회복 보너스 (10분 단위 계산, 최대 상한선 적용)

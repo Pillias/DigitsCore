@@ -5,9 +5,12 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,6 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.TrendingUp
@@ -29,11 +33,13 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -62,6 +68,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.digitscore.app.data.DigitsDatabase
+import com.digitscore.app.data.AppUsageInsights
+import com.digitscore.app.data.UnlockInsights
+import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.entity.AppWeightEntity
 import com.digitscore.app.engine.ScoreDetail
 import com.digitscore.app.engine.ScoreGrade
@@ -75,6 +84,10 @@ import com.digitscore.app.ui.theme.ScoreYellow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,7 +103,6 @@ fun DashboardScreen(
     val scoreDetail by viewModel.scoreDetail.collectAsState()
     val appsUsage by viewModel.appsUsage.collectAsState()
     val unlockCount by viewModel.unlockCount.collectAsState()
-    val isRunning by viewModel.isServiceRunning.collectAsState()
 
     // 모달 / 다이얼로그 상태 관리
     var showScoreDetailModal by remember { mutableStateOf(false) }
@@ -99,12 +111,6 @@ fun DashboardScreen(
     var showDistractingModal by remember { mutableStateOf(false) }
     var selectedAppDetail by remember { mutableStateOf<AppUsage?>(null) }
     var showAllAppsModal by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        if (!isRunning) {
-            TrackerForegroundService.start(context)
-        }
-    }
 
     val currentScore = scoreDetail?.finalScore ?: 100
     val grade = scoreDetail?.grade ?: ScoreGrade.S
@@ -287,7 +293,7 @@ fun DashboardScreen(
             distractingMinutes = scoreDetail?.distractingTimeMinutes ?: 0L,
             distractingPenalty = scoreDetail?.distractingPenalty ?: 0f,
             lateNightPenalty = scoreDetail?.lateNightPenalty ?: 0f,
-            appsUsage = appsUsage.filter { it.categoryType == AppCategoryType.DISTRACTING },
+            appsUsage = appsUsage.filter { it.categoryType.isPenalty },
             onDismiss = { showDistractingModal = false },
             onNavigateToAppSettings = {
                 showDistractingModal = false
@@ -324,7 +330,8 @@ fun DashboardScreen(
                             AppWeightEntity(
                                 packageName = app.packageName,
                                 appName = app.appName,
-                                categoryType = newCategory
+                                categoryType = newCategory,
+                                isUserModified = true
                             )
                         )
                     }
@@ -455,11 +462,7 @@ private fun StatisticCard(
 
 @Composable
 private fun AppUsageItemCard(appUsage: AppUsage, onClick: () -> Unit) {
-    val categoryColor = when (appUsage.categoryType) {
-        AppCategoryType.PRODUCTIVE -> ScoreGreen
-        AppCategoryType.DISTRACTING -> ScoreRed
-        AppCategoryType.NEUTRAL -> MaterialTheme.colorScheme.outline
-    }
+    val categoryColor = appRatingColor(appUsage.categoryType)
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -640,8 +643,8 @@ fun ScreenTimeDetailDialog(
     onNavigateToStatistics: () -> Unit,
     onSelectApp: (AppUsage) -> Unit
 ) {
-    val distractingMins = appsUsage.filter { it.categoryType == AppCategoryType.DISTRACTING }.sumOf { it.usageTimeMinutes }
-    val productiveMins = appsUsage.filter { it.categoryType == AppCategoryType.PRODUCTIVE }.sumOf { it.usageTimeMinutes }
+    val distractingMins = appsUsage.filter { it.categoryType.isPenalty }.sumOf { it.usageTimeMinutes }
+    val productiveMins = appsUsage.filter { it.categoryType.isBonus }.sumOf { it.usageTimeMinutes }
     val neutralMins = (totalScreenMinutes - distractingMins - productiveMins).coerceAtLeast(0L)
 
     AlertDialog(
@@ -670,6 +673,16 @@ fun ScreenTimeDetailDialog(
                     ) {
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(text = "카테고리별 시간 분배", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.outline)
+                            CompactBarChart(
+                                values = listOf(distractingMins.toFloat(), productiveMins.toFloat(), neutralMins.toFloat()),
+                                barColor = MaterialTheme.colorScheme.primary,
+                                contentDescription = "방해 생산성 중립 앱 사용시간 비교 그래프"
+                            )
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+                                Text("관리", fontSize = 10.sp, color = ScoreRed)
+                                Text("성장", fontSize = 10.sp, color = ScoreGreen)
+                                Text("균형", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
+                            }
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text(text = "🔴 방해 앱", fontSize = 12.sp)
                                 Text(text = formatMinutesToHoursAndMinutes(distractingMins), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ScoreRed)
@@ -707,11 +720,11 @@ fun ScreenTimeDetailDialog(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = app.appName, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                            Text(text = app.categoryType.displayName, fontSize = 11.sp, color = when(app.categoryType) {
-                                AppCategoryType.PRODUCTIVE -> ScoreGreen
-                                AppCategoryType.DISTRACTING -> ScoreRed
-                                AppCategoryType.NEUTRAL -> MaterialTheme.colorScheme.outline
-                            })
+                            Text(
+                                text = app.categoryType.displayName,
+                                fontSize = 11.sp,
+                                color = appRatingColor(app.categoryType)
+                            )
                         }
                         Text(
                             text = formatMinutesToHoursAndMinutes(app.usageTimeMinutes),
@@ -745,6 +758,14 @@ fun UnlockDetailDialog(
     onDismiss: () -> Unit,
     onNavigateToPresetSettings: () -> Unit
 ) {
+    val context = LocalContext.current
+    var insights by remember { mutableStateOf<UnlockInsights?>(null) }
+    LaunchedEffect(unlockCount) {
+        insights = withContext(Dispatchers.IO) {
+            UsageStatsHelper.getTodayUnlockInsights(context)
+        }
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -759,7 +780,85 @@ fun UnlockDetailDialog(
             }
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (insights == null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    }
+                } else {
+                    val value = requireNotNull(insights)
+                    val busiest = value.hourlyUnlockCounts.withIndex()
+                        .filter { it.value > 0 }
+                        .sortedByDescending { it.value }
+                        .take(3)
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            Text("시간대별 언락", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.outline)
+                            if (busiest.isEmpty()) {
+                                Text("아직 시간대 분석에 필요한 언락 기록이 없습니다.", fontSize = 13.sp)
+                            } else {
+                                CompactBarChart(
+                                    values = value.hourlyUnlockCounts.map { it.toFloat() },
+                                    barColor = ScoreYellow,
+                                    contentDescription = "24시간 언락 횟수 그래프"
+                                )
+                                HourlyAxisLabels()
+                                val peak = busiest.first()
+                                Text(
+                                    "가장 잦은 시간은 ${hourLabel(peak.index)} · ${peak.value}회입니다.",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                            value.averageIntervalMinutes?.let { interval ->
+                                Text("평균 약 ${interval.coerceAtLeast(1)}분마다 한 번 열었습니다.", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("알림과 언락 비교", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.outline)
+                            if (!value.notificationEventsSupported) {
+                                Text("이 Android 버전은 알림 이벤트 비교를 제공하지 않습니다.", fontSize = 13.sp)
+                            } else {
+                                Text("OS 감지 알림 ${value.notificationCount}건 · 언락 ${unlockCount}회", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                CompactBarChart(
+                                    values = listOf(value.notificationCount.toFloat(), unlockCount.toFloat()),
+                                    barColor = MaterialTheme.colorScheme.primary,
+                                    contentDescription = "알림 ${value.notificationCount}건과 언락 ${unlockCount}회 비교 그래프"
+                                )
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+                                    Text("알림", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
+                                    Text("언락", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
+                                }
+                                val comparison = when {
+                                    value.notificationCount > 0 -> {
+                                        val ratio = unlockCount.toFloat() / value.notificationCount
+                                        "알림 1건당 약 ${String.format(Locale.US, "%.1f", ratio)}회 언락했습니다."
+                                    }
+                                    unlockCount > 0 -> "감지된 알림 없이도 ${unlockCount}회 언락했습니다."
+                                    else -> "아직 비교할 기록이 없습니다."
+                                }
+                                Text(comparison, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                                Text("OS 이벤트의 단순 비교이며 알림이 언락의 직접 원인이라는 뜻은 아닙니다.", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
+                            }
+                        }
+                    }
+                }
+
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                     shape = RoundedCornerShape(12.dp)
@@ -840,6 +939,21 @@ fun DistractingDetailDialog(
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.outline
                     )
+                }
+
+                if (appsUsage.isNotEmpty()) {
+                    item {
+                        CompactBarChart(
+                            values = appsUsage.take(8).map { it.usageTimeMinutes.toFloat() },
+                            barColor = ScoreRed,
+                            contentDescription = "관리 대상 앱별 사용시간 그래프"
+                        )
+                        Text(
+                            "사용시간 상위 ${minOf(8, appsUsage.size)}개 앱",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
                 }
 
                 if (appsUsage.isEmpty()) {
@@ -931,11 +1045,7 @@ fun AllAppsUsageDialog(
                             Text(
                                 text = app.categoryType.displayName,
                                 fontSize = 11.sp,
-                                color = when (app.categoryType) {
-                                    AppCategoryType.PRODUCTIVE -> ScoreGreen
-                                    AppCategoryType.DISTRACTING -> ScoreRed
-                                    AppCategoryType.NEUTRAL -> MaterialTheme.colorScheme.outline
-                                }
+                                color = appRatingColor(app.categoryType)
                             )
                         }
                         Text(
@@ -964,80 +1074,123 @@ fun AppDetailDialog(
     onDismiss: () -> Unit,
     onCategoryChanged: (AppCategoryType) -> Unit
 ) {
+    val context = LocalContext.current
     var selectedCategory by remember { mutableStateOf(appUsage.categoryType) }
+    var categoryMenuExpanded by remember { mutableStateOf(false) }
+    var insights by remember { mutableStateOf<AppUsageInsights?>(null) }
+
+    LaunchedEffect(appUsage.packageName, appUsage.usageTimeMillis) {
+        insights = withContext(Dispatchers.IO) {
+            UsageStatsHelper.getAppUsageInsights(context, appUsage.packageName)
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Column {
-                Text(text = appUsage.appName, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text(text = appUsage.packageName, fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = appUsage.appName, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text(text = appUsage.packageName, fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                }
+                Box {
+                    TextButton(onClick = { categoryMenuExpanded = true }) {
+                        Text(
+                            "${selectedCategory.level} · ${selectedCategory.displayName}",
+                            fontSize = 11.sp,
+                            color = appRatingColor(selectedCategory)
+                        )
+                        Icon(
+                            Icons.Default.ArrowDropDown,
+                            contentDescription = "균형 등급 변경",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = categoryMenuExpanded,
+                        onDismissRequest = { categoryMenuExpanded = false }
+                    ) {
+                        AppCategoryType.orderedEntries.forEach { category ->
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text(
+                                            "${category.level} · ${category.displayName}",
+                                            fontWeight = FontWeight.Bold,
+                                            color = appRatingColor(category)
+                                        )
+                                        Text(category.description, fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
+                                    }
+                                },
+                                onClick = {
+                                    selectedCategory = category
+                                    categoryMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
             }
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                // 사용 시간 요약
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        shape = RoundedCornerShape(10.dp)
                     ) {
-                        Column {
-                            Text(text = "오늘 총 사용 시간", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
-                            Text(
-                                text = formatMinutesToHoursAndMinutes(appUsage.usageTimeMinutes),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        if (appUsage.lateNightUsageMinutes > 0) {
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(text = "심야(00~05시)", fontSize = 11.sp, color = ScoreOrange)
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(text = "오늘 총 사용 시간", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
                                 Text(
-                                    text = "${appUsage.lateNightUsageMinutes}분",
+                                    text = formatMinutesToHoursAndMinutes(appUsage.usageTimeMinutes),
                                     fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = ScoreOrange
+                                    fontWeight = FontWeight.Bold
                                 )
+                            }
+                            if (appUsage.lateNightUsageMinutes > 0) {
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(text = "심야(00~05시)", fontSize = 11.sp, color = ScoreOrange)
+                                    Text(
+                                        text = "${appUsage.lateNightUsageMinutes}분",
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = ScoreOrange
+                                    )
+                                }
                             }
                         }
                     }
                 }
 
-                Text(
-                    text = "디톡스 카테고리 분류 변경",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
+                if (insights == null) {
+                    item {
+                        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        }
+                    }
+                } else {
+                    val value = requireNotNull(insights)
+                    item { AppTimeOfDayInsight(value) }
+                    item { AppSessionInsight(value) }
+                    item { AppTrendInsight(value) }
+                }
 
-                // 카테고리 라디오 버튼 그룹
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    CategoryRadioOption(
-                        title = "🔴 방해 앱 (감점 대상)",
-                        description = "SNS, 동영상, 게임 등 사용을 줄여야 하는 앱",
-                        selected = selectedCategory == AppCategoryType.DISTRACTING,
-                        color = ScoreRed,
-                        onClick = { selectedCategory = AppCategoryType.DISTRACTING }
-                    )
-                    CategoryRadioOption(
-                        title = "🟢 생산성 앱 (보너스 가산)",
-                        description = "공부, 업무, 독서 등 권장되는 앱",
-                        selected = selectedCategory == AppCategoryType.PRODUCTIVE,
-                        color = ScoreGreen,
-                        onClick = { selectedCategory = AppCategoryType.PRODUCTIVE }
-                    )
-                    CategoryRadioOption(
-                        title = "⚪ 중립 앱 (점수 영향 없음)",
-                        description = "통화, 지도, 금융 등 일상 필수 유틸리티 앱",
-                        selected = selectedCategory == AppCategoryType.NEUTRAL,
-                        color = MaterialTheme.colorScheme.outline,
-                        onClick = { selectedCategory = AppCategoryType.NEUTRAL }
+                item {
+                    Text(
+                        "등급은 우측 상단 드롭다운에서 변경할 수 있습니다.",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.outline
                     )
                 }
             }
@@ -1058,32 +1211,196 @@ fun AppDetailDialog(
 }
 
 @Composable
-private fun CategoryRadioOption(
-    title: String,
-    description: String,
-    selected: Boolean,
-    color: Color,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .background(
-                color = if (selected) color.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant,
-                shape = RoundedCornerShape(8.dp)
+private fun AppTimeOfDayInsight(insights: AppUsageInsights) {
+    val busiest = insights.hourlyUsageMillis.withIndex()
+        .filter { it.value >= 10_000L }
+        .sortedByDescending { it.value }
+        .take(3)
+    InsightCard("언제 많이 사용했나요?") {
+        if (busiest.isEmpty()) {
+            Text("아직 분석할 시간대 기록이 없습니다.", fontSize = 12.sp)
+        } else {
+            CompactBarChart(
+                values = insights.hourlyUsageMillis.map { it / 60_000f },
+                barColor = MaterialTheme.colorScheme.primary,
+                contentDescription = "24시간 앱 사용량 그래프"
             )
-            .padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        RadioButton(
-            selected = selected,
-            onClick = onClick
-        )
-        Spacer(modifier = Modifier.width(6.dp))
-        Column {
-            Text(text = title, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (selected) color else MaterialTheme.colorScheme.onSurface)
-            Text(text = description, fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
+            HourlyAxisLabels()
+            val peak = busiest.first()
+            Text(
+                "가장 많이 사용한 시간은 ${hourLabel(peak.index)} · ${formatInsightDuration(peak.value)}입니다.",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
+}
+
+@Composable
+private fun AppSessionInsight(insights: AppUsageInsights) {
+    val sessions = insights.sessionDurationsMillis
+    val average = sessions.takeIf { it.isNotEmpty() }?.average()?.toLong() ?: 0L
+    val longest = sessions.maxOrNull() ?: 0L
+    val assessment = when {
+        longest >= 30 * 60_000L -> "한 번에 30분 이상 이어진 사용이 있습니다."
+        longest >= 15 * 60_000L -> "한 번에 다소 길게 사용한 구간이 있습니다."
+        sessions.isNotEmpty() -> "대체로 짧게 나누어 사용했습니다."
+        else -> "아직 세션 기록이 없습니다."
+    }
+    InsightCard("한 번에 너무 길게 사용했나요?") {
+        if (sessions.isNotEmpty()) {
+            CompactBarChart(
+                values = sessions.takeLast(10).map { it / 60_000f },
+                barColor = MaterialTheme.colorScheme.primary,
+                warningThreshold = 30f,
+                contentDescription = "최근 앱 사용 세션 길이 그래프"
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("최근 세션", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
+                Text("30분 이상은 주황색", fontSize = 10.sp, color = ScoreOrange)
+            }
+        }
+        Text(
+            "${sessions.size}회 · 평균 ${formatInsightDuration(average)} · 최장 ${formatInsightDuration(longest)}",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            assessment,
+            fontSize = 12.sp,
+            color = if (longest >= 30 * 60_000L) ScoreOrange else MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+@Composable
+private fun AppTrendInsight(insights: AppUsageInsights) {
+    val completed = insights.dailyUsage.filterNot { it.isToday }
+    val recent = completed.takeLast(3).map { it.usageMillis }
+    val previous = completed.dropLast(3).takeLast(3).map { it.usageMillis }
+    val recentAverage = recent.takeIf { it.isNotEmpty() }?.average() ?: 0.0
+    val previousAverage = previous.takeIf { it.isNotEmpty() }?.average() ?: 0.0
+    val trendText = when {
+        previous.isEmpty() -> "며칠 더 사용하면 이전 기간과 비교할 수 있습니다."
+        previousAverage == 0.0 && recentAverage > 0.0 -> "최근 3일에 새 사용 기록이 생겼습니다."
+        previousAverage == 0.0 -> "최근 사용량 변화가 없습니다."
+        else -> {
+            val percent = ((recentAverage - previousAverage) / previousAverage * 100).roundToInt()
+            when {
+                percent >= 10 -> "최근 3일 평균이 이전 3일보다 ${percent}% 늘었습니다."
+                percent <= -10 -> "최근 3일 평균이 이전 3일보다 ${-percent}% 줄었습니다."
+                else -> "최근 3일 사용량은 이전 기간과 비슷합니다."
+            }
+        }
+    }
+    val formatter = remember { SimpleDateFormat("M/d", Locale.getDefault()) }
+    InsightCard("최근 7일 트렌드") {
+        Text(trendText, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+        CompactBarChart(
+            values = insights.dailyUsage.map { it.usageMillis / 60_000f },
+            barColor = MaterialTheme.colorScheme.primary,
+            contentDescription = "최근 7일 앱 사용량 그래프"
+        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            insights.dailyUsage.forEach { day ->
+                Text(
+                    if (day.isToday) "오늘" else formatter.format(Date(day.dayStartMillis)),
+                    fontSize = 9.sp,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+        }
+        val today = insights.dailyUsage.lastOrNull()
+        if (today != null) {
+            Text("오늘 ${formatInsightDuration(today.usageMillis)}", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+@Composable
+private fun InsightCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(10.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.outline)
+            content()
+        }
+    }
+}
+
+@Composable
+private fun CompactBarChart(
+    values: List<Float>,
+    barColor: Color,
+    contentDescription: String,
+    warningThreshold: Float? = null
+) {
+    val safeValues = values.map { it.coerceAtLeast(0f) }
+    val maximum = (safeValues.maxOrNull() ?: 0f).coerceAtLeast(1f)
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(82.dp)
+            .semantics { this.contentDescription = contentDescription }
+    ) {
+        if (safeValues.isEmpty()) return@Canvas
+        val gap = 2.dp.toPx()
+        val barWidth = ((size.width - gap * (safeValues.size - 1)) / safeValues.size)
+            .coerceAtLeast(1f)
+        drawLine(
+            color = Color.Gray.copy(alpha = 0.25f),
+            start = Offset(0f, size.height),
+            end = Offset(size.width, size.height),
+            strokeWidth = 1.dp.toPx()
+        )
+        safeValues.forEachIndexed { index, value ->
+            val barHeight = if (value <= 0f) 1.dp.toPx() else (value / maximum) * size.height
+            val color = if (warningThreshold != null && value >= warningThreshold) {
+                ScoreOrange
+            } else {
+                barColor
+            }
+            drawRect(
+                color = color.copy(alpha = if (value <= 0f) 0.15f else 0.85f),
+                topLeft = Offset(index * (barWidth + gap), size.height - barHeight),
+                size = Size(barWidth, barHeight)
+            )
+        }
+    }
+}
+
+@Composable
+private fun HourlyAxisLabels() {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        listOf("0시", "6시", "12시", "18시", "24시").forEach { label ->
+            Text(label, fontSize = 9.sp, color = MaterialTheme.colorScheme.outline)
+        }
+    }
+}
+
+private fun hourLabel(hour: Int): String = "%02d:00–%02d:00".format(hour, (hour + 1) % 24)
+
+private fun formatInsightDuration(millis: Long): String {
+    val safeMillis = millis.coerceAtLeast(0L)
+    val minutes = safeMillis / 60_000L
+    return when {
+        minutes >= 60 -> "${minutes / 60}시간 ${minutes % 60}분"
+        minutes > 0 -> "${minutes}분"
+        safeMillis > 0 -> "${(safeMillis / 1_000L).coerceAtLeast(1)}초"
+        else -> "0분"
+    }
+}
+
+@Composable
+private fun appRatingColor(category: AppCategoryType): Color = when (category.level) {
+    1 -> ScoreGreen
+    2 -> Color(0xFF38A6A5)
+    3 -> MaterialTheme.colorScheme.outline
+    4 -> ScoreOrange
+    else -> ScoreRed
 }

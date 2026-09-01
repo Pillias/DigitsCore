@@ -12,16 +12,46 @@ import android.os.Process
 import com.digitscore.app.data.entity.AppWeightEntity
 import com.digitscore.app.model.AppCategoryType
 import com.digitscore.app.model.AppUsage
-import com.digitscore.app.data.entity.DailyScoreHistoryEntity
-import com.digitscore.app.engine.ScoreCalculator
-import com.digitscore.app.model.ScoreRule
-import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
-import java.util.Locale
-import kotlin.math.max
+
+data class TodayUsageSnapshot(
+    val appsUsage: List<AppUsage>,
+    val unlockCount: Int,
+    val assignedUsageMillis: Long,
+    val hasForegroundEvidence: Boolean
+)
+
+data class DailyAppUsage(
+    val dayStartMillis: Long,
+    val usageMillis: Long,
+    val isToday: Boolean
+)
+
+data class AppUsageInsights(
+    val hourlyUsageMillis: List<Long>,
+    val sessionDurationsMillis: List<Long>,
+    val dailyUsage: List<DailyAppUsage>
+)
+
+data class UnlockInsights(
+    val unlockCount: Int,
+    val hourlyUnlockCounts: List<Int>,
+    val averageIntervalMinutes: Int?,
+    val notificationCount: Int,
+    val notificationEventsSupported: Boolean
+)
 
 object UsageStatsHelper {
+
+    private const val FOREGROUND_STATE_LOOKBACK_MILLIS = 6 * 60 * 60 * 1_000L
+    // UsageEvents.Event.NOTIFICATION_INTERRUPTION은 event type 12이지만 일부 공개 SDK에서
+    // 심볼이 노출되지 않으므로 플랫폼에 정의된 안정된 정수 값을 사용합니다.
+    private const val EVENT_TYPE_NOTIFICATION_INTERRUPTION = 12
+
+    private data class QueriedUsageEvents(
+        val timelineEvents: List<ForegroundTimelineEvent>,
+        val notificationTimestamps: List<Long>
+    )
 
     /**
      * PACKAGE_USAGE_STATS 권한이 허용되었는지 확인
@@ -72,14 +102,52 @@ object UsageStatsHelper {
         "com.digitscore.app"
     )
 
-    private const val FOREGROUND_STATE_LOOKBACK_MILLIS = 24 * 60 * 60 * 1000L
-
     internal fun defaultCategoryForApplicationCategory(applicationCategory: Int): AppCategoryType =
         when (applicationCategory) {
+            ApplicationInfo.CATEGORY_GAME,
             ApplicationInfo.CATEGORY_AUDIO,
             ApplicationInfo.CATEGORY_VIDEO -> AppCategoryType.DISTRACTING
+
+            ApplicationInfo.CATEGORY_SOCIAL,
+            ApplicationInfo.CATEGORY_NEWS -> AppCategoryType.MILDLY_DISTRACTING
+
+            ApplicationInfo.CATEGORY_PRODUCTIVITY -> AppCategoryType.MILDLY_PRODUCTIVE
             else -> AppCategoryType.NEUTRAL
         }
+
+    private val EDUCATION_PACKAGE_PREFIXES = listOf(
+        "com.duolingo",
+        "com.ichi2.anki",
+        "com.ankiandroid",
+        "org.khanacademy",
+        "com.coursera",
+        "com.udemy",
+        "com.quizlet",
+        "com.google.android.apps.classroom",
+        "org.edx"
+    )
+
+    private val SHOPPING_PACKAGE_PREFIXES = listOf(
+        "com.alibaba.aliexpress",
+        "com.amazon.mshop",
+        "com.shopee",
+        "com.ebay.mobile",
+        "com.einnovation.temu",
+        "com.contextlogic.wish",
+        "com.coupang.mobile"
+    )
+
+    internal fun defaultCategoryForPackage(
+        packageName: String,
+        applicationCategory: Int
+    ): AppCategoryType {
+        val normalizedPackage = packageName.lowercase()
+        return when {
+            EDUCATION_PACKAGE_PREFIXES.any(normalizedPackage::startsWith) -> AppCategoryType.PRODUCTIVE
+            SHOPPING_PACKAGE_PREFIXES.any(normalizedPackage::startsWith) -> AppCategoryType.MILDLY_DISTRACTING
+            else -> defaultCategoryForApplicationCategory(applicationCategory)
+        }
+    }
 
     private fun resolveCategory(
         pm: PackageManager,
@@ -93,8 +161,11 @@ object UsageStatsHelper {
         } catch (_: Exception) {
             ApplicationInfo.CATEGORY_UNDEFINED
         }
-        return defaultCategoryForApplicationCategory(applicationCategory)
+        return defaultCategoryForPackage(packageName, applicationCategory)
     }
+
+    internal fun shouldIncludeUsagePackage(packageName: String, usageTimeMillis: Long): Boolean =
+        usageTimeMillis >= 10_000L && packageName !in IGNORED_SYSTEM_PACKAGES
 
     private fun queryExclusiveForegroundUsage(
         usageStatsManager: UsageStatsManager,
@@ -103,23 +174,41 @@ object UsageStatsHelper {
         lateNightEndTime: Long
     ): ForegroundUsageResult {
         val queryStart = (startTime - FOREGROUND_STATE_LOOKBACK_MILLIS).coerceAtLeast(0L)
+        val queriedEvents = queryUsageEvents(usageStatsManager, queryStart, endTime)
+        return ForegroundUsageAggregator.aggregate(
+            startTimeMillis = startTime,
+            endTimeMillis = endTime,
+            lateNightEndTimeMillis = lateNightEndTime,
+            events = queriedEvents.timelineEvents
+        )
+    }
+
+    private fun queryUsageEvents(
+        usageStatsManager: UsageStatsManager,
+        queryStart: Long,
+        endTime: Long
+    ): QueriedUsageEvents {
         val usageEvents = usageStatsManager.queryEvents(queryStart, endTime)
-            ?: return ForegroundUsageAggregator.aggregate(
-                startTimeMillis = startTime,
-                endTimeMillis = endTime,
-                lateNightEndTimeMillis = lateNightEndTime,
-                events = emptyList()
-            )
+            ?: return QueriedUsageEvents(emptyList(), emptyList())
         val androidEvent = UsageEvents.Event()
         val timelineEvents = mutableListOf<ForegroundTimelineEvent>()
+        val notificationTimestamps = mutableListOf<Long>()
 
         while (usageEvents.hasNextEvent()) {
             usageEvents.getNextEvent(androidEvent)
+            if (androidEvent.eventType == EVENT_TYPE_NOTIFICATION_INTERRUPTION) {
+                notificationTimestamps += androidEvent.timeStamp
+                continue
+            }
             val type = when (androidEvent.eventType) {
-                UsageEvents.Event.MOVE_TO_FOREGROUND -> ForegroundTimelineEventType.APP_RESUMED
-                UsageEvents.Event.MOVE_TO_BACKGROUND -> ForegroundTimelineEventType.APP_PAUSED
+                UsageEvents.Event.ACTIVITY_RESUMED -> ForegroundTimelineEventType.APP_RESUMED
+                UsageEvents.Event.ACTIVITY_PAUSED -> ForegroundTimelineEventType.APP_PAUSED
                 UsageEvents.Event.ACTIVITY_STOPPED -> ForegroundTimelineEventType.APP_STOPPED
+                UsageEvents.Event.SCREEN_INTERACTIVE -> ForegroundTimelineEventType.SCREEN_INTERACTIVE
                 UsageEvents.Event.SCREEN_NON_INTERACTIVE -> ForegroundTimelineEventType.SCREEN_NON_INTERACTIVE
+                UsageEvents.Event.KEYGUARD_SHOWN -> ForegroundTimelineEventType.KEYGUARD_SHOWN
+                UsageEvents.Event.KEYGUARD_HIDDEN -> ForegroundTimelineEventType.KEYGUARD_HIDDEN
+                UsageEvents.Event.DEVICE_STARTUP -> ForegroundTimelineEventType.DEVICE_STARTUP
                 UsageEvents.Event.DEVICE_SHUTDOWN -> ForegroundTimelineEventType.DEVICE_SHUTDOWN
                 else -> null
             } ?: continue
@@ -132,79 +221,150 @@ object UsageStatsHelper {
             )
         }
 
-        return ForegroundUsageAggregator.aggregate(
-            startTimeMillis = startTime,
-            endTimeMillis = endTime,
-            lateNightEndTimeMillis = lateNightEndTime,
-            events = timelineEvents
+        return QueriedUsageEvents(timelineEvents, notificationTimestamps)
+    }
+
+    /** 앱 상세를 열 때만 최근 7일 이벤트를 한 번 조회해 세션·시간대·추세를 계산합니다. */
+    fun getAppUsageInsights(context: Context, packageName: String): AppUsageInsights {
+        val manager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+            ?: return AppUsageInsights(List(24) { 0L }, emptyList(), emptyList())
+        val now = System.currentTimeMillis()
+        val today = Calendar.getInstance().apply {
+            timeInMillis = now
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val dayStarts = (6 downTo 0).map { daysAgo ->
+            (today.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -daysAgo) }.timeInMillis
+        }
+        val queried = queryUsageEvents(
+            manager,
+            (dayStarts.first() - FOREGROUND_STATE_LOOKBACK_MILLIS).coerceAtLeast(0L),
+            now
+        )
+
+        val daily = dayStarts.mapIndexed { index, dayStart ->
+            val dayEnd = if (index == dayStarts.lastIndex) {
+                now
+            } else {
+                dayStarts[index + 1]
+            }
+            val result = ForegroundUsageAggregator.aggregate(
+                startTimeMillis = dayStart,
+                endTimeMillis = dayEnd,
+                lateNightEndTimeMillis = dayStart,
+                events = queried.timelineEvents
+            )
+            DailyAppUsage(
+                dayStartMillis = dayStart,
+                usageMillis = result.usageMillisByPackage[packageName] ?: 0L,
+                isToday = index == dayStarts.lastIndex
+            )
+        }
+
+        val todayResult = ForegroundUsageAggregator.aggregate(
+            startTimeMillis = dayStarts.last(),
+            endTimeMillis = now,
+            lateNightEndTimeMillis = dayStarts.last(),
+            events = queried.timelineEvents
+        )
+        val appSegments = todayResult.segments.filter { it.packageName == packageName }
+        val hourly = LongArray(24)
+        appSegments.forEach { segment ->
+            var cursor = segment.startTimeMillis
+            while (cursor < segment.endTimeMillis) {
+                val calendar = Calendar.getInstance().apply { timeInMillis = cursor }
+                val hour = calendar.get(Calendar.HOUR_OF_DAY)
+                val nextHour = (calendar.clone() as Calendar).apply {
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                    add(Calendar.HOUR_OF_DAY, 1)
+                }.timeInMillis
+                val intervalEnd = minOf(segment.endTimeMillis, nextHour)
+                hourly[hour] += intervalEnd - cursor
+                cursor = intervalEnd
+            }
+        }
+
+        return AppUsageInsights(
+            hourlyUsageMillis = hourly.toList(),
+            sessionDurationsMillis = appSegments.map { it.durationMillis },
+            dailyUsage = daily
+        )
+    }
+
+    /** 오늘 언락 시간대와 OS UsageEvents가 제공하는 알림 interruption 수를 함께 계산합니다. */
+    fun getTodayUnlockInsights(context: Context): UnlockInsights {
+        val manager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+            ?: return UnlockInsights(0, List(24) { 0 }, null, 0, false)
+        val start = getStartOfTodayMillis()
+        val end = System.currentTimeMillis()
+        val queried = queryUsageEvents(
+            manager,
+            (start - FOREGROUND_STATE_LOOKBACK_MILLIS).coerceAtLeast(0L),
+            end
+        )
+        val todayEvents = queried.timelineEvents.filter { it.timestampMillis in start..end }
+        val hiddenEvents = todayEvents.filter { it.type == ForegroundTimelineEventType.KEYGUARD_HIDDEN }
+        val unlockEvents = if (hiddenEvents.isNotEmpty()) {
+            hiddenEvents
+        } else {
+            todayEvents.filter { it.type == ForegroundTimelineEventType.SCREEN_INTERACTIVE }
+        }
+        val hourly = MutableList(24) { 0 }
+        unlockEvents.forEach { event ->
+            val hour = Calendar.getInstance().apply { timeInMillis = event.timestampMillis }
+                .get(Calendar.HOUR_OF_DAY)
+            hourly[hour]++
+        }
+        val averageIntervalMinutes = unlockEvents.map { it.timestampMillis }
+            .zipWithNext { first, second -> (second - first).coerceAtLeast(0L) }
+            .takeIf { it.isNotEmpty() }
+            ?.average()
+            ?.div(60_000.0)
+            ?.toInt()
+        val notificationCount = queried.notificationTimestamps.count { it in start..end }
+
+        return UnlockInsights(
+            unlockCount = unlockEvents.size,
+            hourlyUnlockCounts = hourly,
+            averageIntervalMinutes = averageIntervalMinutes,
+            notificationCount = notificationCount,
+            notificationEventsSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
         )
     }
 
     /**
-     * 오늘 0시부터 현재까지의 실제 사용자 앱별 사용 시간 및 정보 집계
-     * 제조사와 Android 버전에 따라 일부 차이가 날 수 있는 근사 집계입니다.
+     * 오늘 자정부터 현재까지 화면이 켜지고 잠금 해제된 상태에서 최상단 앱 하나만 집계합니다.
+     * queryAndAggregateUsageStats의 누적값은 앱별 시간 계산에 사용하지 않습니다.
      */
-    fun getTodayAppUsageStats(
+    fun getTodayUsageSnapshot(
         context: Context,
         appWeightMap: Map<String, AppWeightEntity>
-    ): List<AppUsage> {
+    ): TodayUsageSnapshot {
         val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
-            ?: return emptyList()
+            ?: return TodayUsageSnapshot(emptyList(), 0, 0L, false)
 
         val startTime = getStartOfTodayMillis()
         val endTime = System.currentTimeMillis()
         val lateNightEndTime = startTime + (5 * 60 * 60 * 1000L) // 오늘 새벽 5시
-
-        // 메타데이터 및 이벤트 누락 시 fallback을 위해 OS 집계값도 조회합니다.
-        val aggregatedStats = usageStatsManager.queryAndAggregateUsageStats(startTime, endTime).orEmpty()
-
-        // RESUMED/PAUSED 이벤트로 한 시점에 하나의 foreground 앱만 집계합니다.
-        // totalTimeVisible은 PIP·분할 화면처럼 보이기만 하는 앱도 포함하므로 사용하지 않습니다.
         val exclusiveUsage = queryExclusiveForegroundUsage(
             usageStatsManager = usageStatsManager,
             startTime = startTime,
             endTime = endTime,
             lateNightEndTime = minOf(endTime, lateNightEndTime)
         )
-        val useEventTimeline = exclusiveUsage.hasForegroundEvidence
-        if (!useEventTimeline && aggregatedStats.isEmpty()) return emptyList()
-        val fallbackLateNightStats = if (!useEventTimeline && endTime > startTime) {
-            usageStatsManager.queryAndAggregateUsageStats(
-                startTime,
-                minOf(endTime, lateNightEndTime)
-            ).orEmpty()
-        } else {
-            emptyMap()
-        }
 
         val pm = context.packageManager
         val result = mutableListOf<AppUsage>()
-        val packageNames = if (useEventTimeline) {
-            exclusiveUsage.usageMillisByPackage.keys
-        } else {
-            aggregatedStats.keys
-        }
 
-        for (pkgName in packageNames) {
-            if (IGNORED_SYSTEM_PACKAGES.contains(pkgName)) continue
-            val stat = aggregatedStats[pkgName]
-
-            val timeMillis = if (useEventTimeline) {
-                exclusiveUsage.usageMillisByPackage[pkgName] ?: 0L
-            } else {
-                // 일부 제조사에서 이벤트가 비어 있는 경우에만 foreground 집계값으로 fallback합니다.
-                stat?.totalTimeInForeground?.coerceIn(0L, endTime - startTime) ?: 0L
-            }
-
-            // 10초 이상 사용된 앱만 처리
-            if (timeMillis >= 10_000L) {
+        for ((pkgName, rawTimeMillis) in exclusiveUsage.usageMillisByPackage) {
+            val timeMillis = rawTimeMillis.coerceIn(0L, endTime - startTime)
+            if (shouldIncludeUsagePackage(pkgName, timeMillis)) {
                 val savedEntity = appWeightMap[pkgName]
-                // 런처 앱이거나 사용자 정의 등록 앱인지 검증 (시스템 백그라운드 프로세스 필터링)
-                val launchIntent = pm.getLaunchIntentForPackage(pkgName)
-                if (launchIntent == null && savedEntity == null) {
-                    continue
-                }
-
                 val appName = savedEntity?.appName ?: try {
                     val appInfo = pm.getApplicationInfo(pkgName, 0)
                     pm.getApplicationLabel(appInfo).toString()
@@ -213,12 +373,8 @@ object UsageStatsHelper {
                 }
 
                 val category = resolveCategory(pm, pkgName, savedEntity)
-
-                val lateNightTime = if (useEventTimeline) {
-                    exclusiveUsage.lateNightUsageMillisByPackage[pkgName] ?: 0L
-                } else {
-                    fallbackLateNightStats[pkgName]?.totalTimeInForeground ?: 0L
-                }.coerceIn(0L, timeMillis)
+                val lateNightTime = (exclusiveUsage.lateNightUsageMillisByPackage[pkgName] ?: 0L)
+                    .coerceIn(0L, timeMillis)
 
                 result.add(
                     AppUsage(
@@ -226,196 +382,19 @@ object UsageStatsHelper {
                         appName = appName,
                         usageTimeMillis = timeMillis,
                         categoryType = category,
-                        lastTimeUsedMillis = exclusiveUsage.lastUsedMillisByPackage[pkgName]
-                            ?: stat?.lastTimeUsed
-                            ?: 0L,
+                        lastTimeUsedMillis = exclusiveUsage.lastUsedMillisByPackage[pkgName] ?: 0L,
                         lateNightUsageMillis = lateNightTime
                     )
                 )
             }
         }
 
-        return result.sortedByDescending { it.usageTimeMillis }
-    }
-
-    /**
-     * 오늘 0시부터 현재까지의 실제 기기 잠금 해제(Unlock) 횟수 조회
-     * KEYGUARD_HIDDEN / SCREEN_INTERACTIVE 이벤트 기반 근사치입니다.
-     */
-    fun getTodayUnlockCount(context: Context): Int {
-        val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
-            ?: return 0
-        val startTime = getStartOfTodayMillis()
-        val endTime = System.currentTimeMillis()
-        val events = usageStatsManager.queryEvents(startTime, endTime)
-        val event = UsageEvents.Event()
-        var unlockCount = 0
-
-        while (events.hasNextEvent()) {
-            events.getNextEvent(event)
-            // KEYGUARD_HIDDEN (18) = 사용자가 잠금화면을 풀고 진입한 순간
-            if (event.eventType == 18 /* KEYGUARD_HIDDEN */ || 
-                (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && event.eventType == UsageEvents.Event.KEYGUARD_HIDDEN)) {
-                unlockCount++
-            }
-        }
-
-        // 만약 KEYGUARD_HIDDEN 이벤트를 지원하지 않는 기기인 경우 SCREEN_INTERACTIVE 이벤트로 대체
-        if (unlockCount == 0) {
-            val interactiveEvents = usageStatsManager.queryEvents(startTime, endTime)
-            while (interactiveEvents.hasNextEvent()) {
-                interactiveEvents.getNextEvent(event)
-                if (event.eventType == 15 /* SCREEN_INTERACTIVE */ || 
-                    (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && event.eventType == UsageEvents.Event.SCREEN_INTERACTIVE)) {
-                    unlockCount++
-                }
-            }
-        }
-
-        return unlockCount
-    }
-
-    /**
-     * 과거 N일간(기본 30일)의 일별 사용량을 OS로부터 쿼리하여 일자별 DailyScoreHistoryEntity로 변환합니다.
-     */
-    fun syncPastDaysUsageStats(
-        context: Context,
-        appWeightMap: Map<String, AppWeightEntity>,
-        scoreRule: ScoreRule = ScoreRule(),
-        days: Int = 30
-    ): List<DailyScoreHistoryEntity> {
-        val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
-            ?: return emptyList()
-
-        val pm = context.packageManager
-        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-        val result = mutableListOf<DailyScoreHistoryEntity>()
-
-        val todayCalendar = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-
-        // 과거 days일 전부터 어제(1일 전)까지 30개 일자 순회
-        for (i in days downTo 1) {
-            val dayCalStart = (todayCalendar.clone() as Calendar).apply {
-                add(Calendar.DAY_OF_YEAR, -i)
-            }
-            val dayCalEnd = (dayCalStart.clone() as Calendar).apply {
-                set(Calendar.HOUR_OF_DAY, 23)
-                set(Calendar.MINUTE, 59)
-                set(Calendar.SECOND, 59)
-                set(Calendar.MILLISECOND, 999)
-            }
-
-            val startTime = dayCalStart.timeInMillis
-            val endTime = dayCalEnd.timeInMillis
-            val dateString = sdf.format(dayCalStart.time)
-
-            // 해당 일자의 집계 조회
-            val aggregatedStats = usageStatsManager.queryAndAggregateUsageStats(startTime, endTime)
-            val dayAppUsages = mutableListOf<AppUsage>()
-
-            if (!aggregatedStats.isNullOrEmpty()) {
-                for ((pkgName, stat) in aggregatedStats) {
-                    if (IGNORED_SYSTEM_PACKAGES.contains(pkgName)) continue
-
-                    // 과거 상세 이벤트는 OS가 며칠만 보관하므로 foreground 집계값을 사용합니다.
-                    // visible 시간은 PIP·분할 화면에서 앱별 시간이 중복될 수 있어 제외합니다.
-                    val timeMillis = stat.totalTimeInForeground.coerceIn(0L, endTime - startTime)
-
-                    if (timeMillis >= 10_000L) {
-                        val savedEntity = appWeightMap[pkgName]
-                        val launchIntent = pm.getLaunchIntentForPackage(pkgName)
-                        if (launchIntent == null && savedEntity == null) continue
-
-                        val appName = savedEntity?.appName ?: try {
-                            val appInfo = pm.getApplicationInfo(pkgName, 0)
-                            pm.getApplicationLabel(appInfo).toString()
-                        } catch (e: Exception) {
-                            pkgName
-                        }
-                        val category = resolveCategory(pm, pkgName, savedEntity)
-                        dayAppUsages.add(
-                            AppUsage(
-                                packageName = pkgName,
-                                appName = appName,
-                                usageTimeMillis = timeMillis,
-                                categoryType = category,
-                                lastTimeUsedMillis = stat.lastTimeUsed
-                            )
-                        )
-                    }
-                }
-            }
-
-            // 과거 해당 일자 언락 횟수 집계
-            val events = usageStatsManager.queryEvents(startTime, endTime)
-            val event = UsageEvents.Event()
-            var pastUnlockCount = 0
-            while (events.hasNextEvent()) {
-                events.getNextEvent(event)
-                if (event.eventType == 18 /* KEYGUARD_HIDDEN */ || event.eventType == 15 /* SCREEN_INTERACTIVE */) {
-                    pastUnlockCount++
-                }
-            }
-
-            var totalScreenMinutes = dayAppUsages.sumOf { it.usageTimeMinutes }
-            // 하루 1440분(24시간) 초과 시 1440분으로 상한 클램핑
-            if (totalScreenMinutes > 1440L) {
-                totalScreenMinutes = 1440L
-            }
-
-            val distractingMinutes = dayAppUsages
-                .filter { it.categoryType == AppCategoryType.DISTRACTING }
-                .sumOf { it.usageTimeMinutes }
-            val productiveMinutes = dayAppUsages
-                .filter { it.categoryType == AppCategoryType.PRODUCTIVE }
-                .sumOf { it.usageTimeMinutes }
-
-            val estimatedIdleMinutes = max(0L, 1440L - totalScreenMinutes)
-            val finalUnlockCount = if (pastUnlockCount > 0) {
-                pastUnlockCount
-            } else if (totalScreenMinutes > 0) {
-                (totalScreenMinutes / 12L).coerceIn(10L, 60L).toInt()
-            } else {
-                0
-            }
-
-            val scoreDetail = if (dayAppUsages.isNotEmpty()) {
-                ScoreCalculator.calculateScore(
-                    appsUsage = dayAppUsages,
-                    idleMinutes = estimatedIdleMinutes,
-                    unlockCount = finalUnlockCount,
-                    rule = scoreRule
-                )
-            } else {
-                // 사용 기록이 전혀 없는 날은 기본 100점 (완벽한 디톡스)
-                ScoreCalculator.calculateScore(
-                    appsUsage = emptyList(),
-                    idleMinutes = 1440L,
-                    unlockCount = 0,
-                    rule = scoreRule
-                )
-            }
-
-            result.add(
-                DailyScoreHistoryEntity(
-                    dateString = dateString,
-                    finalScore = scoreDetail.finalScore,
-                    totalScreenTimeMinutes = totalScreenMinutes,
-                    distractingTimeMinutes = distractingMinutes,
-                    productiveTimeMinutes = productiveMinutes,
-                    idleMinutes = estimatedIdleMinutes,
-                    unlockCount = finalUnlockCount,
-                    lastUpdatedTimestamp = dayCalStart.timeInMillis
-                )
-            )
-        }
-
-        return result
+        return TodayUsageSnapshot(
+            appsUsage = result.sortedByDescending { it.usageTimeMillis },
+            unlockCount = exclusiveUsage.unlockCount,
+            assignedUsageMillis = exclusiveUsage.assignedUsageMillis,
+            hasForegroundEvidence = exclusiveUsage.hasForegroundEvidence
+        )
     }
 
     /**
@@ -433,16 +412,23 @@ object UsageStatsHelper {
         for (resolveInfo in resolveInfos) {
             val pkgName = resolveInfo.activityInfo.packageName
             val appName = resolveInfo.loadLabel(pm).toString()
+            val applicationCategory = try {
+                pm.getApplicationInfo(pkgName, 0).category
+            } catch (_: Exception) {
+                ApplicationInfo.CATEGORY_UNDEFINED
+            }
             list.add(
                 AppUsage(
                     packageName = pkgName,
                     appName = appName,
                     usageTimeMillis = 0L,
-                    categoryType = AppCategoryType.NEUTRAL
+                    categoryType = defaultCategoryForPackage(pkgName, applicationCategory)
                 )
             )
         }
 
-        return list.sortedBy { it.appName }
+        return list
+            .distinctBy { it.packageName }
+            .sortedBy { it.appName }
     }
 }

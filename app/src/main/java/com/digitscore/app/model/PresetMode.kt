@@ -14,7 +14,7 @@ enum class PresetMode(
         title = "학생 기준 모드",
         description = "10대 평균 사용 시 약 60점이 되도록 완만하게 보정한 모드",
         scoreRule = ScoreRule(
-            distractingWeightPerMinute = 0.45f,
+            distractingWeightPerMinute = 0.44f,
             productiveBonusPerMinute = 0.25f,
             idleBonusPer10Minutes = 0.2f,
             maxIdleBonus = 12.0f,

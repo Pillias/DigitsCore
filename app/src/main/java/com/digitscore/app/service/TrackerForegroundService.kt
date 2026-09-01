@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.text.SimpleDateFormat
@@ -53,6 +54,8 @@ class TrackerForegroundService : Service() {
     }
 
     companion object {
+        const val ACTION_STOP_TRACKING = "com.digitscore.app.action.STOP_TRACKING"
+
         fun start(context: Context) {
             val intent = Intent(context, TrackerForegroundService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -211,25 +214,6 @@ class TrackerForegroundService : Service() {
                 ScoreRepository.updateUnlockCount(todayUnlockCount)
             }
 
-            // 과거 히스토리가 부족한 경우 최초 1회 자동 30일치 소급 분석 실행
-            val allHistories = db.scoreDao().getAllScoreHistories().firstOrNull() ?: emptyList()
-            if (allHistories.size < 7 && UsageStatsHelper.hasUsageStatsPermission(applicationContext)) {
-                val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
-                val weightMap = appWeights.associateBy { it.packageName }
-                val settings = db.settingsDao().getSettings()
-                val presetMode = PresetMode.fromId(settings?.selectedPresetModeId ?: "balanced")
-                val effectiveRule = settings?.applyTo(presetMode.scoreRule) ?: presetMode.scoreRule
-                val pastHistories = UsageStatsHelper.syncPastDaysUsageStats(
-                    context = applicationContext,
-                    appWeightMap = weightMap,
-                    scoreRule = effectiveRule,
-                    days = 30
-                )
-                for (h in pastHistories) {
-                    db.scoreDao().insertOrUpdateScoreHistory(h)
-                }
-            }
-
             recalculateAndNotify()
         }
     }
@@ -265,12 +249,14 @@ class TrackerForegroundService : Service() {
                 val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
                 val weightMap = appWeights.associateBy { it.packageName }
 
-                // 오늘 사용량 통계 조회
-                val appsUsage = UsageStatsHelper.getTodayAppUsageStats(applicationContext, weightMap)
+                // 화면이 켜지고 잠금 해제된 동안 최상단 앱 하나만 이벤트 타임라인으로 집계합니다.
+                // 앱 사용시간과 잠금 해제를 한 번의 UsageEvents 조회로 함께 계산합니다.
+                val usageSnapshot = UsageStatsHelper.getTodayUsageSnapshot(applicationContext, weightMap)
+                val appsUsage = usageSnapshot.appsUsage
                 ScoreRepository.updateAppsUsage(appsUsage)
 
-                // 시스템 이벤트에서 얻은 언락 횟수 근사치와 동기화
-                val systemUnlocks = UsageStatsHelper.getTodayUnlockCount(applicationContext)
+                // 시스템 이벤트에서 얻은 언락 횟수와 동기화
+                val systemUnlocks = usageSnapshot.unlockCount
                 val finalUnlockCount = kotlin.math.max(todayUnlockCount, systemUnlocks)
                 todayUnlockCount = finalUnlockCount
                 ScoreRepository.updateUnlockCount(finalUnlockCount)
@@ -320,11 +306,30 @@ class TrackerForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP_TRACKING) {
+            serviceScope.launch(Dispatchers.IO) {
+                val dao = DigitsDatabase.getInstance(applicationContext).settingsDao()
+                val settings = dao.getSettings()
+                if (settings != null) {
+                    dao.insertOrUpdateSettings(settings.copy(isTrackingEnabled = false))
+                }
+                withContext(Dispatchers.Main) {
+                    stopSelf()
+                }
+            }
+            return START_NOT_STICKY
+        }
         recalculateAndNotify()
         return START_STICKY
     }
 
     override fun onDestroy() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
         super.onDestroy()
         ScoreRepository.setServiceRunning(false)
         serviceScope.cancel()

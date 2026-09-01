@@ -29,4 +29,21 @@ interface ScoreDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateScoreHistory(history: DailyScoreHistoryEntity)
+
+    /**
+     * 구형 소급 로직이 OS 데이터가 없는 날을 100점/미사용 1,440분으로 만든 행만 제거합니다.
+     * 실제 사용시간 또는 잠금 해제 기록이 있는 행은 대상이 아닙니다.
+     */
+    @Query(
+        """DELETE FROM daily_score_history
+           WHERE dateString >= :startDateString
+             AND dateString < :endDateString
+             AND finalScore = 100
+             AND totalScreenTimeMinutes = 0
+             AND distractingTimeMinutes = 0
+             AND productiveTimeMinutes = 0
+             AND idleMinutes = 1440
+             AND unlockCount = 0"""
+    )
+    suspend fun deleteLegacyEmptyBackfills(startDateString: String, endDateString: String)
 }

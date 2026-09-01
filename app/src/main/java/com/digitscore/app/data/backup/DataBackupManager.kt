@@ -156,7 +156,7 @@ object DataBackupManager {
                     yesterdayPenaltyTriggerScore = sObj.optInt("yesterdayPenaltyTriggerScore", 60).coerceIn(40, 90),
                     yesterdayPenaltyRate = sObj.optDouble("yesterdayPenaltyRate", 0.2).toFloat().coerceIn(0.05f, 1f),
                     maxYesterdayPenalty = sObj.optDouble("maxYesterdayPenalty", 10.0).toFloat().coerceIn(0f, 30f),
-                    isTrackingEnabled = sObj.optBoolean("isTrackingEnabled", true),
+                    isTrackingEnabled = sObj.optBoolean("isTrackingEnabled", false),
                     isNotificationEnabled = sObj.optBoolean("isNotificationEnabled", true)
                 )
                 db.settingsDao().insertOrUpdateSettings(settings)

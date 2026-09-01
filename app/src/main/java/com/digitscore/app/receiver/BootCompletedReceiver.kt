@@ -19,7 +19,8 @@ class BootCompletedReceiver : BroadcastReceiver() {
             try {
                 val db = DigitsDatabase.getInstance(context)
                 val settings = db.settingsDao().getSettings()
-                if (settings == null || settings.isTrackingEnabled) {
+                // 사용자가 앱 안에서 추적을 명시적으로 켠 경우에만 부팅 후 재개합니다.
+                if (settings?.isTrackingEnabled == true) {
                     val serviceIntent = Intent(context, TrackerForegroundService::class.java)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         context.startForegroundService(serviceIntent)
