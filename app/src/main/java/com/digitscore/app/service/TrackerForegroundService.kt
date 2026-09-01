@@ -324,7 +324,7 @@ class TrackerForegroundService : Service() {
                         applicationContext,
                         scoreDetail,
                         finalUnlockCount,
-                        settings.hideSensitiveNotificationOnLockScreen
+                        settings?.hideSensitiveNotificationOnLockScreen ?: true
                     )
                 }
 
