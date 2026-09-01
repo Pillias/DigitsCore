@@ -12,13 +12,21 @@ import android.os.Process
 import com.digitscore.app.data.entity.AppWeightEntity
 import com.digitscore.app.model.AppCategoryType
 import com.digitscore.app.model.AppUsage
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Locale
 
 data class TodayUsageSnapshot(
     val appsUsage: List<AppUsage>,
     val unlockCount: Int,
     val assignedUsageMillis: Long,
-    val hasForegroundEvidence: Boolean
+    val hasForegroundEvidence: Boolean,
+    val sessionSummariesByPackage: Map<String, AppSessionSummary> = emptyMap()
+)
+
+data class AppSessionSummary(
+    val sessionCount: Int,
+    val longestSessionMillis: Long
 )
 
 data class DailyAppUsage(
@@ -224,10 +232,12 @@ object UsageStatsHelper {
         return QueriedUsageEvents(timelineEvents, notificationTimestamps)
     }
 
-    /** 앱 상세를 열 때만 최근 7일 이벤트를 한 번 조회해 세션·시간대·추세를 계산합니다. */
-    fun getAppUsageInsights(context: Context, packageName: String): AppUsageInsights {
+    /**
+     * 오늘의 시간대·세션은 OS 이벤트로 계산하고, 장기 추세는 앱이 자체 저장한
+     * 최대 365일 일별 집계에서 읽습니다.
+     */
+    suspend fun getAppUsageInsights(context: Context, packageName: String): AppUsageInsights {
         val manager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
-            ?: return AppUsageInsights(List(24) { 0L }, emptyList(), emptyList())
         val now = System.currentTimeMillis()
         val today = Calendar.getInstance().apply {
             timeInMillis = now
@@ -236,41 +246,47 @@ object UsageStatsHelper {
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }
-        val dayStarts = (6 downTo 0).map { daysAgo ->
-            (today.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -daysAgo) }.timeInMillis
-        }
-        val queried = queryUsageEvents(
-            manager,
-            (dayStarts.first() - FOREGROUND_STATE_LOOKBACK_MILLIS).coerceAtLeast(0L),
-            now
-        )
-
-        val daily = dayStarts.mapIndexed { index, dayStart ->
-            val dayEnd = if (index == dayStarts.lastIndex) {
+        val todayStart = today.timeInMillis
+        val queried = manager?.let {
+            queryUsageEvents(
+                it,
+                (todayStart - FOREGROUND_STATE_LOOKBACK_MILLIS).coerceAtLeast(0L),
                 now
-            } else {
-                dayStarts[index + 1]
-            }
-            val result = ForegroundUsageAggregator.aggregate(
-                startTimeMillis = dayStart,
-                endTimeMillis = dayEnd,
-                lateNightEndTimeMillis = dayStart,
-                events = queried.timelineEvents
             )
+        }
+        val todayResult = queried?.let {
+            ForegroundUsageAggregator.aggregate(
+                startTimeMillis = todayStart,
+                endTimeMillis = now,
+                lateNightEndTimeMillis = todayStart,
+                events = it.timelineEvents
+            )
+        }
+
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val cutoff = (today.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -364) }
+        val cutoffDate = dateFormat.format(cutoff.time)
+        val todayDate = dateFormat.format(today.time)
+        val historyDao = DigitsDatabase.getInstance(context).dailyAppUsageDao()
+        val storedByDate = historyDao.getForPackageSince(packageName, cutoffDate).associateBy { it.dateString }
+        val coverageDates = historyDao.getCoverageSince(cutoffDate).map { it.dateString }.toMutableSet()
+        coverageDates += todayDate
+        val daily = coverageDates.sorted().mapNotNull { dateString ->
+            val dayStart = runCatching { dateFormat.parse(dateString)?.time }.getOrNull() ?: return@mapNotNull null
             DailyAppUsage(
                 dayStartMillis = dayStart,
-                usageMillis = result.usageMillisByPackage[packageName] ?: 0L,
-                isToday = index == dayStarts.lastIndex
+                usageMillis = if (dateString == todayDate) {
+                    todayResult?.usageMillisByPackage?.get(packageName)
+                        ?: storedByDate[dateString]?.usageMillis
+                        ?: 0L
+                } else {
+                    storedByDate[dateString]?.usageMillis ?: 0L
+                },
+                isToday = dateString == todayDate
             )
-        }
+        }.takeLast(365)
 
-        val todayResult = ForegroundUsageAggregator.aggregate(
-            startTimeMillis = dayStarts.last(),
-            endTimeMillis = now,
-            lateNightEndTimeMillis = dayStarts.last(),
-            events = queried.timelineEvents
-        )
-        val appSegments = todayResult.segments.filter { it.packageName == packageName }
+        val appSegments = todayResult?.segments?.filter { it.packageName == packageName }.orEmpty()
         val hourly = LongArray(24)
         appSegments.forEach { segment ->
             var cursor = segment.startTimeMillis
@@ -393,7 +409,15 @@ object UsageStatsHelper {
             appsUsage = result.sortedByDescending { it.usageTimeMillis },
             unlockCount = exclusiveUsage.unlockCount,
             assignedUsageMillis = exclusiveUsage.assignedUsageMillis,
-            hasForegroundEvidence = exclusiveUsage.hasForegroundEvidence
+            hasForegroundEvidence = exclusiveUsage.hasForegroundEvidence,
+            sessionSummariesByPackage = exclusiveUsage.segments
+                .groupBy { it.packageName }
+                .mapValues { (_, segments) ->
+                    AppSessionSummary(
+                        sessionCount = segments.size,
+                        longestSessionMillis = segments.maxOfOrNull { it.durationMillis } ?: 0L
+                    )
+                }
         )
     }
 

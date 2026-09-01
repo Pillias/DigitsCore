@@ -12,6 +12,8 @@ import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.data.ScoreRepository
 import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
+import com.digitscore.app.data.entity.DailyAppUsageEntity
+import com.digitscore.app.data.entity.DailyUsageCoverageEntity
 import com.digitscore.app.data.entity.applyTo
 import com.digitscore.app.engine.ScoreCalculator
 import com.digitscore.app.engine.ScoreDetail
@@ -34,6 +36,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -146,6 +149,8 @@ class TrackerForegroundService : Service() {
         // 화면이 꺼지면 배터리 절약을 위해 주기적 폴링 루프 중지
         trackingJob?.cancel()
         trackingJob = null
+        // 화면 OFF 직전까지의 앱 사용 구간을 일일 기록에 확정합니다.
+        recalculateAndNotify()
     }
 
     private fun onUserUnlocked() {
@@ -255,6 +260,37 @@ class TrackerForegroundService : Service() {
                 val appsUsage = usageSnapshot.appsUsage
                 ScoreRepository.updateAppsUsage(appsUsage)
 
+                // Android의 원본 UsageEvents 보존 기간과 무관하게 날짜별 앱 집계를 365일 보관합니다.
+                // 전면 앱 증거가 전혀 없는 조회는 권한/제조사 이벤트 누락일 수 있으므로 0분으로 덮지 않습니다.
+                if (usageSnapshot.hasForegroundEvidence || appsUsage.isNotEmpty()) {
+                    val now = System.currentTimeMillis()
+                    val dailyRecords = appsUsage.map { app ->
+                        val sessions = usageSnapshot.sessionSummariesByPackage[app.packageName]
+                        DailyAppUsageEntity(
+                            dateString = currentDateString,
+                            packageName = app.packageName,
+                            appName = app.appName,
+                            usageMillis = app.usageTimeMillis,
+                            sessionCount = sessions?.sessionCount ?: 0,
+                            longestSessionMillis = sessions?.longestSessionMillis ?: 0L,
+                            lateNightUsageMillis = app.lateNightUsageMillis,
+                            categoryLevel = app.categoryType.level,
+                            lastUpdatedTimestamp = now
+                        )
+                    }
+                    db.dailyAppUsageDao().replaceDay(
+                        dateString = currentDateString,
+                        records = dailyRecords,
+                        coverage = DailyUsageCoverageEntity(
+                            dateString = currentDateString,
+                            isComplete = false,
+                            lastUpdatedTimestamp = now
+                        )
+                    )
+                    db.dailyAppUsageDao().markPastDaysComplete(currentDateString)
+                    db.dailyAppUsageDao().pruneBefore(getAppHistoryCutoffDateString())
+                }
+
                 // 시스템 이벤트에서 얻은 언락 횟수와 동기화
                 val systemUnlocks = usageSnapshot.unlockCount
                 val finalUnlockCount = kotlin.math.max(todayUnlockCount, systemUnlocks)
@@ -303,6 +339,11 @@ class TrackerForegroundService : Service() {
                 )
             }
         }
+    }
+
+    private fun getAppHistoryCutoffDateString(): String {
+        val calendar = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -364) }
+        return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(calendar.time)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
