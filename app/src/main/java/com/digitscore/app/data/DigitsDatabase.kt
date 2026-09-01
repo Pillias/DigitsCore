@@ -16,9 +16,11 @@ import com.digitscore.app.data.entity.DailyScoreHistoryEntity
 import com.digitscore.app.data.entity.DailyUsageCoverageEntity
 import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.model.AppCategoryType
+import com.digitscore.app.data.security.DatabaseEncryptionManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 
 @Database(
     entities = [
@@ -28,7 +30,7 @@ import kotlinx.coroutines.launch
         DailyScoreHistoryEntity::class,
         UserSettingsEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 abstract class DigitsDatabase : RoomDatabase() {
@@ -107,18 +109,31 @@ abstract class DigitsDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE user_settings ADD COLUMN appHistoryRetentionDays INTEGER NOT NULL DEFAULT 365")
+                db.execSQL("ALTER TABLE user_settings ADD COLUMN hideSensitiveNotificationOnLockScreen INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
         @Volatile
         private var INSTANCE: DigitsDatabase? = null
 
         fun getInstance(context: Context): DigitsDatabase {
             return INSTANCE ?: synchronized(this) {
+                val databaseName = "digitscore_database"
+                val passphrase = DatabaseEncryptionManager.prepare(
+                    context.applicationContext,
+                    databaseName
+                )
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     DigitsDatabase::class.java,
-                    "digitscore_database"
+                    databaseName
                 )
+                    .openHelperFactory(SupportOpenHelperFactory(passphrase))
                     .addCallback(DatabaseCallback(context.applicationContext))
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .fallbackToDestructiveMigrationOnDowngrade()
                     .build()
                 INSTANCE = instance

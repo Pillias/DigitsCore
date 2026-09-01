@@ -288,7 +288,9 @@ class TrackerForegroundService : Service() {
                         )
                     )
                     db.dailyAppUsageDao().markPastDaysComplete(currentDateString)
-                    db.dailyAppUsageDao().pruneBefore(getAppHistoryCutoffDateString())
+                    db.dailyAppUsageDao().pruneBefore(
+                        getAppHistoryCutoffDateString(settings?.appHistoryRetentionDays ?: 365)
+                    )
                 }
 
                 // 시스템 이벤트에서 얻은 언락 횟수와 동기화
@@ -321,7 +323,8 @@ class TrackerForegroundService : Service() {
                     ScoreNotificationManager.updateScoreNotification(
                         applicationContext,
                         scoreDetail,
-                        finalUnlockCount
+                        finalUnlockCount,
+                        settings?.hideSensitiveNotificationOnLockScreen ?: true
                     )
                 }
 
@@ -341,8 +344,9 @@ class TrackerForegroundService : Service() {
         }
     }
 
-    private fun getAppHistoryCutoffDateString(): String {
-        val calendar = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -364) }
+    private fun getAppHistoryCutoffDateString(retentionDays: Int): String {
+        val safeDays = retentionDays.coerceIn(30, 365)
+        val calendar = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -(safeDays - 1)) }
         return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(calendar.time)
     }
 
