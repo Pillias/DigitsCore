@@ -29,6 +29,18 @@ object DatabaseEncryptionManager {
     @Volatile
     private var nativeLibraryLoaded = false
 
+    @Volatile
+    private var forcePlaintextForProcess = false
+
+    @Volatile
+    private var securityStatus = DatabaseSecurityStatus(
+        mode = DatabaseSecurityMode.INITIALIZING
+    )
+
+    fun currentStatus(): DatabaseSecurityStatus = securityStatus
+
+    fun isPlaintextForcedForProcess(): Boolean = forcePlaintextForProcess
+
     @Synchronized
     fun prepare(context: Context, databaseName: String): ByteArray {
         loadNativeLibrary()
@@ -52,7 +64,59 @@ object DatabaseEncryptionManager {
         if (databaseFile.exists() && isPlaintextDatabase(databaseFile)) {
             migratePlaintextDatabase(databaseFile, passphrase)
         }
+        securityStatus = DatabaseSecurityStatus(DatabaseSecurityMode.ENCRYPTED)
         return passphrase
+    }
+
+    /**
+     * 암호화 준비에 실패해도 기존 파일이 평문 SQLite이거나 아직 생성되지 않았다면
+     * 기록을 지우지 않고 Room의 기본 드라이버로 이번 실행을 계속할 수 있습니다.
+     */
+    fun canUsePlaintextFallback(context: Context, databaseName: String): Boolean {
+        val databaseFile = context.getDatabasePath(databaseName)
+        return !databaseFile.exists() || isPlaintextDatabase(databaseFile)
+    }
+
+    fun markPlaintextFallback(error: Throwable) {
+        forcePlaintextForProcess = true
+        securityStatus = DatabaseSecurityStatus(
+            mode = DatabaseSecurityMode.PLAINTEXT_FALLBACK,
+            reason = error.message?.take(160) ?: error.javaClass.simpleName
+        )
+    }
+
+    fun markUnavailable(error: Throwable) {
+        securityStatus = DatabaseSecurityStatus(
+            mode = DatabaseSecurityMode.UNAVAILABLE,
+            reason = error.message?.take(160) ?: error.javaClass.simpleName
+        )
+    }
+
+    /** Room이 암호화 DB를 실제로 열고 스키마 검증까지 마친 뒤에만 평문 백업을 지웁니다. */
+    fun finalizeSuccessfulOpen(context: Context, databaseName: String) {
+        val databaseFile = context.getDatabasePath(databaseName)
+        val backupFile = plaintextMigrationBackup(databaseFile)
+        if (backupFile.exists()) deleteDatabaseFiles(backupFile)
+    }
+
+    /**
+     * 암호화 파일 교체 후 Room 스키마 검증이 실패하면 보관 중인 평문 DB로 되돌립니다.
+     * 복구한 프로세스에서는 같은 암호화를 반복하지 않고 호환 모드로 실행합니다.
+     */
+    fun restorePendingPlaintextBackup(
+        context: Context,
+        databaseName: String,
+        error: Throwable
+    ): Boolean {
+        val databaseFile = context.getDatabasePath(databaseName)
+        val backupFile = plaintextMigrationBackup(databaseFile)
+        if (!backupFile.exists() || !isPlaintextDatabase(backupFile)) return false
+
+        deleteDatabaseFiles(databaseFile)
+        if (!backupFile.renameTo(databaseFile)) return false
+        forcePlaintextForProcess = true
+        markPlaintextFallback(error)
+        return true
     }
 
     private fun loadNativeLibrary() {
@@ -120,7 +184,7 @@ object DatabaseEncryptionManager {
 
     private fun migratePlaintextDatabase(databaseFile: File, passphrase: ByteArray) {
         val tempFile = File(databaseFile.parentFile, "${databaseFile.name}.encrypted.tmp")
-        val backupFile = File(databaseFile.parentFile, "${databaseFile.name}.plaintext.migration-backup")
+        val backupFile = plaintextMigrationBackup(databaseFile)
         deleteDatabaseFiles(tempFile)
 
         val passphraseText = passphrase.toString(Charsets.UTF_8)
@@ -129,23 +193,40 @@ object DatabaseEncryptionManager {
             null,
             SQLiteDatabase.OPEN_READWRITE
         )
+        var sourceVersion = 0
         try {
             source.rawQuery("PRAGMA wal_checkpoint(FULL);", emptyArray()).use { cursor ->
                 while (cursor.moveToNext()) Unit
             }
-            val sourceVersion = source.version
-            source.execSQL(
-                "ATTACH DATABASE ? AS encrypted KEY ?;",
-                arrayOf(tempFile.absolutePath, passphraseText)
-            )
-            source.rawExecSQL("SELECT sqlcipher_export('encrypted');")
-            source.execSQL("PRAGMA encrypted.user_version = $sourceVersion")
-            source.execSQL("DETACH DATABASE encrypted;")
+            sourceVersion = source.version
         } catch (error: Exception) {
             deleteDatabaseFiles(tempFile)
             throw DatabaseEncryptionException("기존 사용 기록을 암호화하는 중 오류가 발생했습니다.", error)
         } finally {
             source.close()
+        }
+
+        val encrypted = SQLiteDatabase.openOrCreateDatabase(
+            tempFile,
+            passphraseText,
+            null,
+            null
+        )
+        try {
+            // Use the encrypted file as main, then import the closed plaintext DB.
+            // This avoids relying on ATTACH to create an encrypted target file.
+            encrypted.execSQL(
+                "ATTACH DATABASE ? AS plaintext KEY '';",
+                arrayOf(databaseFile.absolutePath)
+            )
+            encrypted.rawExecSQL("SELECT sqlcipher_export('main', 'plaintext');")
+            encrypted.execSQL("DETACH DATABASE plaintext;")
+            encrypted.version = sourceVersion
+        } catch (error: Exception) {
+            deleteDatabaseFiles(tempFile)
+            throw DatabaseEncryptionException("기존 사용 기록을 암호화하는 중 오류가 발생했습니다.", error)
+        } finally {
+            encrypted.close()
         }
 
         verifyEncryptedDatabase(tempFile, passphraseText)
@@ -156,7 +237,6 @@ object DatabaseEncryptionManager {
         try {
             check(tempFile.renameTo(databaseFile)) { "암호화 DB를 적용할 수 없습니다." }
             verifyEncryptedDatabase(databaseFile, passphraseText)
-            deleteDatabaseFiles(backupFile)
         } catch (error: Exception) {
             deleteDatabaseFiles(databaseFile)
             backupFile.renameTo(databaseFile)
@@ -193,11 +273,14 @@ object DatabaseEncryptionManager {
 
     private fun recoverInterruptedMigration(databaseFile: File) {
         val tempFile = File(databaseFile.parentFile, "${databaseFile.name}.encrypted.tmp")
-        val backupFile = File(databaseFile.parentFile, "${databaseFile.name}.plaintext.migration-backup")
+        val backupFile = plaintextMigrationBackup(databaseFile)
         when {
             databaseFile.exists() -> {
                 deleteDatabaseFiles(tempFile)
-                if (backupFile.exists()) deleteDatabaseFiles(backupFile)
+                // 암호화 DB가 Room 스키마 검증을 통과하기 전까지 평문 백업을 유지합니다.
+                if (isPlaintextDatabase(databaseFile) && backupFile.exists()) {
+                    deleteDatabaseFiles(backupFile)
+                }
             }
             backupFile.exists() -> {
                 deleteDatabaseFiles(tempFile)
@@ -226,6 +309,9 @@ object DatabaseEncryptionManager {
         deleteAuxiliaryFiles(databaseFile)
     }
 
+    private fun plaintextMigrationBackup(databaseFile: File): File =
+        File(databaseFile.parentFile, "${databaseFile.name}.plaintext.migration-backup")
+
     private fun atomicWrite(target: File, bytes: ByteArray) {
         target.parentFile?.mkdirs()
         val temp = File(target.parentFile, "${target.name}.tmp")
@@ -239,3 +325,15 @@ object DatabaseEncryptionManager {
 
 class DatabaseEncryptionException(message: String, cause: Throwable? = null) :
     IllegalStateException(message, cause)
+
+enum class DatabaseSecurityMode {
+    INITIALIZING,
+    ENCRYPTED,
+    PLAINTEXT_FALLBACK,
+    UNAVAILABLE
+}
+
+data class DatabaseSecurityStatus(
+    val mode: DatabaseSecurityMode,
+    val reason: String? = null
+)

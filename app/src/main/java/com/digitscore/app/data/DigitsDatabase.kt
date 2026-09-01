@@ -40,6 +40,7 @@ abstract class DigitsDatabase : RoomDatabase() {
     abstract fun settingsDao(): SettingsDao
 
     companion object {
+        private const val DATABASE_NAME = "digitscore_database"
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE user_settings ADD COLUMN logAccelerationThresholdMinutes REAL NOT NULL DEFAULT 60")
@@ -121,23 +122,69 @@ abstract class DigitsDatabase : RoomDatabase() {
 
         fun getInstance(context: Context): DigitsDatabase {
             return INSTANCE ?: synchronized(this) {
-                val databaseName = "digitscore_database"
-                val passphrase = DatabaseEncryptionManager.prepare(
-                    context.applicationContext,
-                    databaseName
-                )
-                val instance = Room.databaseBuilder(
+                val databaseName = DATABASE_NAME
+                val appContext = context.applicationContext
+                val passphrase = prepareEncryptionOrFallback(appContext, databaseName)
+                val builder = Room.databaseBuilder(
                     context.applicationContext,
                     DigitsDatabase::class.java,
                     databaseName
                 )
-                    .openHelperFactory(SupportOpenHelperFactory(passphrase))
                     .addCallback(DatabaseCallback(context.applicationContext))
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .fallbackToDestructiveMigrationOnDowngrade()
-                    .build()
+                if (passphrase != null) {
+                    builder.openHelperFactory(SupportOpenHelperFactory(passphrase))
+                }
+                val instance = builder.build()
                 INSTANCE = instance
                 instance
+            }
+        }
+
+        private fun prepareEncryptionOrFallback(
+            context: Context,
+            databaseName: String
+        ): ByteArray? {
+            if (DatabaseEncryptionManager.isPlaintextForcedForProcess()) return null
+            return try {
+                DatabaseEncryptionManager.prepare(context, databaseName)
+            } catch (error: Exception) {
+                usePlaintextFallbackOrThrow(context, databaseName, error)
+            } catch (error: LinkageError) {
+                usePlaintextFallbackOrThrow(context, databaseName, error)
+            }
+        }
+
+        private fun usePlaintextFallbackOrThrow(
+            context: Context,
+            databaseName: String,
+            error: Throwable
+        ): ByteArray? {
+            if (!DatabaseEncryptionManager.canUsePlaintextFallback(context, databaseName)) {
+                DatabaseEncryptionManager.markUnavailable(error)
+                throw error
+            }
+            DatabaseEncryptionManager.markPlaintextFallback(error)
+            return null
+        }
+
+        fun finalizeSuccessfulOpen(context: Context) {
+            DatabaseEncryptionManager.finalizeSuccessfulOpen(
+                context.applicationContext,
+                DATABASE_NAME
+            )
+        }
+
+        fun restorePlaintextAfterOpenFailure(context: Context, error: Throwable): Boolean {
+            synchronized(this) {
+                INSTANCE?.close()
+                INSTANCE = null
+                return DatabaseEncryptionManager.restorePendingPlaintextBackup(
+                    context.applicationContext,
+                    DATABASE_NAME,
+                    error
+                )
             }
         }
 
