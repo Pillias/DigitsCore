@@ -205,8 +205,10 @@ object DatabaseEncryptionManager {
                     "AS encrypted KEY ${sqlLiteral(passphraseText)};"
             )
             source.rawExecSQL("SELECT sqlcipher_export('encrypted');")
-            source.execSQL("PRAGMA encrypted.user_version = $sourceVersion")
-            source.execSQL("DETACH DATABASE encrypted;")
+            // ATTACH is connection-local. Keep the complete export sequence on
+            // SQLCipher's raw execution path instead of switching APIs mid-flow.
+            source.rawExecSQL("PRAGMA encrypted.user_version = $sourceVersion")
+            source.rawExecSQL("DETACH DATABASE encrypted;")
         } catch (error: Exception) {
             deleteDatabaseFiles(tempFile)
             throw DatabaseEncryptionException("기존 사용 기록을 암호화하는 중 오류가 발생했습니다.", error)
