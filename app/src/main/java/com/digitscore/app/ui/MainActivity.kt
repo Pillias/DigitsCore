@@ -1,6 +1,7 @@
 package com.digitscore.app.ui
 
 import android.os.Bundle
+import android.content.Context
 import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
@@ -12,7 +13,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.digitscore.app.i18n.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
@@ -32,6 +33,9 @@ import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.data.security.DatabaseEncryptionManager
 import com.digitscore.app.service.TrackerForegroundService
+import com.digitscore.app.i18n.AppLocale
+import com.digitscore.app.R
+import androidx.compose.ui.res.stringResource
 import com.digitscore.app.ui.dashboard.DashboardScreen
 import com.digitscore.app.ui.navigation.Screen
 import com.digitscore.app.ui.onboarding.OnboardingScreen
@@ -44,6 +48,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLocale.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -183,9 +191,9 @@ class MainActivity : ComponentActivity() {
         }
         DatabaseEncryptionManager.markUnavailable(error)
         val message = if (error is LinkageError) {
-            "기기에서 보안 데이터베이스 구성요소를 불러올 수 없습니다."
+            getString(R.string.database_security_component_error)
         } else {
-            error.message ?: "사용 기록 데이터베이스를 열 수 없습니다."
+            error.message ?: getString(R.string.database_open_error)
         }
         return DatabaseStartupState.Error(message)
     }
@@ -206,7 +214,7 @@ private fun DatabaseInitializingScreen() {
     ) {
         CircularProgressIndicator()
         Text(
-            text = "사용 기록을 안전하게 준비하는 중…",
+            text = stringResource(R.string.database_preparing),
             modifier = Modifier.padding(top = 16.dp),
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -223,18 +231,18 @@ private fun DatabaseStartupErrorScreen(message: String, onRetry: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "사용 기록을 열지 못했습니다",
+            text = stringResource(R.string.database_open_failed_title),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold
         )
         Text(
-            text = "기존 기록은 삭제하지 않았습니다.\n$message",
+            text = stringResource(R.string.database_preserved_message, message),
             modifier = Modifier.padding(vertical = 16.dp),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
         Button(onClick = onRetry) {
-            Text("다시 시도")
+            Text(stringResource(R.string.retry))
         }
     }
 }

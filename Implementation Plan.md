@@ -2,7 +2,7 @@
 
 ## Role & Mission
 당신은 Android 네이티브(Kotlin + Jetpack Compose) 전문 시니어 소프트웨어 엔지니어입니다.
-사용자의 스마트폰 사용 습관을 점수화(Gamification)하여 자율적으로 디지털 디톡스를 유도하는 "PhoneScore" 앱을 구현합니다.
+사용자의 스마트폰 사용 흐름을 코어 지수(Core Index)로 보여주어 자율적인 디지털 균형을 돕는 "DigitsCore" 앱을 구현합니다.
 
 ## Tech Stack & Architecture
 - **Language:** Kotlin (1.9+)

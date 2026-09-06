@@ -98,7 +98,13 @@ class TrackerForegroundService : Service() {
 
         // 초기 알림 띄우기
         val initialDetail = ScoreCalculator.calculateScore(emptyList(), 0, 0)
-        val notification = ScoreNotificationManager.buildScoreNotification(this, initialDetail, 0)
+        val initialRollingDetail = RollingScoreCalculator.calculate(emptyList(), System.currentTimeMillis())
+        val notification = ScoreNotificationManager.buildScoreNotification(
+            this,
+            initialDetail,
+            0,
+            rollingScoreDetail = initialRollingDetail
+        )
         startForeground(ScoreNotificationManager.NOTIFICATION_ID, notification)
 
         registerScreenReceiver()
@@ -244,7 +250,7 @@ class TrackerForegroundService : Service() {
                 val presetMode = PresetMode.fromId(settings?.selectedPresetModeId ?: "balanced")
                 val baseRule = presetMode.scoreRule
 
-                // 사용자가 설정한 발동점·비율·상한으로 디톡스 부채를 계산합니다.
+                // 사용자가 설정한 발동점·비율·상한으로 이전 사용량 이월을 계산합니다.
                 val yesterdayDate = getYesterdayDateString()
                 val yesterdayHistory = db.scoreDao().getScoreHistoryForDate(yesterdayDate)
                 val yesterdayScore = yesterdayHistory?.finalScore ?: 100
@@ -378,14 +384,13 @@ class TrackerForegroundService : Service() {
                 if (!wasCalibrated && recordedUsageMillis >= 60 * 60 * 1_000L) {
                     trackingPreferences.edit().putBoolean("rolling_score_calibrated", true).apply()
                 }
-                ScoreRepository.updateRollingScoreDetail(
-                    RollingScoreCalculator.calculate(
+                val rollingScoreDetail = RollingScoreCalculator.calculate(
                         sessions = recentSessions,
                         nowMillis = now,
                         rollingUnlockCount = estimatedRollingUnlocks,
                         calibrationUsageMillis = recordedUsageMillis
                     )
-                )
+                ScoreRepository.updateRollingScoreDetail(rollingScoreDetail)
 
                 // 알림 갱신
                 if (settings?.isNotificationEnabled != false) {
@@ -393,7 +398,8 @@ class TrackerForegroundService : Service() {
                         applicationContext,
                         scoreDetail,
                         finalUnlockCount,
-                        settings?.hideSensitiveNotificationOnLockScreen ?: true
+                        settings?.hideSensitiveNotificationOnLockScreen ?: true,
+                        rollingScoreDetail
                     )
                 }
 

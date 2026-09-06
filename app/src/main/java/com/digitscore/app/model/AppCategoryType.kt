@@ -8,43 +8,57 @@ package com.digitscore.app.model
  */
 enum class AppCategoryType(
     val level: Int,
-    val displayName: String,
-    val description: String,
+    private val koreanName: String,
+    private val englishName: String,
+    private val koreanDescription: String,
+    private val englishDescription: String,
     val scoreMultiplier: Float
 ) {
     PRODUCTIVE(
         level = 1,
-        displayName = "성장",
-        description = "학습과 성장에 직접 도움이 되는 앱 · +50%",
+        koreanName = "성장",
+        englishName = "Growth",
+        koreanDescription = "학습과 성장에 직접 도움이 되는 앱 · +50%",
+        englishDescription = "Directly supports learning and growth · +50%",
         scoreMultiplier = 0.5f
     ),
     MILDLY_PRODUCTIVE(
         level = 2,
-        displayName = "집중 지원",
-        description = "목표 달성과 생산성을 지원하는 앱 · +25%",
+        koreanName = "집중 지원",
+        englishName = "Focus Support",
+        koreanDescription = "목표 달성과 생산성을 지원하는 앱 · +25%",
+        englishDescription = "Supports goals and productivity · +25%",
         scoreMultiplier = 0.25f
     ),
     NEUTRAL(
         level = 3,
-        displayName = "균형",
-        description = "점수에 보너스나 감점을 주지 않는 앱 · 0%",
+        koreanName = "균형",
+        englishName = "Balanced",
+        koreanDescription = "점수에 보너스나 감점을 주지 않는 앱 · 0%",
+        englishDescription = "No score bonus or deduction · 0%",
         scoreMultiplier = 0.0f
     ),
     MILDLY_DISTRACTING(
         level = 4,
-        displayName = "절제",
-        description = "사용 시간을 의식하며 조절할 앱 · -50%",
+        koreanName = "절제",
+        englishName = "Mindful Use",
+        koreanDescription = "사용 시간을 의식하며 조절할 앱 · -50%",
+        englishDescription = "An app to use with time awareness · -50%",
         scoreMultiplier = -0.5f
     ),
     DISTRACTING(
         level = 5,
-        displayName = "몰입 관리",
-        description = "사용 시간이 길어지지 않도록 관리할 앱 · -100%",
+        koreanName = "몰입 관리",
+        englishName = "Deep-use Control",
+        koreanDescription = "사용 시간이 길어지지 않도록 관리할 앱 · -100%",
+        englishDescription = "An app whose long sessions need managing · -100%",
         scoreMultiplier = -1.0f
     );
 
     val isPenalty: Boolean get() = scoreMultiplier < 0f
     val isBonus: Boolean get() = scoreMultiplier > 0f
+    val displayName: String get() = if (java.util.Locale.getDefault().language == "en") englishName else koreanName
+    val description: String get() = if (java.util.Locale.getDefault().language == "en") englishDescription else koreanDescription
 
     companion object {
         val orderedEntries: List<AppCategoryType> = entries.sortedBy { it.level }

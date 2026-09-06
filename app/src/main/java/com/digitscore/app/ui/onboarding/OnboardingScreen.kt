@@ -34,7 +34,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
+import com.digitscore.app.i18n.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -58,6 +58,8 @@ import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.ui.theme.ScoreGreen
 import com.digitscore.app.ui.theme.ScoreYellow
 import com.digitscore.app.ui.privacy.PrivacyPolicyDialog
+import androidx.compose.ui.res.stringResource
+import com.digitscore.app.R
 
 @Composable
 fun OnboardingScreen(
@@ -142,7 +144,7 @@ fun OnboardingScreen(
             )
 
             Text(
-                text = "스마트폰 사용 습관을 실시간 점수로 확인하고\n스스로 디톡스 목표를 달성하세요.",
+                text = stringResource(R.string.onboarding_tagline),
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.outline,
@@ -160,19 +162,19 @@ fun OnboardingScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "사용 기록은 기기 안에서만 처리됩니다",
+                        text = stringResource(R.string.privacy_local_title),
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
                     )
                     Text(
-                        text = "앱 이름·사용 시간·잠금 해제 횟수의 근사치를 점수 계산에 사용하며 서버나 개발자에게 전송하지 않습니다. 권한과 추적은 언제든 끌 수 있습니다.",
+                        text = stringResource(R.string.privacy_local_body),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                         lineHeight = 17.sp,
                         modifier = Modifier.padding(top = 6.dp)
                     )
                     TextButton(onClick = { showPrivacyPolicy = true }) {
-                        Text("개인정보 처리 안내 자세히 보기")
+                        Text(stringResource(R.string.privacy_more))
                     }
                 }
             }
@@ -182,8 +184,8 @@ fun OnboardingScreen(
             // 권한 안내 카드 1: 사용 정보 접근 권한
             PermissionCard(
                 icon = Icons.Default.QueryStats,
-                title = "사용 정보 접근 권한 (필수)",
-                description = "방해/생산성 앱 사용 시간을 실시간으로 집계하기 위해 필요합니다.",
+                title = stringResource(R.string.usage_access_title),
+                description = stringResource(R.string.usage_access_body),
                 isGranted = hasUsagePermission,
                 onGrantClick = {
                     val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
@@ -196,8 +198,8 @@ fun OnboardingScreen(
             // 권한 안내 카드 2: 알림 권한
             PermissionCard(
                 icon = Icons.Default.Notifications,
-                title = "상태바 알림 권한 (권장)",
-                description = "상태바에 실시간 점수 숫자를 동적으로 표시하기 위해 필요합니다.",
+                title = stringResource(R.string.notification_permission_title),
+                description = stringResource(R.string.notification_permission_body),
                 isGranted = hasNotificationPermission,
                 onGrantClick = {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -220,7 +222,7 @@ fun OnboardingScreen(
             )
         ) {
             Text(
-                text = if (hasUsagePermission) "DigitsCore 시작하기" else "필수 권한을 허용해 주세요",
+                text = if (hasUsagePermission) stringResource(R.string.start_digitscore) else stringResource(R.string.allow_required_permission),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -287,7 +289,7 @@ private fun PermissionCard(
             if (isGranted) {
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
-                    contentDescription = "허용됨",
+                    contentDescription = stringResource(R.string.granted),
                     tint = ScoreGreen,
                     modifier = Modifier.size(24.dp)
                 )
@@ -296,7 +298,7 @@ private fun PermissionCard(
                     onClick = onGrantClick,
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("설정", fontSize = 12.sp)
+                    Text(stringResource(R.string.open_settings), fontSize = 12.sp)
                 }
             }
         }

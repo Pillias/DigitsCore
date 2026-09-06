@@ -24,7 +24,7 @@ data class UserSettingsEntity(
     val isLogAccelerationEnabled: Boolean = true, // 장시간 사용 로그 가속 적용 여부
     val logAccelerationThresholdMinutes: Float = 60f,
     val logAccelerationScaleMinutes: Float = 120f,
-    val isYesterdayPenaltyEnabled: Boolean = true, // 전날 과사용 시작 페널티(디톡스 부채) 적용 여부
+    val isYesterdayPenaltyEnabled: Boolean = true, // 이전 사용량 이월 적용 여부
     val yesterdayPenaltyTriggerScore: Int = 60,
     val yesterdayPenaltyRate: Float = 0.2f,
     val maxYesterdayPenalty: Float = 10f,

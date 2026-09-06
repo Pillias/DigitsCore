@@ -10,8 +10,10 @@ import com.digitscore.app.model.ScoreRule
  */
 enum class ScoringBenchmark(
     val presetModeId: String,
-    val title: String,
-    val sourceLabel: String,
+    private val koreanTitle: String,
+    private val englishTitle: String,
+    private val koreanSourceLabel: String,
+    private val englishSourceLabel: String,
     val totalScreenMinutes: Long,
     val distractingMinutes: Long,
     val productiveMinutes: Long,
@@ -22,8 +24,10 @@ enum class ScoringBenchmark(
 ) {
     WORKER(
         presetModeId = "worker",
-        title = "일반 성인·직장인 기준",
-        sourceLabel = "KISDI 2023 조사: 스마트폰 하루 평균 126분(음성통화 제외)",
+        koreanTitle = "일반 성인·직장인 기준",
+        englishTitle = "Adult / Office Worker Benchmark",
+        koreanSourceLabel = "KISDI 2023 조사: 스마트폰 하루 평균 126분(음성통화 제외)",
+        englishSourceLabel = "KISDI 2023: 126 average smartphone minutes/day, excluding calls",
         totalScreenMinutes = 126,
         distractingMinutes = 75,
         productiveMinutes = 30,
@@ -33,8 +37,10 @@ enum class ScoringBenchmark(
     ),
     STUDENT(
         presetModeId = "study",
-        title = "학생·청소년 기준",
-        sourceLabel = "KISDI 2021 조사: 10대 스마트폰 하루 평균 약 142분",
+        koreanTitle = "학생·청소년 기준",
+        englishTitle = "Student / Teen Benchmark",
+        koreanSourceLabel = "KISDI 2021 조사: 10대 스마트폰 하루 평균 약 142분",
+        englishSourceLabel = "KISDI 2021: about 142 average smartphone minutes/day for teens",
         totalScreenMinutes = 142,
         distractingMinutes = 90,
         productiveMinutes = 35,
@@ -44,8 +50,10 @@ enum class ScoringBenchmark(
     ),
     KIDS(
         presetModeId = "kids",
-        title = "어린이 기준",
-        sourceLabel = "KISDI 2024 조사: 가정의 스마트기기 하루 허용시간 평균 106분",
+        koreanTitle = "어린이 기준",
+        englishTitle = "Kids Benchmark",
+        koreanSourceLabel = "KISDI 2024 조사: 가정의 스마트기기 하루 허용시간 평균 106분",
+        englishSourceLabel = "KISDI 2024: 106 average allowed smart-device minutes/day in households",
         totalScreenMinutes = 106,
         distractingMinutes = 80,
         productiveMinutes = 20,
@@ -53,6 +61,9 @@ enum class ScoringBenchmark(
         unlockCount = 35,
         lateNightMinutes = 0
     );
+
+    val title: String get() = if (java.util.Locale.getDefault().language == "en") englishTitle else koreanTitle
+    val sourceLabel: String get() = if (java.util.Locale.getDefault().language == "en") englishSourceLabel else koreanSourceLabel
 
     fun evaluate(rule: ScoreRule): ScoreDetail {
         val usages = buildList {
