@@ -34,7 +34,7 @@ internal data class ForegroundUsageResult(
     val hasForegroundEvidence: Boolean
 )
 
-internal data class ForegroundUsageSegment(
+data class ForegroundUsageSegment(
     val packageName: String,
     val startTimeMillis: Long,
     val endTimeMillis: Long

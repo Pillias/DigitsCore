@@ -14,9 +14,12 @@ import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
 import com.digitscore.app.data.entity.DailyAppUsageEntity
 import com.digitscore.app.data.entity.DailyUsageCoverageEntity
+import com.digitscore.app.data.entity.ForegroundUsageSessionEntity
 import com.digitscore.app.data.entity.applyTo
 import com.digitscore.app.engine.ScoreCalculator
 import com.digitscore.app.engine.ScoreDetail
+import com.digitscore.app.engine.RollingScoreCalculator
+import com.digitscore.app.engine.RollingUsageSession
 import com.digitscore.app.model.AppUsage
 import com.digitscore.app.model.PresetMode
 import com.digitscore.app.notification.ScoreNotificationManager
@@ -58,6 +61,8 @@ class TrackerForegroundService : Service() {
 
     companion object {
         const val ACTION_STOP_TRACKING = "com.digitscore.app.action.STOP_TRACKING"
+        private const val ROLLING_WINDOW_MILLIS = 24 * 60 * 60 * 1_000L
+        private const val DETAIL_RETENTION_MILLIS = 30L * 24 * 60 * 60 * 1_000L
 
         fun start(context: Context) {
             val intent = Intent(context, TrackerForegroundService::class.java)
@@ -264,6 +269,7 @@ class TrackerForegroundService : Service() {
                 // 전면 앱 증거가 전혀 없는 조회는 권한/제조사 이벤트 누락일 수 있으므로 0분으로 덮지 않습니다.
                 if (usageSnapshot.hasForegroundEvidence || appsUsage.isNotEmpty()) {
                     val now = System.currentTimeMillis()
+                    val appsByPackage = appsUsage.associateBy { it.packageName }
                     val dailyRecords = appsUsage.map { app ->
                         val sessions = usageSnapshot.sessionSummariesByPackage[app.packageName]
                         DailyAppUsageEntity(
@@ -289,8 +295,26 @@ class TrackerForegroundService : Service() {
                     )
                     db.dailyAppUsageDao().markPastDaysComplete(currentDateString)
                     db.dailyAppUsageDao().pruneBefore(
-                        getAppHistoryCutoffDateString(settings?.appHistoryRetentionDays ?: 365)
+                        getAppHistoryCutoffDateString(365)
                     )
+
+                    // 상세 전면 세션은 30일만 암호화 보관하고, 그 이후에는 일별 집계만 남깁니다.
+                    val lateNightEnd = UsageStatsHelper.getStartOfTodayMillis() + 5 * 60 * 60 * 1_000L
+                    val sessionRecords = usageSnapshot.foregroundSegments.mapNotNull { segment ->
+                        val app = appsByPackage[segment.packageName] ?: return@mapNotNull null
+                        ForegroundUsageSessionEntity(
+                            packageName = segment.packageName,
+                            startTimeMillis = segment.startTimeMillis,
+                            endTimeMillis = segment.endTimeMillis,
+                            dateString = currentDateString,
+                            appName = app.appName,
+                            categoryLevel = app.categoryType.level,
+                            isLateNight = segment.startTimeMillis < lateNightEnd,
+                            lastUpdatedTimestamp = now
+                        )
+                    }
+                    db.foregroundUsageSessionDao().replaceDay(currentDateString, sessionRecords)
+                    db.foregroundUsageSessionDao().pruneBefore(now - DETAIL_RETENTION_MILLIS)
                 }
 
                 // 시스템 이벤트에서 얻은 언락 횟수와 동기화
@@ -317,6 +341,51 @@ class TrackerForegroundService : Service() {
                     rule = effectiveRule
                 )
                 ScoreRepository.updateScoreDetail(scoreDetail)
+
+                // 새 방식은 자정 경계 대신 최근 24시간을 사용합니다. 전날 언락은 시간대별
+                // 원본이 없으므로 24시간 창에 남은 비율만 보수적으로 추정합니다.
+                val now = System.currentTimeMillis()
+                val recentSessions = db.foregroundUsageSessionDao()
+                    .getSince(now - ROLLING_WINDOW_MILLIS)
+                    .map { session ->
+                        RollingUsageSession(
+                            packageName = session.packageName,
+                            startTimeMillis = session.startTimeMillis,
+                            endTimeMillis = session.endTimeMillis,
+                            categoryLevel = session.categoryLevel,
+                            isLateNight = session.isLateNight
+                        )
+                    }
+                val elapsedToday = now - UsageStatsHelper.getStartOfTodayMillis()
+                val previousDayFraction = ((ROLLING_WINDOW_MILLIS - elapsedToday).coerceAtLeast(0L) /
+                    ROLLING_WINDOW_MILLIS.toDouble())
+                val estimatedRollingUnlocks = finalUnlockCount +
+                    ((yesterdayHistory?.unlockCount ?: 0) * previousDayFraction).toInt()
+                val wasCalibrated = trackingPreferences.getBoolean("rolling_score_calibrated", false)
+                val engineStartedAt = trackingPreferences.getLong("rolling_engine_started_at", 0L).let { stored ->
+                    if (stored > 0L) stored else now.also {
+                        trackingPreferences.edit().putLong("rolling_engine_started_at", it).apply()
+                    }
+                }
+                val recordedUsageMillis = if (wasCalibrated) {
+                    60 * 60 * 1_000L
+                } else {
+                    minOf(
+                        db.foregroundUsageSessionDao().getTotalRecordedUsageMillis(),
+                        (now - engineStartedAt).coerceAtLeast(0L)
+                    )
+                }
+                if (!wasCalibrated && recordedUsageMillis >= 60 * 60 * 1_000L) {
+                    trackingPreferences.edit().putBoolean("rolling_score_calibrated", true).apply()
+                }
+                ScoreRepository.updateRollingScoreDetail(
+                    RollingScoreCalculator.calculate(
+                        sessions = recentSessions,
+                        nowMillis = now,
+                        rollingUnlockCount = estimatedRollingUnlocks,
+                        calibrationUsageMillis = recordedUsageMillis
+                    )
+                )
 
                 // 알림 갱신
                 if (settings?.isNotificationEnabled != false) {

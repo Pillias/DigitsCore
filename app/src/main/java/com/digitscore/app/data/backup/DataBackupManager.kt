@@ -10,6 +10,7 @@ import com.digitscore.app.data.entity.DailyAppUsageEntity
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
 import com.digitscore.app.data.entity.DailyUsageCoverageEntity
 import com.digitscore.app.data.entity.UserSettingsEntity
+import com.digitscore.app.data.entity.ForegroundUsageSessionEntity
 import com.digitscore.app.model.AppCategoryType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
@@ -23,7 +24,7 @@ import java.util.Locale
 
 object DataBackupManager {
 
-    private const val BACKUP_SCHEMA_VERSION = 2
+    private const val BACKUP_SCHEMA_VERSION = 3
     private const val MAX_BACKUP_BYTES = 20 * 1024 * 1024
     private val DATE_PATTERN = Regex("\\d{4}-\\d{2}-\\d{2}")
     private const val BACKUP_CACHE_MAX_AGE_MILLIS = 24 * 60 * 60 * 1_000L
@@ -38,6 +39,7 @@ object DataBackupManager {
         val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
         val dailyAppUsage = db.dailyAppUsageDao().getAll()
         val dailyCoverage = db.dailyAppUsageDao().getAllCoverage()
+        val detailedSessions = db.foregroundUsageSessionDao().getAll()
 
         val rootJson = JSONObject()
         rootJson.put("version", BACKUP_SCHEMA_VERSION)
@@ -127,6 +129,22 @@ object DataBackupManager {
         }
         rootJson.put("dailyUsageCoverage", coverageArray)
 
+        // 5. 최근 30일 상세 세션. 암호화 백업을 만들면 내보낸 시점의 상세 기록도 보존됩니다.
+        val sessionsArray = JSONArray()
+        for (session in detailedSessions) {
+            sessionsArray.put(JSONObject().apply {
+                put("packageName", session.packageName)
+                put("startTimeMillis", session.startTimeMillis)
+                put("endTimeMillis", session.endTimeMillis)
+                put("dateString", session.dateString)
+                put("appName", session.appName)
+                put("categoryLevel", session.categoryLevel)
+                put("isLateNight", session.isLateNight)
+                put("lastUpdatedTimestamp", session.lastUpdatedTimestamp)
+            })
+        }
+        rootJson.put("foregroundUsageSessions", sessionsArray)
+
         rootJson.toString(2)
     }
 
@@ -211,8 +229,7 @@ object DataBackupManager {
                     maxYesterdayPenalty = sObj.optDouble("maxYesterdayPenalty", 10.0).toFloat().coerceIn(0f, 30f),
                     isTrackingEnabled = sObj.optBoolean("isTrackingEnabled", false),
                     isNotificationEnabled = sObj.optBoolean("isNotificationEnabled", true),
-                    appHistoryRetentionDays = sObj.optInt("appHistoryRetentionDays", 365)
-                        .let { if (it in listOf(30, 90, 180, 365)) it else 365 },
+                    appHistoryRetentionDays = 365,
                     hideSensitiveNotificationOnLockScreen = sObj.optBoolean(
                         "hideSensitiveNotificationOnLockScreen",
                         true
@@ -290,6 +307,37 @@ object DataBackupManager {
                         )
                     )
                 }
+            }
+
+            if (rootJson.has("foregroundUsageSessions")) {
+                val sessionsArray = rootJson.getJSONArray("foregroundUsageSessions")
+                require(sessionsArray.length() <= 200_000) { "Too many detailed usage sessions" }
+                val sessions = buildList {
+                    for (i in 0 until sessionsArray.length()) {
+                        val obj = sessionsArray.getJSONObject(i)
+                        val dateString = obj.getString("dateString")
+                        val packageName = obj.getString("packageName").trim()
+                        val appName = obj.getString("appName").trim()
+                        val start = obj.getLong("startTimeMillis")
+                        val end = obj.getLong("endTimeMillis")
+                        require(DATE_PATTERN.matches(dateString)) { "Invalid detailed session date" }
+                        require(packageName.length in 1..255 && appName.length in 1..255) { "Invalid detailed session" }
+                        require(start >= 0L && end > start && end - start <= 86_400_000L) { "Invalid session duration" }
+                        add(
+                            ForegroundUsageSessionEntity(
+                                packageName = packageName,
+                                startTimeMillis = start,
+                                endTimeMillis = end,
+                                dateString = dateString,
+                                appName = appName,
+                                categoryLevel = obj.optInt("categoryLevel", 3).coerceIn(1, 5),
+                                isLateNight = obj.optBoolean("isLateNight", false),
+                                lastUpdatedTimestamp = obj.optLong("lastUpdatedTimestamp", System.currentTimeMillis())
+                            )
+                        )
+                    }
+                }
+                db.foregroundUsageSessionDao().insertAll(sessions)
             }
             }
 

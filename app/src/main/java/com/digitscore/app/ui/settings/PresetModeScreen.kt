@@ -112,7 +112,6 @@ fun PresetModeScreen(
     var isPresetMenuExpanded by remember { mutableStateOf(false) }
     var showBackupPasswordDialog by remember { mutableStateOf(false) }
     var pendingEncryptedImport by remember { mutableStateOf<ByteArray?>(null) }
-    var isRetentionMenuExpanded by remember { mutableStateOf(false) }
     var showDeleteHistoryConfirmation by remember { mutableStateOf(false) }
 
     fun selectPreset(mode: PresetMode) {
@@ -922,43 +921,25 @@ fun PresetModeScreen(
                             }
                         }
 
-                        ExposedDropdownMenuBox(
-                            expanded = isRetentionMenuExpanded,
-                            onExpandedChange = { isRetentionMenuExpanded = !isRetentionMenuExpanded }
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
-                            OutlinedTextField(
-                                value = when (settings.appHistoryRetentionDays) {
-                                    30 -> "30일"
-                                    90 -> "90일"
-                                    180 -> "180일"
-                                    else -> "365일"
-                                },
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("앱별 기록 보존 기간") },
-                                trailingIcon = {
-                                    ExposedDropdownMenuDefaults.TrailingIcon(isRetentionMenuExpanded)
-                                },
-                                modifier = Modifier.menuAnchor().fillMaxWidth()
-                            )
-                            ExposedDropdownMenu(
-                                expanded = isRetentionMenuExpanded,
-                                onDismissRequest = { isRetentionMenuExpanded = false }
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                listOf(30, 90, 180, 365).forEach { days ->
-                                    DropdownMenuItem(
-                                        text = { Text("${days}일") },
-                                        onClick = {
-                                            isRetentionMenuExpanded = false
-                                            scope.launch(Dispatchers.IO) {
-                                                db.settingsDao().insertOrUpdateSettings(
-                                                    settings.copy(appHistoryRetentionDays = days)
-                                                )
-                                                PrivacyDataManager.applyAppHistoryRetention(context, days)
-                                            }
-                                        }
-                                    )
-                                }
+                                Text("기록 보존 방식", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                Text(
+                                    "앱별 시작·종료 상세는 30일, 날짜별 집계는 365일 보관합니다.",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                                Text(
+                                    "30일을 넘겨 상세 기록을 보관하려면 만료 전에 암호화 백업을 저장하세요.",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
                             }
                         }
 

@@ -10,11 +10,13 @@ import com.digitscore.app.data.dao.AppDao
 import com.digitscore.app.data.dao.DailyAppUsageDao
 import com.digitscore.app.data.dao.ScoreDao
 import com.digitscore.app.data.dao.SettingsDao
+import com.digitscore.app.data.dao.ForegroundUsageSessionDao
 import com.digitscore.app.data.entity.AppWeightEntity
 import com.digitscore.app.data.entity.DailyAppUsageEntity
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
 import com.digitscore.app.data.entity.DailyUsageCoverageEntity
 import com.digitscore.app.data.entity.UserSettingsEntity
+import com.digitscore.app.data.entity.ForegroundUsageSessionEntity
 import com.digitscore.app.model.AppCategoryType
 import com.digitscore.app.data.security.DatabaseEncryptionManager
 import kotlinx.coroutines.CoroutineScope
@@ -28,9 +30,10 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
         DailyAppUsageEntity::class,
         DailyUsageCoverageEntity::class,
         DailyScoreHistoryEntity::class,
-        UserSettingsEntity::class
+        UserSettingsEntity::class,
+        ForegroundUsageSessionEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 abstract class DigitsDatabase : RoomDatabase() {
@@ -38,6 +41,7 @@ abstract class DigitsDatabase : RoomDatabase() {
     abstract fun dailyAppUsageDao(): DailyAppUsageDao
     abstract fun scoreDao(): ScoreDao
     abstract fun settingsDao(): SettingsDao
+    abstract fun foregroundUsageSessionDao(): ForegroundUsageSessionDao
 
     companion object {
         private const val DATABASE_NAME = "digitscore_database"
@@ -117,6 +121,27 @@ abstract class DigitsDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // v6부터 세부 30일/일별 집계 365일 정책으로 고정합니다.
+                db.execSQL("UPDATE user_settings SET appHistoryRetentionDays = 365")
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `foreground_usage_sessions` (
+                       `packageName` TEXT NOT NULL,
+                       `startTimeMillis` INTEGER NOT NULL,
+                       `endTimeMillis` INTEGER NOT NULL,
+                       `dateString` TEXT NOT NULL,
+                       `appName` TEXT NOT NULL,
+                       `categoryLevel` INTEGER NOT NULL,
+                       `isLateNight` INTEGER NOT NULL,
+                       `lastUpdatedTimestamp` INTEGER NOT NULL,
+                       PRIMARY KEY(`packageName`, `startTimeMillis`))""".trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_foreground_usage_sessions_dateString` ON `foreground_usage_sessions` (`dateString`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_foreground_usage_sessions_endTimeMillis` ON `foreground_usage_sessions` (`endTimeMillis`)")
+            }
+        }
+
         @Volatile
         private var INSTANCE: DigitsDatabase? = null
 
@@ -131,7 +156,7 @@ abstract class DigitsDatabase : RoomDatabase() {
                     databaseName
                 )
                     .addCallback(DatabaseCallback(context.applicationContext))
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .fallbackToDestructiveMigrationOnDowngrade()
                 if (passphrase != null) {
                     builder.openHelperFactory(SupportOpenHelperFactory(passphrase))

@@ -33,6 +33,7 @@ object PrivacyDataManager {
         TrackerForegroundService.stop(appContext)
         db.withTransaction {
             db.dailyAppUsageDao().deleteAllHistory()
+            db.foregroundUsageSessionDao().deleteAll()
             db.scoreDao().deleteAllScoreHistories()
         }
         appContext.getSharedPreferences("tracking_state", Context.MODE_PRIVATE)
@@ -42,6 +43,7 @@ object PrivacyDataManager {
         ScoreRepository.updateAppsUsage(emptyList())
         ScoreRepository.updateUnlockCount(0)
         ScoreRepository.updateScoreDetail(null)
+        ScoreRepository.updateRollingScoreDetail(null)
         DataBackupManager.cleanupStaleBackups(appContext, maxAgeMillis = 0L)
     }
 }
