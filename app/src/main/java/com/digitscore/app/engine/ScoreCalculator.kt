@@ -25,13 +25,21 @@ data class ScoreDetail(
     val lateNightDistractingMinutes: Long = 0L
 )
 
-enum class ScoreGrade(val gradeText: String, val description: String) {
-    S("S (최상)", "완벽한 디지털 디톡스를 실천 중입니다!"),
-    A("A (우수)", "스마트폰을 매우 균형 있게 사용하고 있습니다."),
-    B("B (양호)", "좋은 흐름입니다. 조금만 더 방해 앱을 줄여보세요."),
-    C("C (주의)", "방해 앱 사용과 잦은 화면 언락에 주의하세요."),
-    D("D (경고)", "디지털 디톡스가 시급합니다! 잠시 스마트폰을 내려놓으세요."),
-    F("F (위험)", "과도한 스마트폰 중독 상태입니다. 즉시 휴식이 필요합니다.");
+enum class ScoreGrade(
+    private val koreanText: String,
+    private val englishText: String,
+    private val koreanDescription: String,
+    private val englishDescription: String
+) {
+    S("S (최상)", "S (Excellent)", "매우 안정적인 디지털 사용 흐름입니다.", "Your digital-use pattern is very steady."),
+    A("A (우수)", "A (Great)", "스마트폰을 균형 있게 사용하고 있습니다.", "You are using your phone in a balanced way."),
+    B("B (양호)", "B (Balanced)", "좋은 흐름입니다. 관리 대상 앱을 조금만 줄여보세요.", "A good pattern. Try trimming managed apps a little."),
+    C("C (주의)", "C (Watch)", "연속 사용과 잦은 화면 확인을 살펴보세요.", "Watch continuous use and frequent screen checks."),
+    D("D (경고)", "D (Pause)", "잠시 스마트폰을 내려놓고 쉬어갈 때입니다.", "This is a good time to put your phone down for a break."),
+    F("F (집중 관리)", "F (Refocus)", "사용 흐름을 전환할 충분한 휴식이 필요합니다.", "A meaningful break can help reset your usage pattern.");
+
+    val gradeText: String get() = if (java.util.Locale.getDefault().language == "en") englishText else koreanText
+    val description: String get() = if (java.util.Locale.getDefault().language == "en") englishDescription else koreanDescription
 
     companion object {
         fun fromScore(score: Int): ScoreGrade = when {
@@ -132,7 +140,7 @@ object ScoreCalculator {
         val excessUnlocks = max(0, unlockCount - rule.unlockPenaltyThreshold)
         val unlockPenalty = excessUnlocks * rule.unlockPenaltyPerCount
 
-        // 5. 전날 과사용 페널티 (디톡스 부채)
+        // 5. 이전 사용량 이월
         val appliedYesterdayPenalty = if (rule.isYesterdayPenaltyEnabled) rule.yesterdayPenalty else 0f
 
         // 6. 총합 계산 및 경계값(0~100) 클램핑

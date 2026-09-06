@@ -10,6 +10,11 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.digitscore.app.R
 import com.digitscore.app.engine.ScoreDetail
+import com.digitscore.app.engine.RollingScoreDetail
+import com.digitscore.app.engine.ScoreGrade
+import com.digitscore.app.i18n.AppLocale
+import com.digitscore.app.i18n.localizedGrade
+import com.digitscore.app.i18n.localizedGradeDescription
 import com.digitscore.app.ui.MainActivity
 import com.digitscore.app.service.TrackerForegroundService
 
@@ -20,12 +25,13 @@ object ScoreNotificationManager {
 
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val strings = AppLocale.stringsContext(context)
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                context.getString(R.string.notification_channel_name),
+                strings.getString(R.string.notification_channel_name),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = context.getString(R.string.notification_channel_description)
+                description = strings.getString(R.string.notification_channel_description)
                 setShowBadge(false)
                 enableVibration(false)
                 setSound(null, null)
@@ -39,8 +45,10 @@ object ScoreNotificationManager {
         context: Context,
         scoreDetail: ScoreDetail,
         unlockCount: Int,
-        hideSensitiveOnLockScreen: Boolean = true
+        hideSensitiveOnLockScreen: Boolean = true,
+        rollingScoreDetail: RollingScoreDetail? = null
     ): Notification {
+        val strings = AppLocale.stringsContext(context)
         val launchIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
@@ -59,11 +67,16 @@ object ScoreNotificationManager {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val score = scoreDetail.finalScore
-        val grade = scoreDetail.grade
+        val score = rollingScoreDetail?.finalScore ?: 80
+        val grade = ScoreGrade.fromScore(score)
 
-        val title = "오늘의 디톡스 점수: ${score}점 (${grade.gradeText})"
-        val contentText = "화면: ${formatMinutesToHoursAndMinutes(scoreDetail.totalScreenTimeMinutes)} | 언락: ${unlockCount}회 | 방해: ${formatMinutesToHoursAndMinutes(scoreDetail.distractingTimeMinutes)}"
+        val title = strings.getString(R.string.notification_title, score, strings.localizedGrade(grade))
+        val contentText = strings.getString(
+            R.string.notification_content,
+            formatMinutesToHoursAndMinutes(strings, scoreDetail.totalScreenTimeMinutes),
+            unlockCount,
+            formatMinutesToHoursAndMinutes(strings, scoreDetail.distractingTimeMinutes)
+        )
 
         val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, score)
 
@@ -73,7 +86,7 @@ object ScoreNotificationManager {
             .setContentText(contentText)
             .setStyle(
                 NotificationCompat.BigTextStyle()
-                    .bigText("$contentText\n\n💡 ${grade.description}")
+                    .bigText("$contentText\n\n💡 ${strings.localizedGradeDescription(grade)}")
             )
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -85,15 +98,15 @@ object ScoreNotificationManager {
             .setContentIntent(pendingIntent)
             .addAction(
                 android.R.drawable.ic_media_pause,
-                "추적 중지",
+                strings.getString(R.string.tracking_stop),
                 stopTrackingIntent
             )
         if (hideSensitiveOnLockScreen) {
             builder.setPublicVersion(
                 NotificationCompat.Builder(context, CHANNEL_ID)
                     .setSmallIcon(iconCompat)
-                    .setContentTitle("DigitsCore 추적 중")
-                    .setContentText("잠금 해제 후 상세 정보를 확인할 수 있습니다.")
+                    .setContentTitle(strings.getString(R.string.tracking_active))
+                    .setContentText(strings.getString(R.string.unlock_for_details))
                     .setOngoing(true)
                     .setPriority(NotificationCompat.PRIORITY_LOW)
                     .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -108,25 +121,27 @@ object ScoreNotificationManager {
         context: Context,
         scoreDetail: ScoreDetail,
         unlockCount: Int,
-        hideSensitiveOnLockScreen: Boolean = true
+        hideSensitiveOnLockScreen: Boolean = true,
+        rollingScoreDetail: RollingScoreDetail? = null
     ) {
         val notification = buildScoreNotification(
             context,
             scoreDetail,
             unlockCount,
-            hideSensitiveOnLockScreen
+            hideSensitiveOnLockScreen,
+            rollingScoreDetail
         )
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(NOTIFICATION_ID, notification)
     }
 
-    private fun formatMinutesToHoursAndMinutes(minutes: Long): String {
+    private fun formatMinutesToHoursAndMinutes(context: Context, minutes: Long): String {
         val hours = minutes / 60
         val mins = minutes % 60
         return when {
-            hours > 0 && mins > 0 -> "${hours}시간 ${mins}분"
-            hours > 0 -> "${hours}시간"
-            else -> "${mins}분"
+            hours > 0 && mins > 0 -> context.getString(R.string.format_hours_minutes, hours, mins)
+            hours > 0 -> context.getString(R.string.format_hours, hours)
+            else -> context.getString(R.string.format_minutes, mins)
         }
     }
 }

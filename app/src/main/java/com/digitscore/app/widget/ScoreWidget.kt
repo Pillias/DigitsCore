@@ -30,15 +30,19 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.digitscore.app.data.ScoreRepository
 import com.digitscore.app.engine.ScoreGrade
+import com.digitscore.app.i18n.AppLocale
+import com.digitscore.app.R
 import com.digitscore.app.ui.MainActivity
 
 class ScoreWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val scoreDetail = ScoreRepository.currentScoreDetail.value
+        val rollingScoreDetail = ScoreRepository.rollingScoreDetail.value
+        val strings = AppLocale.stringsContext(context)
         val unlockCount = ScoreRepository.currentUnlockCount.value
-        val score = scoreDetail?.finalScore ?: 100
-        val grade = scoreDetail?.grade ?: ScoreGrade.S
+        val score = rollingScoreDetail?.finalScore ?: 80
+        val grade = ScoreGrade.fromScore(score)
         val screenMinutes = scoreDetail?.totalScreenTimeMinutes ?: 0L
 
         val scoreColorHex = when {
@@ -51,9 +55,9 @@ class ScoreWidget : GlanceAppWidget() {
         val hours = screenMinutes / 60
         val mins = screenMinutes % 60
         val timeStr = when {
-            hours > 0 && mins > 0 -> "${hours}시간 ${mins}분"
-            hours > 0 -> "${hours}시간"
-            else -> "${mins}분"
+            hours > 0 && mins > 0 -> strings.getString(R.string.format_hours_minutes, hours, mins)
+            hours > 0 -> strings.getString(R.string.format_hours, hours)
+            else -> strings.getString(R.string.format_minutes, mins)
         }
 
         provideContent {
@@ -78,7 +82,7 @@ class ScoreWidget : GlanceAppWidget() {
                 )
 
                 Text(
-                    text = "GRADE ${grade.gradeText.take(1)}",
+                    text = strings.getString(R.string.grade_label, grade.name),
                     style = TextStyle(
                         color = ColorProvider(Color(scoreColorHex)),
                         fontSize = 12.sp,
@@ -102,7 +106,7 @@ class ScoreWidget : GlanceAppWidget() {
                     )
                     Spacer(modifier = GlanceModifier.width(8.dp))
                     Text(
-                        text = "🔓 ${unlockCount}회",
+                        text = "🔓 ${strings.getString(R.string.unlock_count_short, unlockCount)}",
                         style = TextStyle(
                             color = ColorProvider(Color.LightGray),
                             fontSize = 11.sp

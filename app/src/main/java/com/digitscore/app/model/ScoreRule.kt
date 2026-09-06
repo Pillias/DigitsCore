@@ -4,10 +4,10 @@ package com.digitscore.app.model
  * 점수 계산 규칙 매개변수
  * @property initialScore 기본 시작 점수 (기본 100)
  * @property yesterdayPenalty 전날 과사용으로 인한 실제 시작 감점치
- * @property isYesterdayPenaltyEnabled 전날 과사용 시작 페널티(디톡스 부채) 활성화 여부 (기본 true)
- * @property yesterdayPenaltyTriggerScore 디톡스 부채가 발생하는 전날 점수 기준
+ * @property isYesterdayPenaltyEnabled 이전 사용량 이월 활성화 여부 (기본 true)
+ * @property yesterdayPenaltyTriggerScore 이전 사용량 이월이 발생하는 전날 점수 기준
  * @property yesterdayPenaltyRate 기준 미달 1점당 다음 날 감점 비율
- * @property maxYesterdayPenalty 디톡스 부채 최대 감점 상한
+ * @property maxYesterdayPenalty 이전 사용량 이월 최대 감점 상한
  * @property distractingWeightPerMinute 방해 앱 사용 1분당 감점치 (기본 0.8점 감점)
  * @property productiveBonusPerMinute 생산성 앱 사용 1분당 가산치 (기본 0.2점 가산)
  * @property idleBonusPer10Minutes 화면 꺼짐(미사용) 10분당 회복 점수 (기본 0.25점 가산, 1시간에 1.5점)

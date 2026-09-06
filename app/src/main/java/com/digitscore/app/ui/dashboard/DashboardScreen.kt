@@ -41,7 +41,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import com.digitscore.app.i18n.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -61,6 +61,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -68,6 +69,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.digitscore.app.data.DigitsDatabase
+import com.digitscore.app.R
+import com.digitscore.app.i18n.localizedGrade
 import com.digitscore.app.data.AppUsageInsights
 import com.digitscore.app.data.UnlockInsights
 import com.digitscore.app.data.UsageStatsHelper
@@ -114,8 +117,9 @@ fun DashboardScreen(
     var selectedAppDetail by remember { mutableStateOf<AppUsage?>(null) }
     var showAllAppsModal by remember { mutableStateOf(false) }
 
-    val currentScore = scoreDetail?.finalScore ?: 100
-    val grade = scoreDetail?.grade ?: ScoreGrade.S
+    val legacyScore = scoreDetail?.finalScore ?: 100
+    val currentScore = rollingScoreDetail?.finalScore ?: 80
+    val grade = ScoreGrade.fromScore(currentScore)
 
     Scaffold(
         topBar = {
@@ -170,14 +174,14 @@ fun DashboardScreen(
                 ScoreGaugeCard(
                     score = currentScore,
                     grade = grade,
-                    yesterdayPenalty = scoreDetail?.yesterdayPenalty ?: 0f,
+                    rollingScore = rollingScoreDetail,
                     onClick = { showScoreDetailModal = true }
                 )
             }
 
             item {
                 ScoreComparisonCard(
-                    legacyScore = currentScore,
+                    legacyScore = legacyScore,
                     rollingScore = rollingScoreDetail
                 )
             }
@@ -255,9 +259,10 @@ fun DashboardScreen(
     // ==========================================
 
     // 1. 점수 산출 상세 내역 다이얼로그
-    if (showScoreDetailModal && scoreDetail != null) {
-        ScoreDetailDialog(
-            scoreDetail = scoreDetail!!,
+    if (showScoreDetailModal) {
+        RollingScoreDetailDialog(
+            rollingScore = rollingScoreDetail,
+            legacyScore = legacyScore,
             onDismiss = { showScoreDetailModal = false },
             onNavigateToStatistics = {
                 showScoreDetailModal = false
@@ -357,9 +362,11 @@ fun DashboardScreen(
 private fun ScoreGaugeCard(
     score: Int,
     grade: ScoreGrade,
-    yesterdayPenalty: Float,
+    rollingScore: RollingScoreDetail?,
     onClick: () -> Unit
 ) {
+    val context = LocalContext.current
+    val gradeText = context.localizedGrade(grade)
     val animatedScore by animateFloatAsState(
         targetValue = score.coerceIn(0, 100).toFloat(),
         animationSpec = tween(durationMillis = 700),
@@ -376,7 +383,7 @@ private fun ScoreGaugeCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .semantics { contentDescription = "오늘의 디톡스 점수 ${score}점, ${grade.gradeText}" },
+            .semantics { contentDescription = context.getString(R.string.score_accessibility, score, gradeText) },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(20.dp)
     ) {
@@ -388,7 +395,7 @@ private fun ScoreGaugeCard(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "기존 점수 · 오늘 0시 기준",
+                text = "${stringResource(R.string.digitscore_score)} · ${stringResource(R.string.rolling_24_hours)}",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.outline
             )
@@ -416,17 +423,15 @@ private fun ScoreGaugeCard(
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(text = score.toString(), fontSize = 54.sp, fontWeight = FontWeight.Black, color = scoreColor)
-                    Text(text = grade.gradeText, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(text = gradeText, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
             }
-            if (yesterdayPenalty > 0f) {
-                Text(
-                    text = "전날 디톡스 부채 -${String.format("%.1f", yesterdayPenalty)}점 반영",
-                    fontSize = 12.sp,
-                    color = ScoreOrange
-                )
-            }
-            Text(text = "탭하여 점수 계산 내역 보기", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+            Text(
+                text = rollingStatusText(rollingScore),
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(text = stringResource(R.string.tap_score_details), fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
         }
     }
 }
@@ -437,12 +442,6 @@ private fun ScoreComparisonCard(
     rollingScore: RollingScoreDetail?
 ) {
     val newScore = rollingScore?.finalScore ?: 80
-    val newColor = when {
-        newScore >= 80 -> ScoreGreen
-        newScore >= 60 -> ScoreYellow
-        newScore >= 40 -> ScoreOrange
-        else -> ScoreRed
-    }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -458,25 +457,17 @@ private fun ScoreComparisonCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text("새 점수 · 최근 24시간", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text(stringResource(R.string.legacy_daily_score), fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     Text(
-                        text = rollingScore?.statusText ?: "보정 중 · 전면 사용 0/60분 반영",
+                        text = stringResource(R.string.temporary_comparison),
                         color = MaterialTheme.colorScheme.outline,
                         fontSize = 12.sp
                     )
                 }
-                Text("${newScore}점", color = newColor, fontWeight = FontWeight.Black, fontSize = 30.sp)
-            }
-            val progress = rollingScore?.calibrationProgress ?: 0f
-            if (rollingScore == null || rollingScore.flow == ScoreFlow.CALIBRATING) {
-                CircularProgressIndicator(
-                    progress = { progress.coerceIn(0f, 1f) },
-                    modifier = Modifier.size(22.dp),
-                    strokeWidth = 3.dp
-                )
+                Text(stringResource(R.string.score_points, legacyScore), color = MaterialTheme.colorScheme.outline, fontWeight = FontWeight.Black, fontSize = 30.sp)
             }
             Text(
-                text = "기존 ${legacyScore}점과 비교 중 · 화면이 꺼진 백그라운드 재생은 제외",
+                text = stringResource(R.string.new_score_comparison, newScore),
                 color = MaterialTheme.colorScheme.outline,
                 fontSize = 11.sp
             )
@@ -564,6 +555,60 @@ private fun formatMinutesToHoursAndMinutes(minutes: Long): String {
 // 📱 상세 다이얼로그 컴포넌트들
 // =========================================================================
 
+@Composable
+private fun RollingScoreDetailDialog(
+    rollingScore: RollingScoreDetail?,
+    legacyScore: Int,
+    onDismiss: () -> Unit,
+    onNavigateToStatistics: () -> Unit
+) {
+    val detail = rollingScore
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.score_detail_title), fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(stringResource(R.string.score_points, detail?.finalScore ?: 80), fontSize = 34.sp, fontWeight = FontWeight.Black)
+                Text(rollingStatusText(detail))
+                BreakdownRow(stringResource(R.string.recent_usage), stringResource(R.string.format_minutes, detail?.recentUsageMinutes ?: 0), false)
+                BreakdownRow(stringResource(R.string.rolling_load), String.format("%.1f", detail?.rollingLoad ?: 0.0), false)
+                BreakdownRow(stringResource(R.string.acute_load), String.format("%.1f", detail?.acuteLoad ?: 0.0), false)
+                BreakdownRow(stringResource(R.string.legacy_score), stringResource(R.string.score_points, legacyScore), true)
+                Text(
+                    stringResource(R.string.score_method_note),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onNavigateToStatistics) { Text(stringResource(R.string.view_statistics)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } }
+    )
+}
+
+@Composable
+private fun rollingStatusText(detail: RollingScoreDetail?): String {
+    if (detail == null) return stringResource(R.string.score_calibrating, 0)
+    return when (detail.flow) {
+        ScoreFlow.CALIBRATING -> stringResource(
+            R.string.score_calibrating,
+            (detail.calibrationProgress * 60).roundToInt()
+        )
+        ScoreFlow.USING -> stringResource(
+            R.string.score_using,
+            detail.continuousUsageMinutes,
+            String.format(Locale.US, "%.1f", detail.rollingLoad + detail.acuteLoad)
+        )
+        ScoreFlow.RECOVERING -> stringResource(R.string.score_recovering, detail.restMinutes)
+        ScoreFlow.STEADY -> stringResource(
+            R.string.score_steady,
+            String.format(Locale.US, "%.1f", detail.rollingLoad + detail.acuteLoad)
+        )
+    }
+}
+
 /**
  * 1. 점수 산출 상세 내역 다이얼로그
  */
@@ -601,7 +646,7 @@ fun ScoreDetailDialog(
             ) {
                 item {
                     Text(
-                        text = "오늘 하루의 행동에 따라 계산된 디톡스 점수 내역입니다.",
+                        text = "오늘 0시부터 계산한 기존 점수 내역입니다.",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -614,7 +659,7 @@ fun ScoreDetailDialog(
                 if (scoreDetail.yesterdayPenalty > 0f) {
                     item {
                         BreakdownRow(
-                            title = "전날 과사용 페널티 (디톡스 부채)",
+                            title = "이전 사용량 이월",
                             value = "-${String.format("%.1f", scoreDetail.yesterdayPenalty)}점",
                             isBonus = false
                         )
@@ -1026,7 +1071,7 @@ fun DistractingDetailDialog(
                 if (appsUsage.isEmpty()) {
                     item {
                         Text(
-                            text = "오늘 사용된 방해 앱이 없습니다! 🎉 완벽한 디톡스입니다.",
+                            text = "오늘 사용된 관리 대상 앱이 없습니다. 안정적인 사용 흐름입니다! 🎉",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = ScoreGreen,

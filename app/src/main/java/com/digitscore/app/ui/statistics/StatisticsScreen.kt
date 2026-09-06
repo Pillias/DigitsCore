@@ -35,7 +35,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
-import androidx.compose.material3.Text
+import com.digitscore.app.i18n.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -121,7 +121,7 @@ fun StatisticsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("디톡스 통계 & 리포트", fontWeight = FontWeight.Bold) },
+                title = { Text("사용 균형 통계 & 리포트", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
@@ -456,7 +456,7 @@ fun ScoreTrendLineChartCard(
                                     textSize = 24f
                                     textAlign = android.graphics.Paint.Align.CENTER
                                 }
-                                drawText("${dayLabel}일", pt.x, height + 28f, paint)
+                                drawText(com.digitscore.app.i18n.UiTranslator.translate("${dayLabel}일"), pt.x, height + 28f, paint)
 
                                 // 7일 뷰에서는 포인트 위에 점수도 작게 표시
                                 if (n <= 7) {
@@ -602,7 +602,7 @@ fun UsageAndUnlockBarChartCard(
                                     textSize = 22f
                                     textAlign = android.graphics.Paint.Align.CENTER
                                 }
-                                drawText("${dayLabel}일", startX + (barWidth / 2), height + 24f, paint)
+                                drawText(com.digitscore.app.i18n.UiTranslator.translate("${dayLabel}일"), startX + (barWidth / 2), height + 24f, paint)
                             }
                         }
                     }
@@ -638,7 +638,7 @@ fun AnalyticsSummaryCards(
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
-            text = "디톡스 성과 분석",
+            text = "사용 균형 분석",
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground

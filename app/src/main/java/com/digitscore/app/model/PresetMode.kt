@@ -1,18 +1,22 @@
 package com.digitscore.app.model
 
 /**
- * 사전 정의된 디톡스 프리셋 모드
+ * 사전 정의된 점수 프리셋 모드
  */
 enum class PresetMode(
     val id: String,
-    val title: String,
-    val description: String,
+    private val koreanTitle: String,
+    private val englishTitle: String,
+    private val koreanDescription: String,
+    private val englishDescription: String,
     val scoreRule: ScoreRule
 ) {
     STUDY(
         id = "study",
-        title = "학생 기준 모드",
-        description = "10대 평균 사용 시 약 60점이 되도록 완만하게 보정한 모드",
+        koreanTitle = "학생 기준 모드",
+        englishTitle = "Student Mode",
+        koreanDescription = "10대 평균 사용 시 약 60점이 되도록 완만하게 보정한 모드",
+        englishDescription = "Gently calibrated around typical teen phone use",
         scoreRule = ScoreRule(
             distractingWeightPerMinute = 0.44f,
             productiveBonusPerMinute = 0.25f,
@@ -30,8 +34,10 @@ enum class PresetMode(
     ),
     EYE_HEALTH(
         id = "eye_health",
-        title = "눈 건강 / 휴식 모드",
-        description = "총 화면 사용 시간에 민감하며 충분한 화면 휴식(Idle)을 장려하는 모드",
+        koreanTitle = "눈 건강 / 휴식 모드",
+        englishTitle = "Eye Comfort / Break Mode",
+        koreanDescription = "총 화면 사용 시간에 민감하며 충분한 화면 휴식(Idle)을 장려하는 모드",
+        englishDescription = "More sensitive to total screen time and encourages breaks",
         scoreRule = ScoreRule(
             initialScore = 100f,
             distractingWeightPerMinute = 0.5f,
@@ -49,8 +55,10 @@ enum class PresetMode(
     ),
     WORKER(
         id = "worker",
-        title = "직장인 / 집중 모드",
-        description = "국내 평균 사용시간 기준 약 60점이 되도록 보정한 모드",
+        koreanTitle = "직장인 / 집중 모드",
+        englishTitle = "Work / Focus Mode",
+        koreanDescription = "국내 평균 사용시간 기준 약 60점이 되도록 보정한 모드",
+        englishDescription = "Calibrated around typical adult workday phone use",
         scoreRule = ScoreRule(
             distractingWeightPerMinute = 0.62f,
             productiveBonusPerMinute = 0.2f,
@@ -66,8 +74,10 @@ enum class PresetMode(
     ),
     KIDS(
         id = "kids",
-        title = "어린이 / 청소년 모드",
-        description = "가정 내 평균 허용시간 기준 약 60점이 되도록 보정한 모드",
+        koreanTitle = "어린이 / 청소년 모드",
+        englishTitle = "Kids / Teens Mode",
+        koreanDescription = "가정 내 평균 허용시간 기준 약 60점이 되도록 보정한 모드",
+        englishDescription = "Calibrated around typical family screen-time limits",
         scoreRule = ScoreRule(
             distractingWeightPerMinute = 0.55f,
             productiveBonusPerMinute = 0.25f,
@@ -85,10 +95,15 @@ enum class PresetMode(
     ),
     BALANCED(
         id = "balanced",
-        title = "기본 밸런스 모드",
-        description = "일상적인 디지털 디톡스와 균형 잡힌 사용을 위한 표준 모드",
+        koreanTitle = "기본 밸런스 모드",
+        englishTitle = "Balanced Mode",
+        koreanDescription = "일상적인 디지털 균형을 위한 표준 모드",
+        englishDescription = "A standard mode for balanced everyday digital use",
         scoreRule = ScoreRule()
     );
+
+    val title: String get() = if (java.util.Locale.getDefault().language == "en") englishTitle else koreanTitle
+    val description: String get() = if (java.util.Locale.getDefault().language == "en") englishDescription else koreanDescription
 
     companion object {
         fun fromId(id: String): PresetMode {

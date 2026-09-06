@@ -29,7 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Text
+import com.digitscore.app.i18n.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -49,6 +49,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.net.Uri
+import android.app.Activity
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -58,6 +59,10 @@ import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.res.stringResource
+import com.digitscore.app.R
+import com.digitscore.app.i18n.AppLocale
+import com.digitscore.app.i18n.UiTranslator
 import com.digitscore.app.BuildConfig
 import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.data.backup.DataBackupManager
@@ -110,6 +115,7 @@ fun PresetModeScreen(
     val selectedBenchmark = ScoringBenchmark.forPreset(selectedModeId)
     var showPrivacyPolicy by remember { mutableStateOf(false) }
     var isPresetMenuExpanded by remember { mutableStateOf(false) }
+    var isLanguageMenuExpanded by remember { mutableStateOf(false) }
     var showBackupPasswordDialog by remember { mutableStateOf(false) }
     var pendingEncryptedImport by remember { mutableStateOf<ByteArray?>(null) }
     var showDeleteHistoryConfirmation by remember { mutableStateOf(false) }
@@ -158,8 +164,10 @@ fun PresetModeScreen(
                             launch(Dispatchers.Main) {
                                 Toast.makeText(
                                     context,
-                                    if (success) "이전 평문 백업을 복원했습니다. 새 백업은 암호화됩니다."
-                                    else "백업 파일 형식이 올바르지 않습니다.",
+                                    UiTranslator.translate(
+                                        if (success) "이전 평문 백업을 복원했습니다. 새 백업은 암호화됩니다."
+                                        else "백업 파일 형식이 올바르지 않습니다."
+                                    ),
                                     Toast.LENGTH_LONG
                                 ).show()
                             }
@@ -167,7 +175,7 @@ fun PresetModeScreen(
                     }
                 } catch (e: Exception) {
                     launch(Dispatchers.Main) {
-                        Toast.makeText(context, "복원 중 오류가 발생했습니다: ${e.message}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, UiTranslator.translate("복원 중 오류가 발생했습니다: ${e.message}"), Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -177,7 +185,7 @@ fun PresetModeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("디톡스 모드 및 가중치 설정", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.settings_title), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
@@ -202,10 +210,64 @@ fun PresetModeScreen(
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(stringResource(R.string.language), fontWeight = FontWeight.Bold)
+                        Text(
+                            stringResource(R.string.language_description),
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                        ExposedDropdownMenuBox(
+                            expanded = isLanguageMenuExpanded,
+                            onExpandedChange = { isLanguageMenuExpanded = !isLanguageMenuExpanded }
+                        ) {
+                            val language = AppLocale.currentLanguage(context)
+                            OutlinedTextField(
+                                value = if (language == AppLocale.ENGLISH) {
+                                    stringResource(R.string.language_english)
+                                } else {
+                                    stringResource(R.string.language_korean)
+                                },
+                                onValueChange = {},
+                                readOnly = true,
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(isLanguageMenuExpanded) },
+                                modifier = Modifier.menuAnchor().fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = isLanguageMenuExpanded,
+                                onDismissRequest = { isLanguageMenuExpanded = false }
+                            ) {
+                                listOf(
+                                    AppLocale.KOREAN to stringResource(R.string.language_korean),
+                                    AppLocale.ENGLISH to stringResource(R.string.language_english)
+                                ).forEach { (code, label) ->
+                                    DropdownMenuItem(
+                                        text = { Text(label) },
+                                        onClick = {
+                                            isLanguageMenuExpanded = false
+                                            AppLocale.setLanguage(context as Activity, code)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // 1. 프리셋 모드 선택
             item {
                 Text(
-                    text = "디톡스 프리셋 모드 선택",
+                    text = "점수 프리셋 모드 선택",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground,
@@ -370,7 +432,7 @@ fun PresetModeScreen(
                             fontSize = 14.sp
                         )
                         Text(
-                            text = "점수가 이 이하로 떨어지면 디톡스 경고를 강조합니다.",
+                            text = "점수가 이 이하로 떨어지면 사용 균형 안내를 강조합니다.",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
@@ -609,7 +671,7 @@ fun PresetModeScreen(
                 }
             }
 
-            // 전날 과사용 시작 페널티 (디톡스 부채) 스위치
+            // 이전 사용량 이월 스위치
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -625,7 +687,7 @@ fun PresetModeScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "⏳ 전날 과사용 시작 페널티 (디톡스 부채)",
+                                text = "⏳ 이전 사용량 이월",
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onBackground,
                                 fontSize = 14.sp
@@ -696,7 +758,7 @@ fun PresetModeScreen(
                             )
 
                             Text(
-                                text = "하루 최대 디톡스 부채: ${settings.maxYesterdayPenalty.toInt()}점",
+                                text = "하루 최대 이전 사용량 이월: ${settings.maxYesterdayPenalty.toInt()}점",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp
                             )
@@ -1092,7 +1154,7 @@ fun PresetModeScreen(
                         }
                     } catch (error: Exception) {
                         launch(Dispatchers.Main) {
-                            Toast.makeText(context, "백업 실패: ${error.message}", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, UiTranslator.translate("백업 실패: ${error.message}"), Toast.LENGTH_LONG).show()
                         }
                     } finally {
                         chars.fill('\u0000')
@@ -1116,14 +1178,16 @@ fun PresetModeScreen(
                         launch(Dispatchers.Main) {
                             Toast.makeText(
                                 context,
-                                if (success) "암호화 백업을 복원했습니다."
-                                else "백업 데이터 형식이 올바르지 않습니다.",
+                                UiTranslator.translate(
+                                    if (success) "암호화 백업을 복원했습니다."
+                                    else "백업 데이터 형식이 올바르지 않습니다."
+                                ),
                                 Toast.LENGTH_LONG
                             ).show()
                         }
                     } catch (error: Exception) {
                         launch(Dispatchers.Main) {
-                            Toast.makeText(context, error.message ?: "복원에 실패했습니다.", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, UiTranslator.translate(error.message ?: "복원에 실패했습니다."), Toast.LENGTH_LONG).show()
                         }
                     } finally {
                         chars.fill('\u0000')
@@ -1147,7 +1211,7 @@ fun PresetModeScreen(
                         scope.launch(Dispatchers.IO) {
                             PrivacyDataManager.deleteAllUsageHistory(context)
                             launch(Dispatchers.Main) {
-                                Toast.makeText(context, "사용 기록을 삭제하고 추적을 중지했습니다.", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, UiTranslator.translate("사용 기록을 삭제하고 추적을 중지했습니다."), Toast.LENGTH_LONG).show()
                             }
                         }
                     },
