@@ -1,6 +1,7 @@
 package com.digitscore.app.data
 
 import com.digitscore.app.engine.ScoreDetail
+import com.digitscore.app.engine.RollingScoreDetail
 import com.digitscore.app.model.AppUsage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,6 +15,9 @@ object ScoreRepository {
     private val _currentScoreDetail = MutableStateFlow<ScoreDetail?>(null)
     val currentScoreDetail = _currentScoreDetail.asStateFlow()
 
+    private val _rollingScoreDetail = MutableStateFlow<RollingScoreDetail?>(null)
+    val rollingScoreDetail = _rollingScoreDetail.asStateFlow()
+
     private val _currentAppsUsage = MutableStateFlow<List<AppUsage>>(emptyList())
     val currentAppsUsage = _currentAppsUsage.asStateFlow()
 
@@ -25,6 +29,10 @@ object ScoreRepository {
 
     fun updateScoreDetail(detail: ScoreDetail?) {
         _currentScoreDetail.value = detail
+    }
+
+    fun updateRollingScoreDetail(detail: RollingScoreDetail?) {
+        _rollingScoreDetail.value = detail
     }
 
     fun updateAppsUsage(usage: List<AppUsage>) {

@@ -21,7 +21,8 @@ data class TodayUsageSnapshot(
     val unlockCount: Int,
     val assignedUsageMillis: Long,
     val hasForegroundEvidence: Boolean,
-    val sessionSummariesByPackage: Map<String, AppSessionSummary> = emptyMap()
+    val sessionSummariesByPackage: Map<String, AppSessionSummary> = emptyMap(),
+    val foregroundSegments: List<ForegroundUsageSegment> = emptyList()
 )
 
 data class AppSessionSummary(
@@ -410,6 +411,9 @@ object UsageStatsHelper {
             unlockCount = exclusiveUsage.unlockCount,
             assignedUsageMillis = exclusiveUsage.assignedUsageMillis,
             hasForegroundEvidence = exclusiveUsage.hasForegroundEvidence,
+            foregroundSegments = exclusiveUsage.segments.filter {
+                shouldIncludeUsagePackage(it.packageName, it.durationMillis)
+            },
             sessionSummariesByPackage = exclusiveUsage.segments
                 .groupBy { it.packageName }
                 .mapValues { (_, segments) ->

@@ -74,6 +74,8 @@ import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.entity.AppWeightEntity
 import com.digitscore.app.engine.ScoreDetail
 import com.digitscore.app.engine.ScoreGrade
+import com.digitscore.app.engine.RollingScoreDetail
+import com.digitscore.app.engine.ScoreFlow
 import com.digitscore.app.model.AppCategoryType
 import com.digitscore.app.model.AppUsage
 import com.digitscore.app.service.TrackerForegroundService
@@ -100,6 +102,7 @@ fun DashboardScreen(
     val db = remember { DigitsDatabase.getInstance(context) }
     val viewModel: DashboardViewModel = viewModel()
     val scoreDetail by viewModel.scoreDetail.collectAsState()
+    val rollingScoreDetail by viewModel.rollingScoreDetail.collectAsState()
     val appsUsage by viewModel.appsUsage.collectAsState()
     val unlockCount by viewModel.unlockCount.collectAsState()
 
@@ -169,6 +172,13 @@ fun DashboardScreen(
                     grade = grade,
                     yesterdayPenalty = scoreDetail?.yesterdayPenalty ?: 0f,
                     onClick = { showScoreDetailModal = true }
+                )
+            }
+
+            item {
+                ScoreComparisonCard(
+                    legacyScore = currentScore,
+                    rollingScore = rollingScoreDetail
                 )
             }
 
@@ -377,6 +387,11 @@ private fun ScoreGaugeCard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            Text(
+                text = "기존 점수 · 오늘 0시 기준",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.outline
+            )
             Box(contentAlignment = Alignment.Center, modifier = Modifier.size(190.dp)) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val strokeWidth = 16.dp.toPx()
@@ -412,6 +427,59 @@ private fun ScoreGaugeCard(
                 )
             }
             Text(text = "탭하여 점수 계산 내역 보기", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+        }
+    }
+}
+
+@Composable
+private fun ScoreComparisonCard(
+    legacyScore: Int,
+    rollingScore: RollingScoreDetail?
+) {
+    val newScore = rollingScore?.finalScore ?: 80
+    val newColor = when {
+        newScore >= 80 -> ScoreGreen
+        newScore >= 60 -> ScoreYellow
+        newScore >= 40 -> ScoreOrange
+        else -> ScoreRed
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("새 점수 · 최근 24시간", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text(
+                        text = rollingScore?.statusText ?: "보정 중 · 전면 사용 0/60분 반영",
+                        color = MaterialTheme.colorScheme.outline,
+                        fontSize = 12.sp
+                    )
+                }
+                Text("${newScore}점", color = newColor, fontWeight = FontWeight.Black, fontSize = 30.sp)
+            }
+            val progress = rollingScore?.calibrationProgress ?: 0f
+            if (rollingScore == null || rollingScore.flow == ScoreFlow.CALIBRATING) {
+                CircularProgressIndicator(
+                    progress = { progress.coerceIn(0f, 1f) },
+                    modifier = Modifier.size(22.dp),
+                    strokeWidth = 3.dp
+                )
+            }
+            Text(
+                text = "기존 ${legacyScore}점과 비교 중 · 화면이 꺼진 백그라운드 재생은 제외",
+                color = MaterialTheme.colorScheme.outline,
+                fontSize = 11.sp
+            )
         }
     }
 }

@@ -32,7 +32,7 @@ fun PrivacyPolicyDialog(onDismiss: () -> Unit) {
             ) {
                 PrivacySection(
                     title = "처리하는 정보",
-                    body = "DigitsCore는 사용자가 사용 정보 접근 권한을 허용한 경우 앱 이름, 패키지 이름, 화면에 표시된 앱의 사용 시간과 기기 잠금 해제 횟수의 근사치를 읽습니다."
+                    body = "DigitsCore는 사용자가 사용 정보 접근 권한을 허용한 경우 앱 이름, 패키지 이름, 화면이 켜지고 잠금 해제된 동안 최상단에 표시된 앱의 사용 구간과 기기 잠금 해제 횟수의 근사치를 읽습니다. 화면이 꺼진 백그라운드 재생은 집계하지 않습니다."
                 )
                 PrivacySection(
                     title = "이용 목적",
@@ -44,7 +44,7 @@ fun PrivacyPolicyDialog(onDismiss: () -> Unit) {
                 )
                 PrivacySection(
                     title = "사용자 선택권",
-                    body = "앱별 기록은 기본 365일 보관되며 30·90·180·365일 중 선택할 수 있습니다. 잠금 화면 상세 숨김, 추적 중지와 모든 사용 기록 즉시 삭제를 지원하며 Android 설정에서 권한을 언제든 철회할 수 있습니다."
+                    body = "상세 사용 구간은 30일, 날짜별 집계는 365일 보관합니다. 사용자가 만든 암호화 백업에는 내보낸 시점의 상세 기록도 포함됩니다. 잠금 화면 상세 숨김, 추적 중지와 모든 사용 기록 즉시 삭제를 지원하며 Android 설정에서 권한을 언제든 철회할 수 있습니다."
                 )
                 PrivacySection(
                     title = "문의",
