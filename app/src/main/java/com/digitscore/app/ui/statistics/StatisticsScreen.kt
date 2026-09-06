@@ -71,6 +71,7 @@ import com.digitscore.app.ui.theme.ScoreYellow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
+import java.time.LocalDate
 import java.util.Calendar
 import java.util.Locale
 import kotlin.math.max
@@ -85,8 +86,7 @@ fun StatisticsScreen(
     val db = remember { DigitsDatabase.getInstance(context) }
     var selectedTabIndex by remember { mutableIntStateOf(0) } // 0: 7일, 1: 30일
 
-    val limit = if (selectedTabIndex == 0) 7 else 30
-    val rawHistories by db.scoreDao().getRecentDaysHistories(limit).collectAsState(initial = emptyList())
+    val allHistories by db.scoreDao().getAllScoreHistories().collectAsState(initial = emptyList())
     val userSettings by db.settingsDao().getSettingsFlow().collectAsState(initial = null)
 
     val targetDefense = userSettings?.minimumScoreDefenseLine ?: 60
@@ -113,9 +113,11 @@ fun StatisticsScreen(
         }
     }
 
-    // 날짜 오름차순(과거->최신)으로 정렬하여 차트에 표시
-    val histories = remember(rawHistories) {
-        rawHistories.reversed()
+    // DB 행 개수 LIMIT가 아니라 오늘을 포함한 실제 달력 범위로 구분합니다.
+    // 이렇게 해야 기록이 빈 날이 있어도 7일/30일 탭의 의미가 바뀌지 않습니다.
+    val requestedDays = if (selectedTabIndex == 0) 7 else 30
+    val histories = remember(allHistories, requestedDays) {
+        historiesInCalendarRange(allHistories, requestedDays)
     }
 
     Scaffold(
@@ -193,8 +195,15 @@ fun StatisticsScreen(
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(
-                            text = "기기에서 확인 가능한 ${histories.size}일의 기록을 표시하고 있어요. " +
-                                "오래된 사용 기록은 기기 정책에 따라 제공되지 않을 수 있습니다.",
+                            text = buildString {
+                                append("최근 30일 중 DigitsCore가 실제 저장한 ${histories.size}일을 표시합니다.")
+                                histories.firstOrNull()?.let { first ->
+                                    append(" 기록 범위: ${first.dateString}")
+                                    histories.lastOrNull()?.let { last -> append(" ~ ${last.dateString}") }
+                                    append(".")
+                                }
+                                append(" 장기 일별 저장 기능이 적용된 날부터 하루씩 누적됩니다.")
+                            },
                             modifier = Modifier.padding(14.dp),
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -243,6 +252,24 @@ fun StatisticsScreen(
             }
         }
     }
+}
+
+internal fun historiesInCalendarRange(
+    histories: List<DailyScoreHistoryEntity>,
+    days: Int,
+    today: LocalDate = LocalDate.now()
+): List<DailyScoreHistoryEntity> {
+    val safeDays = days.coerceAtLeast(1)
+    val firstDate = today.minusDays((safeDays - 1).toLong())
+    return histories.asSequence()
+        .mapNotNull { history ->
+            val date = runCatching { LocalDate.parse(history.dateString) }.getOrNull()
+                ?: return@mapNotNull null
+            if (date.isBefore(firstDate) || date.isAfter(today)) null else date to history
+        }
+        .sortedBy { it.first }
+        .map { it.second }
+        .toList()
 }
 
 @Composable
