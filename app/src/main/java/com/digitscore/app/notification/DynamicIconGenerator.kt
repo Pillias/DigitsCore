@@ -20,8 +20,8 @@ object DynamicIconGenerator {
      */
     fun createScoreBitmapIcon(context: Context, score: Int): Bitmap {
         val density = context.resources.displayMetrics.density
-        // 상태바 아이콘 크기 (48x48 px or density에 따른 96x96 px)
-        val size = (32 * density).roundToInt().coerceAtLeast(64)
+        // 실제 표시는 OS가 상태바 슬롯에 맞게 축소하므로 큰 원본으로 렌더링해 획을 선명하게 유지합니다.
+        val size = (48 * density).roundToInt().coerceAtLeast(96)
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
@@ -40,25 +40,25 @@ object DynamicIconGenerator {
             style = Paint.Style.FILL
         }
         val radius = size / 2f
-        canvas.drawCircle(radius, radius, radius - 1f, bgPaint)
+        canvas.drawCircle(radius, radius, radius, bgPaint)
 
         // 2. 점수 텍스트 그리기 (상태바에서 가장 크고 선명하게 보이도록 동적 최대화)
         val text = score.toString()
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
-            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+            typeface = Typeface.create("sans-serif-condensed", Typeface.BOLD)
             textAlign = Paint.Align.CENTER
         }
 
         // 원형 내에서 글자가 잘리지 않는 최대 허용 너비 및 높이
-        val maxAllowedWidth = size * if (text.length == 3) 0.90f else 0.84f
-        val maxAllowedHeight = size * 0.78f
+        val maxAllowedWidth = size * if (text.length == 3) 0.97f else 0.92f
+        val maxAllowedHeight = size * 0.90f
 
         // 글자수 기준 기본 초대형 폰트 크기 지정
         var targetTextSize = size * when (text.length) {
-            1 -> 0.82f
-            2 -> 0.76f
-            else -> 0.58f
+            1 -> 0.94f
+            2 -> 0.88f
+            else -> 0.68f
         }
         textPaint.textSize = targetTextSize
 

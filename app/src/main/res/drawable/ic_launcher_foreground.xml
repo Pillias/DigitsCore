@@ -5,13 +5,21 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- DigitsCore의 점수 게이지: 작은 크기에서도 보이는 단일 민트 아크 -->
+    <!-- 코어 에너지 링: 왼쪽 약 40%는 회복이 필요한 부하(빨강) -->
     <path
         android:fillColor="#00000000"
-        android:pathData="M31,70 A29,29 0,1 1,77 70"
-        android:strokeColor="#42D6A4"
+        android:pathData="M44.08,81.25 A29,29 0,0 1,44.08 26.75"
+        android:strokeColor="#FF5A5F"
         android:strokeLineCap="round"
-        android:strokeWidth="6" />
+        android:strokeWidth="7" />
+
+    <!-- 오른쪽 약 60%는 유지·회복 에너지(녹색) -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M46.01,26.12 A29,29 0,1 1,46.01 81.88"
+        android:strokeColor="#35D07F"
+        android:strokeLineCap="round"
+        android:strokeWidth="7" />
 
     <!-- 게이지 중앙의 D 모노그램 -->
     <path
