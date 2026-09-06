@@ -215,6 +215,11 @@ object UiTranslator {
         "비밀번호 · 8자 이상" to "Password · 8+ characters",
         "최근 7일" to "Last 7 Days",
         "최근 30일" to "Last 30 Days",
+        "최근 30일 중 DigitsCore가 실제 저장한" to "DigitsCore recorded",
+        "일을 표시합니다." to "days in the last 30 days.",
+        "기록 범위:" to "Recorded range:",
+        "장기 일별 저장 기능이 적용된 날부터 하루씩 누적됩니다." to
+            "Daily history accumulates one day at a time from the date long-term storage became available.",
         "최근 4주" to "Last 4 Weeks",
         "최근 12주" to "Last 12 Weeks",
         "최근 6개월" to "Last 6 Months",
