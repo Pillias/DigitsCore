@@ -86,6 +86,7 @@ object DataBackupManager {
                 put("isNotificationEnabled", settings.isNotificationEnabled)
                 put("appHistoryRetentionDays", settings.appHistoryRetentionDays)
                 put("hideSensitiveNotificationOnLockScreen", settings.hideSensitiveNotificationOnLockScreen)
+                put("statusIconStyleId", settings.statusIconStyleId)
             }
             rootJson.put("settings", sObj)
         }
@@ -233,7 +234,10 @@ object DataBackupManager {
                     hideSensitiveNotificationOnLockScreen = sObj.optBoolean(
                         "hideSensitiveNotificationOnLockScreen",
                         true
-                    )
+                    ),
+                    statusIconStyleId = sObj.optString("statusIconStyleId", "score_tier")
+                        .takeIf { it == "score_proportion" || it == "score_tier" }
+                        ?: "score_tier"
                 )
                 db.settingsDao().insertOrUpdateSettings(settings)
             }

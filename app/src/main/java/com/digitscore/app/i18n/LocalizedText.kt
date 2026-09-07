@@ -195,9 +195,19 @@ object UiTranslator {
         "앱 이름 또는 패키지 검색" to "Search app name or package",
         "이 앱이 디지털 균형에 미치는 정도를 선택해 주세요." to "Choose how this app affects your digital balance.",
         "백그라운드 추적" to "Background Tracking",
+        "백그라운드 추적 및 표시" to "Background Tracking & Display",
         "사용 기록 추적 중지됨" to "Usage tracking is off",
         "사용 기록 추적 중" to "Usage tracking is active",
         "끄면 백그라운드 서비스와 상태바 점수 알림이 즉시 종료됩니다." to "Turning this off stops background tracking and the status notification immediately.",
+        "상태바 아이콘 스타일" to "Status Bar Icon Style",
+        "점수 비율형" to "Score Proportion",
+        "단계 단색형" to "Single-color Tier",
+        "빨간 원호 위를 현재 점수만큼 녹색이 채웁니다. 중앙 막대는 점수 구간색으로 바뀝니다." to
+            "Green fills the red arc in proportion to the current score. The center stem follows the score tier color.",
+        "전원 버튼 전체가 점수 구간에 따라 빨강·주황·노랑·초록으로 바뀝니다." to
+            "The entire power symbol changes to red, orange, yellow, or green for the current score tier.",
+        "점수 구간: 0–39 빨강 · 40–59 주황 · 60–79 노랑 · 80–100 초록" to
+            "Score tiers: 0–39 red · 40–59 orange · 60–79 yellow · 80–100 green",
         "개인 목표 방어선" to "Personal Score Target",
         "세부 가중치 커스텀 설정" to "Custom Score Weights",
         "장시간 사용 로그(Log) 가속" to "Long-session Acceleration",

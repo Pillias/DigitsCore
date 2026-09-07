@@ -33,7 +33,7 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
         UserSettingsEntity::class,
         ForegroundUsageSessionEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 abstract class DigitsDatabase : RoomDatabase() {
@@ -142,6 +142,14 @@ abstract class DigitsDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE user_settings ADD COLUMN statusIconStyleId TEXT NOT NULL DEFAULT 'score_tier'"
+                )
+            }
+        }
+
         @Volatile
         private var INSTANCE: DigitsDatabase? = null
 
@@ -156,7 +164,14 @@ abstract class DigitsDatabase : RoomDatabase() {
                     databaseName
                 )
                     .addCallback(DatabaseCallback(context.applicationContext))
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(
+                        MIGRATION_1_2,
+                        MIGRATION_2_3,
+                        MIGRATION_3_4,
+                        MIGRATION_4_5,
+                        MIGRATION_5_6,
+                        MIGRATION_6_7
+                    )
                     .fallbackToDestructiveMigrationOnDowngrade()
                 if (passphrase != null) {
                     builder.openHelperFactory(SupportOpenHelperFactory(passphrase))

@@ -46,7 +46,8 @@ object ScoreNotificationManager {
         scoreDetail: ScoreDetail,
         unlockCount: Int,
         hideSensitiveOnLockScreen: Boolean = true,
-        rollingScoreDetail: RollingScoreDetail? = null
+        rollingScoreDetail: RollingScoreDetail? = null,
+        statusIconStyle: StatusIconStyle = StatusIconStyle.SCORE_TIER
     ): Notification {
         val strings = AppLocale.stringsContext(context)
         val launchIntent = Intent(context, MainActivity::class.java).apply {
@@ -78,7 +79,7 @@ object ScoreNotificationManager {
             formatMinutesToHoursAndMinutes(strings, scoreDetail.distractingTimeMinutes)
         )
 
-        val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, score)
+        val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, score, statusIconStyle)
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(iconCompat)
@@ -122,14 +123,16 @@ object ScoreNotificationManager {
         scoreDetail: ScoreDetail,
         unlockCount: Int,
         hideSensitiveOnLockScreen: Boolean = true,
-        rollingScoreDetail: RollingScoreDetail? = null
+        rollingScoreDetail: RollingScoreDetail? = null,
+        statusIconStyle: StatusIconStyle = StatusIconStyle.SCORE_TIER
     ) {
         val notification = buildScoreNotification(
             context,
             scoreDetail,
             unlockCount,
             hideSensitiveOnLockScreen,
-            rollingScoreDetail
+            rollingScoreDetail,
+            statusIconStyle
         )
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(NOTIFICATION_ID, notification)

@@ -1,14 +1,14 @@
 package com.digitscore.app.widget
 
 import android.content.Context
-import android.content.Intent
-import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
-import androidx.glance.GlanceTheme
+import androidx.glance.Image
+import androidx.glance.ImageProvider
+import androidx.glance.layout.ContentScale
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
@@ -24,6 +24,7 @@ import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.width
+import androidx.glance.layout.size
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
@@ -33,6 +34,8 @@ import com.digitscore.app.engine.ScoreGrade
 import com.digitscore.app.i18n.AppLocale
 import com.digitscore.app.R
 import com.digitscore.app.ui.MainActivity
+import com.digitscore.app.notification.DynamicIconGenerator
+import com.digitscore.app.notification.StatusIconStyle
 
 class ScoreWidget : GlanceAppWidget() {
 
@@ -71,14 +74,18 @@ class ScoreWidget : GlanceAppWidget() {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Score
-                Text(
-                    text = "$score",
-                    style = TextStyle(
-                        color = ColorProvider(Color(scoreColorHex)),
-                        fontSize = 36.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                // 런처와 달리 위젯은 현재 점수만큼 녹색이 이동하는 동적 게이지를 표시합니다.
+                Image(
+                    provider = ImageProvider(
+                        DynamicIconGenerator.createScoreBitmapIcon(
+                            context,
+                            score,
+                            StatusIconStyle.SCORE_PROPORTION
+                        )
+                    ),
+                    contentDescription = "DigitsCore Index $score",
+                    modifier = GlanceModifier.size(56.dp),
+                    contentScale = ContentScale.Fit
                 )
 
                 Text(
@@ -90,7 +97,7 @@ class ScoreWidget : GlanceAppWidget() {
                     )
                 )
 
-                Spacer(modifier = GlanceModifier.height(6.dp))
+                Spacer(modifier = GlanceModifier.height(4.dp))
 
                 // Stats row
                 Row(
