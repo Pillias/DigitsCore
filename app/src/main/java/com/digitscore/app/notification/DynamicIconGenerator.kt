@@ -32,7 +32,21 @@ object DynamicIconGenerator {
         val canvas = Canvas(bitmap)
         val tierColor = scoreTierColor(normalizedScore)
 
-        val strokeWidth = size * 0.105f
+        if (style == StatusIconStyle.NUMBER_FOCUS) {
+            drawSeparatedPowerSymbol(canvas, size, tierColor)
+            drawScoreText(
+                canvas = canvas,
+                size = size,
+                score = normalizedScore,
+                centerX = size * 0.69f,
+                centerY = size * 0.52f,
+                maxWidth = size * 0.60f,
+                scaleForDigits = floatArrayOf(0.76f, 0.64f, 0.46f)
+            )
+            return bitmap
+        }
+
+        val strokeWidth = size * 0.085f
         val ringBounds = RectF(
             strokeWidth * 0.72f,
             strokeWidth * 0.72f,
@@ -67,6 +81,7 @@ object DynamicIconGenerator {
                 ringPaint.color = tierColor
                 canvas.drawArc(ringBounds, arcStart, fullSweep, false, ringPaint)
             }
+            StatusIconStyle.NUMBER_FOCUS -> Unit // 위의 분리형 전용 경로에서 반환됩니다.
         }
 
         val stemPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -77,31 +92,62 @@ object DynamicIconGenerator {
         }
         canvas.drawLine(size / 2f, size * 0.075f, size / 2f, size * 0.285f, stemPaint)
 
-        drawScoreText(canvas, size, normalizedScore)
+        drawScoreText(
+            canvas = canvas,
+            size = size,
+            score = normalizedScore,
+            centerX = size / 2f,
+            centerY = size * 0.61f,
+            maxWidth = size * 0.78f,
+            scaleForDigits = floatArrayOf(0.68f, 0.58f, 0.43f)
+        )
         return bitmap
     }
 
-    private fun drawScoreText(canvas: Canvas, size: Int, score: Int) {
+    private fun drawSeparatedPowerSymbol(canvas: Canvas, size: Int, color: Int) {
+        val strokeWidth = size * 0.065f
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = color
+            this.style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            this.strokeWidth = strokeWidth
+        }
+        val bounds = RectF(size * 0.045f, size * 0.31f, size * 0.35f, size * 0.615f)
+        canvas.drawArc(bounds, -48f, 276f, false, paint)
+        canvas.drawLine(size * 0.1975f, size * 0.25f, size * 0.1975f, size * 0.405f, paint)
+    }
+
+    private fun drawScoreText(
+        canvas: Canvas,
+        size: Int,
+        score: Int,
+        centerX: Float,
+        centerY: Float,
+        maxWidth: Float,
+        scaleForDigits: FloatArray
+    ) {
         val text = score.toString()
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
             typeface = Typeface.create("sans-serif-condensed", Typeface.BOLD)
             textAlign = Paint.Align.CENTER
-            textSize = size * when (text.length) {
-                1 -> 0.52f
-                2 -> 0.47f
-                else -> 0.36f
-            }
+            textSize = size * scaleForDigits[(text.length - 1).coerceIn(0, 2)]
         }
-        val maxWidth = size * 0.70f
         val measuredWidth = textPaint.measureText(text)
         if (measuredWidth > maxWidth) {
             textPaint.textSize *= maxWidth / measuredWidth
         }
         val bounds = Rect()
         textPaint.getTextBounds(text, 0, text.length, bounds)
-        val centerY = size * 0.61f
-        canvas.drawText(text, size / 2f, centerY - bounds.exactCenterY(), textPaint)
+        val baseline = centerY - bounds.exactCenterY()
+
+        // 밝고 어두운 상태바 모두에서 숫자의 경계를 잃지 않도록 외곽선을 먼저 그립니다.
+        textPaint.style = Paint.Style.STROKE
+        textPaint.strokeWidth = size * 0.035f
+        textPaint.color = Color.argb(220, 20, 20, 20)
+        canvas.drawText(text, centerX, baseline, textPaint)
+        textPaint.style = Paint.Style.FILL
+        textPaint.color = Color.WHITE
+        canvas.drawText(text, centerX, baseline, textPaint)
     }
 
     @ColorInt
