@@ -87,6 +87,8 @@ import com.digitscore.app.ui.theme.ScoreGreen
 import com.digitscore.app.ui.theme.ScoreOrange
 import com.digitscore.app.ui.theme.ScoreRed
 import com.digitscore.app.ui.theme.ScoreYellow
+import com.digitscore.app.ui.components.DetailChevron
+import com.digitscore.app.ui.components.SectionHeading
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -112,6 +114,7 @@ fun DashboardScreen(
 
     // 모달 / 다이얼로그 상태 관리
     var showScoreDetailModal by remember { mutableStateOf(false) }
+    var showLegacyScoreDetailModal by remember { mutableStateOf(false) }
     var showScreenTimeModal by remember { mutableStateOf(false) }
     var showUnlockModal by remember { mutableStateOf(false) }
     var showDistractingModal by remember { mutableStateOf(false) }
@@ -183,7 +186,8 @@ fun DashboardScreen(
             item {
                 ScoreComparisonCard(
                     legacyScore = legacyScore,
-                    rollingScore = rollingScoreDetail
+                    rollingScore = rollingScoreDetail,
+                    onClick = { showLegacyScoreDetailModal = true }
                 )
             }
 
@@ -201,27 +205,12 @@ fun DashboardScreen(
 
             // 3. 실시간 앱 사용 헤더
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "오늘의 앱 사용 현황",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Text(
-                        text = if (appsUsage.size > 5) "전체 ${appsUsage.size}개 보기 ❯" else "상위 ${appsUsage.size}개 앱",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier
-                            .clickable { showAllAppsModal = true }
-                            .padding(4.dp)
-                    )
-                }
+                SectionHeading(
+                    title = "오늘의 앱 사용 현황",
+                    subtitle = "앱을 누르면 시간대·세션·최근 추세를 볼 수 있습니다.",
+                    actionLabel = if (appsUsage.size > 5) "전체 ${appsUsage.size}개" else "전체 보기",
+                    onAction = { showAllAppsModal = true }
+                )
             }
 
             // 4. 앱 사용 목록 (각 앱 클릭 시 개별 앱 통계 & 카테고리 변경 팝업)
@@ -267,6 +256,17 @@ fun DashboardScreen(
             onDismiss = { showScoreDetailModal = false },
             onNavigateToStatistics = {
                 showScoreDetailModal = false
+                onNavigateToStatistics()
+            }
+        )
+    }
+
+    if (showLegacyScoreDetailModal && scoreDetail != null) {
+        ScoreDetailDialog(
+            scoreDetail = requireNotNull(scoreDetail),
+            onDismiss = { showLegacyScoreDetailModal = false },
+            onNavigateToStatistics = {
+                showLegacyScoreDetailModal = false
                 onNavigateToStatistics()
             }
         )
@@ -440,11 +440,12 @@ private fun ScoreGaugeCard(
 @Composable
 private fun ScoreComparisonCard(
     legacyScore: Int,
-    rollingScore: RollingScoreDetail?
+    rollingScore: RollingScoreDetail?,
+    onClick: () -> Unit
 ) {
     val newScore = rollingScore?.finalScore ?: 80
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(16.dp)
     ) {
@@ -465,7 +466,10 @@ private fun ScoreComparisonCard(
                         fontSize = 12.sp
                     )
                 }
-                Text(stringResource(R.string.score_points, legacyScore), color = MaterialTheme.colorScheme.outline, fontWeight = FontWeight.Black, fontSize = 30.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.score_points, legacyScore), color = MaterialTheme.colorScheme.outline, fontWeight = FontWeight.Black, fontSize = 30.sp)
+                    DetailChevron()
+                }
             }
             Text(
                 text = stringResource(R.string.new_score_comparison, newScore),
@@ -488,7 +492,7 @@ private fun ScoreStatsRow(
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         StatisticCard("화면", formatMinutesToHoursAndMinutes(screenTimeMinutes), Icons.Default.PhoneAndroid, onScreenTimeClick, Modifier.weight(1f))
         StatisticCard("언락", "${unlockCount}회", Icons.Default.LockOpen, onUnlockClick, Modifier.weight(1f))
-        StatisticCard("방해", formatMinutesToHoursAndMinutes(distractingMinutes), Icons.Default.Warning, onDistractingClick, Modifier.weight(1f))
+        StatisticCard("관리", formatMinutesToHoursAndMinutes(distractingMinutes), Icons.Default.Warning, onDistractingClick, Modifier.weight(1f))
     }
 }
 
@@ -512,7 +516,14 @@ private fun StatisticCard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                DetailChevron()
+            }
             Text(text = value, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             Text(text = label, fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
         }
@@ -536,7 +547,10 @@ private fun AppUsageItemCard(appUsage: AppUsage, onClick: () -> Unit) {
                 Text(text = appUsage.appName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 Text(text = appUsage.categoryType.displayName, fontSize = 11.sp, color = categoryColor)
             }
-            Text(text = formatMinutesToHoursAndMinutes(appUsage.usageTimeMinutes), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = formatMinutesToHoursAndMinutes(appUsage.usageTimeMinutes), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                DetailChevron()
+            }
         }
     }
 }
@@ -628,7 +642,7 @@ fun ScoreDetailDialog(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = "🏆 점수 산출 상세 내역",
+                    text = "점수 산출 상세 내역",
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp
                 )
@@ -714,7 +728,7 @@ fun ScoreDetailDialog(
         },
         confirmButton = {
             TextButton(onClick = onNavigateToStatistics) {
-                Text("📊 전체 통계 리포트 보기")
+                Text("전체 통계 리포트 보기")
             }
         },
         dismissButton = {
@@ -764,7 +778,7 @@ fun ScreenTimeDetailDialog(
         onDismissRequest = onDismiss,
         title = {
             Column {
-                Text(text = "📱 오늘의 화면 사용 시간", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text(text = "오늘의 화면 사용 시간", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Text(
                     text = "총 ${formatMinutesToHoursAndMinutes(totalScreenMinutes)}",
                     fontWeight = FontWeight.ExtraBold,
@@ -797,15 +811,15 @@ fun ScreenTimeDetailDialog(
                                 Text("균형", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
                             }
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(text = "🔴 방해 앱", fontSize = 12.sp)
+                                Text(text = "관리 앱", fontSize = 12.sp)
                                 Text(text = formatMinutesToHoursAndMinutes(distractingMins), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ScoreRed)
                             }
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(text = "🟢 생산성 앱", fontSize = 12.sp)
+                                Text(text = "성장 앱", fontSize = 12.sp)
                                 Text(text = formatMinutesToHoursAndMinutes(productiveMins), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ScoreGreen)
                             }
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(text = "⚪ 중립/기타", fontSize = 12.sp)
+                                Text(text = "균형/기타", fontSize = 12.sp)
                                 Text(text = formatMinutesToHoursAndMinutes(neutralMins), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.outline)
                             }
                         }
@@ -839,18 +853,21 @@ fun ScreenTimeDetailDialog(
                                 color = appRatingColor(app.categoryType)
                             )
                         }
-                        Text(
-                            text = formatMinutesToHoursAndMinutes(app.usageTimeMinutes),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = formatMinutesToHoursAndMinutes(app.usageTimeMinutes),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                            DetailChevron()
+                        }
                     }
                 }
             }
         },
         confirmButton = {
             TextButton(onClick = onNavigateToStatistics) {
-                Text("📈 주간/월간 추세 보기")
+                Text("주간/월간 추세 보기")
             }
         },
         dismissButton = {
@@ -883,7 +900,7 @@ fun UnlockDetailDialog(
         onDismissRequest = onDismiss,
         title = {
             Column {
-                Text(text = "🔓 오늘의 잠금 해제(언락) 통계", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text(text = "오늘의 잠금 해제(언락) 통계", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Text(
                     text = "총 ${unlockCount}회 잠금 해제",
                     fontWeight = FontWeight.ExtraBold,
@@ -979,7 +996,7 @@ fun UnlockDetailDialog(
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(text = "💡 언락 관리 가이드", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.outline)
+                        Text(text = "언락 관리 가이드", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.outline)
                         Text(
                             text = "스마트폰을 무의식적으로 켜는 습관을 줄이면 집중력을 대폭 향상시킬 수 있습니다.",
                             fontSize = 13.sp,
@@ -987,14 +1004,14 @@ fun UnlockDetailDialog(
                         )
                         if (unlockPenalty > 0f) {
                             Text(
-                                text = "⚠️ 일일 기준치를 초과하여 -${String.format("%.1f", unlockPenalty)}점 감점 적용 중입니다.",
+                                text = "일일 기준치를 초과하여 -${String.format("%.1f", unlockPenalty)}점 감점 적용 중입니다.",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = ScoreOrange
                             )
                         } else {
                             Text(
-                                text = "✅ 현재 기준치 이내로 안전하게 유지하고 있습니다.",
+                                text = "현재 기준치 이내로 유지하고 있습니다.",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = ScoreGreen
@@ -1006,7 +1023,7 @@ fun UnlockDetailDialog(
         },
         confirmButton = {
             TextButton(onClick = onNavigateToPresetSettings) {
-                Text("⚙️ 목표 언락 횟수 설정")
+                Text("목표 언락 횟수 설정")
             }
         },
         dismissButton = {
@@ -1034,7 +1051,7 @@ fun DistractingDetailDialog(
         onDismissRequest = onDismiss,
         title = {
             Column {
-                Text(text = "🚨 방해 앱 집중 분석", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text(text = "관리 앱 상세 분석", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Text(
                     text = "총 ${formatMinutesToHoursAndMinutes(distractingMinutes)} (-${String.format("%.1f", distractingPenalty + lateNightPenalty)}점)",
                     fontWeight = FontWeight.ExtraBold,
@@ -1050,7 +1067,7 @@ fun DistractingDetailDialog(
             ) {
                 item {
                     Text(
-                        text = "지정된 방해 앱 목록입니다. 앱을 탭하여 카테고리를 변경할 수 있습니다.",
+                        text = "관리 대상 앱 목록입니다. 앱을 눌러 등급을 변경할 수 있습니다.",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -1074,7 +1091,7 @@ fun DistractingDetailDialog(
                 if (appsUsage.isEmpty()) {
                     item {
                         Text(
-                            text = "오늘 사용된 관리 대상 앱이 없습니다. 안정적인 사용 흐름입니다! 🎉",
+                            text = "오늘 사용된 관리 대상 앱이 없습니다. 안정적인 사용 흐름입니다.",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = ScoreGreen,
@@ -1096,18 +1113,21 @@ fun DistractingDetailDialog(
                                 Text(text = app.appName, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                 if (app.lateNightUsageMinutes > 0) {
                                     Text(
-                                        text = "🌙 심야 사용 ${app.lateNightUsageMinutes}분",
+                                        text = "심야 사용 ${app.lateNightUsageMinutes}분",
                                         fontSize = 11.sp,
                                         color = ScoreOrange
                                     )
                                 }
                             }
-                            Text(
-                                text = formatMinutesToHoursAndMinutes(app.usageTimeMinutes),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                color = ScoreRed
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = formatMinutesToHoursAndMinutes(app.usageTimeMinutes),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = ScoreRed
+                                )
+                                DetailChevron()
+                            }
                         }
                     }
                 }
@@ -1115,7 +1135,7 @@ fun DistractingDetailDialog(
         },
         confirmButton = {
             TextButton(onClick = onNavigateToAppSettings) {
-                Text("🏷️ 앱 분류 목록 관리")
+                Text("앱 등급 목록 관리")
             }
         },
         dismissButton = {
@@ -1138,7 +1158,7 @@ fun AllAppsUsageDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(text = "📱 오늘의 전체 앱 사용 목록", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text(text = "오늘의 전체 앱 사용 목록", fontWeight = FontWeight.Bold, fontSize = 18.sp)
         },
         text = {
             LazyColumn(
@@ -1163,11 +1183,14 @@ fun AllAppsUsageDialog(
                                 color = appRatingColor(app.categoryType)
                             )
                         }
-                        Text(
-                            text = formatMinutesToHoursAndMinutes(app.usageTimeMinutes),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = formatMinutesToHoursAndMinutes(app.usageTimeMinutes),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                            DetailChevron()
+                        }
                     }
                 }
             }
