@@ -192,7 +192,7 @@ fun PresetModeScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "뒤로가기",
+                            contentDescription = UiTranslator.translate("뒤로가기"),
                             tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
@@ -320,7 +320,7 @@ fun PresetModeScreen(
                                             {
                                                 Icon(
                                                     imageVector = Icons.Default.Check,
-                                                    contentDescription = "선택됨",
+                                                    contentDescription = UiTranslator.translate("선택됨"),
                                                     tint = MaterialTheme.colorScheme.primary
                                                 )
                                             }
@@ -420,7 +420,7 @@ fun PresetModeScreen(
                                             {
                                                 Icon(
                                                     imageVector = Icons.Default.Check,
-                                                    contentDescription = "선택됨",
+                                                    contentDescription = UiTranslator.translate("선택됨"),
                                                     tint = MaterialTheme.colorScheme.primary
                                                 )
                                             }

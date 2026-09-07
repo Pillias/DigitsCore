@@ -36,6 +36,7 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import com.digitscore.app.i18n.Text
+import com.digitscore.app.i18n.UiTranslator
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -128,7 +129,7 @@ fun StatisticsScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "뒤로가기",
+                            contentDescription = UiTranslator.translate("뒤로가기"),
                             tint = MaterialTheme.colorScheme.onBackground
                         )
                     }

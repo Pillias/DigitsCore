@@ -71,6 +71,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.R
 import com.digitscore.app.i18n.localizedGrade
+import com.digitscore.app.i18n.UiTranslator
 import com.digitscore.app.data.AppUsageInsights
 import com.digitscore.app.data.UnlockInsights
 import com.digitscore.app.data.UsageStatsHelper
@@ -139,21 +140,21 @@ fun DashboardScreen(
                     IconButton(onClick = onNavigateToStatistics) {
                         Icon(
                             imageVector = Icons.Default.TrendingUp,
-                            contentDescription = "통계 리포트",
+                            contentDescription = UiTranslator.translate("통계 리포트"),
                             tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
                     IconButton(onClick = onNavigateToAppSettings) {
                         Icon(
                             imageVector = Icons.Default.Category,
-                            contentDescription = "앱 가중치 설정",
+                            contentDescription = UiTranslator.translate("앱 가중치 설정"),
                             tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
                     IconButton(onClick = onNavigateToPresetSettings) {
                         Icon(
                             imageVector = Icons.Default.Tune,
-                            contentDescription = "모드 설정",
+                            contentDescription = UiTranslator.translate("모드 설정"),
                             tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
@@ -788,7 +789,7 @@ fun ScreenTimeDetailDialog(
                             CompactBarChart(
                                 values = listOf(distractingMins.toFloat(), productiveMins.toFloat(), neutralMins.toFloat()),
                                 barColor = MaterialTheme.colorScheme.primary,
-                                contentDescription = "방해 생산성 중립 앱 사용시간 비교 그래프"
+                                contentDescription = UiTranslator.translate("방해 생산성 중립 앱 사용시간 비교 그래프")
                             )
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
                                 Text("관리", fontSize = 10.sp, color = ScoreRed)
@@ -921,7 +922,7 @@ fun UnlockDetailDialog(
                                 CompactBarChart(
                                     values = value.hourlyUnlockCounts.map { it.toFloat() },
                                     barColor = ScoreYellow,
-                                    contentDescription = "24시간 언락 횟수 그래프"
+                                    contentDescription = UiTranslator.translate("24시간 언락 횟수 그래프")
                                 )
                                 HourlyAxisLabels()
                                 val peak = busiest.first()
@@ -950,7 +951,9 @@ fun UnlockDetailDialog(
                                 CompactBarChart(
                                     values = listOf(value.notificationCount.toFloat(), unlockCount.toFloat()),
                                     barColor = MaterialTheme.colorScheme.primary,
-                                    contentDescription = "알림 ${value.notificationCount}건과 언락 ${unlockCount}회 비교 그래프"
+                                    contentDescription = UiTranslator.translate(
+                                        "알림 ${value.notificationCount}건과 언락 ${unlockCount}회 비교 그래프"
+                                    )
                                 )
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
                                     Text("알림", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
@@ -1058,7 +1061,7 @@ fun DistractingDetailDialog(
                         CompactBarChart(
                             values = appsUsage.take(8).map { it.usageTimeMinutes.toFloat() },
                             barColor = ScoreRed,
-                            contentDescription = "관리 대상 앱별 사용시간 그래프"
+                            contentDescription = UiTranslator.translate("관리 대상 앱별 사용시간 그래프")
                         )
                         Text(
                             "사용시간 상위 ${minOf(8, appsUsage.size)}개 앱",
@@ -1218,7 +1221,7 @@ fun AppDetailDialog(
                         )
                         Icon(
                             Icons.Default.ArrowDropDown,
-                            contentDescription = "균형 등급 변경",
+                            contentDescription = UiTranslator.translate("균형 등급 변경"),
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -1335,7 +1338,7 @@ private fun AppTimeOfDayInsight(insights: AppUsageInsights) {
             CompactBarChart(
                 values = insights.hourlyUsageMillis.map { it / 60_000f },
                 barColor = MaterialTheme.colorScheme.primary,
-                contentDescription = "24시간 앱 사용량 그래프"
+                contentDescription = UiTranslator.translate("24시간 앱 사용량 그래프")
             )
             HourlyAxisLabels()
             val peak = busiest.first()
@@ -1365,7 +1368,7 @@ private fun AppSessionInsight(insights: AppUsageInsights) {
                 values = sessions.takeLast(10).map { it / 60_000f },
                 barColor = MaterialTheme.colorScheme.primary,
                 warningThreshold = 30f,
-                contentDescription = "최근 앱 사용 세션 길이 그래프"
+                contentDescription = UiTranslator.translate("최근 앱 사용 세션 길이 그래프")
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("최근 세션", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
@@ -1456,7 +1459,11 @@ private fun AppTrendInsight(insights: AppUsageInsights) {
             Box {
                 TextButton(onClick = { periodMenuExpanded = true }) {
                     Text(periods.first { it.first == selectedDays }.second, fontSize = 11.sp)
-                    Icon(Icons.Default.ArrowDropDown, contentDescription = "추세 기간 선택", modifier = Modifier.size(16.dp))
+                    Icon(
+                        Icons.Default.ArrowDropDown,
+                        contentDescription = UiTranslator.translate("추세 기간 선택"),
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
                 DropdownMenu(
                     expanded = periodMenuExpanded,
@@ -1478,7 +1485,7 @@ private fun AppTrendInsight(insights: AppUsageInsights) {
         CompactBarChart(
             values = weekdayAverages,
             barColor = MaterialTheme.colorScheme.primary,
-            contentDescription = "요일별 평균 앱 사용량 그래프"
+            contentDescription = UiTranslator.translate("요일별 평균 앱 사용량 그래프")
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             weekdayLabels.forEach { label ->

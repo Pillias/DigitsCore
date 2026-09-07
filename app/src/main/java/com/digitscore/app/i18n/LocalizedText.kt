@@ -57,6 +57,24 @@ fun Text(
 }
 
 object UiTranslator {
+    private val dynamicEnglishReplacements = listOf(
+        Regex("사용시간 상위 (\\d+)개 앱") to "Top \$1 Apps by Usage",
+        Regex("상위 (\\d+)개 앱") to "Top \$1 Apps",
+        Regex("전체 (\\d+)개 보기(.*)") to "View All \$1 Apps\$2",
+        Regex("OS 감지 알림 (\\d+)건 · 언락 (\\d+)회") to "OS-detected notifications \$1 · \$2 unlocks",
+        Regex("알림 (\\d+)건과 언락 (\\d+)회 비교 그래프") to "Chart comparing \$1 notifications and \$2 unlocks",
+        Regex("최근 (\\d+)일 중 (\\d+)일 측정") to "\$2 of the last \$1 days measured",
+        Regex("최근 (\\d+)일 사용량은 이전 기간과 비슷합니다\\.") to
+            "Usage over the last \$1 days is similar to the previous period.",
+        Regex("최근 (\\d+)일 평균이 이전 기간보다 (-?\\d+)% 늘었습니다\\.") to
+            "The last \$1-day average increased \$2% from the previous period.",
+        Regex("최근 (\\d+)일 평균이 이전 기간보다 (-?\\d+)% 줄었습니다\\.") to
+            "The last \$1-day average decreased \$2% from the previous period.",
+        Regex("최근 (\\d+)일에 새 사용 기록이 생겼습니다\\.") to
+            "New usage was recorded within the last \$1 days.",
+        Regex("🌙 심야 사용 (-?\\d+(?:\\.\\d+)?)분") to "🌙 Late-night use: \$1 min"
+    )
+
     private val replacements = listOf(
         "사용 균형 통계 & 리포트" to "Usage Balance & Reports",
         "사용 균형 분석" to "Usage Balance Summary",
@@ -147,6 +165,7 @@ object UiTranslator {
         "백업 데이터 형식이 올바르지 않습니다." to "The backup format is invalid.",
         "백업 파일 형식이 올바르지 않습니다." to "The backup file format is invalid.",
         "복원에 실패했습니다." to "Restore failed.",
+        "백업 파일은 20MB 이하여야 합니다." to "Backup files must be 20 MB or smaller.",
         "백업 실패" to "Backup failed",
         "복원 중 오류가 발생했습니다" to "An error occurred while restoring",
         "이전 평문 백업을 복원했습니다. 새 백업은 암호화됩니다." to "Legacy plaintext backup restored. New backups are encrypted.",
@@ -176,6 +195,11 @@ object UiTranslator {
         "목표 언락 횟수 설정" to "Set Unlock Target",
         "방해 앱 집중 분석" to "Managed App Analysis",
         "지정된 방해 앱 목록입니다. 앱을 탭하여 카테고리를 변경할 수 있습니다." to "These apps are currently managed. Tap an app to change its rating.",
+        "24시간 앱 사용량 그래프" to "24-hour app usage chart",
+        "24시간 언락 횟수 그래프" to "24-hour unlock count chart",
+        "관리 대상 앱별 사용시간 그래프" to "Usage chart for managed apps",
+        "방해 생산성 중립 앱 사용시간 비교 그래프" to
+            "Usage chart comparing managed, growth and neutral apps",
         "앱 분류 목록 관리" to "Manage App Ratings",
         "오늘의 전체 앱 사용 목록" to "All Apps Used Today",
         "균형 등급 변경" to "Change Balance Rating",
@@ -292,6 +316,9 @@ object UiTranslator {
         if (Locale.getDefault().language != "en") return source
         exactReplacements[source]?.let { return it }
         var result = source
+        dynamicEnglishReplacements.forEach { (pattern, replacement) ->
+            result = result.replace(pattern, replacement)
+        }
         replacements.forEach { (ko, en) -> result = result.replace(ko, en) }
         result = result
             .replace(Regex("(-?\\d+(?:\\.\\d+)?)시간"), "$1 hr")
@@ -299,6 +326,8 @@ object UiTranslator {
             .replace(Regex("(-?\\d+(?:\\.\\d+)?)초"), "$1 sec")
             .replace(Regex("(-?\\d+(?:\\.\\d+)?)회"), "$1 times")
             .replace(Regex("(-?\\d+(?:\\.\\d+)?)점"), "$1 pts")
+            .replace(Regex("(-?\\d+(?:\\.\\d+)?)건"), "$1")
+            .replace(Regex("(-?\\d+(?:\\.\\d+)?)배"), "$1×")
             .replace(Regex("(\\d+)일"), "$1 days")
             .replace(Regex("(\\d+)시"), "$1:00")
             .replace("오늘", "Today")
@@ -322,6 +351,14 @@ object UiTranslator {
             .replace("측정", "measured")
             .replace("입니다.", ".")
             .replace("총 ", "Total ")
+            .replace("월요일", "Monday")
+            .replace("화요일", "Tuesday")
+            .replace("수요일", "Wednesday")
+            .replace("목요일", "Thursday")
+            .replace("금요일", "Friday")
+            .replace("토요일", "Saturday")
+            .replace("일요일", "Sunday")
+            .replace("방어선:", "Target line:")
         return result
     }
 }
