@@ -6,90 +6,117 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
+import android.graphics.RectF
 import android.graphics.Typeface
+import androidx.annotation.ColorInt
 import androidx.core.graphics.drawable.IconCompat
 import kotlin.math.roundToInt
 
-/**
- * 상태바 smallIcon에 실시간 점수 숫자를 렌더링하는 동적 비트맵 생성기
- */
+/** 상태바에 점수와 전원 버튼 형상을 함께 렌더링합니다. */
 object DynamicIconGenerator {
+    private const val RED = "#E74C3C"
+    private const val ORANGE = "#E67E22"
+    private const val YELLOW = "#F1C40F"
+    private const val GREEN = "#2ECC71"
 
-    /**
-     * 점수(0~100)를 입력받아 Android 상태바 규격(24dp~48dp 비트맵)에 최적화된 숫자 비트맵 아이콘을 생성합니다.
-     */
-    fun createScoreBitmapIcon(context: Context, score: Int): Bitmap {
+    fun createScoreBitmapIcon(
+        context: Context,
+        score: Int,
+        style: StatusIconStyle = StatusIconStyle.SCORE_TIER
+    ): Bitmap {
+        val normalizedScore = score.coerceIn(0, 100)
         val density = context.resources.displayMetrics.density
-        // 실제 표시는 OS가 상태바 슬롯에 맞게 축소하므로 큰 원본으로 렌더링해 획을 선명하게 유지합니다.
-        val size = (48 * density).roundToInt().coerceAtLeast(96)
+        // OS 축소 후에도 숫자와 둥근 끝이 선명하도록 충분히 큰 원본으로 그립니다.
+        val size = (64 * density).roundToInt().coerceAtLeast(128)
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
+        val tierColor = scoreTierColor(normalizedScore)
 
-        // 점수대별 배경 색상 결정 (초록 -> 노랑 -> 주황 -> 빨강)
-        val colorHex = when {
-            score >= 80 -> "#2ECC71" // Green (우수)
-            score >= 60 -> "#F1C40F" // Yellow (양호)
-            score >= 40 -> "#E67E22" // Orange (주의)
-            else -> "#E74C3C"        // Red (위험)
+        val strokeWidth = size * 0.105f
+        val ringBounds = RectF(
+            strokeWidth * 0.72f,
+            strokeWidth * 0.72f,
+            size - strokeWidth * 0.72f,
+            size - strokeWidth * 0.72f
+        )
+        val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            this.strokeWidth = strokeWidth
         }
-        val circleColor = Color.parseColor(colorHex)
 
-        // 1. 원형 배경 그리기 (여백을 최소화하여 폰트 렌더링 영역 극대화)
-        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = circleColor
-            style = Paint.Style.FILL
+        // 위쪽 중앙을 기준으로 대칭인 76도 간격을 둔 전원 버튼 원호입니다.
+        val arcStart = -52f
+        val fullSweep = 284f
+        when (style) {
+            StatusIconStyle.SCORE_PROPORTION -> {
+                ringPaint.color = Color.parseColor(RED)
+                canvas.drawArc(ringBounds, arcStart, fullSweep, false, ringPaint)
+                if (normalizedScore > 0) {
+                    ringPaint.color = Color.parseColor(GREEN)
+                    canvas.drawArc(
+                        ringBounds,
+                        arcStart,
+                        fullSweep * normalizedScore / 100f,
+                        false,
+                        ringPaint
+                    )
+                }
+            }
+            StatusIconStyle.SCORE_TIER -> {
+                ringPaint.color = tierColor
+                canvas.drawArc(ringBounds, arcStart, fullSweep, false, ringPaint)
+            }
         }
-        val radius = size / 2f
-        canvas.drawCircle(radius, radius, radius, bgPaint)
 
-        // 2. 점수 텍스트 그리기 (상태바에서 가장 크고 선명하게 보이도록 동적 최대화)
+        val stemPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = tierColor
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            this.strokeWidth = strokeWidth
+        }
+        canvas.drawLine(size / 2f, size * 0.075f, size / 2f, size * 0.285f, stemPaint)
+
+        drawScoreText(canvas, size, normalizedScore)
+        return bitmap
+    }
+
+    private fun drawScoreText(canvas: Canvas, size: Int, score: Int) {
         val text = score.toString()
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
             typeface = Typeface.create("sans-serif-condensed", Typeface.BOLD)
             textAlign = Paint.Align.CENTER
+            textSize = size * when (text.length) {
+                1 -> 0.52f
+                2 -> 0.47f
+                else -> 0.36f
+            }
         }
-
-        // 원형 내에서 글자가 잘리지 않는 최대 허용 너비 및 높이
-        val maxAllowedWidth = size * if (text.length == 3) 0.97f else 0.92f
-        val maxAllowedHeight = size * 0.90f
-
-        // 글자수 기준 기본 초대형 폰트 크기 지정
-        var targetTextSize = size * when (text.length) {
-            1 -> 0.94f
-            2 -> 0.88f
-            else -> 0.68f
+        val maxWidth = size * 0.70f
+        val measuredWidth = textPaint.measureText(text)
+        if (measuredWidth > maxWidth) {
+            textPaint.textSize *= maxWidth / measuredWidth
         }
-        textPaint.textSize = targetTextSize
-
         val bounds = Rect()
         textPaint.getTextBounds(text, 0, text.length, bounds)
-        val measuredWidth = textPaint.measureText(text)
-        val measuredHeight = bounds.height().toFloat()
-
-        // 허용 범위 초과 시 정밀 비례 축소
-        if (measuredWidth > maxAllowedWidth) {
-            targetTextSize *= (maxAllowedWidth / measuredWidth)
-        }
-        if (measuredHeight > maxAllowedHeight) {
-            targetTextSize *= (maxAllowedHeight / measuredHeight)
-        }
-        textPaint.textSize = targetTextSize
-
-        // 최종 텍스트 수직/수평 정밀 가운데 정렬
-        textPaint.getTextBounds(text, 0, text.length, bounds)
-        val yPos = (size / 2f) - bounds.exactCenterY()
-
-        canvas.drawText(text, size / 2f, yPos, textPaint)
-
-        return bitmap
+        val centerY = size * 0.61f
+        canvas.drawText(text, size / 2f, centerY - bounds.exactCenterY(), textPaint)
     }
 
-    /**
-     * IconCompat 형태로 변환
-     */
-    fun createScoreIconCompat(context: Context, score: Int): IconCompat {
-        val bitmap = createScoreBitmapIcon(context, score)
-        return IconCompat.createWithBitmap(bitmap)
-    }
+    @ColorInt
+    internal fun scoreTierColor(score: Int): Int = Color.parseColor(
+        when {
+            score >= 80 -> GREEN
+            score >= 60 -> YELLOW
+            score >= 40 -> ORANGE
+            else -> RED
+        }
+    )
+
+    fun createScoreIconCompat(
+        context: Context,
+        score: Int,
+        style: StatusIconStyle = StatusIconStyle.SCORE_TIER
+    ): IconCompat = IconCompat.createWithBitmap(createScoreBitmapIcon(context, score, style))
 }

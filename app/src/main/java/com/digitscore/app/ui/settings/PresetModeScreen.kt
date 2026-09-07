@@ -73,6 +73,7 @@ import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.data.entity.applyTo
 import com.digitscore.app.engine.ScoringBenchmark
 import com.digitscore.app.model.PresetMode
+import com.digitscore.app.notification.StatusIconStyle
 import com.digitscore.app.service.TrackerForegroundService
 import com.digitscore.app.ui.privacy.PrivacyPolicyDialog
 import com.digitscore.app.ui.theme.ScoreGreen
@@ -116,6 +117,7 @@ fun PresetModeScreen(
     var showPrivacyPolicy by remember { mutableStateOf(false) }
     var isPresetMenuExpanded by remember { mutableStateOf(false) }
     var isLanguageMenuExpanded by remember { mutableStateOf(false) }
+    var isStatusIconMenuExpanded by remember { mutableStateOf(false) }
     var showBackupPasswordDialog by remember { mutableStateOf(false) }
     var pendingEncryptedImport by remember { mutableStateOf<ByteArray?>(null) }
     var showDeleteHistoryConfirmation by remember { mutableStateOf(false) }
@@ -350,15 +352,100 @@ fun PresetModeScreen(
                 }
             }
 
-            // 2. 개인 목표 방어선
             item {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "백그라운드 추적",
+                    text = "백그라운드 추적 및 표시",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("상태바 아이콘 스타일", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        val selectedIconStyle = StatusIconStyle.fromId(settings.statusIconStyleId)
+                        ExposedDropdownMenuBox(
+                            expanded = isStatusIconMenuExpanded,
+                            onExpandedChange = {
+                                isStatusIconMenuExpanded = !isStatusIconMenuExpanded
+                            }
+                        ) {
+                            OutlinedTextField(
+                                value = if (selectedIconStyle == StatusIconStyle.SCORE_PROPORTION) {
+                                    "점수 비율형"
+                                } else {
+                                    "단계 단색형"
+                                },
+                                onValueChange = {},
+                                readOnly = true,
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(isStatusIconMenuExpanded)
+                                },
+                                modifier = Modifier.menuAnchor().fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = isStatusIconMenuExpanded,
+                                onDismissRequest = { isStatusIconMenuExpanded = false }
+                            ) {
+                                listOf(
+                                    StatusIconStyle.SCORE_PROPORTION to "점수 비율형",
+                                    StatusIconStyle.SCORE_TIER to "단계 단색형"
+                                ).forEach { (style, label) ->
+                                    DropdownMenuItem(
+                                        text = { Text(label) },
+                                        onClick = {
+                                            isStatusIconMenuExpanded = false
+                                            scope.launch {
+                                                withContext(Dispatchers.IO) {
+                                                    db.settingsDao().insertOrUpdateSettings(
+                                                        settings.copy(statusIconStyleId = style.id)
+                                                    )
+                                                }
+                                                if (settings.isTrackingEnabled) {
+                                                    TrackerForegroundService.refreshNotification(context)
+                                                }
+                                            }
+                                        },
+                                        trailingIcon = if (selectedIconStyle == style) {
+                                            {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = "선택됨",
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        } else null
+                                    )
+                                }
+                            }
+                        }
+                        Text(
+                            text = if (selectedIconStyle == StatusIconStyle.SCORE_PROPORTION) {
+                                "빨간 원호 위를 현재 점수만큼 녹색이 채웁니다. 중앙 막대는 점수 구간색으로 바뀝니다."
+                            } else {
+                                "전원 버튼 전체가 점수 구간에 따라 빨강·주황·노랑·초록으로 바뀝니다."
+                            },
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                        Text(
+                            "점수 구간: 0–39 빨강 · 40–59 주황 · 60–79 노랑 · 80–100 초록",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
 
             item {
@@ -407,6 +494,8 @@ fun PresetModeScreen(
                     }
                 }
             }
+
+            // 2. 개인 목표 방어선
 
             item {
                 Spacer(modifier = Modifier.height(8.dp))

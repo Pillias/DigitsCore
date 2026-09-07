@@ -23,7 +23,10 @@ import com.digitscore.app.engine.RollingUsageSession
 import com.digitscore.app.model.AppUsage
 import com.digitscore.app.model.PresetMode
 import com.digitscore.app.notification.ScoreNotificationManager
+import com.digitscore.app.notification.StatusIconStyle
 import com.digitscore.app.receiver.ScreenEventReceiver
+import com.digitscore.app.widget.ScoreWidget
+import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -54,6 +57,8 @@ class TrackerForegroundService : Service() {
     private var accumulatedIdleMinutes: Long = 0L
     private var todayUnlockCount: Int = 0
     private var currentDateString: String = getTodayDateString()
+    private var lastWidgetScore: Int? = null
+    private var lastWidgetUpdatedAt: Long = 0L
 
     private val trackingPreferences by lazy {
         getSharedPreferences("tracking_state", Context.MODE_PRIVATE)
@@ -61,6 +66,7 @@ class TrackerForegroundService : Service() {
 
     companion object {
         const val ACTION_STOP_TRACKING = "com.digitscore.app.action.STOP_TRACKING"
+        const val ACTION_REFRESH_NOTIFICATION = "com.digitscore.app.action.REFRESH_NOTIFICATION"
         private const val ROLLING_WINDOW_MILLIS = 24 * 60 * 60 * 1_000L
         private const val DETAIL_RETENTION_MILLIS = 30L * 24 * 60 * 60 * 1_000L
 
@@ -76,6 +82,15 @@ class TrackerForegroundService : Service() {
         fun stop(context: Context) {
             val intent = Intent(context, TrackerForegroundService::class.java)
             context.stopService(intent)
+        }
+
+        fun refreshNotification(context: Context) {
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, TrackerForegroundService::class.java).apply {
+                    action = ACTION_REFRESH_NOTIFICATION
+                }
+            )
         }
 
         private fun getTodayDateString(): String {
@@ -392,6 +407,17 @@ class TrackerForegroundService : Service() {
                     )
                 ScoreRepository.updateRollingScoreDetail(rollingScoreDetail)
 
+                // 점수 변화는 즉시, 나머지 사용량은 최대 5분 간격으로 위젯에 반영합니다.
+                if (lastWidgetScore != rollingScoreDetail.finalScore || now - lastWidgetUpdatedAt >= 5 * 60_000L) {
+                    try {
+                        ScoreWidget().updateAll(applicationContext)
+                        lastWidgetScore = rollingScoreDetail.finalScore
+                        lastWidgetUpdatedAt = now
+                    } catch (_: Exception) {
+                        // 런처 위젯 오류가 핵심 측정 및 알림 갱신을 중단하지 않게 합니다.
+                    }
+                }
+
                 // 알림 갱신
                 if (settings?.isNotificationEnabled != false) {
                     ScoreNotificationManager.updateScoreNotification(
@@ -399,7 +425,8 @@ class TrackerForegroundService : Service() {
                         scoreDetail,
                         finalUnlockCount,
                         settings?.hideSensitiveNotificationOnLockScreen ?: true,
-                        rollingScoreDetail
+                        rollingScoreDetail,
+                        StatusIconStyle.fromId(settings?.statusIconStyleId)
                     )
                 }
 
@@ -426,6 +453,10 @@ class TrackerForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_REFRESH_NOTIFICATION) {
+            recalculateAndNotify()
+            return START_STICKY
+        }
         if (intent?.action == ACTION_STOP_TRACKING) {
             serviceScope.launch(Dispatchers.IO) {
                 val dao = DigitsDatabase.getInstance(applicationContext).settingsDao()
