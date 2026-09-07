@@ -40,7 +40,7 @@ object DynamicIconGenerator {
             size - strokeWidth * 0.72f
         )
         val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
+            this.style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
             this.strokeWidth = strokeWidth
         }
@@ -71,7 +71,7 @@ object DynamicIconGenerator {
 
         val stemPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = tierColor
-            style = Paint.Style.STROKE
+            this.style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
             this.strokeWidth = strokeWidth
         }
