@@ -36,6 +36,9 @@ object RollingScoreCalculator {
     private const val SESSION_JOIN_GAP_MILLIS = 90_000L
     private const val ACTIVE_GRACE_MILLIS = 90_000L
     private const val CALIBRATION_USAGE_MILLIS = 60 * 60 * 1_000L
+    private const val RESPONSIVE_SCORE_MIN = 50.0
+    private const val RESPONSIVE_SCORE_MAX = 90.0
+    private const val MID_RANGE_RESPONSE_STRENGTH = 0.8
 
     private val extraLoadPerMinute = mapOf(
         1 to 0.0,
@@ -98,11 +101,12 @@ object RollingScoreCalculator {
 
         val totalLoad = rollingLoad + acuteLoad
         val rawScore = 100.0 / (1.0 + (totalLoad / 45.0).pow(1.43))
+        val responsiveScore = enhanceMidRangeResponse(rawScore)
         val effectiveCalibrationUsageMillis = calibrationUsageMillis ?: usageMillis
         val calibrationProgress = (effectiveCalibrationUsageMillis.toDouble() / CALIBRATION_USAGE_MILLIS)
             .coerceIn(0.0, 1.0)
             .toFloat()
-        val exactScore = (80.0 * (1.0 - calibrationProgress) + rawScore * calibrationProgress)
+        val exactScore = (80.0 * (1.0 - calibrationProgress) + responsiveScore * calibrationProgress)
             .coerceIn(1.0, 100.0)
         val finalScore = exactScore.roundToInt().coerceIn(1, 100)
 
@@ -131,6 +135,20 @@ object RollingScoreCalculator {
             continuousUsageMinutes = continuousMinutes,
             restMinutes = restMinutes
         )
+    }
+
+    /**
+     * 50·70·90점은 그대로 두고 사용자가 가장 자주 보는 중앙 구간의 변화만 확대합니다.
+     * 끝점 부근은 완만하게 이어져 0~40점과 90~100점이 갑자기 흔해지지 않습니다.
+     */
+    internal fun enhanceMidRangeResponse(score: Double): Double {
+        if (score <= RESPONSIVE_SCORE_MIN || score >= RESPONSIVE_SCORE_MAX) return score
+
+        val range = RESPONSIVE_SCORE_MAX - RESPONSIVE_SCORE_MIN
+        val normalized = (score - RESPONSIVE_SCORE_MIN) / range
+        val responseOffset = MID_RANGE_RESPONSE_STRENGTH *
+            normalized * (1.0 - normalized) * (2.0 * normalized - 1.0)
+        return RESPONSIVE_SCORE_MIN + range * (normalized + responseOffset)
     }
 
     private fun mergeContinuousSessions(sessions: List<RollingUsageSession>): List<RollingUsageSession> {
