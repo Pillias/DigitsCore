@@ -43,6 +43,53 @@ class RollingScoreCalculatorTest {
         assertTrue(result.finalScore < 100)
     }
 
+    @Test
+    fun midRangeResponseKeepsBoundariesAndAmplifiesTheCenter() {
+        assertEquals(50.0, RollingScoreCalculator.enhanceMidRangeResponse(50.0), 0.001)
+        assertEquals(70.0, RollingScoreCalculator.enhanceMidRangeResponse(70.0), 0.001)
+        assertEquals(90.0, RollingScoreCalculator.enhanceMidRangeResponse(90.0), 0.001)
+
+        val responsive60 = RollingScoreCalculator.enhanceMidRangeResponse(60.0)
+        val responsive80 = RollingScoreCalculator.enhanceMidRangeResponse(80.0)
+        assertTrue("60 mapped to $responsive60", responsive60 < 60.0)
+        assertTrue("80 mapped to $responsive80", responsive80 > 80.0)
+        assertTrue("gap=${responsive80 - responsive60}", responsive80 - responsive60 > 25.0)
+    }
+
+    @Test
+    fun ordinaryManagedUsageProducesClearerScoreMovement() {
+        val twoHours = RollingScoreCalculator.calculate(
+            splitSessions(totalMinutes = 120, level = 5),
+            now,
+            calibrationUsageMillis = 60 * 60_000L
+        )
+        val threeHours = RollingScoreCalculator.calculate(
+            splitSessions(totalMinutes = 180, level = 5),
+            now,
+            calibrationUsageMillis = 60 * 60_000L
+        )
+
+        assertEquals(87, twoHours.finalScore)
+        assertEquals(76, threeHours.finalScore)
+        assertTrue("score gap=${twoHours.finalScore - threeHours.finalScore}",
+            twoHours.finalScore - threeHours.finalScore >= 11)
+    }
+
+    private fun splitSessions(totalMinutes: Int, level: Int): List<RollingUsageSession> {
+        val sessions = mutableListOf<RollingUsageSession>()
+        var end = now - 180 * 60_000L
+        repeat(totalMinutes / 30) { index ->
+            sessions += RollingUsageSession(
+                packageName = "test.app.$index",
+                startTimeMillis = end - 30 * 60_000L,
+                endTimeMillis = end,
+                categoryLevel = level
+            )
+            end -= 32 * 60_000L
+        }
+        return sessions
+    }
+
     private fun session(minutes: Long, level: Int, end: Long) = RollingUsageSession(
         packageName = "test.app",
         startTimeMillis = end - minutes * 60_000L,
