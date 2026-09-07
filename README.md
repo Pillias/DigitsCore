@@ -130,7 +130,8 @@ gradle :app:testDebugUnitTest :app:assembleDebug --no-daemon
 - JUnit 단위 테스트와 Android 에뮬레이터 DB 이전 테스트
 - GitHub Actions의 debug APK 및 R8 release APK/AAB 빌드 검증
 
-상세 흐름은 [구조 문서](docs/ARCHITECTURE.md)를 참고하세요.
+상세 흐름은 [구조 문서](docs/ARCHITECTURE.md), 화면 구성과 상호작용 원칙은
+[UI 기준](docs/DESIGN_SYSTEM.md)을 참고하세요.
 
 ## 알려진 제약과 다음 검증
 

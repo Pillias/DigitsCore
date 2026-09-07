@@ -58,6 +58,18 @@ fun Text(
 
 object UiTranslator {
     private val dynamicEnglishReplacements = listOf(
+        Regex("(\\d+)개 앱 · 항목을 누르면 등급 설명과 변경 옵션을 볼 수 있습니다\\.") to
+            "\$1 apps · Tap an item to view its rating details and options.",
+        Regex("(\\d+)일 기록") to "\$1 days recorded",
+        Regex("평균 (\\d+)점") to "\$1 pts average",
+        Regex("기간 중 최고 (\\d+)점, 최저 (\\d+)점입니다\\.") to
+            "Highest \$1 pts and lowest \$2 pts in this period.",
+        Regex("점선은 설정한 기준선 (\\d+)점을 나타냅니다\\.") to
+            "The dotted line marks your \$1-point target.",
+        Regex("하루 평균 화면 (\\d+)분, 관리 앱 (\\d+)분, 언락 (\\d+)회입니다\\.") to
+            "Daily average: \$1 min screen time, \$2 min managed apps, and \$3 unlocks.",
+        Regex("기록된 (\\d+)일 중 (\\d+)일이 기준선 (\\d+)점 이상이었습니다\\.") to
+            "\$2 of \$1 recorded days were at or above the \$3-point target.",
         Regex("사용시간 상위 (\\d+)개 앱") to "Top \$1 Apps by Usage",
         Regex("상위 (\\d+)개 앱") to "Top \$1 Apps",
         Regex("전체 (\\d+)개 보기(.*)") to "View All \$1 Apps\$2",
@@ -72,7 +84,8 @@ object UiTranslator {
             "The last \$1-day average decreased \$2% from the previous period.",
         Regex("최근 (\\d+)일에 새 사용 기록이 생겼습니다\\.") to
             "New usage was recorded within the last \$1 days.",
-        Regex("🌙 심야 사용 (-?\\d+(?:\\.\\d+)?)분") to "🌙 Late-night use: \$1 min"
+        Regex("🌙 심야 사용 (-?\\d+(?:\\.\\d+)?)분") to "🌙 Late-night use: \$1 min",
+        Regex("심야 사용 (-?\\d+(?:\\.\\d+)?)분") to "Late-night use: \$1 min"
     )
 
     private val replacements = listOf(
@@ -115,6 +128,7 @@ object UiTranslator {
         "일일 기준치를 초과하여" to "Above the daily target:",
         "점 감점 적용 중입니다." to "points currently applied.",
         "현재 기준치 이내로 안전하게 유지하고 있습니다." to "Currently within the target.",
+        "현재 기준치 이내로 유지하고 있습니다." to "Currently within the target.",
         "오늘 사용된 관리 대상 앱이 없습니다. 안정적인 사용 흐름입니다!" to "No managed apps used today. Your usage pattern is steady!",
         "아직 시간대 분석에 필요한 언락 기록이 없습니다." to "There is not enough unlock history for hourly analysis.",
         "아직 분석할 시간대 기록이 없습니다." to "There is no hourly history to analyze yet.",
@@ -147,6 +161,7 @@ object UiTranslator {
         "부채 발동 점수" to "Carryover threshold",
         "기준 미달 1점당 이월" to "Carryover per point below target",
         "방해 앱 1분당 감점치" to "Managed-app deduction per minute",
+        "관리 앱 1분당 감점치" to "Managed-app deduction per minute",
         "SNS, 영상 등 방해 앱 사용 1분당 차감되는 기본 점수입니다." to "Base per-minute deduction for managed apps such as social and video apps.",
         "화면 미사용 10분당 회복치" to "Recovery per 10 screen-off minutes",
         "스마트폰 화면을 끄고 휴식할 때 10분당 회복되는 점수입니다." to "Legacy score recovery per 10 minutes with the screen off.",
@@ -175,6 +190,8 @@ object UiTranslator {
         "현재 설정 예상 점수" to "Estimated score with current settings",
         "건강 진단 기준이 아닌 초기 보정용 시나리오입니다. 학업·업무·콘텐츠 품질에 맞게 세부값을 조정하세요." to "This is an initial calibration scenario, not health guidance. Adjust it for your study, work and content context.",
         "오늘의 앱 사용 현황" to "Today's App Usage",
+        "앱을 누르면 시간대·세션·최근 추세를 볼 수 있습니다." to
+            "Tap an app to view hourly use, sessions, and recent trends.",
         "아직 집계된 앱 사용 기록이 없습니다." to "No app usage has been measured yet.",
         "점수 산출 상세 내역" to "Score Breakdown",
         "방해 앱 사용 감점" to "Managed-app deduction",
@@ -194,6 +211,9 @@ object UiTranslator {
         "언락 관리 가이드" to "Unlock Guidance",
         "목표 언락 횟수 설정" to "Set Unlock Target",
         "방해 앱 집중 분석" to "Managed App Analysis",
+        "관리 앱 상세 분석" to "Managed App Details",
+        "관리 대상 앱 목록입니다. 앱을 눌러 등급을 변경할 수 있습니다." to
+            "These apps are managed. Tap one to change its rating.",
         "지정된 방해 앱 목록입니다. 앱을 탭하여 카테고리를 변경할 수 있습니다." to "These apps are currently managed. Tap an app to change its rating.",
         "24시간 앱 사용량 그래프" to "24-hour app usage chart",
         "24시간 언락 횟수 그래프" to "24-hour unlock count chart",
@@ -201,6 +221,9 @@ object UiTranslator {
         "방해 생산성 중립 앱 사용시간 비교 그래프" to
             "Usage chart comparing managed, growth and neutral apps",
         "앱 분류 목록 관리" to "Manage App Ratings",
+        "앱 등급 목록 관리" to "Manage App Ratings",
+        "성장 앱" to "Growth Apps",
+        "균형/기타" to "Balanced / Other",
         "오늘의 전체 앱 사용 목록" to "All Apps Used Today",
         "균형 등급 변경" to "Change Balance Rating",
         "오늘 총 사용 시간" to "Total Today",
@@ -217,9 +240,14 @@ object UiTranslator {
         "추세 기간 선택" to "Select Trend Period",
         "앱별 균형 등급" to "App Balance Ratings",
         "앱 이름 또는 패키지 검색" to "Search app name or package",
+        "검색 결과가 없습니다." to "No matching apps.",
         "이 앱이 디지털 균형에 미치는 정도를 선택해 주세요." to "Choose how this app affects your digital balance.",
         "백그라운드 추적" to "Background Tracking",
         "백그라운드 추적 및 표시" to "Background Tracking & Display",
+        "생활 패턴에 맞는 기본값을 선택하고 아래에서 세부 조정합니다." to
+            "Choose a baseline for your routine, then fine-tune it below.",
+        "상태바와 위젯의 표시 방식, 실시간 추적 여부를 관리합니다." to
+            "Manage status-bar and widget styles and real-time tracking.",
         "위젯 배경" to "Widget Background",
         "어두운 배경" to "Dark Background",
         "흰색 배경" to "White Background",
@@ -244,9 +272,17 @@ object UiTranslator {
         "점수 구간: 0–39 빨강 · 40–59 주황 · 60–79 노랑 · 80–100 초록" to
             "Score tiers: 0–39 red · 40–59 orange · 60–79 yellow · 80–100 green",
         "개인 목표 방어선" to "Personal Score Target",
+        "개인 목표 기준선" to "Personal Targets",
+        "점수 안내와 언락 기준을 본인의 생활 패턴에 맞춥니다." to
+            "Adapt score guidance and unlock targets to your routine.",
         "세부 가중치 커스텀 설정" to "Custom Score Weights",
+        "세부 가중치 설정" to "Score Weights",
+        "심야 사용, 장시간 사용, 회복과 언락의 반영 강도를 조정합니다." to
+            "Adjust how late-night use, long sessions, recovery, and unlocks affect the score.",
         "장시간 사용 로그(Log) 가속" to "Long-session Acceleration",
         "데이터 관리 및 백업" to "Data & Backup",
+        "기록 보존, 암호화 백업, 복원과 삭제를 관리합니다." to
+            "Manage retention, encrypted backups, restoration, and deletion.",
         "기록 보존 방식" to "Retention Policy",
         "잠금 화면에서 상세 정보 숨기기" to "Hide Details on Lock Screen",
         "모든 사용 기록 즉시 삭제" to "Delete All Usage History",
@@ -270,6 +306,17 @@ object UiTranslator {
         "최근 6개월" to "Last 6 Months",
         "최근 1년" to "Last Year",
         "일별 점수 추세" to "Daily Score Trend",
+        "30일 기록 범위" to "30-day Recording Range",
+        "DigitsCore가 직접 측정해 저장한 날짜만 표시합니다." to
+            "Only dates directly measured and saved by DigitsCore are shown.",
+        "상세 세션은 30일, 날짜별 집계는 365일 보관합니다. 기록이 없는 날짜를 0분이나 100점으로 채우지 않습니다." to
+            "Detailed sessions are kept for 30 days and daily totals for 365 days. Missing dates are not filled with zero minutes or a 100 score.",
+        "선택한 생활 유형의 참고 기준과 실제 기간 평균을 비교합니다." to
+            "Compares the selected lifestyle benchmark with your period average.",
+        "조사 평균은 건강 진단 기준이 아닙니다." to "Survey averages are not medical guidance.",
+        "사용 시간과 언락" to "Screen Time & Unlocks",
+        "청록색은 전체 화면시간, 빨간색은 관리 앱 시간, 노란 점은 언락 횟수입니다." to
+            "Teal shows screen time, red shows managed-app time, and yellow dots show unlocks.",
         "사용 시간 & 언락 횟수" to "Screen Time & Unlocks",
         "총 화면시간" to "Screen Time",
         "평균 점수" to "Average Score",
@@ -277,6 +324,19 @@ object UiTranslator {
         "일평균 화면 시간" to "Daily Screen Average",
         "일평균 언락" to "Daily Unlock Average",
         "기간 내 평균" to "Period Average",
+        "선택한 기간에 저장된 일별 점수의 산술 평균입니다." to
+            "Arithmetic mean of daily scores saved in the selected period.",
+        "기록이 없는 날짜는 평균에 포함하지 않습니다." to
+            "Days without a record are excluded from the average.",
+        "기준선은 설정에서 변경할 수 있습니다." to "You can change the target in Settings.",
+        "기록된 날짜의 전체 전면 앱 사용시간 평균입니다." to
+            "Average foreground app time across recorded days.",
+        "화면 OFF 백그라운드 재생은 포함하지 않습니다." to
+            "Screen-off background playback is excluded.",
+        "기록된 날짜의 잠금 해제 횟수 평균입니다." to
+            "Average unlock count across recorded days.",
+        "짧은 앱 사용은 시간과 별도로 언락 횟수에 반영됩니다." to
+            "Brief app use is represented separately in the unlock count.",
         "하루 평균 사용량" to "Average Daily Usage",
         "하루 폰 켠 횟수" to "Average Daily Unlocks",
         "기록된 사용량 데이터가 없습니다." to "No recorded usage data.",
@@ -301,12 +361,21 @@ object UiTranslator {
         "데이터 복원" to "Restore Data",
         "암호화 백업" to "Encrypted Backup",
         "앱 정보" to "App Information",
+        "버전과 개인정보 처리 정책을 확인합니다." to "Review the version and privacy policy.",
+        "디지털 사용 습관을 전면 앱 사용시간과 언락 기록으로 분석합니다." to
+            "Analyzes digital habits using foreground app time and unlock history.",
+        "개인정보 처리 방식은 아래 개인정보 처리 안내에서 확인할 수 있습니다." to
+            "See the privacy notice below for details about data handling.",
         "저장" to "Save",
         "취소" to "Cancel",
         "삭제" to "Delete",
         "닫기" to "Close",
         "확인" to "OK",
         "설정" to "Settings",
+        "상세 보기" to "View details",
+        "전체 보기" to "View all",
+        "기본값" to "Defaults",
+        "관리 앱" to "Managed Apps",
         "월" to "Mon", "화" to "Tue", "수" to "Wed", "목" to "Thu",
         "금" to "Fri", "토" to "Sat", "일" to "Sun"
     ).filter { it.first.length >= 4 }.sortedByDescending { it.first.length }
@@ -319,7 +388,9 @@ object UiTranslator {
         "검색" to "Search", "적용 및 저장" to "Apply & Save", "데이터 복원" to "Restore Data",
         "암호화 백업" to "Encrypted Backup", "앱 정보" to "App Information", "저장" to "Save",
         "취소" to "Cancel", "삭제" to "Delete", "닫기" to "Close", "확인" to "OK",
-        "설정" to "Settings", "월" to "Mon", "화" to "Tue", "수" to "Wed", "목" to "Thu",
+        "설정" to "Settings", "상세 보기" to "View details", "전체 보기" to "View all",
+        "기본값" to "Defaults", "관리 앱" to "Managed Apps",
+        "월" to "Mon", "화" to "Tue", "수" to "Wed", "목" to "Thu",
         "금" to "Fri", "토" to "Sat", "일" to "Sun"
     )
 

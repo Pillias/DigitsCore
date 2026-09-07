@@ -73,6 +73,9 @@ import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.data.entity.applyTo
 import com.digitscore.app.engine.ScoringBenchmark
 import com.digitscore.app.model.PresetMode
+import com.digitscore.app.ui.components.SectionHeading
+import com.digitscore.app.ui.components.DetailChevron
+import com.digitscore.app.ui.components.InformationDetailDialog
 import com.digitscore.app.notification.StatusIconStyle
 import com.digitscore.app.service.TrackerForegroundService
 import com.digitscore.app.widget.ScoreWidget
@@ -87,6 +90,13 @@ import java.io.ByteArrayOutputStream
 import java.io.InputStream
 
 private const val MAX_IMPORT_BYTES = 20 * 1024 * 1024
+
+private data class SettingsDetail(
+    val title: String,
+    val value: String? = null,
+    val description: String,
+    val supportingText: String? = null
+)
 
 private fun InputStream.readBytesWithLimit(maxBytes: Int = MAX_IMPORT_BYTES): ByteArray {
     val output = ByteArrayOutputStream()
@@ -125,6 +135,7 @@ fun PresetModeScreen(
     var showBackupPasswordDialog by remember { mutableStateOf(false) }
     var pendingEncryptedImport by remember { mutableStateOf<ByteArray?>(null) }
     var showDeleteHistoryConfirmation by remember { mutableStateOf(false) }
+    var selectedDetail by remember { mutableStateOf<SettingsDetail?>(null) }
 
     fun selectPreset(mode: PresetMode) {
         isPresetMenuExpanded = false
@@ -276,12 +287,9 @@ fun PresetModeScreen(
 
             // 1. 프리셋 모드 선택
             item {
-                Text(
-                    text = "점수 프리셋 모드 선택",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.padding(top = 12.dp)
+                SectionHeading(
+                    title = "점수 프리셋 모드 선택",
+                    subtitle = "생활 패턴에 맞는 기본값을 선택하고 아래에서 세부 조정합니다."
                 )
             }
 
@@ -355,18 +363,23 @@ fun PresetModeScreen(
                     BenchmarkPreviewCard(
                         benchmark = selectedBenchmark,
                         settings = settings,
-                        preset = selectedPreset
+                        preset = selectedPreset,
+                        onClick = {
+                            selectedDetail = SettingsDetail(
+                                title = "${selectedBenchmark.title} 보정 기준",
+                                value = "목표 ${selectedBenchmark.targetScore}점",
+                                description = "선택한 프리셋의 기준 사용량과 현재 세부 설정을 비교합니다.",
+                                supportingText = "건강 진단 기준이 아닌 초기 보정용 시나리오입니다."
+                            )
+                        }
                     )
                 }
             }
 
             item {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "백그라운드 추적 및 표시",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
+                SectionHeading(
+                    title = "백그라운드 추적 및 표시",
+                    subtitle = "상태바와 위젯의 표시 방식, 실시간 추적 여부를 관리합니다."
                 )
             }
 
@@ -581,12 +594,9 @@ fun PresetModeScreen(
             // 2. 개인 목표 방어선
 
             item {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "개인 목표 방어선",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
+                SectionHeading(
+                    title = "개인 목표 기준선",
+                    subtitle = "점수 안내와 언락 기준을 본인의 생활 패턴에 맞춥니다."
                 )
             }
 
@@ -663,19 +673,11 @@ fun PresetModeScreen(
             // 3. 세부 가중치 커스텀 설정
             item {
                 Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "세부 가중치 커스텀 설정",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    androidx.compose.material3.TextButton(
-                        onClick = {
+                SectionHeading(
+                    title = "세부 가중치 설정",
+                    subtitle = "심야 사용, 장시간 사용, 회복과 언락의 반영 강도를 조정합니다.",
+                    actionLabel = "기본값",
+                    onAction = {
                             scope.launch(Dispatchers.IO) {
                                 val currentPreset = PresetMode.fromId(settings.selectedPresetModeId)
                                 val rule = currentPreset.scoreRule
@@ -699,11 +701,8 @@ fun PresetModeScreen(
                                     )
                                 )
                             }
-                        }
-                    ) {
-                        Text(text = "기본값 초기화", fontSize = 12.sp)
                     }
-                }
+                )
             }
 
             // 심야(24시~05시) 감점 가속 배수
@@ -716,7 +715,7 @@ fun PresetModeScreen(
                     Column(modifier = Modifier.padding(16.dp)) {
                         val lateNightMult = String.format(java.util.Locale.US, "%.1f", settings.lateNightMultiplier)
                         Text(
-                            text = "🌙 심야(24시~05시) 감점 배수: ${lateNightMult}배",
+                            text = "심야(24시~05시) 감점 배수: ${lateNightMult}배",
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground,
                             fontSize = 14.sp
@@ -759,7 +758,7 @@ fun PresetModeScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "📈 장시간 사용 로그(Log) 가속",
+                                text = "장시간 사용 로그(Log) 가속",
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onBackground,
                                 fontSize = 14.sp
@@ -961,7 +960,7 @@ fun PresetModeScreen(
                     Column(modifier = Modifier.padding(16.dp)) {
                         val dWeight = String.format(java.util.Locale.US, "%.1f", settings.distractingWeightPerMinute)
                         Text(
-                            text = "⚠️ 방해 앱 1분당 감점치: ${dWeight}점",
+                            text = "관리 앱 1분당 감점치: ${dWeight}점",
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground,
                             fontSize = 14.sp
@@ -1074,7 +1073,7 @@ fun PresetModeScreen(
                     Column(modifier = Modifier.padding(16.dp)) {
                         val unlVal = String.format(java.util.Locale.US, "%.1f", settings.unlockPenaltyPerCount)
                         Text(
-                            text = "🔓 언락 기준 초과 1회당 감점치: ${unlVal}점",
+                            text = "언락 기준 초과 1회당 감점치: ${unlVal}점",
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground,
                             fontSize = 14.sp
@@ -1103,12 +1102,9 @@ fun PresetModeScreen(
 
             // 4. 데이터 관리 및 백업
             item {
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "📦 데이터 관리 및 백업",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
+                SectionHeading(
+                    title = "데이터 관리 및 백업",
+                    subtitle = "기록 보존, 암호화 백업, 복원과 삭제를 관리합니다."
                 )
             }
 
@@ -1246,18 +1242,24 @@ fun PresetModeScreen(
             }
 
             item {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "앱 정보",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
+                SectionHeading(
+                    title = "앱 정보",
+                    subtitle = "버전과 개인정보 처리 정책을 확인합니다."
                 )
             }
 
             item {
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            selectedDetail = SettingsDetail(
+                                title = "DigitsCore",
+                                value = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                                description = "디지털 사용 습관을 전면 앱 사용시간과 언락 기록으로 분석합니다.",
+                                supportingText = "개인정보 처리 방식은 아래 개인정보 처리 안내에서 확인할 수 있습니다."
+                            )
+                        },
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
@@ -1280,12 +1282,15 @@ fun PresetModeScreen(
                                 color = MaterialTheme.colorScheme.outline
                             )
                         }
-                        Text(
-                            text = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            DetailChevron()
+                        }
                     }
                 }
             }
@@ -1308,6 +1313,16 @@ fun PresetModeScreen(
 
     if (showPrivacyPolicy) {
         PrivacyPolicyDialog(onDismiss = { showPrivacyPolicy = false })
+    }
+
+    selectedDetail?.let { detail ->
+        InformationDetailDialog(
+            title = detail.title,
+            value = detail.value,
+            description = detail.description,
+            supportingText = detail.supportingText,
+            onDismiss = { selectedDetail = null }
+        )
     }
 
     if (showBackupPasswordDialog) {
@@ -1447,12 +1462,13 @@ private fun BackupPasswordDialog(
 private fun BenchmarkPreviewCard(
     benchmark: ScoringBenchmark,
     settings: UserSettingsEntity,
-    preset: PresetMode
+    preset: PresetMode,
+    onClick: () -> Unit
 ) {
     val previewRule = settings.applyTo(preset.scoreRule)
     val expectedScore = benchmark.evaluate(previewRule).finalScore
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
@@ -1463,7 +1479,7 @@ private fun BenchmarkPreviewCard(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                text = "📊 ${benchmark.title} · 60점 보정",
+                text = "${benchmark.title} · 60점 보정",
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.primary
@@ -1490,6 +1506,9 @@ private fun BenchmarkPreviewCard(
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.outline
             )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                DetailChevron(tint = MaterialTheme.colorScheme.primary)
+            }
         }
     }
 }

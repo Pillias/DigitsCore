@@ -8,12 +8,15 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.Shapes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
@@ -31,17 +34,31 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = AccentCyan,
+    primary = LightPrimary,
     secondary = ScoreGreen,
     tertiary = ScoreYellow,
-    background = Color(0xFFF5F5F5),
-    surface = Color.White,
-    surfaceVariant = Color(0xFFEEEEEE),
+    background = LightBackground,
+    surface = LightSurface,
+    surfaceVariant = LightSurface,
+    surfaceContainer = LightSurface,
+    surfaceContainerHigh = LightSurfaceMuted,
+    surfaceContainerHighest = Color(0xFFE7EAF0),
     onPrimary = Color.White,
     onSecondary = Color.White,
     onTertiary = Color.Black,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F)
+    onBackground = LightText,
+    onSurface = LightText,
+    onSurfaceVariant = Color(0xFF4F5762),
+    outline = LightOutline,
+    outlineVariant = Color(0xFFD9DEE5)
+)
+
+private val DigitsShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(20.dp),
+    extraLarge = RoundedCornerShape(28.dp)
 )
 
 @Composable
@@ -70,6 +87,7 @@ fun DigitsCoreTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,
+        shapes = DigitsShapes,
         content = content
     )
 }

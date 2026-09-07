@@ -7,6 +7,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -20,13 +21,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.QueryStats
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -35,7 +35,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import com.digitscore.app.i18n.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -48,6 +47,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -58,6 +58,7 @@ import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.ui.theme.ScoreGreen
 import com.digitscore.app.ui.theme.ScoreYellow
 import com.digitscore.app.ui.privacy.PrivacyPolicyDialog
+import com.digitscore.app.ui.components.DetailChevron
 import androidx.compose.ui.res.stringResource
 import com.digitscore.app.R
 
@@ -121,15 +122,14 @@ fun OnboardingScreen(
             // 로고 & 타이틀
             Box(
                 modifier = Modifier
-                    .size(72.dp)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape),
+                    .size(88.dp)
+                    .background(Color(0xFF101820), RoundedCornerShape(22.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "100",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+                Image(
+                    painter = painterResource(R.drawable.ic_launcher_foreground),
+                    contentDescription = "DigitsCore",
+                    modifier = Modifier.size(88.dp)
                 )
             }
 
@@ -154,7 +154,9 @@ fun OnboardingScreen(
             Spacer(modifier = Modifier.height(32.dp))
 
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showPrivacyPolicy = true },
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
@@ -173,8 +175,17 @@ fun OnboardingScreen(
                         lineHeight = 17.sp,
                         modifier = Modifier.padding(top = 6.dp)
                     )
-                    TextButton(onClick = { showPrivacyPolicy = true }) {
-                        Text(stringResource(R.string.privacy_more))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            stringResource(R.string.privacy_more),
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        DetailChevron(tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -243,7 +254,9 @@ private fun PermissionCard(
     onGrantClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = !isGranted, onClick = onGrantClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant

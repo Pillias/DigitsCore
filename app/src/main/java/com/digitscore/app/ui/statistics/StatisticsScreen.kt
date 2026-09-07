@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -44,6 +43,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -56,6 +56,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
@@ -69,6 +70,8 @@ import com.digitscore.app.ui.theme.ScoreGreen
 import com.digitscore.app.ui.theme.ScoreOrange
 import com.digitscore.app.ui.theme.ScoreRed
 import com.digitscore.app.ui.theme.ScoreYellow
+import com.digitscore.app.ui.components.DetailChevron
+import com.digitscore.app.ui.components.InformationDetailDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -86,6 +89,7 @@ fun StatisticsScreen(
     val context = LocalContext.current
     val db = remember { DigitsDatabase.getInstance(context) }
     var selectedTabIndex by remember { mutableIntStateOf(0) } // 0: 7일, 1: 30일
+    var selectedDetail by remember { mutableStateOf<StatisticsDetail?>(null) }
 
     val allHistories by db.scoreDao().getAllScoreHistories().collectAsState(initial = emptyList())
     val userSettings by db.settingsDao().getSettingsFlow().collectAsState(initial = null)
@@ -190,25 +194,39 @@ fun StatisticsScreen(
             if (selectedTabIndex == 1 && histories.size < 30) {
                 item {
                     Card(
+                        modifier = Modifier.clickable {
+                            selectedDetail = StatisticsDetail(
+                                title = "30일 기록 범위",
+                                value = "${histories.size}일 기록",
+                                description = "DigitsCore가 직접 측정해 저장한 날짜만 표시합니다.",
+                                supportingText = "상세 세션은 30일, 날짜별 집계는 365일 보관합니다. 기록이 없는 날짜를 0분이나 100점으로 채우지 않습니다."
+                            )
+                        },
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
                         ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text(
-                            text = buildString {
-                                append("최근 30일 중 DigitsCore가 실제 저장한 ${histories.size}일을 표시합니다.")
-                                histories.firstOrNull()?.let { first ->
-                                    append(" 기록 범위: ${first.dateString}")
-                                    histories.lastOrNull()?.let { last -> append(" ~ ${last.dateString}") }
-                                    append(".")
-                                }
-                                append(" 장기 일별 저장 기능이 적용된 날부터 하루씩 누적됩니다.")
-                            },
-                            modifier = Modifier.padding(14.dp),
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = buildString {
+                                    append("최근 30일 중 DigitsCore가 실제 저장한 ${histories.size}일을 표시합니다.")
+                                    histories.firstOrNull()?.let { first ->
+                                        append(" 기록 범위: ${first.dateString}")
+                                        histories.lastOrNull()?.let { last -> append(" ~ ${last.dateString}") }
+                                        append(".")
+                                    }
+                                    append(" 장기 일별 저장 기능이 적용된 날부터 하루씩 누적됩니다.")
+                                },
+                                modifier = Modifier.weight(1f),
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            DetailChevron()
+                        }
                     }
                 }
             }
@@ -220,7 +238,15 @@ fun StatisticsScreen(
                 item {
                     BenchmarkComparisonCard(
                         histories = histories,
-                        benchmark = selectedBenchmark
+                        benchmark = selectedBenchmark,
+                        onClick = {
+                            selectedDetail = StatisticsDetail(
+                                title = "${selectedBenchmark.title} 비교",
+                                value = "${histories.size}일 기록",
+                                description = "선택한 생활 유형의 참고 기준과 실제 기간 평균을 비교합니다.",
+                                supportingText = "${selectedBenchmark.sourceLabel}\n조사 평균은 건강 진단 기준이 아닙니다."
+                            )
+                        }
                     )
                 }
             }
@@ -229,14 +255,35 @@ fun StatisticsScreen(
             item {
                 ScoreTrendLineChartCard(
                     histories = histories,
-                    targetDefense = targetDefense
+                    targetDefense = targetDefense,
+                    onClick = {
+                        val average = if (histories.isEmpty()) 0 else
+                            (histories.sumOf { it.finalScore } / histories.size.toFloat()).roundToInt()
+                        val high = histories.maxOfOrNull { it.finalScore } ?: 0
+                        val low = histories.minOfOrNull { it.finalScore } ?: 0
+                        selectedDetail = StatisticsDetail(
+                            title = "일별 점수 추세",
+                            value = "평균 ${average}점",
+                            description = "기간 중 최고 ${high}점, 최저 ${low}점입니다.",
+                            supportingText = "점선은 설정한 기준선 ${targetDefense}점을 나타냅니다."
+                        )
+                    }
                 )
             }
 
             // 3. 일별 사용 시간 & 언락 횟수 (바 차트)
             item {
                 UsageAndUnlockBarChartCard(
-                    histories = histories
+                    histories = histories,
+                    onClick = {
+                        val count = histories.size.coerceAtLeast(1)
+                        selectedDetail = StatisticsDetail(
+                            title = "사용 시간과 언락",
+                            value = "${histories.size}일 기록",
+                            description = "하루 평균 화면 ${histories.sumOf { it.totalScreenTimeMinutes } / count}분, 관리 앱 ${histories.sumOf { it.distractingTimeMinutes } / count}분, 언락 ${histories.sumOf { it.unlockCount } / count}회입니다.",
+                            supportingText = "청록색은 전체 화면시간, 빨간색은 관리 앱 시간, 노란 점은 언락 횟수입니다."
+                        )
+                    }
                 )
             }
 
@@ -244,7 +291,8 @@ fun StatisticsScreen(
             item {
                 AnalyticsSummaryCards(
                     histories = histories,
-                    targetDefense = targetDefense
+                    targetDefense = targetDefense,
+                    onDetailRequested = { selectedDetail = it }
                 )
             }
 
@@ -253,7 +301,24 @@ fun StatisticsScreen(
             }
         }
     }
+
+    selectedDetail?.let { detail ->
+        InformationDetailDialog(
+            title = detail.title,
+            value = detail.value,
+            description = detail.description,
+            supportingText = detail.supportingText,
+            onDismiss = { selectedDetail = null }
+        )
+    }
 }
+
+private data class StatisticsDetail(
+    val title: String,
+    val value: String,
+    val description: String,
+    val supportingText: String? = null
+)
 
 internal fun historiesInCalendarRange(
     histories: List<DailyScoreHistoryEntity>,
@@ -276,7 +341,8 @@ internal fun historiesInCalendarRange(
 @Composable
 private fun BenchmarkComparisonCard(
     histories: List<DailyScoreHistoryEntity>,
-    benchmark: ScoringBenchmark
+    benchmark: ScoringBenchmark,
+    onClick: () -> Unit
 ) {
     val count = histories.size.coerceAtLeast(1)
     val averageScore = histories.sumOf { it.finalScore } / count
@@ -285,7 +351,7 @@ private fun BenchmarkComparisonCard(
     val averageUnlocks = histories.sumOf { it.unlockCount } / count
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
@@ -294,7 +360,7 @@ private fun BenchmarkComparisonCard(
             verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
             Text(
-                text = "📊 ${benchmark.title} 비교",
+                text = "${benchmark.title} 비교",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -323,6 +389,9 @@ private fun BenchmarkComparisonCard(
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.outline
             )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                DetailChevron(tint = MaterialTheme.colorScheme.primary)
+            }
             Text(
                 text = "조사 평균은 건강 권고가 아니며, 앱 분류와 생활 맥락에 따라 직접 조정해야 합니다.",
                 fontSize = 11.sp,
@@ -336,12 +405,17 @@ private fun BenchmarkComparisonCard(
  * 📈 1. 일별 점수 추세 꺾은선 그래프 (Line Chart)
  */
 @Composable
-fun ScoreTrendLineChartCard(
+private fun ScoreTrendLineChartCard(
     histories: List<DailyScoreHistoryEntity>,
-    targetDefense: Int
+    targetDefense: Int,
+    onClick: () -> Unit
 ) {
+    val axisTextColor = MaterialTheme.colorScheme.outline.toArgb()
+    val scoreTextColor = MaterialTheme.colorScheme.onSurface.toArgb()
+    val pointRingColor = MaterialTheme.colorScheme.surface.toArgb()
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -358,10 +432,11 @@ fun ScoreTrendLineChartCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "📈 일별 점수 추세 (0~100점)",
+                    text = "일별 점수 추세 (0~100점)",
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
-                    color = MaterialTheme.colorScheme.onBackground
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.weight(1f)
                 )
                 Text(
                     text = "방어선: ${targetDefense}점",
@@ -369,6 +444,7 @@ fun ScoreTrendLineChartCard(
                     color = ScoreOrange,
                     fontWeight = FontWeight.SemiBold
                 )
+                DetailChevron(tint = MaterialTheme.colorScheme.primary)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -462,7 +538,7 @@ fun ScoreTrendLineChartCard(
 
                         // 외부 글로우 링
                         drawCircle(
-                            color = Color(0xFF1E2630),
+                            color = Color(pointRingColor),
                             radius = 6.dp.toPx(),
                             center = pt
                         )
@@ -480,7 +556,7 @@ fun ScoreTrendLineChartCard(
                             val dayLabel = if (dateStr.length >= 10) dateStr.substring(8) else "${index + 1}"
                             drawContext.canvas.nativeCanvas.apply {
                                 val paint = android.graphics.Paint().apply {
-                                    color = android.graphics.Color.LTGRAY
+                                    color = axisTextColor
                                     textSize = 24f
                                     textAlign = android.graphics.Paint.Align.CENTER
                                 }
@@ -489,7 +565,7 @@ fun ScoreTrendLineChartCard(
                                 // 7일 뷰에서는 포인트 위에 점수도 작게 표시
                                 if (n <= 7) {
                                     val scorePaint = android.graphics.Paint().apply {
-                                        color = android.graphics.Color.WHITE
+                                        color = scoreTextColor
                                         textSize = 22f
                                         isFakeBoldText = true
                                         textAlign = android.graphics.Paint.Align.CENTER
@@ -511,11 +587,14 @@ fun ScoreTrendLineChartCard(
  * 📊 2. 일별 사용 시간 & 언락 횟수 복합 바 차트 (Bar Chart)
  */
 @Composable
-fun UsageAndUnlockBarChartCard(
-    histories: List<DailyScoreHistoryEntity>
+private fun UsageAndUnlockBarChartCard(
+    histories: List<DailyScoreHistoryEntity>,
+    onClick: () -> Unit
 ) {
+    val axisTextColor = MaterialTheme.colorScheme.outline.toArgb()
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -526,12 +605,19 @@ fun UsageAndUnlockBarChartCard(
                 .fillMaxWidth()
                 .padding(20.dp)
         ) {
-            Text(
-                text = "📊 사용 시간 & 언락 횟수",
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
-                color = MaterialTheme.colorScheme.onBackground
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "사용 시간 & 언락 횟수",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                DetailChevron(tint = MaterialTheme.colorScheme.primary)
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -626,7 +712,7 @@ fun UsageAndUnlockBarChartCard(
                             val dayLabel = if (dateStr.length >= 10) dateStr.substring(8) else "${index + 1}"
                             drawContext.canvas.nativeCanvas.apply {
                                 val paint = android.graphics.Paint().apply {
-                                    color = android.graphics.Color.GRAY
+                                    color = axisTextColor
                                     textSize = 22f
                                     textAlign = android.graphics.Paint.Align.CENTER
                                 }
@@ -642,9 +728,10 @@ fun UsageAndUnlockBarChartCard(
 }
 
 @Composable
-fun AnalyticsSummaryCards(
+private fun AnalyticsSummaryCards(
     histories: List<DailyScoreHistoryEntity>,
-    targetDefense: Int
+    targetDefense: Int,
+    onDetailRequested: (StatisticsDetail) -> Unit
 ) {
     val totalCount = histories.size.coerceAtLeast(1)
     val avgScore = if (histories.isNotEmpty()) {
@@ -682,7 +769,17 @@ fun AnalyticsSummaryCards(
                 value = "${avgScore}점",
                 icon = Icons.Default.Star,
                 iconColor = MaterialTheme.colorScheme.primary,
-                subtitle = "기간 내 평균"
+                subtitle = "기간 내 평균",
+                onClick = {
+                    onDetailRequested(
+                        StatisticsDetail(
+                            "평균 점수",
+                            "${avgScore}점",
+                            "선택한 기간에 저장된 일별 점수의 산술 평균입니다.",
+                            "기록이 없는 날짜는 평균에 포함하지 않습니다."
+                        )
+                    )
+                }
             )
             MetricCard(
                 modifier = Modifier.weight(1f),
@@ -690,7 +787,17 @@ fun AnalyticsSummaryCards(
                 value = "${successRate}%",
                 icon = Icons.Default.CheckCircle,
                 iconColor = ScoreGreen,
-                subtitle = "${successDays}/${totalCount}일 방어 성공"
+                subtitle = "${successDays}/${totalCount}일 기준 달성",
+                onClick = {
+                    onDetailRequested(
+                        StatisticsDetail(
+                            "목표 달성률",
+                            "${successRate}%",
+                            "기록된 ${totalCount}일 중 ${successDays}일이 기준선 ${targetDefense}점 이상이었습니다.",
+                            "기준선은 설정에서 변경할 수 있습니다."
+                        )
+                    )
+                }
             )
         }
 
@@ -704,7 +811,17 @@ fun AnalyticsSummaryCards(
                 value = formatMinutesToHoursAndMinutes(avgScreenTime.toLong()),
                 icon = Icons.Default.PhoneAndroid,
                 iconColor = ScoreYellow,
-                subtitle = "하루 평균 사용량"
+                subtitle = "하루 평균 사용량",
+                onClick = {
+                    onDetailRequested(
+                        StatisticsDetail(
+                            "일평균 화면 시간",
+                            formatMinutesToHoursAndMinutes(avgScreenTime.toLong()),
+                            "기록된 날짜의 전체 전면 앱 사용시간 평균입니다.",
+                            "화면 OFF 백그라운드 재생은 포함하지 않습니다."
+                        )
+                    )
+                }
             )
             MetricCard(
                 modifier = Modifier.weight(1f),
@@ -712,7 +829,17 @@ fun AnalyticsSummaryCards(
                 value = "${avgUnlockCount}회",
                 icon = Icons.Default.LockOpen,
                 iconColor = ScoreOrange,
-                subtitle = "하루 폰 켠 횟수"
+                subtitle = "하루 폰 켠 횟수",
+                onClick = {
+                    onDetailRequested(
+                        StatisticsDetail(
+                            "일평균 언락",
+                            "${avgUnlockCount}회",
+                            "기록된 날짜의 잠금 해제 횟수 평균입니다.",
+                            "짧은 앱 사용은 시간과 별도로 언락 횟수에 반영됩니다."
+                        )
+                    )
+                }
             )
         }
     }
@@ -729,16 +856,17 @@ private fun formatMinutesToHoursAndMinutes(minutes: Long): String {
 }
 
 @Composable
-fun MetricCard(
+private fun MetricCard(
     modifier: Modifier = Modifier,
     title: String,
     value: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     iconColor: Color,
-    subtitle: String
+    subtitle: String,
+    onClick: () -> Unit
 ) {
     Card(
-        modifier = modifier,
+        modifier = modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -747,16 +875,21 @@ fun MetricCard(
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(text = title, fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+                Text(
+                    text = title,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.weight(1f)
+                )
                 Icon(
                     imageVector = icon,
                     contentDescription = "$title $value",
                     tint = iconColor,
                     modifier = Modifier.size(18.dp)
                 )
+                DetailChevron()
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(

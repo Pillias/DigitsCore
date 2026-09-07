@@ -55,6 +55,7 @@ import com.digitscore.app.data.entity.AppWeightEntity
 import com.digitscore.app.model.AppCategoryType
 import com.digitscore.app.i18n.UiTranslator
 import com.digitscore.app.model.AppUsage
+import com.digitscore.app.ui.components.DetailChevron
 import com.digitscore.app.ui.theme.ScoreGreen
 import com.digitscore.app.ui.theme.ScoreRed
 import kotlinx.coroutines.Dispatchers
@@ -147,6 +148,14 @@ fun AppWeightSettingsScreen(
                 )
             )
 
+            Text(
+                text = "${filteredApps.size}개 앱 · 항목을 누르면 등급 설명과 변경 옵션을 볼 수 있습니다.",
+                style = MaterialTheme.typography.bodyMedium,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -184,16 +193,33 @@ fun AppWeightSettingsScreen(
                                 )
                             }
 
-                            Text(
-                                text = app.categoryType.displayName,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = tagColor,
-                                modifier = Modifier
-                                    .background(tagColor.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = app.categoryType.displayName,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = tagColor,
+                                    modifier = Modifier
+                                        .background(tagColor.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                DetailChevron()
+                            }
                         }
+                    }
+                }
+
+                if (filteredApps.isEmpty()) {
+                    item {
+                        Text(
+                            text = "검색 결과가 없습니다.",
+                            color = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 32.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
                     }
                 }
             }
