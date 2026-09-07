@@ -32,7 +32,8 @@ data class UserSettingsEntity(
     val isNotificationEnabled: Boolean = true,
     val appHistoryRetentionDays: Int = 365,
     val hideSensitiveNotificationOnLockScreen: Boolean = true,
-    val statusIconStyleId: String = "score_tier"
+    val statusIconStyleId: String = "score_tier",
+    val widgetBackgroundStyleId: String = "dark"
 )
 
 fun UserSettingsEntity.applyTo(

@@ -44,6 +44,15 @@
     <string name="format_minutes">%1$d분</string>
     <string name="unlock_count_short">%1$d회</string>
     <string name="grade_label">등급 %1$s</string>
+    <string name="widget_index">코어 지수</string>
+    <string name="widget_screen">화면</string>
+    <string name="widget_unlocks">언락</string>
+    <string name="widget_managed">관리</string>
+    <string name="widget_state_calibrating">사용 흐름을 보정하고 있어요</string>
+    <string name="widget_state_using">연속 사용 흐름을 확인하세요</string>
+    <string name="widget_state_recovering">쉬는 동안 지수가 회복 중이에요</string>
+    <string name="widget_state_steady">최근 사용 흐름이 안정적이에요</string>
+    <string name="widget_accessibility">코어 지수 %1$d, %2$s, 화면 %3$s, 언락 %4$d회</string>
     <string name="grade_s">S (최상)</string>
     <string name="grade_a">A (우수)</string>
     <string name="grade_b">B (양호)</string>
