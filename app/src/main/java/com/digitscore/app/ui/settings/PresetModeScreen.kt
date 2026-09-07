@@ -192,7 +192,7 @@ fun PresetModeScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "뒤로가기",
+                            contentDescription = UiTranslator.translate("뒤로가기"),
                             tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
@@ -320,7 +320,7 @@ fun PresetModeScreen(
                                             {
                                                 Icon(
                                                     imageVector = Icons.Default.Check,
-                                                    contentDescription = "선택됨",
+                                                    contentDescription = UiTranslator.translate("선택됨"),
                                                     tint = MaterialTheme.colorScheme.primary
                                                 )
                                             }
@@ -381,10 +381,10 @@ fun PresetModeScreen(
                             }
                         ) {
                             OutlinedTextField(
-                                value = if (selectedIconStyle == StatusIconStyle.SCORE_PROPORTION) {
-                                    "점수 비율형"
-                                } else {
-                                    "단계 단색형"
+                                value = when (selectedIconStyle) {
+                                    StatusIconStyle.SCORE_PROPORTION -> "점수 비율형"
+                                    StatusIconStyle.SCORE_TIER -> "단계 단색형"
+                                    StatusIconStyle.NUMBER_FOCUS -> "숫자 분리형"
                                 },
                                 onValueChange = {},
                                 readOnly = true,
@@ -399,7 +399,8 @@ fun PresetModeScreen(
                             ) {
                                 listOf(
                                     StatusIconStyle.SCORE_PROPORTION to "점수 비율형",
-                                    StatusIconStyle.SCORE_TIER to "단계 단색형"
+                                    StatusIconStyle.SCORE_TIER to "단계 단색형",
+                                    StatusIconStyle.NUMBER_FOCUS to "숫자 분리형"
                                 ).forEach { (style, label) ->
                                     DropdownMenuItem(
                                         text = { Text(label) },
@@ -420,7 +421,7 @@ fun PresetModeScreen(
                                             {
                                                 Icon(
                                                     imageVector = Icons.Default.Check,
-                                                    contentDescription = "선택됨",
+                                                    contentDescription = UiTranslator.translate("선택됨"),
                                                     tint = MaterialTheme.colorScheme.primary
                                                 )
                                             }
@@ -430,10 +431,13 @@ fun PresetModeScreen(
                             }
                         }
                         Text(
-                            text = if (selectedIconStyle == StatusIconStyle.SCORE_PROPORTION) {
-                                "빨간 원호 위를 현재 점수만큼 녹색이 채웁니다. 중앙 막대는 점수 구간색으로 바뀝니다."
-                            } else {
-                                "전원 버튼 전체가 점수 구간에 따라 빨강·주황·노랑·초록으로 바뀝니다."
+                            text = when (selectedIconStyle) {
+                                StatusIconStyle.SCORE_PROPORTION ->
+                                    "빨간 원호 위를 현재 점수만큼 녹색이 채웁니다. 중앙 막대는 점수 구간색으로 바뀝니다."
+                                StatusIconStyle.SCORE_TIER ->
+                                    "전원 버튼 전체가 점수 구간에 따라 빨강·주황·노랑·초록으로 바뀝니다."
+                                StatusIconStyle.NUMBER_FOCUS ->
+                                    "작은 전원 버튼 옆에 외곽선을 넣은 큰 점수를 분리해 표시합니다."
                             },
                             fontSize = 12.sp,
                             lineHeight = 17.sp,

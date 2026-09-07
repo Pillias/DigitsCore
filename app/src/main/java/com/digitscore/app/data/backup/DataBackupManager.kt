@@ -236,7 +236,9 @@ object DataBackupManager {
                         true
                     ),
                     statusIconStyleId = sObj.optString("statusIconStyleId", "score_tier")
-                        .takeIf { it == "score_proportion" || it == "score_tier" }
+                        .takeIf {
+                            it == "score_proportion" || it == "score_tier" || it == "number_focus"
+                        }
                         ?: "score_tier"
                 )
                 db.settingsDao().insertOrUpdateSettings(settings)

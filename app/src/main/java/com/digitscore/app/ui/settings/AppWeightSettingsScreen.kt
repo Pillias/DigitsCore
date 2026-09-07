@@ -53,6 +53,7 @@ import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.entity.AppWeightEntity
 import com.digitscore.app.model.AppCategoryType
+import com.digitscore.app.i18n.UiTranslator
 import com.digitscore.app.model.AppUsage
 import com.digitscore.app.ui.theme.ScoreGreen
 import com.digitscore.app.ui.theme.ScoreRed
@@ -103,7 +104,7 @@ fun AppWeightSettingsScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "뒤로가기",
+                            contentDescription = UiTranslator.translate("뒤로가기"),
                             tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
@@ -132,7 +133,7 @@ fun AppWeightSettingsScreen(
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Search,
-                        contentDescription = "검색",
+                        contentDescription = UiTranslator.translate("검색"),
                         tint = MaterialTheme.colorScheme.outline
                     )
                 },

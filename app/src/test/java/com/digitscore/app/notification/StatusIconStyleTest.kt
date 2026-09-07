@@ -17,4 +17,9 @@ class StatusIconStyleTest {
             StatusIconStyle.fromId("score_proportion")
         )
     }
+
+    @Test
+    fun `saved number focus style is restored`() {
+        assertEquals(StatusIconStyle.NUMBER_FOCUS, StatusIconStyle.fromId("number_focus"))
+    }
 }
