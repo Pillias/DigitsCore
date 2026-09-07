@@ -1,27 +1,53 @@
-# Implementation Plan - PhoneScore / DigitsCore (Android MVP)
+# DigitsCore 구현 현황 및 계획
 
-## Phase 1: Core Domain & Scoring Engine
-- [x] Task 1.1: 도메인 모델 정의 (`AppUsage`, `AppCategoryType`, `ScoreRule`, `PresetMode`)
-- [x] Task 1.2: `ScoreCalculator` 엔진 구현 (가중치 계산, Idle 보너스, Unlock 페널티)
-- [x] Task 1.3: `ScoreCalculatorTest` 단위 테스트 작성 및 엣지 케이스(점수 0~100 경계값) 검증
+## 완료
 
-## Phase 2: Room Database & Data Layer
-- [x] Task 2.1: Room Entity 생성 (`AppWeightEntity`, `DailyScoreHistoryEntity`, `UserSettingsEntity`)
-- [x] Task 2.2: `UsageStatsManager` 래퍼 구현 (최근 앱 전환 이벤트 파싱 로직)
-- [x] Task 2.3: 기본 프리셋 모드(공부/눈보호/어린이/직장인) 기본값 DB 마이그레이션
+### 측정과 데이터
 
-## Phase 3: Background Tracking & Dynamic Notification
-- [x] Task 3.1: `ScreenEventReceiver` (SCREEN_ON, SCREEN_OFF, USER_PRESENT) 구현
-- [x] Task 3.2: `ScoreNotificationManager`에 Canvas 기반 Dynamic Number Bitmap 아이콘 생성기 구현
-- [x] Task 3.3: `TrackerForegroundService` 작성 (1분 주기 집계 + 상태바 알림 업데이트)
+- [x] 화면 ON·잠금 해제 상태의 최상단 앱 단독 집계
+- [x] Activity 전환, 화면 OFF, 잠금, 종료, 재부팅 세션 경계 처리
+- [x] 1분 미만 구간을 버리지 않는 이벤트 타임스탬프 기반 계산
+- [x] 상세 세션 30일, 일별 집계 365일 보관
+- [x] SQLCipher + Android Keystore 기기 내 암호화
+- [x] 기존 평문 DB 무손실 이전과 에뮬레이터 회귀 테스트
+- [x] AES-256-GCM 비밀번호 기반 수동 백업·복원
 
-## Phase 4: UI Development (Jetpack Compose)
-- [x] Task 4.1: 권한 요청/온보딩 화면 (`PACKAGE_USAGE_STATS` 및 알림 권한 가이드)
-- [x] Task 4.2: 대시보드 화면 (원형 점수 인디케이터, 언락 횟수, 실시간 앱 사용 TOP 5)
-- [x] Task 4.3: 앱 분류/가중치 매핑 설정 UI
-- [x] Task 4.4: 모드 변경 및 개인 목표 설정(최저 점수 방어선, 언락 목표치) UI
+### 점수
 
-## Phase 5: Verification & Walkthrough
-- [x] Task 5.1: 백그라운드 장기 실행 및 Doze 모드 동작 최적화 (Screen OFF 시 타이머 절전)
-- [x] Task 5.2: 앱 실행/종료 시 점수 변동 및 상태바 아이콘 갱신 검증 로직 구현
-- [x] Task 5.3: 최종 Walkthrough 문서 작성 및 프로젝트 아키텍처 완성
+- [x] 자정에 초기화되지 않는 최근 24시간 코어 지수
+- [x] 80점 시작 및 전면 사용 60분 초기 보정
+- [x] 5단계 비상쇄형 앱 부하
+- [x] 30분 이후 연속 사용 가속과 휴식 중 급성 부하 회복
+- [x] 4·5단계 심야 사용 및 언락 초과 반영
+- [x] 50~90점 중앙 반응 확대와 50·70·90 고정점
+- [x] 기존 자정 기준 점수의 한시적 비교 표시
+
+### 분석과 UI
+
+- [x] 앱별 시간대, 세션 길이, 최장 세션, 최근 추세 그래프
+- [x] 7일·4주·12주·6개월·1년 및 요일별 장기 통계
+- [x] 언락 시간대와 notification interruption 비교 그래프
+- [x] 앱별 5단계 균형 등급 변경
+- [x] 한국어·영어 전환: 앱 화면, 알림, 위젯
+- [x] 세 가지 상태바 아이콘 스타일
+- [x] 고정 B1 런처 아이콘
+- [x] 크기별 반응형 위젯과 dark/white/transparent 배경
+
+### 배포와 개인정보
+
+- [x] 앱 내 개인정보 안내, 잠금 화면 상세 숨김, 즉시 삭제
+- [x] OS 자동 백업·기기 이전 제외
+- [x] PR/main/tag CI에서 단위 테스트, debug, R8 release, DB 이전 검증
+- [x] GitHub Release debug APK 배포
+
+## 다음 검증
+
+- [ ] Samsung·Xiaomi 등 제조사별 장기 실기기 측정 비교
+- [ ] 50~90점 반응 확대 적용 후 실제 사용자 분포와 변화 빈도 검토
+- [ ] 최근 24시간 코어 지수용 사용자 조정 범위와 프리셋 재설계
+- [ ] 30일 이상 축적된 요일별·기간별 통계 정확성 검토
+- [ ] 업로드 keystore와 GitHub Secrets 구성
+- [ ] 공개 개인정보처리방침 URL 및 Google Play Data safety 확정
+- [ ] Play 내부 테스트용 정식 서명 AAB 배포
+
+점수 상세는 [docs/SCORING.md](docs/SCORING.md), 데이터 흐름은 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)를 참고합니다.
