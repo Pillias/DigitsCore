@@ -5,28 +5,27 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- 코어 에너지 링: 왼쪽 약 40%는 회복이 필요한 부하(빨강) -->
+    <!-- B1 고정 전원 게이지: 빨간 전체 원호 위를 녹색이 약 60% 채웁니다. -->
     <path
         android:fillColor="#00000000"
-        android:pathData="M44.08,81.25 A29,29 0,0 1,44.08 26.75"
+        android:pathData="M72,34.55 A28,28 0,1 1,36,34.55"
         android:strokeColor="#FF5A5F"
         android:strokeLineCap="round"
-        android:strokeWidth="7" />
+        android:strokeWidth="8" />
 
-    <!-- 오른쪽 약 60%는 유지·회복 에너지(녹색) -->
+    <!-- 오른쪽 끝에서 시계 방향으로 진행하여 녹색이 빨간 원호를 덮습니다. -->
     <path
         android:fillColor="#00000000"
-        android:pathData="M46.01,26.12 A29,29 0,1 1,46.01 81.88"
+        android:pathData="M72,34.55 A28,28 0,0 1,40.85,80.71"
         android:strokeColor="#35D07F"
         android:strokeLineCap="round"
-        android:strokeWidth="7" />
+        android:strokeWidth="8" />
 
-    <!-- 게이지 중앙의 D 모노그램 -->
+    <!-- 위쪽 원호 끝과 좌우 대칭을 이루는 고정 전원 막대 -->
     <path
         android:fillColor="#00000000"
-        android:pathData="M44,40 L44,68 M44,40 L54,40 C64,40 69,45 69,54 C69,63 64,68 54,68 L44,68"
+        android:pathData="M54,24 L54,50"
         android:strokeColor="#FFFFFF"
         android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:strokeWidth="5" />
+        android:strokeWidth="8" />
 </vector>
