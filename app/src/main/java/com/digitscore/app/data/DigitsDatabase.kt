@@ -33,7 +33,7 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
         UserSettingsEntity::class,
         ForegroundUsageSessionEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 abstract class DigitsDatabase : RoomDatabase() {
@@ -150,6 +150,14 @@ abstract class DigitsDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE user_settings ADD COLUMN widgetBackgroundStyleId TEXT NOT NULL DEFAULT 'dark'"
+                )
+            }
+        }
+
         @Volatile
         private var INSTANCE: DigitsDatabase? = null
 
@@ -170,7 +178,8 @@ abstract class DigitsDatabase : RoomDatabase() {
                         MIGRATION_3_4,
                         MIGRATION_4_5,
                         MIGRATION_5_6,
-                        MIGRATION_6_7
+                        MIGRATION_6_7,
+                        MIGRATION_7_8
                     )
                     .fallbackToDestructiveMigrationOnDowngrade()
                 if (passphrase != null) {

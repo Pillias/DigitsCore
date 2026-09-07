@@ -75,11 +75,14 @@ import com.digitscore.app.engine.ScoringBenchmark
 import com.digitscore.app.model.PresetMode
 import com.digitscore.app.notification.StatusIconStyle
 import com.digitscore.app.service.TrackerForegroundService
+import com.digitscore.app.widget.ScoreWidget
+import com.digitscore.app.widget.WidgetBackgroundStyle
 import com.digitscore.app.ui.privacy.PrivacyPolicyDialog
 import com.digitscore.app.ui.theme.ScoreGreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.glance.appwidget.updateAll
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 
@@ -118,6 +121,7 @@ fun PresetModeScreen(
     var isPresetMenuExpanded by remember { mutableStateOf(false) }
     var isLanguageMenuExpanded by remember { mutableStateOf(false) }
     var isStatusIconMenuExpanded by remember { mutableStateOf(false) }
+    var isWidgetBackgroundMenuExpanded by remember { mutableStateOf(false) }
     var showBackupPasswordDialog by remember { mutableStateOf(false) }
     var pendingEncryptedImport by remember { mutableStateOf<ByteArray?>(null) }
     var showDeleteHistoryConfirmation by remember { mutableStateOf(false) }
@@ -256,7 +260,11 @@ fun PresetModeScreen(
                                         text = { Text(label) },
                                         onClick = {
                                             isLanguageMenuExpanded = false
-                                            AppLocale.setLanguage(context as Activity, code)
+                                            scope.launch {
+                                                AppLocale.saveLanguage(context, code)
+                                                ScoreWidget().updateAll(context)
+                                                AppLocale.applyLanguage(context as Activity, code)
+                                            }
                                         }
                                     )
                                 }
@@ -447,6 +455,77 @@ fun PresetModeScreen(
                             "점수 구간: 0–39 빨강 · 40–59 주황 · 60–79 노랑 · 80–100 초록",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("위젯 배경", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        val selectedWidgetBackground = WidgetBackgroundStyle.fromId(
+                            settings.widgetBackgroundStyleId
+                        )
+                        ExposedDropdownMenuBox(
+                            expanded = isWidgetBackgroundMenuExpanded,
+                            onExpandedChange = {
+                                isWidgetBackgroundMenuExpanded = !isWidgetBackgroundMenuExpanded
+                            }
+                        ) {
+                            OutlinedTextField(
+                                value = when (selectedWidgetBackground) {
+                                    WidgetBackgroundStyle.DARK -> "어두운 배경"
+                                    WidgetBackgroundStyle.WHITE -> "흰색 배경"
+                                    WidgetBackgroundStyle.TRANSPARENT -> "투명 배경"
+                                },
+                                onValueChange = {},
+                                readOnly = true,
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(isWidgetBackgroundMenuExpanded)
+                                },
+                                modifier = Modifier.menuAnchor().fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = isWidgetBackgroundMenuExpanded,
+                                onDismissRequest = { isWidgetBackgroundMenuExpanded = false }
+                            ) {
+                                listOf(
+                                    WidgetBackgroundStyle.DARK to "어두운 배경",
+                                    WidgetBackgroundStyle.WHITE to "흰색 배경",
+                                    WidgetBackgroundStyle.TRANSPARENT to "투명 배경"
+                                ).forEach { (style, label) ->
+                                    DropdownMenuItem(
+                                        text = { Text(label) },
+                                        onClick = {
+                                            isWidgetBackgroundMenuExpanded = false
+                                            scope.launch {
+                                                withContext(Dispatchers.IO) {
+                                                    db.settingsDao().insertOrUpdateSettings(
+                                                        settings.copy(widgetBackgroundStyleId = style.id)
+                                                    )
+                                                }
+                                                ScoreWidget().updateAll(context)
+                                            }
+                                        },
+                                        trailingIcon = if (selectedWidgetBackground == style) {
+                                            {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = UiTranslator.translate("선택됨"),
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        } else null
+                                    )
+                                }
+                            }
+                        }
+                        Text(
+                            text = when (selectedWidgetBackground) {
+                                WidgetBackgroundStyle.DARK -> "어두운 카드와 밝은 글자를 사용합니다."
+                                WidgetBackgroundStyle.WHITE -> "흰색 카드와 어두운 글자를 사용합니다."
+                                WidgetBackgroundStyle.TRANSPARENT ->
+                                    "전체 배경은 투명하게 하고 정보 영역만 읽기 쉽게 표시합니다."
+                            },
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp,
+                            color = MaterialTheme.colorScheme.outline
                         )
                     }
                 }

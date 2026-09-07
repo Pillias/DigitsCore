@@ -13,5 +13,6 @@ class UserSettingsEntityTest {
         assertEquals(365, UserSettingsEntity().appHistoryRetentionDays)
         assertTrue(UserSettingsEntity().hideSensitiveNotificationOnLockScreen)
         assertEquals("score_tier", UserSettingsEntity().statusIconStyleId)
+        assertEquals("dark", UserSettingsEntity().widgetBackgroundStyleId)
     }
 }

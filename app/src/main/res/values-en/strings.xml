@@ -44,6 +44,15 @@
     <string name="format_minutes">%1$d min</string>
     <string name="unlock_count_short">%1$d unlocks</string>
     <string name="grade_label">Grade %1$s</string>
+    <string name="widget_index">Core Index</string>
+    <string name="widget_screen">Screen</string>
+    <string name="widget_unlocks">Unlocks</string>
+    <string name="widget_managed">Managed</string>
+    <string name="widget_state_calibrating">Calibrating your usage pattern</string>
+    <string name="widget_state_using">Watch your continuous-use pattern</string>
+    <string name="widget_state_recovering">Your index is recovering during this break</string>
+    <string name="widget_state_steady">Your recent usage pattern is steady</string>
+    <string name="widget_accessibility">Core Index %1$d, %2$s, screen %3$s, %4$d unlocks</string>
     <string name="grade_s">S (Excellent)</string>
     <string name="grade_a">A (Great)</string>
     <string name="grade_b">B (Balanced)</string>

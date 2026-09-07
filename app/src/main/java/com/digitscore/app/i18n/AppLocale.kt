@@ -28,17 +28,26 @@ object AppLocale {
         return context.createConfigurationContext(configuration)
     }
 
-    fun setLanguage(activity: Activity, language: String) {
+    fun saveLanguage(context: Context, language: String) {
         val safeLanguage = if (language == ENGLISH) ENGLISH else KOREAN
-        activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_LANGUAGE, safeLanguage)
             .apply()
+    }
+
+    fun applyLanguage(activity: Activity, language: String) {
+        val safeLanguage = if (language == ENGLISH) ENGLISH else KOREAN
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             activity.getSystemService(android.app.LocaleManager::class.java)
                 .applicationLocales = LocaleList.forLanguageTags(safeLanguage)
         }
         activity.recreate()
+    }
+
+    fun setLanguage(activity: Activity, language: String) {
+        saveLanguage(activity, language)
+        applyLanguage(activity, language)
     }
 
     /** Service·widget처럼 Activity 밖에서 생성하는 문구에도 선택 언어를 적용합니다. */
