@@ -76,7 +76,6 @@ import com.digitscore.app.data.AppUsageInsights
 import com.digitscore.app.data.UnlockInsights
 import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.entity.AppWeightEntity
-import com.digitscore.app.engine.ScoreDetail
 import com.digitscore.app.engine.ScoreGrade
 import com.digitscore.app.engine.RollingScoreDetail
 import com.digitscore.app.engine.ScoreFlow
@@ -114,14 +113,12 @@ fun DashboardScreen(
 
     // 모달 / 다이얼로그 상태 관리
     var showScoreDetailModal by remember { mutableStateOf(false) }
-    var showLegacyScoreDetailModal by remember { mutableStateOf(false) }
     var showScreenTimeModal by remember { mutableStateOf(false) }
     var showUnlockModal by remember { mutableStateOf(false) }
     var showDistractingModal by remember { mutableStateOf(false) }
     var selectedAppDetail by remember { mutableStateOf<AppUsage?>(null) }
     var showAllAppsModal by remember { mutableStateOf(false) }
 
-    val legacyScore = scoreDetail?.finalScore ?: 100
     val currentScore = rollingScoreDetail?.finalScore ?: 80
     val grade = ScoreGrade.fromScore(currentScore)
 
@@ -180,14 +177,6 @@ fun DashboardScreen(
                     grade = grade,
                     rollingScore = rollingScoreDetail,
                     onClick = { showScoreDetailModal = true }
-                )
-            }
-
-            item {
-                ScoreComparisonCard(
-                    legacyScore = legacyScore,
-                    rollingScore = rollingScoreDetail,
-                    onClick = { showLegacyScoreDetailModal = true }
                 )
             }
 
@@ -252,21 +241,9 @@ fun DashboardScreen(
     if (showScoreDetailModal) {
         RollingScoreDetailDialog(
             rollingScore = rollingScoreDetail,
-            legacyScore = legacyScore,
             onDismiss = { showScoreDetailModal = false },
             onNavigateToStatistics = {
                 showScoreDetailModal = false
-                onNavigateToStatistics()
-            }
-        )
-    }
-
-    if (showLegacyScoreDetailModal && scoreDetail != null) {
-        ScoreDetailDialog(
-            scoreDetail = requireNotNull(scoreDetail),
-            onDismiss = { showLegacyScoreDetailModal = false },
-            onNavigateToStatistics = {
-                showLegacyScoreDetailModal = false
                 onNavigateToStatistics()
             }
         )
@@ -293,7 +270,6 @@ fun DashboardScreen(
     if (showUnlockModal) {
         UnlockDetailDialog(
             unlockCount = unlockCount,
-            unlockPenalty = scoreDetail?.unlockPenalty ?: 0f,
             onDismiss = { showUnlockModal = false },
             onNavigateToPresetSettings = {
                 showUnlockModal = false
@@ -306,8 +282,6 @@ fun DashboardScreen(
     if (showDistractingModal) {
         DistractingDetailDialog(
             distractingMinutes = scoreDetail?.distractingTimeMinutes ?: 0L,
-            distractingPenalty = scoreDetail?.distractingPenalty ?: 0f,
-            lateNightPenalty = scoreDetail?.lateNightPenalty ?: 0f,
             appsUsage = appsUsage.filter { it.categoryType.isPenalty },
             onDismiss = { showDistractingModal = false },
             onNavigateToAppSettings = {
@@ -438,49 +412,6 @@ private fun ScoreGaugeCard(
 }
 
 @Composable
-private fun ScoreComparisonCard(
-    legacyScore: Int,
-    rollingScore: RollingScoreDetail?,
-    onClick: () -> Unit
-) {
-    val newScore = rollingScore?.finalScore ?: 80
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(stringResource(R.string.legacy_daily_score), fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Text(
-                        text = stringResource(R.string.temporary_comparison),
-                        color = MaterialTheme.colorScheme.outline,
-                        fontSize = 12.sp
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.score_points, legacyScore), color = MaterialTheme.colorScheme.outline, fontWeight = FontWeight.Black, fontSize = 30.sp)
-                    DetailChevron()
-                }
-            }
-            Text(
-                text = stringResource(R.string.new_score_comparison, newScore),
-                color = MaterialTheme.colorScheme.outline,
-                fontSize = 11.sp
-            )
-        }
-    }
-}
-
-@Composable
 private fun ScoreStatsRow(
     screenTimeMinutes: Long,
     unlockCount: Int,
@@ -573,7 +504,6 @@ private fun formatMinutesToHoursAndMinutes(minutes: Long): String {
 @Composable
 private fun RollingScoreDetailDialog(
     rollingScore: RollingScoreDetail?,
-    legacyScore: Int,
     onDismiss: () -> Unit,
     onNavigateToStatistics: () -> Unit
 ) {
@@ -585,10 +515,9 @@ private fun RollingScoreDetailDialog(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(stringResource(R.string.score_points, detail?.finalScore ?: 80), fontSize = 34.sp, fontWeight = FontWeight.Black)
                 Text(rollingStatusText(detail))
-                BreakdownRow(stringResource(R.string.recent_usage), stringResource(R.string.format_minutes, detail?.recentUsageMinutes ?: 0), false)
-                BreakdownRow(stringResource(R.string.rolling_load), String.format("%.1f", detail?.rollingLoad ?: 0.0), false)
-                BreakdownRow(stringResource(R.string.acute_load), String.format("%.1f", detail?.acuteLoad ?: 0.0), false)
-                BreakdownRow(stringResource(R.string.legacy_score), stringResource(R.string.score_points, legacyScore), true)
+                BreakdownRow(stringResource(R.string.recent_usage), stringResource(R.string.format_minutes, detail?.recentUsageMinutes ?: 0))
+                BreakdownRow(stringResource(R.string.rolling_load), String.format("%.1f", detail?.rollingLoad ?: 0.0))
+                BreakdownRow(stringResource(R.string.acute_load), String.format("%.1f", detail?.acuteLoad ?: 0.0))
                 Text(
                     stringResource(R.string.score_method_note),
                     fontSize = 12.sp,
@@ -624,123 +553,8 @@ private fun rollingStatusText(detail: RollingScoreDetail?): String {
     }
 }
 
-/**
- * 1. 점수 산출 상세 내역 다이얼로그
- */
 @Composable
-fun ScoreDetailDialog(
-    scoreDetail: ScoreDetail,
-    onDismiss: () -> Unit,
-    onNavigateToStatistics: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = "점수 산출 상세 내역",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
-                Text(
-                    text = "${scoreDetail.finalScore}점",
-                    fontWeight = FontWeight.Black,
-                    fontSize = 20.sp,
-                    color = if (scoreDetail.finalScore >= 80) ScoreGreen else if (scoreDetail.finalScore >= 60) ScoreYellow else ScoreRed
-                )
-            }
-        },
-        text = {
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                item {
-                    Text(
-                        text = "오늘 0시부터 계산한 기존 점수 내역입니다.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-
-                item {
-                    BreakdownRow(title = "기본 시작 점수", value = "100.0점", isBonus = true)
-                }
-
-                if (scoreDetail.yesterdayPenalty > 0f) {
-                    item {
-                        BreakdownRow(
-                            title = "이전 사용량 이월",
-                            value = "-${String.format("%.1f", scoreDetail.yesterdayPenalty)}점",
-                            isBonus = false
-                        )
-                    }
-                }
-
-                item {
-                    BreakdownRow(
-                        title = "방해 앱 사용 감점 (${scoreDetail.distractingTimeMinutes}분)",
-                        value = "-${String.format("%.1f", scoreDetail.distractingPenalty)}점",
-                        isBonus = false
-                    )
-                }
-
-                if (scoreDetail.lateNightPenalty > 0f) {
-                    item {
-                        BreakdownRow(
-                            title = "심야(00~05시) 추가 가속 감점",
-                            value = "-${String.format("%.1f", scoreDetail.lateNightPenalty)}점",
-                            isBonus = false
-                        )
-                    }
-                }
-
-                if (scoreDetail.unlockPenalty > 0f) {
-                    item {
-                        BreakdownRow(
-                            title = "언락 목표 초과 감점",
-                            value = "-${String.format("%.1f", scoreDetail.unlockPenalty)}점",
-                            isBonus = false
-                        )
-                    }
-                }
-
-                item {
-                    BreakdownRow(
-                        title = "생산성 앱 보너스 (${scoreDetail.productiveTimeMinutes}분)",
-                        value = "+${String.format("%.1f", scoreDetail.productiveBonus)}점",
-                        isBonus = true
-                    )
-                }
-
-                item {
-                    BreakdownRow(
-                        title = "화면 휴식(Idle) 회복 보너스",
-                        value = "+${String.format("%.1f", scoreDetail.idleBonus)}점",
-                        isBonus = true
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onNavigateToStatistics) {
-                Text("전체 통계 리포트 보기")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("닫기")
-            }
-        }
-    )
-}
-
-@Composable
-private fun BreakdownRow(title: String, value: String, isBonus: Boolean) {
+private fun BreakdownRow(title: String, value: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -754,7 +568,7 @@ private fun BreakdownRow(title: String, value: String, isBonus: Boolean) {
             text = value,
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
-            color = if (isBonus) ScoreGreen else ScoreRed
+            color = MaterialTheme.colorScheme.primary
         )
     }
 }
@@ -884,7 +698,6 @@ fun ScreenTimeDetailDialog(
 @Composable
 fun UnlockDetailDialog(
     unlockCount: Int,
-    unlockPenalty: Float,
     onDismiss: () -> Unit,
     onNavigateToPresetSettings: () -> Unit
 ) {
@@ -1002,21 +815,12 @@ fun UnlockDetailDialog(
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        if (unlockPenalty > 0f) {
-                            Text(
-                                text = "일일 기준치를 초과하여 -${String.format("%.1f", unlockPenalty)}점 감점 적용 중입니다.",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = ScoreOrange
-                            )
-                        } else {
-                            Text(
-                                text = "현재 기준치 이내로 유지하고 있습니다.",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = ScoreGreen
-                            )
-                        }
+                        Text(
+                            text = "최근 24시간 언락 횟수는 코어 지수의 사용 부하에 완만하게 반영됩니다.",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }
@@ -1040,8 +844,6 @@ fun UnlockDetailDialog(
 @Composable
 fun DistractingDetailDialog(
     distractingMinutes: Long,
-    distractingPenalty: Float,
-    lateNightPenalty: Float,
     appsUsage: List<AppUsage>,
     onDismiss: () -> Unit,
     onNavigateToAppSettings: () -> Unit,
@@ -1053,7 +855,7 @@ fun DistractingDetailDialog(
             Column {
                 Text(text = "관리 앱 상세 분석", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Text(
-                    text = "총 ${formatMinutesToHoursAndMinutes(distractingMinutes)} (-${String.format("%.1f", distractingPenalty + lateNightPenalty)}점)",
+                    text = "총 ${formatMinutesToHoursAndMinutes(distractingMinutes)}",
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 18.sp,
                     color = ScoreRed

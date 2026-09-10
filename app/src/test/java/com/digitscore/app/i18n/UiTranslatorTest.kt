@@ -58,7 +58,8 @@ class UiTranslatorTest {
                 "하루 평균 화면 125분, 관리 앱 42분, 언락 31회입니다.",
                 "기록된 7일 중 5일이 기준선 70점 이상이었습니다.",
                 "선택한 기간에 저장된 일별 점수의 산술 평균입니다.",
-                "화면 OFF 백그라운드 재생은 포함하지 않습니다."
+                "화면 OFF 백그라운드 재생은 포함하지 않습니다.",
+                "최근 24시간 언락 횟수는 코어 지수의 사용 부하에 완만하게 반영됩니다."
             )
             auditedUiTexts.forEach { source ->
                 val english = UiTranslator.translate(source)
