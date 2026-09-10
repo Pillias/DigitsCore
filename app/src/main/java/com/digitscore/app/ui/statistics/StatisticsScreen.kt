@@ -54,7 +54,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -65,7 +64,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
-import com.digitscore.app.engine.ScoringBenchmark
 import com.digitscore.app.ui.theme.ScoreGreen
 import com.digitscore.app.ui.theme.ScoreOrange
 import com.digitscore.app.ui.theme.ScoreRed
@@ -92,9 +90,6 @@ fun StatisticsScreen(
     var selectedDetail by remember { mutableStateOf<StatisticsDetail?>(null) }
 
     val allHistories by db.scoreDao().getAllScoreHistories().collectAsState(initial = emptyList())
-    val userSettings by db.settingsDao().getSettingsFlow().collectAsState(initial = null)
-
-    val targetDefense = userSettings?.minimumScoreDefenseLine ?: 60
 
     // 누적 UsageStats 기반 30일 소급은 정확한 전면 앱 시간을 보장하지 못하므로 중단합니다.
     // 과거 버전이 데이터 없는 날을 100점으로 만든 행만 정리하고, 이후 기록은 실시간
@@ -123,6 +118,9 @@ fun StatisticsScreen(
     val requestedDays = if (selectedTabIndex == 0) 7 else 30
     val histories = remember(allHistories, requestedDays) {
         historiesInCalendarRange(allHistories, requestedDays)
+    }
+    val coreIndexHistories = remember(histories) {
+        coreIndexHistories(histories)
     }
 
     Scaffold(
@@ -231,41 +229,24 @@ fun StatisticsScreen(
                 }
             }
 
-            val selectedBenchmark = ScoringBenchmark.forPreset(
-                userSettings?.selectedPresetModeId ?: "balanced"
-            )
-            if (selectedBenchmark != null) {
-                item {
-                    BenchmarkComparisonCard(
-                        histories = histories,
-                        benchmark = selectedBenchmark,
-                        onClick = {
-                            selectedDetail = StatisticsDetail(
-                                title = "${selectedBenchmark.title} 비교",
-                                value = "${histories.size}일 기록",
-                                description = "선택한 생활 유형의 참고 기준과 실제 기간 평균을 비교합니다.",
-                                supportingText = "${selectedBenchmark.sourceLabel}\n조사 평균은 건강 진단 기준이 아닙니다."
-                            )
-                        }
-                    )
-                }
-            }
-
-            // 2. 일별 점수 추세 (꺾은선 그래프)
+            // 2. 최근 24시간 코어 지수 추세 (꺾은선 그래프)
             item {
                 ScoreTrendLineChartCard(
-                    histories = histories,
-                    targetDefense = targetDefense,
+                    histories = coreIndexHistories,
                     onClick = {
-                        val average = if (histories.isEmpty()) 0 else
-                            (histories.sumOf { it.finalScore } / histories.size.toFloat()).roundToInt()
-                        val high = histories.maxOfOrNull { it.finalScore } ?: 0
-                        val low = histories.minOfOrNull { it.finalScore } ?: 0
+                        val average = if (coreIndexHistories.isEmpty()) null else
+                            (coreIndexHistories.sumOf { it.finalScore } / coreIndexHistories.size.toFloat()).roundToInt()
+                        val high = coreIndexHistories.maxOfOrNull { it.finalScore }
+                        val low = coreIndexHistories.minOfOrNull { it.finalScore }
                         selectedDetail = StatisticsDetail(
-                            title = "일별 점수 추세",
-                            value = "평균 ${average}점",
-                            description = "기간 중 최고 ${high}점, 최저 ${low}점입니다.",
-                            supportingText = "점선은 설정한 기준선 ${targetDefense}점을 나타냅니다."
+                            title = "일별 코어 지수 추세",
+                            value = average?.let { "평균 ${it}점" } ?: "기록 준비 중",
+                            description = if (average == null) {
+                                "업데이트 후 측정된 코어 지수가 아직 없습니다."
+                            } else {
+                                "기간 중 최고 ${high}점, 최저 ${low}점입니다."
+                            },
+                            supportingText = "기존 일일 초기화 점수는 이 그래프에 포함하지 않습니다."
                         )
                     }
                 )
@@ -290,8 +271,8 @@ fun StatisticsScreen(
             // 4. 주요 메트릭 지표 요약
             item {
                 AnalyticsSummaryCards(
-                    histories = histories,
-                    targetDefense = targetDefense,
+                    usageHistories = histories,
+                    coreIndexHistories = coreIndexHistories,
                     onDetailRequested = { selectedDetail = it }
                 )
             }
@@ -311,6 +292,14 @@ fun StatisticsScreen(
             onDismiss = { selectedDetail = null }
         )
     }
+}
+
+private const val CORE_INDEX_SCORE_MODEL_VERSION = 2
+
+internal fun coreIndexHistories(
+    histories: List<DailyScoreHistoryEntity>
+): List<DailyScoreHistoryEntity> = histories.filter {
+    it.scoreModelVersion >= CORE_INDEX_SCORE_MODEL_VERSION
 }
 
 private data class StatisticsDetail(
@@ -338,76 +327,12 @@ internal fun historiesInCalendarRange(
         .toList()
 }
 
-@Composable
-private fun BenchmarkComparisonCard(
-    histories: List<DailyScoreHistoryEntity>,
-    benchmark: ScoringBenchmark,
-    onClick: () -> Unit
-) {
-    val count = histories.size.coerceAtLeast(1)
-    val averageScore = histories.sumOf { it.finalScore } / count
-    val averageScreen = histories.sumOf { it.totalScreenTimeMinutes } / count
-    val averageDistracting = histories.sumOf { it.distractingTimeMinutes } / count
-    val averageUnlocks = histories.sumOf { it.unlockCount } / count
-
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(7.dp)
-        ) {
-            Text(
-                text = "${benchmark.title} 비교",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
-            )
-            if (histories.isEmpty()) {
-                Text(
-                    text = "기록이 쌓이면 선택한 기준과 실제 평균을 비교합니다.",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.outline
-                )
-            } else {
-                Text(
-                    text = "실제 평균 ${averageScore}점 · 화면 ${averageScreen}분 · " +
-                        "방해 ${averageDistracting}분 · 언락 ${averageUnlocks}회",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "보정 기준 ${benchmark.targetScore}점 · 화면 ${benchmark.totalScreenMinutes}분 · " +
-                        "방해 ${benchmark.distractingMinutes}분 · 언락 ${benchmark.unlockCount}회",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            Text(
-                text = benchmark.sourceLabel,
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.outline
-            )
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                DetailChevron(tint = MaterialTheme.colorScheme.primary)
-            }
-            Text(
-                text = "조사 평균은 건강 권고가 아니며, 앱 분류와 생활 맥락에 따라 직접 조정해야 합니다.",
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.outline
-            )
-        }
-    }
-}
-
 /**
- * 📈 1. 일별 점수 추세 꺾은선 그래프 (Line Chart)
+ * 📈 1. 일별 코어 지수 추세 꺾은선 그래프 (Line Chart)
  */
 @Composable
 private fun ScoreTrendLineChartCard(
     histories: List<DailyScoreHistoryEntity>,
-    targetDefense: Int,
     onClick: () -> Unit
 ) {
     val axisTextColor = MaterialTheme.colorScheme.outline.toArgb()
@@ -432,17 +357,11 @@ private fun ScoreTrendLineChartCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "일별 점수 추세 (0~100점)",
+                    text = "일별 코어 지수 추세 (0~100)",
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
                     color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = "방어선: ${targetDefense}점",
-                    fontSize = 12.sp,
-                    color = ScoreOrange,
-                    fontWeight = FontWeight.SemiBold
                 )
                 DetailChevron(tint = MaterialTheme.colorScheme.primary)
             }
@@ -457,7 +376,7 @@ private fun ScoreTrendLineChartCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "기록된 이전 히스토리가 없습니다.\n오늘부터 점수가 기록됩니다.",
+                        text = "코어 지수 기록을 준비하고 있습니다.\n업데이트 후 하루씩 누적됩니다.",
                         color = MaterialTheme.colorScheme.outline,
                         fontSize = 13.sp
                     )
@@ -471,17 +390,7 @@ private fun ScoreTrendLineChartCard(
                     val width = size.width
                     val height = size.height - 35f // X축 라벨용 여백
 
-                    // 1. 방어선 가이드 라인 (점선)
-                    val defenseY = height - (height * (targetDefense / 100f))
-                    drawLine(
-                        color = Color(0xFFE65100).copy(alpha = 0.6f),
-                        start = Offset(0f, defenseY),
-                        end = Offset(width, defenseY),
-                        strokeWidth = 2.5f,
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), 0f)
-                    )
-
-                    // 2. 꺾은선 좌표 계산
+                    // 1. 꺾은선 좌표 계산
                     val n = histories.size
                     val stepX = if (n > 1) width / (n - 1) else width / 2
                     val points = histories.mapIndexed { index, item ->
@@ -490,7 +399,7 @@ private fun ScoreTrendLineChartCard(
                         Offset(x, y)
                     }
 
-                    // 3. 하단 그라데이션 채우기 (Fill Path)
+                    // 2. 하단 그라데이션 채우기 (Fill Path)
                     if (points.isNotEmpty()) {
                         val fillPath = Path().apply {
                             moveTo(points.first().x, height)
@@ -511,7 +420,7 @@ private fun ScoreTrendLineChartCard(
                         )
                     }
 
-                    // 4. 메인 꺾은선 그리기 (Stroke Path)
+                    // 3. 메인 꺾은선 그리기 (Stroke Path)
                     if (points.size > 1) {
                         val linePath = Path().apply {
                             moveTo(points.first().x, points.first().y)
@@ -526,7 +435,7 @@ private fun ScoreTrendLineChartCard(
                         )
                     }
 
-                    // 5. 각 포인트 원형 점 및 라벨
+                    // 4. 각 포인트 원형 점 및 라벨
                     points.forEachIndexed { index, pt ->
                         val score = histories[index].finalScore
                         val dotColor = when {
@@ -729,26 +638,20 @@ private fun UsageAndUnlockBarChartCard(
 
 @Composable
 private fun AnalyticsSummaryCards(
-    histories: List<DailyScoreHistoryEntity>,
-    targetDefense: Int,
+    usageHistories: List<DailyScoreHistoryEntity>,
+    coreIndexHistories: List<DailyScoreHistoryEntity>,
     onDetailRequested: (StatisticsDetail) -> Unit
 ) {
-    val totalCount = histories.size.coerceAtLeast(1)
-    val avgScore = if (histories.isNotEmpty()) {
-        (histories.sumOf { it.finalScore } / histories.size.toFloat()).roundToInt()
+    val avgScore = if (coreIndexHistories.isNotEmpty()) {
+        (coreIndexHistories.sumOf { it.finalScore } / coreIndexHistories.size.toFloat()).roundToInt()
+    } else null
+
+    val avgScreenTime = if (usageHistories.isNotEmpty()) {
+        (usageHistories.sumOf { it.totalScreenTimeMinutes } / usageHistories.size.toFloat()).roundToInt()
     } else 0
 
-    val successDays = histories.count { it.finalScore >= targetDefense }
-    val successRate = if (histories.isNotEmpty()) {
-        ((successDays.toFloat() / histories.size) * 100).roundToInt()
-    } else 100
-
-    val avgScreenTime = if (histories.isNotEmpty()) {
-        (histories.sumOf { it.totalScreenTimeMinutes } / histories.size.toFloat()).roundToInt()
-    } else 0
-
-    val avgUnlockCount = if (histories.isNotEmpty()) {
-        (histories.sumOf { it.unlockCount } / histories.size.toFloat()).roundToInt()
+    val avgUnlockCount = if (usageHistories.isNotEmpty()) {
+        (usageHistories.sumOf { it.unlockCount } / usageHistories.size.toFloat()).roundToInt()
     } else 0
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -765,36 +668,36 @@ private fun AnalyticsSummaryCards(
         ) {
             MetricCard(
                 modifier = Modifier.weight(1f),
-                title = "평균 점수",
-                value = "${avgScore}점",
+                title = "평균 코어 지수",
+                value = avgScore?.let { "${it}점" } ?: "—",
                 icon = Icons.Default.Star,
                 iconColor = MaterialTheme.colorScheme.primary,
                 subtitle = "기간 내 평균",
                 onClick = {
                     onDetailRequested(
                         StatisticsDetail(
-                            "평균 점수",
-                            "${avgScore}점",
-                            "선택한 기간에 저장된 일별 점수의 산술 평균입니다.",
-                            "기록이 없는 날짜는 평균에 포함하지 않습니다."
+                            "평균 코어 지수",
+                            avgScore?.let { "${it}점" } ?: "기록 준비 중",
+                            "선택한 기간에 저장된 최근 24시간 코어 지수의 산술 평균입니다.",
+                            "기존 일일 초기화 점수와 기록이 없는 날짜는 평균에 포함하지 않습니다."
                         )
                     )
                 }
             )
             MetricCard(
                 modifier = Modifier.weight(1f),
-                title = "목표 달성률",
-                value = "${successRate}%",
+                title = "코어 지수 기록",
+                value = "${coreIndexHistories.size}일",
                 icon = Icons.Default.CheckCircle,
                 iconColor = ScoreGreen,
-                subtitle = "${successDays}/${totalCount}일 기준 달성",
+                subtitle = "새 방식 측정일",
                 onClick = {
                     onDetailRequested(
                         StatisticsDetail(
-                            "목표 달성률",
-                            "${successRate}%",
-                            "기록된 ${totalCount}일 중 ${successDays}일이 기준선 ${targetDefense}점 이상이었습니다.",
-                            "기준선은 설정에서 변경할 수 있습니다."
+                            "코어 지수 기록",
+                            "${coreIndexHistories.size}일",
+                            "최근 24시간 방식으로 저장된 코어 지수 기록 수입니다.",
+                            "업데이트 전 기록은 사용시간과 언락 통계에는 유지되지만 점수 통계에는 섞지 않습니다."
                         )
                     )
                 }

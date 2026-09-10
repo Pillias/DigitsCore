@@ -33,7 +33,7 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
         UserSettingsEntity::class,
         ForegroundUsageSessionEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = true
 )
 abstract class DigitsDatabase : RoomDatabase() {
@@ -158,6 +158,15 @@ abstract class DigitsDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 기존 행의 finalScore는 일일 초기화 방식이므로 코어 지수 통계와 섞지 않습니다.
+                db.execSQL(
+                    "ALTER TABLE daily_score_history ADD COLUMN scoreModelVersion INTEGER NOT NULL DEFAULT 1"
+                )
+            }
+        }
+
         @Volatile
         private var INSTANCE: DigitsDatabase? = null
 
@@ -179,7 +188,8 @@ abstract class DigitsDatabase : RoomDatabase() {
                         MIGRATION_4_5,
                         MIGRATION_5_6,
                         MIGRATION_6_7,
-                        MIGRATION_7_8
+                        MIGRATION_7_8,
+                        MIGRATION_8_9
                     )
                     .fallbackToDestructiveMigrationOnDowngrade()
                 if (passphrase != null) {

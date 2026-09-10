@@ -33,12 +33,12 @@ TrackerForegroundService — 화면 켜짐 중 주기 갱신 및 경계 처리
 
 ### 저장
 
-Room 데이터베이스 버전은 v8입니다.
+Room 데이터베이스 버전은 v9입니다.
 
 - `foreground_usage_sessions`: 앱별 상세 시작·종료 구간, 30일
 - `daily_app_usage`: 앱별 일일 사용 집계, 365일
 - `daily_usage_coverage`: 날짜별 자체 측정 완료 여부
-- `daily_score_history`: 일별 점수·화면·언락 집계
+- `daily_score_history`: 일별 코어 지수·화면·언락 집계. `scoreModelVersion=2`인 행만 코어 지수 통계에 사용하고, 이전 행의 사용량·언락 집계는 계속 보존
 - `app_weights`: 앱별 5단계 등급과 사용자 변경 여부
 - `user_settings`: 프리셋, 점수 계수, 추적·알림·잠금화면·상태 아이콘·위젯 배경 설정
 

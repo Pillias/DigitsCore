@@ -91,6 +91,25 @@ object UiTranslator {
     private val replacements = listOf(
         "사용 균형 통계 & 리포트" to "Usage Balance & Reports",
         "사용 균형 분석" to "Usage Balance Summary",
+        "일별 코어 지수 추세" to "Daily Core Index Trend",
+        "평균 코어 지수" to "Average Core Index",
+        "코어 지수 기록" to "Core Index Records",
+        "코어 지수 기록을 준비하고 있습니다." to "Core Index history is being prepared.",
+        "업데이트 후 하루씩 누적됩니다." to "It accumulates daily after this update.",
+        "업데이트 후 측정된 코어 지수가 아직 없습니다." to
+            "No Core Index has been recorded since this update yet.",
+        "기존 일일 초기화 점수는 이 그래프에 포함하지 않습니다." to
+            "Previous daily-reset scores are excluded from this chart.",
+        "기존 일일 초기화 점수와 기록이 없는 날짜는 평균에 포함하지 않습니다." to
+            "Previous daily-reset scores and dates without records are excluded from the average.",
+        "선택한 기간에 저장된 최근 24시간 코어 지수의 산술 평균입니다." to
+            "Arithmetic mean of the rolling 24-hour Core Index saved in the selected period.",
+        "최근 24시간 방식으로 저장된 코어 지수 기록 수입니다." to
+            "Number of Core Index records saved with the rolling 24-hour model.",
+        "업데이트 전 기록은 사용시간과 언락 통계에는 유지되지만 점수 통계에는 섞지 않습니다." to
+            "Pre-update records remain in usage and unlock statistics but are excluded from score statistics.",
+        "기록 준비 중" to "Preparing History",
+        "새 방식 측정일" to "Days on the new model",
         "점수 프리셋 모드 선택" to "Choose a Score Preset",
         "점수가 이 이하로 떨어지면 사용 균형 안내를 강조합니다." to "Guidance is emphasized when the score falls below this value.",
         "이전 사용량 이월" to "Previous-use Carryover",

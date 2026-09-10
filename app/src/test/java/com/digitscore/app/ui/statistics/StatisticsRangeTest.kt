@@ -6,14 +6,15 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class StatisticsRangeTest {
-    private fun history(date: String) = DailyScoreHistoryEntity(
+    private fun history(date: String, scoreModelVersion: Int = 1) = DailyScoreHistoryEntity(
         dateString = date,
         finalScore = 70,
         totalScreenTimeMinutes = 100,
         distractingTimeMinutes = 20,
         productiveTimeMinutes = 10,
         idleMinutes = 200,
-        unlockCount = 30
+        unlockCount = 30,
+        scoreModelVersion = scoreModelVersion
     )
 
     @Test
@@ -34,6 +35,20 @@ class StatisticsRangeTest {
         assertEquals(
             listOf("2026-08-09", "2026-08-31", "2026-09-01", "2026-09-07"),
             historiesInCalendarRange(histories, 30, today).map { it.dateString }
+        )
+    }
+
+    @Test
+    fun scoreTrendOnlyUsesCoreIndexRecords() {
+        val histories = listOf(
+            history("2026-09-08"),
+            history("2026-09-09", scoreModelVersion = 2),
+            history("2026-09-10", scoreModelVersion = 2)
+        )
+
+        assertEquals(
+            listOf("2026-09-09", "2026-09-10"),
+            coreIndexHistories(histories).map { it.dateString }
         )
     }
 }

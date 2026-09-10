@@ -45,6 +45,7 @@ class DataBackupManagerSerializationTest {
             productiveTimeMinutes = 30,
             idleMinutes = 300,
             unlockCount = 22,
+            scoreModelVersion = 2,
             lastUpdatedTimestamp = 1234567890L
         )
 
@@ -55,6 +56,7 @@ class DataBackupManagerSerializationTest {
         assertEquals(30L, history.productiveTimeMinutes)
         assertEquals(300L, history.idleMinutes)
         assertEquals(22, history.unlockCount)
+        assertEquals(2, history.scoreModelVersion)
         assertEquals(1234567890L, history.lastUpdatedTimestamp)
     }
 
