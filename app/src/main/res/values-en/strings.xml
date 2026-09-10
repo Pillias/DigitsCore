@@ -5,9 +5,6 @@
     <string name="widget_description">See your Core Index and usage stats on the Home screen.</string>
     <string name="digitscore_score">Core Index</string>
     <string name="rolling_24_hours">Last 24 hours</string>
-    <string name="legacy_daily_score">Legacy score · Since midnight</string>
-    <string name="temporary_comparison">Temporarily shown for comparison.</string>
-    <string name="new_score_comparison">New method %1$d · Screen-off background playback excluded</string>
     <string name="tap_score_details">Tap for the 24-hour score details</string>
     <string name="score_accessibility">Core Index %1$d, %2$s</string>
     <string name="score_points">%1$d</string>
@@ -19,7 +16,6 @@
     <string name="recent_usage">Usage in last 24 hours</string>
     <string name="rolling_load">24-hour rolling load</string>
     <string name="acute_load">Continuous-use load</string>
-    <string name="legacy_score">Legacy daily score</string>
     <string name="score_method_note">Sleep and screen-off time do not add points. Background playback while the screen is off is excluded.</string>
     <string name="view_statistics">View all statistics</string>
     <string name="close">Close</string>

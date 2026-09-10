@@ -26,7 +26,7 @@ TrackerForegroundService — 화면 켜짐 중 주기 갱신 및 경계 처리
 ### 점수
 
 - `RollingScoreCalculator`: 메인 코어 지수. 최근 24시간 누적 부하, 연속 사용 급성 부하, 휴식 회복, 언락과 심야 가중치를 처리합니다.
-- `ScoreCalculator`: 기존 자정 기준 점수. 전환기 비교와 기존 설정 호환을 위해 남아 있습니다.
+- `ScoreCalculator`: 기존 자정 기준 계산. 저장 데이터와 기존 설정 호환을 위해 내부에만 남아 있으며 UI에는 노출하지 않습니다.
 - `ScoreRepository`: 서비스가 계산한 현재 점수와 사용량을 Compose 화면·알림·위젯에 전달하는 프로세스 내 `StateFlow` 저장소입니다.
 
 수식은 [SCORING.md](SCORING.md)를 참고하세요.

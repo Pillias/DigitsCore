@@ -112,7 +112,6 @@ object UiTranslator {
         "개 보기" to " apps",
         "상위 " to "Top ",
         "개 앱" to " apps",
-        "오늘 0시부터 계산한 기존 점수 내역입니다." to "This legacy score is calculated from midnight today.",
         "가장 잦은 시간은" to "Most frequent time:",
         "평균 약" to "About once every",
         "분마다 한 번 열었습니다." to "minutes",
@@ -125,6 +124,8 @@ object UiTranslator {
         "아직 비교할 기록이 없습니다." to "There is not enough data to compare yet.",
         "OS 이벤트의 단순 비교이며 알림이 언락의 직접 원인이라는 뜻은 아닙니다." to "This is a simple event comparison and does not imply notifications caused the unlocks.",
         "스마트폰을 무의식적으로 켜는 습관을 줄이면 집중력을 대폭 향상시킬 수 있습니다." to "Reducing unconscious phone checks can help protect your focus.",
+        "최근 24시간 언락 횟수는 코어 지수의 사용 부하에 완만하게 반영됩니다." to
+            "Unlocks over the last 24 hours contribute gently to the Core Index load.",
         "일일 기준치를 초과하여" to "Above the daily target:",
         "점 감점 적용 중입니다." to "points currently applied.",
         "현재 기준치 이내로 안전하게 유지하고 있습니다." to "Currently within the target.",
