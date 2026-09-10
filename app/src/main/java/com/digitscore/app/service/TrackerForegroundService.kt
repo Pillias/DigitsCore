@@ -434,12 +434,13 @@ class TrackerForegroundService : Service() {
                 db.scoreDao().insertOrUpdateScoreHistory(
                     DailyScoreHistoryEntity(
                         dateString = currentDateString,
-                        finalScore = scoreDetail.finalScore,
+                        finalScore = rollingScoreDetail.finalScore,
                         totalScreenTimeMinutes = scoreDetail.totalScreenTimeMinutes,
                         distractingTimeMinutes = scoreDetail.distractingTimeMinutes,
                         productiveTimeMinutes = scoreDetail.productiveTimeMinutes,
                         idleMinutes = realIdleMinutes,
-                        unlockCount = finalUnlockCount
+                        unlockCount = finalUnlockCount,
+                        scoreModelVersion = 2
                     )
                 )
             }

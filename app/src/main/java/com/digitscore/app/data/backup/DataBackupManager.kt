@@ -24,7 +24,7 @@ import java.util.Locale
 
 object DataBackupManager {
 
-    private const val BACKUP_SCHEMA_VERSION = 3
+    private const val BACKUP_SCHEMA_VERSION = 4
     private const val MAX_BACKUP_BYTES = 20 * 1024 * 1024
     private val DATE_PATTERN = Regex("\\d{4}-\\d{2}-\\d{2}")
     private const val BACKUP_CACHE_MAX_AGE_MILLIS = 24 * 60 * 60 * 1_000L
@@ -56,6 +56,7 @@ object DataBackupManager {
                 put("productiveTimeMinutes", h.productiveTimeMinutes)
                 put("idleMinutes", h.idleMinutes)
                 put("unlockCount", h.unlockCount)
+                put("scoreModelVersion", h.scoreModelVersion)
                 put("lastUpdatedTimestamp", h.lastUpdatedTimestamp)
             }
             historiesArray.put(hObj)
@@ -201,6 +202,7 @@ object DataBackupManager {
                         productiveTimeMinutes = hObj.getLong("productiveTimeMinutes").coerceIn(0L, 1_440L),
                         idleMinutes = hObj.getLong("idleMinutes").coerceIn(0L, 1_440L),
                         unlockCount = hObj.getInt("unlockCount").coerceIn(0, 10_000),
+                        scoreModelVersion = hObj.optInt("scoreModelVersion", 1).coerceIn(1, 2),
                         lastUpdatedTimestamp = hObj.optLong("lastUpdatedTimestamp", System.currentTimeMillis())
                     )
                     db.scoreDao().insertOrUpdateScoreHistory(history)

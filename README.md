@@ -74,7 +74,7 @@ Samsung Digital Wellbeing 같은 제조사 시스템 앱의 내부 집계값을 
 
 - 앱별 시작·종료 상세 세션: 30일
 - 앱별 날짜·사용시간·세션·최장 세션·심야 사용 집계: 365일
-- 저장소: SQLCipher로 암호화된 기기 내부 Room DB(v8)
+- 저장소: SQLCipher로 암호화된 기기 내부 Room DB(v9)
 - DB 암호: Android Keystore로 보호
 - OS 자동 백업 및 기기 간 자동 전송: 제외
 - 수동 백업: 사용자 비밀번호 기반 AES-256-GCM 암호화
@@ -137,7 +137,8 @@ gradle :app:testDebugUnitTest :app:assembleDebug --no-daemon
 
 - 제조사별 UsageEvents 전달 차이를 Samsung·Xiaomi 등 실제 기기에서 장기 비교해야 합니다.
 - 30일·365일 통계는 DigitsCore가 해당 버전으로 직접 저장하기 시작한 날부터 누적되며 설치 이전 기록을 소급 복원하지 않습니다.
-- 점수 프리셋과 세부 계수는 현재 기존 일일 점수에만 적용됩니다. 실사용 검증 뒤 최근 24시간 코어 지수용 조정 범위를 별도로 설계해야 합니다.
+- 기존 일일 점수의 프리셋·세부 계수 UI는 숨겼습니다. 실사용 검증 뒤 최근 24시간 코어 지수용 조정 범위를 별도로 설계해야 합니다.
+- 업데이트 전 일별 점수는 코어 지수 통계에서 제외합니다. 같은 날짜의 화면시간·관리 앱 시간·언락 집계는 유지되며, 업데이트 후 저장된 코어 지수만 점수 추세와 평균에 사용합니다.
 - Google Play 배포 전 업로드 keystore, 공개 개인정보처리방침 URL, Data safety, Foreground Service special-use 신고가 필요합니다.
 - GitHub Release는 현재 debug 서명 APK이며 Play 배포용 정식 서명 파일은 아직 공개하지 않습니다.
 

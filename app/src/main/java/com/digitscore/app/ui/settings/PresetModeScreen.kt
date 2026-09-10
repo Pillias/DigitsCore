@@ -71,7 +71,6 @@ import com.digitscore.app.data.security.DatabaseEncryptionManager
 import com.digitscore.app.data.security.DatabaseSecurityMode
 import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.data.entity.applyTo
-import com.digitscore.app.engine.ScoringBenchmark
 import com.digitscore.app.model.PresetMode
 import com.digitscore.app.ui.components.SectionHeading
 import com.digitscore.app.ui.components.DetailChevron
@@ -81,7 +80,6 @@ import com.digitscore.app.service.TrackerForegroundService
 import com.digitscore.app.widget.ScoreWidget
 import com.digitscore.app.widget.WidgetBackgroundStyle
 import com.digitscore.app.ui.privacy.PrivacyPolicyDialog
-import com.digitscore.app.ui.theme.ScoreGreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -90,6 +88,8 @@ import java.io.ByteArrayOutputStream
 import java.io.InputStream
 
 private const val MAX_IMPORT_BYTES = 20 * 1024 * 1024
+// 기존 일일 점수 설정은 DB/백업 호환을 위해 유지하되 새 코어 지수 UI에서는 숨깁니다.
+private const val SHOW_LEGACY_SCORE_SETTINGS = false
 
 private data class SettingsDetail(
     val title: String,
@@ -126,7 +126,6 @@ fun PresetModeScreen(
     val settings = userSettings ?: UserSettingsEntity()
     val selectedModeId = settings.selectedPresetModeId
     val selectedPreset = PresetMode.fromId(selectedModeId)
-    val selectedBenchmark = ScoringBenchmark.forPreset(selectedModeId)
     var showPrivacyPolicy by remember { mutableStateOf(false) }
     var isPresetMenuExpanded by remember { mutableStateOf(false) }
     var isLanguageMenuExpanded by remember { mutableStateOf(false) }
@@ -286,14 +285,14 @@ fun PresetModeScreen(
             }
 
             // 1. 프리셋 모드 선택
-            item {
+            if (SHOW_LEGACY_SCORE_SETTINGS) item {
                 SectionHeading(
                     title = "점수 프리셋 모드 선택",
                     subtitle = "생활 패턴에 맞는 기본값을 선택하고 아래에서 세부 조정합니다."
                 )
             }
 
-            item {
+            if (SHOW_LEGACY_SCORE_SETTINGS) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -355,24 +354,6 @@ fun PresetModeScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                }
-            }
-
-            if (selectedBenchmark != null) {
-                item {
-                    BenchmarkPreviewCard(
-                        benchmark = selectedBenchmark,
-                        settings = settings,
-                        preset = selectedPreset,
-                        onClick = {
-                            selectedDetail = SettingsDetail(
-                                title = "${selectedBenchmark.title} 보정 기준",
-                                value = "목표 ${selectedBenchmark.targetScore}점",
-                                description = "선택한 프리셋의 기준 사용량과 현재 세부 설정을 비교합니다.",
-                                supportingText = "건강 진단 기준이 아닌 초기 보정용 시나리오입니다."
-                            )
-                        }
-                    )
                 }
             }
 
@@ -593,14 +574,14 @@ fun PresetModeScreen(
 
             // 2. 개인 목표 방어선
 
-            item {
+            if (SHOW_LEGACY_SCORE_SETTINGS) item {
                 SectionHeading(
                     title = "개인 목표 기준선",
                     subtitle = "점수 안내와 언락 기준을 본인의 생활 패턴에 맞춥니다."
                 )
             }
 
-            item {
+            if (SHOW_LEGACY_SCORE_SETTINGS) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -635,7 +616,7 @@ fun PresetModeScreen(
                 }
             }
 
-            item {
+            if (SHOW_LEGACY_SCORE_SETTINGS) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -671,7 +652,7 @@ fun PresetModeScreen(
             }
 
             // 3. 세부 가중치 커스텀 설정
-            item {
+            if (SHOW_LEGACY_SCORE_SETTINGS) item {
                 Spacer(modifier = Modifier.height(8.dp))
                 SectionHeading(
                     title = "세부 가중치 설정",
@@ -706,7 +687,7 @@ fun PresetModeScreen(
             }
 
             // 심야(24시~05시) 감점 가속 배수
-            item {
+            if (SHOW_LEGACY_SCORE_SETTINGS) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -743,7 +724,7 @@ fun PresetModeScreen(
             }
 
             // 장시간 연속 사용 로그(Log) 가속 스위치
-            item {
+            if (SHOW_LEGACY_SCORE_SETTINGS) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -785,7 +766,7 @@ fun PresetModeScreen(
             }
 
             if (settings.isLogAccelerationEnabled) {
-                item {
+                if (SHOW_LEGACY_SCORE_SETTINGS) item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
@@ -843,7 +824,7 @@ fun PresetModeScreen(
             }
 
             // 이전 사용량 이월 스위치
-            item {
+            if (SHOW_LEGACY_SCORE_SETTINGS) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -885,7 +866,7 @@ fun PresetModeScreen(
             }
 
             if (settings.isYesterdayPenaltyEnabled) {
-                item {
+                if (SHOW_LEGACY_SCORE_SETTINGS) item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
@@ -951,7 +932,7 @@ fun PresetModeScreen(
             }
 
             // 방해 앱 감점 가중치
-            item {
+            if (SHOW_LEGACY_SCORE_SETTINGS) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -988,7 +969,7 @@ fun PresetModeScreen(
             }
 
             // 화면 미사용(Idle) 회복 가중치
-            item {
+            if (SHOW_LEGACY_SCORE_SETTINGS) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -1025,7 +1006,7 @@ fun PresetModeScreen(
             }
 
             // 일일 보너스 최대 상한선(Cap)
-            item {
+            if (SHOW_LEGACY_SCORE_SETTINGS) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -1064,7 +1045,7 @@ fun PresetModeScreen(
             }
 
             // 언락 초과당 감점치
-            item {
+            if (SHOW_LEGACY_SCORE_SETTINGS) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -1456,59 +1437,4 @@ private fun BackupPasswordDialog(
         },
         dismissButton = { OutlinedButton(onClick = onDismiss) { Text("취소") } }
     )
-}
-
-@Composable
-private fun BenchmarkPreviewCard(
-    benchmark: ScoringBenchmark,
-    settings: UserSettingsEntity,
-    preset: PresetMode,
-    onClick: () -> Unit
-) {
-    val previewRule = settings.applyTo(preset.scoreRule)
-    val expectedScore = benchmark.evaluate(previewRule).finalScore
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Text(
-                text = "${benchmark.title} · 60점 보정",
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = "기준 사용 ${benchmark.totalScreenMinutes}분 · 방해 ${benchmark.distractingMinutes}분 · " +
-                    "생산성 ${benchmark.productiveMinutes}분 · 언락 ${benchmark.unlockCount}회",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Text(
-                text = "현재 설정 예상 점수: ${expectedScore}점 (목표 ${benchmark.targetScore}점)",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = if (expectedScore in 55..65) ScoreGreen else MaterialTheme.colorScheme.error
-            )
-            Text(
-                text = benchmark.sourceLabel,
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.outline
-            )
-            Text(
-                text = "건강 진단 기준이 아닌 초기 보정용 시나리오입니다. 학업·업무·콘텐츠 품질에 맞게 세부값을 조정하세요.",
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.outline
-            )
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                DetailChevron(tint = MaterialTheme.colorScheme.primary)
-            }
-        }
-    }
 }
