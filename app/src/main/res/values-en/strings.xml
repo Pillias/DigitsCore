@@ -81,7 +81,7 @@
     <string name="privacy_storage_title">Storage and transfer</string>
     <string name="privacy_storage_body">Results and settings are stored in an on-device SQLCipher-encrypted database protected by Android Keystore. They are excluded from OS backup and device transfer. Nothing is sent to a server. Manual backups use password-based AES-256-GCM encryption.</string>
     <string name="privacy_choice_title">Your choices</string>
-    <string name="privacy_choice_body">Detailed sessions are retained for 30 days and daily aggregates for 365 days. An encrypted export includes details available at export time. You can hide lock-screen details, stop tracking, delete all history immediately, or revoke access in Android settings.</string>
+    <string name="privacy_choice_body">Detailed sessions and five-minute Core Index samples are retained for 30 days; daily aggregates are retained for 365 days. An encrypted export includes details available at export time. You can hide lock-screen details, stop tracking, delete all history immediately, or revoke access in Android settings.</string>
     <string name="privacy_contact_title">Contact</string>
     <string name="privacy_contact_body">Use the developer contact shown on Google Play for privacy questions.</string>
     <string name="confirm">OK</string>

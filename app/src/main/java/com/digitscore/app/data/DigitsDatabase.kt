@@ -11,12 +11,14 @@ import com.digitscore.app.data.dao.DailyAppUsageDao
 import com.digitscore.app.data.dao.ScoreDao
 import com.digitscore.app.data.dao.SettingsDao
 import com.digitscore.app.data.dao.ForegroundUsageSessionDao
+import com.digitscore.app.data.dao.CoreIndexSampleDao
 import com.digitscore.app.data.entity.AppWeightEntity
 import com.digitscore.app.data.entity.DailyAppUsageEntity
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
 import com.digitscore.app.data.entity.DailyUsageCoverageEntity
 import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.data.entity.ForegroundUsageSessionEntity
+import com.digitscore.app.data.entity.CoreIndexSampleEntity
 import com.digitscore.app.model.AppCategoryType
 import com.digitscore.app.data.security.DatabaseEncryptionManager
 import kotlinx.coroutines.CoroutineScope
@@ -31,9 +33,10 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
         DailyUsageCoverageEntity::class,
         DailyScoreHistoryEntity::class,
         UserSettingsEntity::class,
-        ForegroundUsageSessionEntity::class
+        ForegroundUsageSessionEntity::class,
+        CoreIndexSampleEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = true
 )
 abstract class DigitsDatabase : RoomDatabase() {
@@ -42,6 +45,7 @@ abstract class DigitsDatabase : RoomDatabase() {
     abstract fun scoreDao(): ScoreDao
     abstract fun settingsDao(): SettingsDao
     abstract fun foregroundUsageSessionDao(): ForegroundUsageSessionDao
+    abstract fun coreIndexSampleDao(): CoreIndexSampleDao
 
     companion object {
         private const val DATABASE_NAME = "digitscore_database"
@@ -189,6 +193,29 @@ abstract class DigitsDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `core_index_samples` (
+                       `bucketStartTimestamp` INTEGER NOT NULL,
+                       `timestampMillis` INTEGER NOT NULL,
+                       `dateString` TEXT NOT NULL,
+                       `score` INTEGER NOT NULL,
+                       `exactScore` REAL NOT NULL,
+                       `rollingLoad` REAL NOT NULL,
+                       `acuteLoad` REAL NOT NULL,
+                       `presetId` TEXT NOT NULL,
+                       PRIMARY KEY(`bucketStartTimestamp`))""".trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_core_index_samples_dateString` ON `core_index_samples` (`dateString`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_core_index_samples_timestampMillis` ON `core_index_samples` (`timestampMillis`)"
+                )
+            }
+        }
+
         @Volatile
         private var INSTANCE: DigitsDatabase? = null
 
@@ -212,7 +239,8 @@ abstract class DigitsDatabase : RoomDatabase() {
                         MIGRATION_6_7,
                         MIGRATION_7_8,
                         MIGRATION_8_9,
-                        MIGRATION_9_10
+                        MIGRATION_9_10,
+                        MIGRATION_10_11
                     )
                     .fallbackToDestructiveMigrationOnDowngrade()
                 if (passphrase != null) {

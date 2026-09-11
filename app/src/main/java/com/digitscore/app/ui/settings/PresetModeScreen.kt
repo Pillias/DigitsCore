@@ -1244,7 +1244,7 @@ fun PresetModeScreen(
                             ) {
                                 Text("기록 보존 방식", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                                 Text(
-                                    "앱별 시작·종료 상세는 30일, 날짜별 집계는 365일 보관합니다.",
+                                    "앱별 시작·종료 상세와 5분 단위 코어 지수 표본은 30일, 날짜별 집계는 365일 보관합니다.",
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.outline
                                 )

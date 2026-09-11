@@ -64,6 +64,10 @@ object UiTranslator {
         Regex("평균 (\\d+)점") to "\$1 pts average",
         Regex("기간 중 최고 (\\d+)점, 최저 (\\d+)점입니다\\.") to
             "Highest \$1 pts and lowest \$2 pts in this period.",
+        Regex("최저 (\\d+)점 · 최고 (\\d+)점 · 마지막 (\\d+)점") to
+            "Low \$1 pts · High \$2 pts · Last \$3 pts",
+        Regex("(\\d+)일은 기존 상세 세션으로 복원한 코어 지수입니다\\.") to
+            "\$1 days use Core Index values reconstructed from existing detailed sessions.",
         Regex("점선은 설정한 기준선 (\\d+)점을 나타냅니다\\.") to
             "The dotted line marks your \$1-point target.",
         Regex("하루 평균 화면 (\\d+)분, 관리 앱 (\\d+)분, 언락 (\\d+)회입니다\\.") to
@@ -100,6 +104,18 @@ object UiTranslator {
         "큰 테두리는 프리셋이 바뀐 날입니다." to
             "A large ring marks the day when the preset changed.",
         "프리셋 변경:" to "Preset changes:",
+        "하루 코어 지수" to "Core Index During the Day",
+        "이 날짜의 하루 중 변화 표본은 없습니다. 5분 단위 기록은 이번 버전부터 최대 30일간 보관됩니다." to
+            "No intraday samples are available for this date. Five-minute samples are retained for up to 30 days from this version onward.",
+        "화면이 켜진 동안 같은 5분 구간의 최신 계산값을 저장합니다. 화면을 끈 동안에는 기록하지 않고 다음 사용 시 회복된 값으로 이어집니다." to
+            "While the screen is on, the latest value in each five-minute interval is saved. Screen-off time is not sampled; the chart resumes with the recovered value at the next use.",
+        "그래프의 날짜를 누르면 하루 중 변화를 볼 수 있습니다." to
+            "Tap a date on the chart to view changes during that day.",
+        "옅은 테두리는 기존 상세 세션으로 복원한 날짜입니다." to
+            "A light ring marks a date reconstructed from existing detailed sessions.",
+        "프리셋:" to "Preset:",
+        "앱별 시작·종료 상세와 5분 단위 코어 지수 표본은 30일, 날짜별 집계는 365일 보관합니다." to
+            "App start/end details and five-minute Core Index samples are retained for 30 days; daily summaries are retained for 365 days.",
         "평균 코어 지수" to "Average Core Index",
         "코어 지수 기록" to "Core Index Records",
         "코어 지수 기록을 준비하고 있습니다." to "Core Index history is being prepared.",

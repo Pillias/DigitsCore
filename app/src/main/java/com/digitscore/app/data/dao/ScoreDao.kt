@@ -27,6 +27,9 @@ interface ScoreDao {
     @Query("SELECT * FROM daily_score_history ORDER BY dateString DESC LIMIT :limit")
     fun getRecentDaysHistories(limit: Int): Flow<List<DailyScoreHistoryEntity>>
 
+    @Query("SELECT * FROM daily_score_history WHERE scoreModelVersion < 2 ORDER BY dateString ASC")
+    suspend fun getLegacyScoreHistories(): List<DailyScoreHistoryEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateScoreHistory(history: DailyScoreHistoryEntity)
 
@@ -41,6 +44,7 @@ interface ScoreDao {
         """DELETE FROM daily_score_history
            WHERE dateString >= :startDateString
              AND dateString < :endDateString
+             AND scoreModelVersion = 1
              AND finalScore = 100
              AND totalScreenTimeMinutes = 0
              AND distractingTimeMinutes = 0

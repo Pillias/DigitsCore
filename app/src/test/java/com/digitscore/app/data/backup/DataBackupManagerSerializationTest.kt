@@ -4,6 +4,7 @@ import com.digitscore.app.data.entity.AppWeightEntity
 import com.digitscore.app.data.entity.DailyAppUsageEntity
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
 import com.digitscore.app.data.entity.UserSettingsEntity
+import com.digitscore.app.data.entity.CoreIndexSampleEntity
 import com.digitscore.app.model.AppCategoryType
 import org.junit.Assert.*
 import org.junit.Test
@@ -12,6 +13,26 @@ import org.junit.Test
  * DataBackupManager의 데이터 모델 및 백업 형식 검증 테스트 (Pure Kotlin)
  */
 class DataBackupManagerSerializationTest {
+
+    @Test
+    fun coreIndexSamplePreservesIntradayFields() {
+        val sample = CoreIndexSampleEntity(
+            bucketStartTimestamp = 1_000L,
+            timestampMillis = 1_200L,
+            dateString = "2026-09-11",
+            score = 73,
+            exactScore = 72.6,
+            rollingLoad = 14.2,
+            acuteLoad = 2.4,
+            presetId = "focus"
+        )
+
+        assertEquals(73, sample.score)
+        assertEquals(72.6, sample.exactScore, 0.001)
+        assertEquals(14.2, sample.rollingLoad, 0.001)
+        assertEquals(2.4, sample.acuteLoad, 0.001)
+        assertEquals("focus", sample.presetId)
+    }
 
     @Test
     fun testDailyAppUsageEntity_preservesLongTermAggregateFields() {

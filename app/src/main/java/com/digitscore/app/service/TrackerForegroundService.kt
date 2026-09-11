@@ -15,6 +15,7 @@ import com.digitscore.app.data.entity.DailyScoreHistoryEntity
 import com.digitscore.app.data.entity.DailyAppUsageEntity
 import com.digitscore.app.data.entity.DailyUsageCoverageEntity
 import com.digitscore.app.data.entity.ForegroundUsageSessionEntity
+import com.digitscore.app.data.entity.CoreIndexSampleEntity
 import com.digitscore.app.data.entity.applyTo
 import com.digitscore.app.engine.ScoreCalculator
 import com.digitscore.app.engine.ScoreDetail
@@ -60,6 +61,7 @@ class TrackerForegroundService : Service() {
     private var currentDateString: String = getTodayDateString()
     private var lastWidgetScore: Int? = null
     private var lastWidgetUpdatedAt: Long = 0L
+    private var lastSamplePrunedAt: Long = 0L
 
     private val trackingPreferences by lazy {
         getSharedPreferences("tracking_state", Context.MODE_PRIVATE)
@@ -70,6 +72,8 @@ class TrackerForegroundService : Service() {
         const val ACTION_REFRESH_NOTIFICATION = "com.digitscore.app.action.REFRESH_NOTIFICATION"
         private const val ROLLING_WINDOW_MILLIS = 24 * 60 * 60 * 1_000L
         private const val DETAIL_RETENTION_MILLIS = 30L * 24 * 60 * 60 * 1_000L
+        private const val CORE_INDEX_SAMPLE_BUCKET_MILLIS = 5 * 60_000L
+        private const val SAMPLE_PRUNE_INTERVAL_MILLIS = 6 * 60 * 60_000L
 
         fun start(context: Context) {
             val intent = Intent(context, TrackerForegroundService::class.java)
@@ -411,6 +415,26 @@ class TrackerForegroundService : Service() {
                         preset = coreIndexPreset
                     )
                 ScoreRepository.updateRollingScoreDetail(rollingScoreDetail)
+
+                // 화면이 켜진 동안 1분마다 계산하되 DB에는 같은 5분 버킷을 갱신해
+                // 하루 변화 그래프의 정밀도와 저장·배터리 비용을 함께 제한합니다.
+                val sampleBucket = now - (now % CORE_INDEX_SAMPLE_BUCKET_MILLIS)
+                db.coreIndexSampleDao().insertOrUpdate(
+                    CoreIndexSampleEntity(
+                        bucketStartTimestamp = sampleBucket,
+                        timestampMillis = now,
+                        dateString = currentDateString,
+                        score = rollingScoreDetail.finalScore,
+                        exactScore = rollingScoreDetail.exactScore,
+                        rollingLoad = rollingScoreDetail.rollingLoad,
+                        acuteLoad = rollingScoreDetail.acuteLoad,
+                        presetId = coreIndexPreset.id
+                    )
+                )
+                if (now - lastSamplePrunedAt >= SAMPLE_PRUNE_INTERVAL_MILLIS) {
+                    db.coreIndexSampleDao().pruneBefore(now - DETAIL_RETENTION_MILLIS)
+                    lastSamplePrunedAt = now
+                }
 
                 // 점수 변화는 즉시, 나머지 사용량은 최대 5분 간격으로 위젯에 반영합니다.
                 if (lastWidgetScore != rollingScoreDetail.finalScore || now - lastWidgetUpdatedAt >= 5 * 60_000L) {

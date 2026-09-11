@@ -12,6 +12,13 @@ interface ForegroundUsageSessionDao {
     @Query("SELECT * FROM foreground_usage_sessions WHERE endTimeMillis >= :startMillis ORDER BY startTimeMillis ASC")
     suspend fun getSince(startMillis: Long): List<ForegroundUsageSessionEntity>
 
+    @Query(
+        """SELECT * FROM foreground_usage_sessions
+           WHERE endTimeMillis > :startMillis AND startTimeMillis < :endMillis
+           ORDER BY startTimeMillis ASC"""
+    )
+    suspend fun getBetween(startMillis: Long, endMillis: Long): List<ForegroundUsageSessionEntity>
+
     @Query("SELECT * FROM foreground_usage_sessions ORDER BY startTimeMillis ASC")
     suspend fun getAll(): List<ForegroundUsageSessionEntity>
 
