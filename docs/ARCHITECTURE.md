@@ -40,6 +40,8 @@ Room 데이터베이스 버전은 v11입니다.
 - `daily_app_usage`: 앱별 일일 사용 집계, 365일
 - `daily_usage_coverage`: 날짜별 자체 측정 완료 여부
 - `daily_score_history`: 일별 코어 지수·화면·언락과 당시 `coreIndexPresetId` 집계. `scoreModelVersion=2`인 행만 코어 지수 통계에 사용하고, 이전 행의 사용량·언락 집계는 계속 보존
+
+통계의 24시간 화면은 `core_index_samples`와 `foreground_usage_sessions`를 조회 시점 직전 24시간으로 잘라 사용하며, 언락은 같은 범위의 OS UsageEvents를 24개 시간 버킷으로 계산합니다. 30일 화면만 날짜별 집계를 사용합니다.
 - `app_weights`: 앱별 5단계 등급과 사용자 변경 여부
 - `user_settings`: 코어 지수 프리셋, 호환용 구식 점수 계수, 추적·알림·잠금화면·상태 아이콘·위젯 배경 설정
 

@@ -68,8 +68,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.data.CoreIndexHistoryRepair
+import com.digitscore.app.data.UnlockInsights
+import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
 import com.digitscore.app.data.entity.CoreIndexSampleEntity
+import com.digitscore.app.data.entity.ForegroundUsageSessionEntity
 import com.digitscore.app.model.CoreIndexPreset
 import com.digitscore.app.ui.theme.ScoreGreen
 import com.digitscore.app.ui.theme.ScoreOrange
@@ -94,11 +97,20 @@ fun StatisticsScreen(
 ) {
     val context = LocalContext.current
     val db = remember { DigitsDatabase.getInstance(context) }
-    var selectedTabIndex by remember { mutableIntStateOf(0) } // 0: 7일, 1: 30일
+    var selectedTabIndex by remember { mutableIntStateOf(0) } // 0: 최근 24시간, 1: 최근 30일
     var selectedDetail by remember { mutableStateOf<StatisticsDetail?>(null) }
     var selectedDay by remember { mutableStateOf<DailyScoreHistoryEntity?>(null) }
+    val rollingWindowEndMillis = remember { System.currentTimeMillis() }
+    val rollingWindowStartMillis = rollingWindowEndMillis - ROLLING_24_HOURS_MILLIS
 
     val allHistories by db.scoreDao().getAllScoreHistories().collectAsState(initial = emptyList())
+    val rollingSamples by remember(rollingWindowStartMillis) {
+        db.coreIndexSampleDao().observeSince(rollingWindowStartMillis)
+    }.collectAsState(initial = emptyList())
+    val rollingSessions by remember(rollingWindowStartMillis) {
+        db.foregroundUsageSessionDao().observeSince(rollingWindowStartMillis)
+    }.collectAsState(initial = emptyList())
+    var rollingUnlockInsights by remember { mutableStateOf<UnlockInsights?>(null) }
     val selectedDaySamplesFlow = remember(selectedDay?.dateString) {
         selectedDay?.let { db.coreIndexSampleDao().observeForDate(it.dateString) }
             ?: flowOf(emptyList())
@@ -109,7 +121,7 @@ fun StatisticsScreen(
     // 과거 버전이 데이터 없는 날을 100점으로 만든 행만 정리하고, 이후 기록은 실시간
     // UsageEvents 측정 결과가 매일 쌓이도록 둡니다.
     LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
+        val unlockInsights = withContext(Dispatchers.IO) {
             val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
             val today = Calendar.getInstance().apply {
                 set(Calendar.HOUR_OF_DAY, 0)
@@ -125,14 +137,14 @@ fun StatisticsScreen(
                 endDateString = dateFormat.format(today.time)
             )
             CoreIndexHistoryRepair.repairLegacyRows(db)
+            UsageStatsHelper.getRolling24HourUnlockInsights(context)
         }
+        rollingUnlockInsights = unlockInsights
     }
 
-    // DB 행 개수 LIMIT가 아니라 오늘을 포함한 실제 달력 범위로 구분합니다.
-    // 이렇게 해야 기록이 빈 날이 있어도 7일/30일 탭의 의미가 바뀌지 않습니다.
-    val requestedDays = if (selectedTabIndex == 0) 7 else 30
-    val histories = remember(allHistories, requestedDays) {
-        historiesInCalendarRange(allHistories, requestedDays)
+    // 장기 탭은 DB 행 개수 LIMIT가 아니라 오늘을 포함한 실제 30일 달력 범위입니다.
+    val histories = remember(allHistories) {
+        historiesInCalendarRange(allHistories, 30)
     }
     val coreIndexHistories = remember(histories) {
         coreIndexHistories(histories)
@@ -166,7 +178,7 @@ fun StatisticsScreen(
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            // 1. 기간 선택 탭 (7일 / 30일)
+            // 1. 분석 목적 선택 (직전 24시간 흐름 / 최근 30일 패턴)
             item {
                 TabRow(
                     selectedTabIndex = selectedTabIndex,
@@ -184,7 +196,7 @@ fun StatisticsScreen(
                         onClick = { selectedTabIndex = 0 },
                         text = {
                             Text(
-                                "최근 7일",
+                                "최근 24시간",
                                 fontWeight = if (selectedTabIndex == 0) FontWeight.Bold else FontWeight.Normal,
                                 color = if (selectedTabIndex == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
                             )
@@ -204,108 +216,155 @@ fun StatisticsScreen(
                 }
             }
 
-            if (selectedTabIndex == 1 && histories.size < 30) {
+            if (selectedTabIndex == 0) {
                 item {
-                    Card(
-                        modifier = Modifier.clickable {
+                    RollingCoreIndexCard(
+                        samples = rollingSamples,
+                        windowStartMillis = rollingWindowStartMillis,
+                        windowEndMillis = rollingWindowEndMillis,
+                        onClick = {
+                            val visible = rollingSamples.filter {
+                                it.timestampMillis in rollingWindowStartMillis..rollingWindowEndMillis
+                            }
                             selectedDetail = StatisticsDetail(
-                                title = "30일 기록 범위",
-                                value = "${histories.size}일 기록",
-                                description = "DigitsCore가 직접 측정해 저장한 날짜만 표시합니다.",
-                                supportingText = "상세 세션은 30일, 날짜별 집계는 365일 보관합니다. 기록이 없는 날짜를 0분이나 100점으로 채우지 않습니다."
-                            )
-                        },
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = buildString {
-                                    append("최근 30일 중 DigitsCore가 실제 저장한 ${histories.size}일을 표시합니다.")
-                                    histories.firstOrNull()?.let { first ->
-                                        append(" 기록 범위: ${first.dateString}")
-                                        histories.lastOrNull()?.let { last -> append(" ~ ${last.dateString}") }
-                                        append(".")
-                                    }
-                                    append(" 장기 일별 저장 기능이 적용된 날부터 하루씩 누적됩니다.")
+                                title = "최근 24시간 코어 지수",
+                                value = visible.lastOrNull()?.let { "현재 ${it.score}점" } ?: "표본 준비 중",
+                                description = if (visible.isEmpty()) {
+                                    "이 기기에서 저장된 최근 24시간 코어 지수 표본이 아직 없습니다."
+                                } else {
+                                    "최저 ${visible.minOf { it.score }}점, 최고 ${visible.maxOf { it.score }}점이며 ${visible.size}개 구간을 표시합니다."
                                 },
-                                modifier = Modifier.weight(1f),
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                supportingText = "자정에 초기화하지 않고 조회 시점 직전 24시간만 표시합니다. 화면이 꺼진 구간은 표본을 만들지 않습니다."
                             )
-                            DetailChevron()
+                        }
+                    )
+                }
+                item {
+                    RollingUsageAndUnlockCard(
+                        sessions = rollingSessions,
+                        unlockInsights = rollingUnlockInsights,
+                        windowStartMillis = rollingWindowStartMillis,
+                        windowEndMillis = rollingWindowEndMillis,
+                        onDetailRequested = { selectedDetail = it }
+                    )
+                }
+                item {
+                    RollingUsageSummaryCards(
+                        sessions = rollingSessions,
+                        unlockInsights = rollingUnlockInsights,
+                        windowStartMillis = rollingWindowStartMillis,
+                        windowEndMillis = rollingWindowEndMillis,
+                        onDetailRequested = { selectedDetail = it }
+                    )
+                }
+            } else {
+                if (histories.size < 30) {
+                    item {
+                        Card(
+                            modifier = Modifier.clickable {
+                                selectedDetail = StatisticsDetail(
+                                    title = "30일 기록 범위",
+                                    value = "${histories.size}일 기록",
+                                    description = "DigitsCore가 직접 측정해 저장한 날짜만 표시합니다.",
+                                    supportingText = "상세 세션은 30일, 날짜별 집계는 365일 보관합니다. 기록이 없는 날짜를 0분이나 100점으로 채우지 않습니다."
+                                )
+                            },
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = buildString {
+                                        append("최근 30일 중 DigitsCore가 실제 저장한 ${histories.size}일을 표시합니다.")
+                                        histories.firstOrNull()?.let { first ->
+                                            append(" 기록 범위: ${first.dateString}")
+                                            histories.lastOrNull()?.let { last -> append(" ~ ${last.dateString}") }
+                                            append(".")
+                                        }
+                                        append(" 장기 일별 저장 기능이 적용된 날부터 하루씩 누적됩니다.")
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                DetailChevron()
+                            }
                         }
                     }
                 }
-            }
 
-            // 2. 최근 24시간 코어 지수 추세 (꺾은선 그래프)
-            item {
-                ScoreTrendLineChartCard(
-                    histories = coreIndexHistories,
-                    onDaySelected = { selectedDay = it },
-                    onClick = {
-                        val average = if (coreIndexHistories.isEmpty()) null else
-                            (coreIndexHistories.sumOf { it.finalScore } / coreIndexHistories.size.toFloat()).roundToInt()
-                        val high = coreIndexHistories.maxOfOrNull { it.finalScore }
-                        val low = coreIndexHistories.minOfOrNull { it.finalScore }
-                        val presetChanges = coreIndexPresetChanges(coreIndexHistories)
-                        val reconstructedCount = coreIndexHistories.count { it.scoreModelVersion == 3 }
-                        selectedDetail = StatisticsDetail(
-                            title = "일별 코어 지수 추세",
-                            value = average?.let { "평균 ${it}점" } ?: "기록 준비 중",
-                            description = if (average == null) {
-                                "업데이트 후 측정된 코어 지수가 아직 없습니다."
-                            } else {
-                                "기간 중 최고 ${high}점, 최저 ${low}점입니다."
-                            },
-                            supportingText = buildString {
-                                append("기존 일일 초기화 점수는 이 그래프에 포함하지 않습니다.")
-                                if (presetChanges.isNotEmpty()) {
-                                    append("\n프리셋 변경: ")
-                                    append(
-                                        presetChanges.joinToString(" · ") { change ->
-                                            "${change.dateString} ${CoreIndexPreset.fromId(change.presetId).title}"
-                                        }
-                                    )
+                item {
+                    ScoreTrendLineChartCard(
+                        histories = coreIndexHistories,
+                        onDaySelected = { selectedDay = it },
+                        onClick = {
+                            val average = if (coreIndexHistories.isEmpty()) null else
+                                (coreIndexHistories.sumOf { it.finalScore } / coreIndexHistories.size.toFloat()).roundToInt()
+                            val high = coreIndexHistories.maxOfOrNull { it.finalScore }
+                            val low = coreIndexHistories.minOfOrNull { it.finalScore }
+                            val presetChanges = coreIndexPresetChanges(coreIndexHistories)
+                            val reconstructedCount = coreIndexHistories.count { it.scoreModelVersion == 3 }
+                            selectedDetail = StatisticsDetail(
+                                title = "일별 코어 지수 추세",
+                                value = average?.let { "평균 ${it}점" } ?: "기록 준비 중",
+                                description = if (average == null) {
+                                    "업데이트 후 측정된 코어 지수가 아직 없습니다."
+                                } else {
+                                    "기간 중 최고 ${high}점, 최저 ${low}점입니다."
+                                },
+                                supportingText = buildString {
+                                    append("최근 7일의 변화는 30일 흐름 안에서 함께 비교합니다.")
+                                    if (presetChanges.isNotEmpty()) {
+                                        append("\n프리셋 변경: ")
+                                        append(
+                                            presetChanges.joinToString(" · ") { change ->
+                                                "${change.dateString} ${CoreIndexPreset.fromId(change.presetId).title}"
+                                            }
+                                        )
+                                    }
+                                    if (reconstructedCount > 0) {
+                                        append("\n${reconstructedCount}일은 기존 상세 세션으로 복원한 코어 지수입니다.")
+                                    }
                                 }
-                                if (reconstructedCount > 0) {
-                                    append("\n${reconstructedCount}일은 기존 상세 세션으로 복원한 코어 지수입니다.")
-                                }
-                            }
-                        )
-                    }
-                )
-            }
+                            )
+                        }
+                    )
+                }
 
-            // 3. 일별 사용 시간 & 언락 횟수 (바 차트)
-            item {
-                UsageAndUnlockBarChartCard(
-                    histories = histories,
-                    onClick = {
-                        val count = histories.size.coerceAtLeast(1)
-                        selectedDetail = StatisticsDetail(
-                            title = "사용 시간과 언락",
-                            value = "${histories.size}일 기록",
-                            description = "하루 평균 화면 ${histories.sumOf { it.totalScreenTimeMinutes } / count}분, 관리 앱 ${histories.sumOf { it.distractingTimeMinutes } / count}분, 언락 ${histories.sumOf { it.unlockCount } / count}회입니다.",
-                            supportingText = "청록색은 전체 화면시간, 빨간색은 관리 앱 시간, 노란 점은 언락 횟수입니다."
-                        )
-                    }
-                )
-            }
+                item {
+                    UsageAndUnlockBarChartCard(
+                        histories = histories,
+                        onClick = {
+                            val count = histories.size.coerceAtLeast(1)
+                            selectedDetail = StatisticsDetail(
+                                title = "사용 시간과 언락",
+                                value = "${histories.size}일 기록",
+                                description = "하루 평균 화면 ${histories.sumOf { it.totalScreenTimeMinutes } / count}분, 관리 앱 ${histories.sumOf { it.distractingTimeMinutes } / count}분, 언락 ${histories.sumOf { it.unlockCount } / count}회입니다.",
+                                supportingText = "청록색은 전체 화면시간, 빨간색은 관리 앱 시간, 노란 점은 언락 횟수입니다."
+                            )
+                        }
+                    )
+                }
 
-            // 4. 주요 메트릭 지표 요약
-            item {
-                AnalyticsSummaryCards(
-                    usageHistories = histories,
-                    coreIndexHistories = coreIndexHistories,
-                    onDetailRequested = { selectedDetail = it }
-                )
+                item {
+                    ThirtyDayPatternCard(
+                        histories = histories,
+                        onClick = { selectedDetail = it }
+                    )
+                }
+
+                item {
+                    AnalyticsSummaryCards(
+                        usageHistories = histories,
+                        coreIndexHistories = coreIndexHistories,
+                        onDetailRequested = { selectedDetail = it }
+                    )
+                }
             }
 
             item {
@@ -330,6 +389,454 @@ fun StatisticsScreen(
             samples = selectedDaySamples,
             onDismiss = { selectedDay = null }
         )
+    }
+}
+
+private const val ROLLING_24_HOURS_MILLIS = 24 * 60 * 60_000L
+
+internal data class RollingUsageSummary(
+    val totalMillis: Long,
+    val managedMillis: Long,
+    val hourlyTotalMillis: List<Long>,
+    val hourlyManagedMillis: List<Long>,
+    val longestSessionMillis: Long,
+    val longestSessionAppName: String?,
+    val topAppMillis: Long,
+    val topAppName: String?
+)
+
+internal fun summarizeRollingUsage(
+    sessions: List<ForegroundUsageSessionEntity>,
+    windowStartMillis: Long,
+    windowEndMillis: Long
+): RollingUsageSummary {
+    val duration = (windowEndMillis - windowStartMillis).coerceAtLeast(1L)
+    val bucketMillis = (duration / 24).coerceAtLeast(1L)
+    val hourlyTotal = LongArray(24)
+    val hourlyManaged = LongArray(24)
+    val packageTotals = mutableMapOf<String, Long>()
+    val appNames = mutableMapOf<String, String>()
+    var longestMillis = 0L
+    var longestApp: String? = null
+
+    sessions.forEach { session ->
+        val start = maxOf(session.startTimeMillis, windowStartMillis)
+        val end = minOf(session.endTimeMillis, windowEndMillis)
+        if (end <= start) return@forEach
+
+        val clippedDuration = end - start
+        packageTotals[session.packageName] =
+            (packageTotals[session.packageName] ?: 0L) + clippedDuration
+        appNames[session.packageName] = session.appName
+        if (clippedDuration > longestMillis) {
+            longestMillis = clippedDuration
+            longestApp = session.appName
+        }
+
+        var cursor = start
+        while (cursor < end) {
+            val bucket = ((cursor - windowStartMillis) / bucketMillis)
+                .toInt()
+                .coerceIn(0, 23)
+            val bucketEnd = minOf(
+                end,
+                windowStartMillis + (bucket + 1L) * bucketMillis
+            )
+            val interval = (bucketEnd - cursor).coerceAtLeast(0L)
+            hourlyTotal[bucket] += interval
+            if (session.categoryLevel >= 4) hourlyManaged[bucket] += interval
+            cursor = bucketEnd
+        }
+    }
+
+    val topPackage = packageTotals.maxByOrNull { it.value }
+    return RollingUsageSummary(
+        totalMillis = hourlyTotal.sum(),
+        managedMillis = hourlyManaged.sum(),
+        hourlyTotalMillis = hourlyTotal.toList(),
+        hourlyManagedMillis = hourlyManaged.toList(),
+        longestSessionMillis = longestMillis,
+        longestSessionAppName = longestApp,
+        topAppMillis = topPackage?.value ?: 0L,
+        topAppName = topPackage?.key?.let(appNames::get)
+    )
+}
+
+@Composable
+private fun RollingCoreIndexCard(
+    samples: List<CoreIndexSampleEntity>,
+    windowStartMillis: Long,
+    windowEndMillis: Long,
+    onClick: () -> Unit
+) {
+    val visible = remember(samples, windowStartMillis, windowEndMillis) {
+        samples.filter { it.timestampMillis in windowStartMillis..windowEndMillis }
+    }
+    val axisColor = MaterialTheme.colorScheme.outline
+    val lineColor = MaterialTheme.colorScheme.primary
+
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("최근 24시간 코어 지수", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                DetailChevron(tint = MaterialTheme.colorScheme.primary)
+            }
+            Spacer(Modifier.height(8.dp))
+            if (visible.isNotEmpty()) {
+                Text(
+                    "현재 ${visible.last().score}점 · 최저 ${visible.minOf { it.score }} · 최고 ${visible.maxOf { it.score }}",
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            if (visible.isEmpty()) {
+                Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
+                    Text("최근 24시간 코어 지수 표본을 준비하고 있습니다.", color = axisColor)
+                }
+            } else {
+                Canvas(Modifier.fillMaxWidth().height(180.dp)) {
+                    val graphHeight = size.height - 20.dp.toPx()
+                    listOf(40, 70, 100).forEach { score ->
+                        val y = graphHeight - graphHeight * score / 100f
+                        drawLine(
+                            color = axisColor.copy(alpha = 0.22f),
+                            start = Offset(0f, y),
+                            end = Offset(size.width, y),
+                            strokeWidth = 1.dp.toPx()
+                        )
+                    }
+                    val points = visible.map { sample ->
+                        val ratio = ((sample.timestampMillis - windowStartMillis).toFloat() /
+                            (windowEndMillis - windowStartMillis).coerceAtLeast(1L)).coerceIn(0f, 1f)
+                        Offset(
+                            size.width * ratio,
+                            graphHeight - graphHeight * sample.score.coerceIn(0, 100) / 100f
+                        )
+                    }
+                    if (points.size > 1) {
+                        val path = Path().apply {
+                            moveTo(points.first().x, points.first().y)
+                            points.drop(1).forEach { lineTo(it.x, it.y) }
+                        }
+                        drawPath(path, lineColor, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round))
+                    }
+                    points.forEach { drawCircle(lineColor, 2.5.dp.toPx(), it) }
+                }
+                RollingTimeAxis(windowStartMillis, windowEndMillis, axisColor)
+            }
+            Text(
+                "자정이 아니라 조회 시점 직전 24시간 기준입니다.",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.outline
+            )
+        }
+    }
+}
+
+@Composable
+private fun RollingUsageAndUnlockCard(
+    sessions: List<ForegroundUsageSessionEntity>,
+    unlockInsights: UnlockInsights?,
+    windowStartMillis: Long,
+    windowEndMillis: Long,
+    onDetailRequested: (StatisticsDetail) -> Unit
+) {
+    val summary = remember(sessions, windowStartMillis, windowEndMillis) {
+        summarizeRollingUsage(sessions, windowStartMillis, windowEndMillis)
+    }
+    val axisColor = MaterialTheme.colorScheme.outline
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable {
+            onDetailRequested(
+                StatisticsDetail(
+                    "24시간 사용과 언락",
+                    "화면 ${formatMinutesToHoursAndMinutes(summary.totalMillis / 60_000L)} · 언락 ${unlockInsights?.unlockCount ?: 0}회",
+                    "현재 시각 직전 24시간의 전면 앱 사용과 잠금 해제 흐름입니다.",
+                    "청록색은 전체 전면 사용, 빨간색은 4·5단계 앱, 노란 점은 언락 횟수입니다."
+                )
+            )
+        },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(Modifier.fillMaxWidth().padding(20.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("24시간 사용 흐름", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                DetailChevron(tint = MaterialTheme.colorScheme.primary)
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                ChartLegend(Color(0xFF26A69A), "화면")
+                ChartLegend(ScoreRed, "관리 앱")
+                ChartLegend(ScoreYellow, "언락")
+            }
+            Spacer(Modifier.height(12.dp))
+            Canvas(Modifier.fillMaxWidth().height(160.dp)) {
+                val graphHeight = size.height - 16.dp.toPx()
+                val maxUsage = (summary.hourlyTotalMillis.maxOrNull() ?: 0L).coerceAtLeast(60_000L)
+                val maxUnlock = (unlockInsights?.hourlyUnlockCounts?.maxOrNull() ?: 0).coerceAtLeast(1)
+                val step = size.width / 24f
+                val width = (step * 0.62f).coerceAtLeast(2.dp.toPx())
+                summary.hourlyTotalMillis.forEachIndexed { index, value ->
+                    val x = index * step + (step - width) / 2f
+                    val totalHeight = graphHeight * value / maxUsage.toFloat()
+                    drawRoundRect(
+                        Color(0xFF26A69A).copy(alpha = 0.55f),
+                        Offset(x, graphHeight - totalHeight),
+                        Size(width, totalHeight),
+                        CornerRadius(3f, 3f)
+                    )
+                    val managedHeight = graphHeight * summary.hourlyManagedMillis[index] / maxUsage.toFloat()
+                    drawRoundRect(
+                        ScoreRed.copy(alpha = 0.86f),
+                        Offset(x, graphHeight - managedHeight),
+                        Size(width, managedHeight),
+                        CornerRadius(3f, 3f)
+                    )
+                    val unlock = unlockInsights?.hourlyUnlockCounts?.getOrNull(index) ?: 0
+                    if (unlock > 0) {
+                        val y = graphHeight - graphHeight * unlock / maxUnlock.toFloat()
+                        drawCircle(ScoreYellow, 2.7.dp.toPx(), Offset(x + width / 2f, y))
+                    }
+                }
+                drawLine(axisColor.copy(alpha = 0.35f), Offset(0f, graphHeight), Offset(size.width, graphHeight))
+            }
+            RollingTimeAxis(windowStartMillis, windowEndMillis, axisColor)
+        }
+    }
+}
+
+@Composable
+private fun ChartLegend(color: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(9.dp).background(color, CircleShape))
+        Spacer(Modifier.width(4.dp))
+        Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun RollingTimeAxis(startMillis: Long, endMillis: Long, color: Color) {
+    val formatter = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(formatter.format(java.util.Date(startMillis)), fontSize = 11.sp, color = color)
+        Text(
+            formatter.format(java.util.Date(startMillis + ROLLING_24_HOURS_MILLIS / 2)),
+            fontSize = 11.sp,
+            color = color
+        )
+        Text(formatter.format(java.util.Date(endMillis)), fontSize = 11.sp, color = color)
+    }
+}
+
+@Composable
+private fun RollingUsageSummaryCards(
+    sessions: List<ForegroundUsageSessionEntity>,
+    unlockInsights: UnlockInsights?,
+    windowStartMillis: Long,
+    windowEndMillis: Long,
+    onDetailRequested: (StatisticsDetail) -> Unit
+) {
+    val summary = remember(sessions, windowStartMillis, windowEndMillis) {
+        summarizeRollingUsage(sessions, windowStartMillis, windowEndMillis)
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("24시간 핵심 정보", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            MetricCard(
+                modifier = Modifier.weight(1f),
+                title = "가장 많이 사용",
+                value = summary.topAppName ?: "—",
+                icon = Icons.Default.PhoneAndroid,
+                iconColor = MaterialTheme.colorScheme.primary,
+                subtitle = formatMinutesToHoursAndMinutes(summary.topAppMillis / 60_000L),
+                onClick = {
+                    onDetailRequested(
+                        StatisticsDetail(
+                            "가장 많이 사용한 앱",
+                            summary.topAppName ?: "기록 없음",
+                            "최근 24시간 ${formatMinutesToHoursAndMinutes(summary.topAppMillis / 60_000L)} 사용했습니다.",
+                            "화면 ON·잠금 해제 상태에서 최상단이었던 시간만 포함합니다."
+                        )
+                    )
+                }
+            )
+            MetricCard(
+                modifier = Modifier.weight(1f),
+                title = "최장 연속 사용",
+                value = formatMinutesToHoursAndMinutes(summary.longestSessionMillis / 60_000L),
+                icon = Icons.Default.Star,
+                iconColor = ScoreOrange,
+                subtitle = summary.longestSessionAppName ?: "기록 없음",
+                onClick = {
+                    onDetailRequested(
+                        StatisticsDetail(
+                            "최장 연속 사용",
+                            formatMinutesToHoursAndMinutes(summary.longestSessionMillis / 60_000L),
+                            summary.longestSessionAppName?.let { "$it 앱의 가장 긴 전면 사용 세션입니다." }
+                                ?: "최근 24시간에 저장된 사용 세션이 없습니다.",
+                            "화면을 끄거나 다른 앱으로 전환하면 세션이 종료됩니다."
+                        )
+                    )
+                }
+            )
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            MetricCard(
+                modifier = Modifier.weight(1f),
+                title = "관리 앱 사용",
+                value = formatMinutesToHoursAndMinutes(summary.managedMillis / 60_000L),
+                icon = Icons.Default.CheckCircle,
+                iconColor = ScoreRed,
+                subtitle = "4·5단계 앱",
+                onClick = {
+                    onDetailRequested(
+                        StatisticsDetail(
+                            "관리 앱 사용",
+                            formatMinutesToHoursAndMinutes(summary.managedMillis / 60_000L),
+                            "최근 24시간 중 균형 등급 4·5단계 앱을 전면에서 사용한 시간입니다.",
+                            "앱 등급을 변경하면 이후 세션부터 새 등급으로 기록됩니다."
+                        )
+                    )
+                }
+            )
+            MetricCard(
+                modifier = Modifier.weight(1f),
+                title = "언락 간격",
+                value = unlockInsights?.averageIntervalMinutes?.let { "${it}분" } ?: "—",
+                icon = Icons.Default.LockOpen,
+                iconColor = ScoreYellow,
+                subtitle = "${unlockInsights?.unlockCount ?: 0}회 열음",
+                onClick = {
+                    val notifications = unlockInsights?.notificationCount ?: 0
+                    onDetailRequested(
+                        StatisticsDetail(
+                            "24시간 언락 흐름",
+                            "${unlockInsights?.unlockCount ?: 0}회",
+                            "연속 언락 사이 평균 간격은 ${unlockInsights?.averageIntervalMinutes?.let { "${it}분" } ?: "계산 전"}입니다.",
+                            if (unlockInsights?.notificationEventsSupported == true) {
+                                "같은 기간 OS 감지 알림은 ${notifications}건입니다."
+                            } else {
+                                "이 기기에서는 알림 이벤트 수를 제공하지 않을 수 있습니다."
+                            }
+                        )
+                    )
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ThirtyDayPatternCard(
+    histories: List<DailyScoreHistoryEntity>,
+    onClick: (StatisticsDetail) -> Unit
+) {
+    val today = LocalDate.now()
+    // Missing dates stay missing: the comparison is two exact calendar windows,
+    // not the last fourteen rows that happened to be recorded.
+    val recent = historiesInCalendarRange(histories, 7, today)
+    val previous = historiesInCalendarRange(histories, 7, today.minusDays(7))
+    val recentAverage = recent.takeIf { it.isNotEmpty() }
+        ?.let { rows -> rows.sumOf { it.totalScreenTimeMinutes } / rows.size }
+    val previousAverage = previous.takeIf { it.isNotEmpty() }
+        ?.let { rows -> rows.sumOf { it.totalScreenTimeMinutes } / rows.size }
+    val weekdayAverages = remember(histories) {
+        histories.mapNotNull { row ->
+            runCatching { LocalDate.parse(row.dateString).dayOfWeek.value }.getOrNull()
+                ?.let { it to row.totalScreenTimeMinutes }
+        }.groupBy({ it.first }, { it.second }).mapValues { (_, values) -> values.average().toLong() }
+    }
+    val busiest = weekdayAverages.maxByOrNull { it.value }
+    val weekdayLabels = listOf("월", "화", "수", "목", "금", "토", "일")
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val outlineColor = MaterialTheme.colorScheme.outline
+
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable {
+            val delta = if (recentAverage != null && previousAverage != null) recentAverage - previousAverage else null
+            onClick(
+                StatisticsDetail(
+                    "30일 패턴",
+                    busiest?.let { "${weekdayLabels[it.key - 1]}요일 평균 ${formatMinutesToHoursAndMinutes(it.value)}" }
+                        ?: "기록 준비 중",
+                    delta?.let {
+                        "최근 7일 하루 평균은 이전 7일보다 ${kotlin.math.abs(it)}분 ${if (it > 0) "늘었고" else if (it < 0) "줄었고" else "같고"}, 요일별 평균도 함께 비교합니다."
+                    } ?: "두 개의 7일 구간이 쌓이면 단기 변화를 비교합니다.",
+                    "7일은 별도 탭이 아니라 30일 장기 흐름을 해석하는 이동 구간으로 사용합니다."
+                )
+            )
+        },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(Modifier.fillMaxWidth().padding(20.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("30일 패턴", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                DetailChevron(tint = MaterialTheme.colorScheme.primary)
+            }
+            Text(
+                "최근 7일과 이전 7일 · 요일별 평균",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.outline
+            )
+            Spacer(Modifier.height(12.dp))
+            val maxAverage = maxOf(
+                recentAverage ?: 0L,
+                previousAverage ?: 0L,
+                weekdayAverages.values.maxOrNull() ?: 0L,
+                1L
+            )
+            Canvas(Modifier.fillMaxWidth().height(110.dp)) {
+                val topHeight = 38.dp.toPx()
+                listOf(previousAverage ?: 0L, recentAverage ?: 0L).forEachIndexed { index, value ->
+                    val y = index * 24.dp.toPx()
+                    drawRoundRect(
+                        color = if (index == 0) outlineColor.copy(alpha = 0.45f) else primaryColor,
+                        topLeft = Offset(0f, y),
+                        size = Size(size.width * value / maxAverage.toFloat(), 12.dp.toPx()),
+                        cornerRadius = CornerRadius(6.dp.toPx())
+                    )
+                }
+                val weekdayTop = topHeight + 18.dp.toPx()
+                val step = size.width / 7f
+                weekdayLabels.indices.forEach { index ->
+                    val value = weekdayAverages[index + 1] ?: 0L
+                    val height = 44.dp.toPx() * value / maxAverage.toFloat()
+                    drawRoundRect(
+                        color = primaryColor.copy(alpha = 0.7f),
+                        topLeft = Offset(index * step + step * 0.2f, weekdayTop + 44.dp.toPx() - height),
+                        size = Size(step * 0.6f, height),
+                        cornerRadius = CornerRadius(4.dp.toPx())
+                    )
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                weekdayLabels.forEach { Text(it, fontSize = 10.sp, color = MaterialTheme.colorScheme.outline) }
+            }
+            Text(
+                "이전 7일 ${previousAverage?.let(::formatMinutesToHoursAndMinutes) ?: "—"} · 최근 7일 ${recentAverage?.let(::formatMinutesToHoursAndMinutes) ?: "—"}",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 

@@ -6,9 +6,13 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import com.digitscore.app.data.entity.ForegroundUsageSessionEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ForegroundUsageSessionDao {
+    @Query("SELECT * FROM foreground_usage_sessions WHERE endTimeMillis > :startMillis ORDER BY startTimeMillis ASC")
+    fun observeSince(startMillis: Long): Flow<List<ForegroundUsageSessionEntity>>
+
     @Query("SELECT * FROM foreground_usage_sessions WHERE endTimeMillis >= :startMillis ORDER BY startTimeMillis ASC")
     suspend fun getSince(startMillis: Long): List<ForegroundUsageSessionEntity>
 

@@ -314,28 +314,55 @@ object UsageStatsHelper {
     }
 
     /** 오늘 언락 시간대와 OS UsageEvents가 제공하는 알림 interruption 수를 함께 계산합니다. */
-    fun getTodayUnlockInsights(context: Context): UnlockInsights {
+    fun getTodayUnlockInsights(context: Context): UnlockInsights = getUnlockInsights(
+        context = context,
+        start = getStartOfTodayMillis(),
+        end = System.currentTimeMillis(),
+        rollingBuckets = false
+    )
+
+    /** 현재 시각을 끝으로 하는 직전 24시간의 언락·알림 흐름을 24개 시간 버킷으로 계산합니다. */
+    fun getRolling24HourUnlockInsights(context: Context): UnlockInsights {
+        val end = System.currentTimeMillis()
+        return getUnlockInsights(
+            context = context,
+            start = end - 24 * 60 * 60_000L,
+            end = end,
+            rollingBuckets = true
+        )
+    }
+
+    private fun getUnlockInsights(
+        context: Context,
+        start: Long,
+        end: Long,
+        rollingBuckets: Boolean
+    ): UnlockInsights {
         val manager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
             ?: return UnlockInsights(0, List(24) { 0 }, null, 0, false)
-        val start = getStartOfTodayMillis()
-        val end = System.currentTimeMillis()
         val queried = queryUsageEvents(
             manager,
             (start - FOREGROUND_STATE_LOOKBACK_MILLIS).coerceAtLeast(0L),
             end
         )
-        val todayEvents = queried.timelineEvents.filter { it.timestampMillis in start..end }
-        val hiddenEvents = todayEvents.filter { it.type == ForegroundTimelineEventType.KEYGUARD_HIDDEN }
+        val windowEvents = queried.timelineEvents.filter { it.timestampMillis in start..end }
+        val hiddenEvents = windowEvents.filter { it.type == ForegroundTimelineEventType.KEYGUARD_HIDDEN }
         val unlockEvents = if (hiddenEvents.isNotEmpty()) {
             hiddenEvents
         } else {
-            todayEvents.filter { it.type == ForegroundTimelineEventType.SCREEN_INTERACTIVE }
+            windowEvents.filter { it.type == ForegroundTimelineEventType.SCREEN_INTERACTIVE }
         }
         val hourly = MutableList(24) { 0 }
         unlockEvents.forEach { event ->
-            val hour = Calendar.getInstance().apply { timeInMillis = event.timestampMillis }
-                .get(Calendar.HOUR_OF_DAY)
-            hourly[hour]++
+            val bucket = if (rollingBuckets) {
+                (((event.timestampMillis - start) * 24) / (end - start).coerceAtLeast(1L))
+                    .toInt()
+                    .coerceIn(0, 23)
+            } else {
+                Calendar.getInstance().apply { timeInMillis = event.timestampMillis }
+                    .get(Calendar.HOUR_OF_DAY)
+            }
+            hourly[bucket]++
         }
         val averageIntervalMinutes = unlockEvents.map { it.timestampMillis }
             .zipWithNext { first, second -> (second - first).coerceAtLeast(0L) }
