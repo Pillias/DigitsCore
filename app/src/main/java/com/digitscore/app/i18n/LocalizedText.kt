@@ -304,9 +304,13 @@ object UiTranslator {
         "사용 기록 추적 중" to "Usage tracking is active",
         "끄면 백그라운드 서비스와 상태바 점수 알림이 즉시 종료됩니다." to "Turning this off stops background tracking and the status notification immediately.",
         "상태바 아이콘 스타일" to "Status Bar Icon Style",
+        "큰 숫자형 (권장)" to "Large Number (Recommended)",
         "점수 비율형" to "Score Proportion",
+        "전원 단계형" to "Power Tier",
         "단계 단색형" to "Single-color Tier",
         "숫자 분리형" to "Separated Number",
+        "전원 모양 없이 상태바 영역 전체에 점수를 가장 크게 표시합니다." to
+            "Uses the full status-bar icon area for the largest possible score without the power symbol.",
         "빨간 원호 위를 현재 점수만큼 녹색이 채웁니다. 중앙 막대는 점수 구간색으로 바뀝니다." to
             "Green fills the red arc in proportion to the current score. The center stem follows the score tier color.",
         "전원 버튼 전체가 점수 구간에 따라 빨강·주황·노랑·초록으로 바뀝니다." to

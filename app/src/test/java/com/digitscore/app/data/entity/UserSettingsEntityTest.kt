@@ -12,7 +12,7 @@ class UserSettingsEntityTest {
         assertFalse(UserSettingsEntity().isTrackingEnabled)
         assertEquals(365, UserSettingsEntity().appHistoryRetentionDays)
         assertTrue(UserSettingsEntity().hideSensitiveNotificationOnLockScreen)
-        assertEquals("score_tier", UserSettingsEntity().statusIconStyleId)
+        assertEquals("big_number", UserSettingsEntity().statusIconStyleId)
         assertEquals("dark", UserSettingsEntity().widgetBackgroundStyleId)
     }
 }

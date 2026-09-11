@@ -275,11 +275,12 @@ object DataBackupManager {
                         "hideSensitiveNotificationOnLockScreen",
                         true
                     ),
-                    statusIconStyleId = sObj.optString("statusIconStyleId", "score_tier")
+                    statusIconStyleId = sObj.optString("statusIconStyleId", "big_number")
                         .takeIf {
-                            it == "score_proportion" || it == "score_tier" || it == "number_focus"
+                            it == "big_number" || it == "score_proportion" ||
+                                it == "score_tier" || it == "number_focus"
                         }
-                        ?: "score_tier",
+                        ?: "big_number",
                     widgetBackgroundStyleId = sObj.optString("widgetBackgroundStyleId", "dark")
                         .takeIf { it == "dark" || it == "white" || it == "transparent" }
                         ?: "dark"
