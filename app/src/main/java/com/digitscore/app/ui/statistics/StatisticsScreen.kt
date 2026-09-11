@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +47,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -81,7 +83,9 @@ import com.digitscore.app.ui.theme.ScoreYellow
 import com.digitscore.app.ui.components.DetailChevron
 import com.digitscore.app.ui.components.InformationDetailDialog
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.time.LocalDate
@@ -100,12 +104,24 @@ fun StatisticsScreen(
     var selectedTabIndex by remember { mutableIntStateOf(0) } // 0: 최근 24시간, 1: 최근 30일
     var selectedDetail by remember { mutableStateOf<StatisticsDetail?>(null) }
     var selectedDay by remember { mutableStateOf<DailyScoreHistoryEntity?>(null) }
-    val rollingWindowEndMillis = remember { System.currentTimeMillis() }
+    var rollingWindowEndMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val rollingWindowStartMillis = rollingWindowEndMillis - ROLLING_24_HOURS_MILLIS
+    val thirtyDayStartMillis = remember {
+        Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+            add(Calendar.DAY_OF_YEAR, -29)
+        }.timeInMillis
+    }
 
     val allHistories by db.scoreDao().getAllScoreHistories().collectAsState(initial = emptyList())
     val rollingSamples by remember(rollingWindowStartMillis) {
         db.coreIndexSampleDao().observeSince(rollingWindowStartMillis)
+    }.collectAsState(initial = emptyList())
+    val thirtyDaySamples by remember(thirtyDayStartMillis) {
+        db.coreIndexSampleDao().observeSince(thirtyDayStartMillis)
     }.collectAsState(initial = emptyList())
     val rollingSessions by remember(rollingWindowStartMillis) {
         db.foregroundUsageSessionDao().observeSince(rollingWindowStartMillis)
@@ -121,7 +137,7 @@ fun StatisticsScreen(
     // 과거 버전이 데이터 없는 날을 100점으로 만든 행만 정리하고, 이후 기록은 실시간
     // UsageEvents 측정 결과가 매일 쌓이도록 둡니다.
     LaunchedEffect(Unit) {
-        val unlockInsights = withContext(Dispatchers.IO) {
+        withContext(Dispatchers.IO) {
             val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
             val today = Calendar.getInstance().apply {
                 set(Calendar.HOUR_OF_DAY, 0)
@@ -137,9 +153,20 @@ fun StatisticsScreen(
                 endDateString = dateFormat.format(today.time)
             )
             CoreIndexHistoryRepair.repairLegacyRows(db)
-            UsageStatsHelper.getRolling24HourUnlockInsights(context)
         }
-        rollingUnlockInsights = unlockInsights
+    }
+
+    LaunchedEffect(selectedTabIndex) {
+        if (selectedTabIndex == 0) {
+            while (isActive) {
+                val windowEnd = System.currentTimeMillis()
+                rollingWindowEndMillis = windowEnd
+                rollingUnlockInsights = withContext(Dispatchers.IO) {
+                    UsageStatsHelper.getRolling24HourUnlockInsights(context, windowEnd)
+                }
+                delay(60_000L)
+            }
+        }
     }
 
     // 장기 탭은 DB 행 개수 LIMIT가 아니라 오늘을 포함한 실제 30일 달력 범위입니다.
@@ -218,8 +245,10 @@ fun StatisticsScreen(
 
             if (selectedTabIndex == 0) {
                 item {
-                    RollingCoreIndexCard(
+                    RollingMarketChartCard(
                         samples = rollingSamples,
+                        sessions = rollingSessions,
+                        unlockInsights = rollingUnlockInsights,
                         windowStartMillis = rollingWindowStartMillis,
                         windowEndMillis = rollingWindowEndMillis,
                         onClick = {
@@ -237,15 +266,6 @@ fun StatisticsScreen(
                                 supportingText = "자정에 초기화하지 않고 조회 시점 직전 24시간만 표시합니다. 화면이 꺼진 구간은 표본을 만들지 않습니다."
                             )
                         }
-                    )
-                }
-                item {
-                    RollingUsageAndUnlockCard(
-                        sessions = rollingSessions,
-                        unlockInsights = rollingUnlockInsights,
-                        windowStartMillis = rollingWindowStartMillis,
-                        windowEndMillis = rollingWindowEndMillis,
-                        onDetailRequested = { selectedDetail = it }
                     )
                 }
                 item {
@@ -299,8 +319,9 @@ fun StatisticsScreen(
                 }
 
                 item {
-                    ScoreTrendLineChartCard(
+                    ThirtyDayMarketChartCard(
                         histories = coreIndexHistories,
+                        samples = thirtyDaySamples,
                         onDaySelected = { selectedDay = it },
                         onClick = {
                             val average = if (coreIndexHistories.isEmpty()) null else
@@ -463,54 +484,202 @@ internal fun summarizeRollingUsage(
 }
 
 @Composable
-private fun RollingCoreIndexCard(
+private fun MarketIndexHeader(
+    title: String,
+    current: Int?,
+    change: Int?,
+    low: Int?,
+    average: Int?,
+    high: Int?,
+    onClick: () -> Unit
+) {
+    val changeColor = when {
+        change == null || change == 0 -> MaterialTheme.colorScheme.outline
+        change > 0 -> ScoreGreen
+        else -> ScoreRed
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top
+    ) {
+        Column {
+            Text(title, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    current?.toString() ?: "—",
+                    fontSize = 42.sp,
+                    lineHeight = 44.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                if (change != null) {
+                    Text(
+                        text = when {
+                            change > 0 -> "▲ +$change"
+                            change < 0 -> "▼ $change"
+                            else -> "― 0"
+                        },
+                        modifier = Modifier.padding(start = 10.dp, bottom = 5.dp),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = changeColor
+                    )
+                }
+            }
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            DetailChevron(tint = MaterialTheme.colorScheme.primary)
+            Text(
+                "최저 ${low ?: "—"} · 평균 ${average ?: "—"} · 최고 ${high ?: "—"}",
+                modifier = Modifier.padding(top = 10.dp),
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.outline
+            )
+        }
+    }
+}
+
+private fun topAppInWindow(
+    sessions: List<ForegroundUsageSessionEntity>,
+    startMillis: Long,
+    endMillis: Long
+): String? = sessions.asSequence()
+    .mapNotNull { session ->
+        val start = maxOf(session.startTimeMillis, startMillis)
+        val end = minOf(session.endTimeMillis, endMillis)
+        (end - start).takeIf { it > 0L }?.let { session.appName to it }
+    }
+    .groupBy({ it.first }, { it.second })
+    .maxByOrNull { (_, values) -> values.sum() }
+    ?.key
+
+@Composable
+private fun RollingMarketChartCard(
     samples: List<CoreIndexSampleEntity>,
+    sessions: List<ForegroundUsageSessionEntity>,
+    unlockInsights: UnlockInsights?,
     windowStartMillis: Long,
     windowEndMillis: Long,
     onClick: () -> Unit
 ) {
     val visible = remember(samples, windowStartMillis, windowEndMillis) {
         samples.filter { it.timestampMillis in windowStartMillis..windowEndMillis }
+            .sortedBy { it.timestampMillis }
+    }
+    val summary = remember(sessions, windowStartMillis, windowEndMillis) {
+        summarizeRollingUsage(sessions, windowStartMillis, windowEndMillis)
     }
     val axisColor = MaterialTheme.colorScheme.outline
     val lineColor = MaterialTheme.colorScheme.primary
+    val surfaceColor = MaterialTheme.colorScheme.surface
+    var selectedIndex by remember(visible) {
+        mutableStateOf<Int?>(visible.lastIndex.takeIf { it >= 0 })
+    }
+    val selectedSample = selectedIndex?.let(visible::getOrNull)
+    val current = visible.lastOrNull()?.score
+    val change = if (visible.size >= 2) current?.minus(visible.first().score) else null
+    val average = visible.takeIf { it.isNotEmpty() }?.map { it.score }?.average()?.roundToInt()
+    val duration = (windowEndMillis - windowStartMillis).coerceAtLeast(1L)
+    val selectedBucket = selectedSample?.let {
+        (((it.timestampMillis - windowStartMillis) * 24) / duration).toInt().coerceIn(0, 23)
+    }
+    val selectedApp = remember(sessions, selectedBucket, windowStartMillis, duration) {
+        selectedBucket?.let { bucket ->
+            val bucketStart = windowStartMillis + duration * bucket / 24
+            val bucketEnd = windowStartMillis + duration * (bucket + 1) / 24
+            topAppInWindow(sessions, bucketStart, bucketEnd)
+        }
+    }
+    val tooltipFormatter = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
 
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("최근 24시간 코어 지수", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                DetailChevron(tint = MaterialTheme.colorScheme.primary)
-            }
-            Spacer(Modifier.height(8.dp))
-            if (visible.isNotEmpty()) {
-                Text(
-                    "현재 ${visible.last().score}점 · 최저 ${visible.minOf { it.score }} · 최고 ${visible.maxOf { it.score }}",
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
+            MarketIndexHeader(
+                title = "코어 지수 · 24H",
+                current = current,
+                change = change,
+                low = visible.minOfOrNull { it.score },
+                average = average,
+                high = visible.maxOfOrNull { it.score },
+                onClick = onClick
+            )
             Spacer(Modifier.height(12.dp))
             if (visible.isEmpty()) {
-                Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxWidth().height(250.dp), contentAlignment = Alignment.Center) {
                     Text("최근 24시간 코어 지수 표본을 준비하고 있습니다.", color = axisColor)
                 }
             } else {
-                Canvas(Modifier.fillMaxWidth().height(180.dp)) {
-                    val graphHeight = size.height - 20.dp.toPx()
-                    listOf(40, 70, 100).forEach { score ->
-                        val y = graphHeight - graphHeight * score / 100f
+                selectedSample?.let { sample ->
+                    val bucket = selectedBucket ?: 0
+                    val usage = summary.hourlyTotalMillis.getOrElse(bucket) { 0L }
+                    val managed = summary.hourlyManagedMillis.getOrElse(bucket) { 0L }
+                    val unlocks = unlockInsights?.hourlyUnlockCounts?.getOrElse(bucket) { 0 } ?: 0
+                    Text(
+                        buildString {
+                            append(tooltipFormatter.format(java.util.Date(sample.timestampMillis)))
+                            append(" · ${sample.score}점")
+                            append("\n화면 ${formatMinutesToHoursAndMinutes(usage / 60_000L)}")
+                            append(" · 관리 ${formatMinutesToHoursAndMinutes(managed / 60_000L)}")
+                            append(" · 언락 ${unlocks}회")
+                            selectedApp?.let { append(" · $it") }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(surfaceColor.copy(alpha = 0.72f), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+                val chartModifier = Modifier
+                    .fillMaxWidth()
+                    .height(250.dp)
+                    .pointerInput(visible, windowStartMillis, windowEndMillis) {
+                        detectTapGestures { position ->
+                            val target = windowStartMillis +
+                                (duration * (position.x / size.width).coerceIn(0f, 1f)).toLong()
+                            selectedIndex = visible.indices.minByOrNull {
+                                kotlin.math.abs(visible[it].timestampMillis - target)
+                            }
+                        }
+                    }
+                    .pointerInput(visible, windowStartMillis, windowEndMillis) {
+                        fun select(x: Float) {
+                            val target = windowStartMillis +
+                                (duration * (x / size.width).coerceIn(0f, 1f)).toLong()
+                            selectedIndex = visible.indices.minByOrNull {
+                                kotlin.math.abs(visible[it].timestampMillis - target)
+                            }
+                        }
+                        detectHorizontalDragGestures(
+                            onDragStart = { select(it.x) },
+                            onHorizontalDrag = { changeEvent, _ -> select(changeEvent.position.x) }
+                        )
+                    }
+                Canvas(chartModifier) {
+                    val scoreBottom = 174.dp.toPx()
+                    val volumeTop = 190.dp.toPx()
+                    val volumeBottom = size.height - 12.dp.toPx()
+                    listOf(50, 70, 90).forEach { score ->
+                        val y = scoreBottom - scoreBottom * score / 100f
                         drawLine(
                             color = axisColor.copy(alpha = 0.22f),
                             start = Offset(0f, y),
                             end = Offset(size.width, y),
+                            strokeWidth = 1.dp.toPx()
+                        )
+                    }
+                    for (hour in 0..24 step 6) {
+                        val x = size.width * hour / 24f
+                        drawLine(
+                            axisColor.copy(alpha = 0.10f),
+                            Offset(x, 0f),
+                            Offset(x, volumeBottom),
                             strokeWidth = 1.dp.toPx()
                         )
                     }
@@ -519,102 +688,98 @@ private fun RollingCoreIndexCard(
                             (windowEndMillis - windowStartMillis).coerceAtLeast(1L)).coerceIn(0f, 1f)
                         Offset(
                             size.width * ratio,
-                            graphHeight - graphHeight * sample.score.coerceIn(0, 100) / 100f
+                            scoreBottom - scoreBottom * sample.score.coerceIn(0, 100) / 100f
                         )
                     }
-                    if (points.size > 1) {
-                        val path = Path().apply {
-                            moveTo(points.first().x, points.first().y)
-                            points.drop(1).forEach { lineTo(it.x, it.y) }
+                    val segments = visible.indices.fold(mutableListOf<MutableList<Int>>()) { groups, index ->
+                        if (groups.isEmpty() || (index > 0 && visible[index].timestampMillis - visible[index - 1].timestampMillis > 15 * 60_000L)) {
+                            groups.add(mutableListOf())
                         }
-                        drawPath(path, lineColor, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round))
+                        groups.last().add(index)
+                        groups
                     }
-                    points.forEach { drawCircle(lineColor, 2.5.dp.toPx(), it) }
+                    segments.forEach { indexes ->
+                        if (indexes.size > 1) {
+                            val linePath = Path().apply {
+                                moveTo(points[indexes.first()].x, points[indexes.first()].y)
+                                indexes.drop(1).forEach { lineTo(points[it].x, points[it].y) }
+                            }
+                            val fillPath = Path().apply {
+                                moveTo(points[indexes.first()].x, scoreBottom)
+                                indexes.forEach { lineTo(points[it].x, points[it].y) }
+                                lineTo(points[indexes.last()].x, scoreBottom)
+                                close()
+                            }
+                            drawPath(
+                                fillPath,
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(lineColor.copy(alpha = 0.28f), Color.Transparent),
+                                    startY = 0f,
+                                    endY = scoreBottom
+                                )
+                            )
+                            drawPath(linePath, lineColor, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round))
+                        } else {
+                            drawCircle(lineColor, 2.5.dp.toPx(), points[indexes.first()])
+                        }
+                    }
+
+                    val maxUsage = (summary.hourlyTotalMillis.maxOrNull() ?: 0L).coerceAtLeast(60_000L)
+                    val maxUnlock = (unlockInsights?.hourlyUnlockCounts?.maxOrNull() ?: 0).coerceAtLeast(1)
+                    val step = size.width / 24f
+                    val barWidth = (step * 0.64f).coerceAtLeast(2.dp.toPx())
+                    summary.hourlyTotalMillis.forEachIndexed { index, value ->
+                        val x = index * step + (step - barWidth) / 2f
+                        val availableHeight = volumeBottom - volumeTop
+                        val totalHeight = availableHeight * value / maxUsage.toFloat()
+                        val managedHeight = availableHeight * summary.hourlyManagedMillis[index] / maxUsage.toFloat()
+                        drawRoundRect(
+                            Color(0xFF26A69A).copy(alpha = 0.5f),
+                            Offset(x, volumeBottom - totalHeight),
+                            Size(barWidth, totalHeight),
+                            CornerRadius(3f)
+                        )
+                        drawRoundRect(
+                            ScoreRed.copy(alpha = 0.88f),
+                            Offset(x, volumeBottom - managedHeight),
+                            Size(barWidth, managedHeight),
+                            CornerRadius(3f)
+                        )
+                        val unlock = unlockInsights?.hourlyUnlockCounts?.getOrElse(index) { 0 } ?: 0
+                        if (unlock > 0) {
+                            val y = volumeBottom - availableHeight * unlock / maxUnlock.toFloat()
+                            drawCircle(ScoreYellow, 2.6.dp.toPx(), Offset(x + barWidth / 2f, y))
+                        }
+                    }
+                    selectedIndex?.let { index ->
+                        points.getOrNull(index)?.let { point ->
+                            drawLine(
+                                axisColor.copy(alpha = 0.7f),
+                                Offset(point.x, 0f),
+                                Offset(point.x, volumeBottom),
+                                strokeWidth = 1.dp.toPx()
+                            )
+                            drawCircle(surfaceColor, 6.dp.toPx(), point)
+                            drawCircle(lineColor, 4.dp.toPx(), point)
+                        }
+                    }
                 }
                 RollingTimeAxis(windowStartMillis, windowEndMillis, axisColor)
+                ChartLegendGrid(
+                    listOf(
+                        lineColor to "코어 지수",
+                        Color(0xFF26A69A) to "화면",
+                        ScoreRed to "관리",
+                        ScoreYellow to "언락"
+                    )
+                )
             }
             Text(
-                "자정이 아니라 조회 시점 직전 24시간 기준입니다.",
+                "차트를 누르거나 드래그해 시점별 기록을 확인하세요. 빈 구간은 화면 OFF 또는 기록 없음입니다.",
+                modifier = Modifier.padding(top = 8.dp),
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.outline
             )
-        }
-    }
-}
-
-@Composable
-private fun RollingUsageAndUnlockCard(
-    sessions: List<ForegroundUsageSessionEntity>,
-    unlockInsights: UnlockInsights?,
-    windowStartMillis: Long,
-    windowEndMillis: Long,
-    onDetailRequested: (StatisticsDetail) -> Unit
-) {
-    val summary = remember(sessions, windowStartMillis, windowEndMillis) {
-        summarizeRollingUsage(sessions, windowStartMillis, windowEndMillis)
-    }
-    val axisColor = MaterialTheme.colorScheme.outline
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable {
-            onDetailRequested(
-                StatisticsDetail(
-                    "24시간 사용과 언락",
-                    "화면 ${formatMinutesToHoursAndMinutes(summary.totalMillis / 60_000L)} · 언락 ${unlockInsights?.unlockCount ?: 0}회",
-                    "현재 시각 직전 24시간의 전면 앱 사용과 잠금 해제 흐름입니다.",
-                    "청록색은 전체 전면 사용, 빨간색은 4·5단계 앱, 노란 점은 언락 횟수입니다."
-                )
-            )
-        },
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Column(Modifier.fillMaxWidth().padding(20.dp)) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("24시간 사용 흐름", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                DetailChevron(tint = MaterialTheme.colorScheme.primary)
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                ChartLegend(Color(0xFF26A69A), "화면")
-                ChartLegend(ScoreRed, "관리 앱")
-                ChartLegend(ScoreYellow, "언락")
-            }
-            Spacer(Modifier.height(12.dp))
-            Canvas(Modifier.fillMaxWidth().height(160.dp)) {
-                val graphHeight = size.height - 16.dp.toPx()
-                val maxUsage = (summary.hourlyTotalMillis.maxOrNull() ?: 0L).coerceAtLeast(60_000L)
-                val maxUnlock = (unlockInsights?.hourlyUnlockCounts?.maxOrNull() ?: 0).coerceAtLeast(1)
-                val step = size.width / 24f
-                val width = (step * 0.62f).coerceAtLeast(2.dp.toPx())
-                summary.hourlyTotalMillis.forEachIndexed { index, value ->
-                    val x = index * step + (step - width) / 2f
-                    val totalHeight = graphHeight * value / maxUsage.toFloat()
-                    drawRoundRect(
-                        Color(0xFF26A69A).copy(alpha = 0.55f),
-                        Offset(x, graphHeight - totalHeight),
-                        Size(width, totalHeight),
-                        CornerRadius(3f, 3f)
-                    )
-                    val managedHeight = graphHeight * summary.hourlyManagedMillis[index] / maxUsage.toFloat()
-                    drawRoundRect(
-                        ScoreRed.copy(alpha = 0.86f),
-                        Offset(x, graphHeight - managedHeight),
-                        Size(width, managedHeight),
-                        CornerRadius(3f, 3f)
-                    )
-                    val unlock = unlockInsights?.hourlyUnlockCounts?.getOrNull(index) ?: 0
-                    if (unlock > 0) {
-                        val y = graphHeight - graphHeight * unlock / maxUnlock.toFloat()
-                        drawCircle(ScoreYellow, 2.7.dp.toPx(), Offset(x + width / 2f, y))
-                    }
-                }
-                drawLine(axisColor.copy(alpha = 0.35f), Offset(0f, graphHeight), Offset(size.width, graphHeight))
-            }
-            RollingTimeAxis(windowStartMillis, windowEndMillis, axisColor)
         }
     }
 }
@@ -625,6 +790,22 @@ private fun ChartLegend(color: Color, label: String) {
         Box(Modifier.size(9.dp).background(color, CircleShape))
         Spacer(Modifier.width(4.dp))
         Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun ChartLegendGrid(items: List<Pair<Color, String>>) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        items.chunked(2).forEach { rowItems ->
+            Row(Modifier.fillMaxWidth()) {
+                rowItems.forEach { (color, label) ->
+                    Box(Modifier.weight(1f)) { ChartLegend(color, label) }
+                }
+            }
+        }
     }
 }
 
@@ -886,213 +1067,268 @@ internal fun historiesInCalendarRange(
         .toList()
 }
 
-/**
- * 📈 1. 일별 코어 지수 추세 꺾은선 그래프 (Line Chart)
- */
-@Composable
-private fun ScoreTrendLineChartCard(
+internal data class DailyCoreRange(
+    val history: DailyScoreHistoryEntity,
+    val startScore: Int,
+    val lastScore: Int,
+    val low: Int,
+    val high: Int,
+    val hasIntradaySamples: Boolean
+)
+
+internal fun buildDailyCoreRanges(
     histories: List<DailyScoreHistoryEntity>,
+    samples: List<CoreIndexSampleEntity>
+): List<DailyCoreRange> {
+    val samplesByDate = samples.groupBy { it.dateString }
+    return histories.sortedBy { it.dateString }.map { history ->
+        val daySamples = samplesByDate[history.dateString].orEmpty().sortedBy { it.timestampMillis }
+        if (daySamples.isEmpty()) {
+            DailyCoreRange(
+                history = history,
+                startScore = history.finalScore,
+                lastScore = history.finalScore,
+                low = history.finalScore,
+                high = history.finalScore,
+                hasIntradaySamples = false
+            )
+        } else {
+            DailyCoreRange(
+                history = history,
+                startScore = daySamples.first().score,
+                lastScore = daySamples.last().score,
+                low = daySamples.minOf { it.score },
+                high = daySamples.maxOf { it.score },
+                hasIntradaySamples = true
+            )
+        }
+    }
+}
+
+internal fun sevenDayMovingAverages(ranges: List<DailyCoreRange>): List<Float?> = ranges.map { current ->
+    val currentDate = runCatching { LocalDate.parse(current.history.dateString) }.getOrNull()
+        ?: return@map null
+    val startDate = currentDate.minusDays(6)
+    ranges.mapNotNull { candidate ->
+        val date = runCatching { LocalDate.parse(candidate.history.dateString) }.getOrNull()
+            ?: return@mapNotNull null
+        candidate.lastScore.takeIf { !date.isBefore(startDate) && !date.isAfter(currentDate) }
+    }.takeIf { it.isNotEmpty() }?.average()?.toFloat()
+}
+
+@Composable
+private fun ThirtyDayMarketChartCard(
+    histories: List<DailyScoreHistoryEntity>,
+    samples: List<CoreIndexSampleEntity>,
     onDaySelected: (DailyScoreHistoryEntity) -> Unit,
     onClick: () -> Unit
 ) {
-    val axisTextColor = MaterialTheme.colorScheme.outline.toArgb()
-    val scoreTextColor = MaterialTheme.colorScheme.onSurface.toArgb()
-    val pointRingColor = MaterialTheme.colorScheme.surface.toArgb()
-    val presetChangeRingColor = MaterialTheme.colorScheme.primary
-    val reconstructedRingColor = MaterialTheme.colorScheme.outline
-    val hasPresetChanges = coreIndexPresetChanges(histories).isNotEmpty()
-    val hasReconstructedDays = histories.any { it.scoreModelVersion == 3 }
+    val ranges = remember(histories, samples) { buildDailyCoreRanges(histories, samples) }
+    val movingAverages = remember(ranges) { sevenDayMovingAverages(ranges) }
+    val axisColor = MaterialTheme.colorScheme.outline
+    val lineColor = MaterialTheme.colorScheme.primary
+    val surfaceColor = MaterialTheme.colorScheme.surface
+    var selectedIndex by remember(ranges) {
+        mutableStateOf<Int?>(ranges.lastIndex.takeIf { it >= 0 })
+    }
+    val selected = selectedIndex?.let(ranges::getOrNull)
+    val current = ranges.lastOrNull()?.lastScore
+    val change = if (ranges.size >= 2) current?.minus(ranges.first().startScore) else null
+    val allScores = ranges.flatMap { listOf(it.low, it.high) }
+    val average = ranges.takeIf { it.isNotEmpty() }?.map { it.lastScore }?.average()?.roundToInt()
+    val today = LocalDate.now()
+    val firstDate = today.minusDays(29)
+
+    fun dayOffset(range: DailyCoreRange): Long = runCatching {
+        java.time.temporal.ChronoUnit.DAYS.between(firstDate, LocalDate.parse(range.history.dateString))
+    }.getOrDefault(0L).coerceIn(0L, 29L)
+
+    fun nearestIndex(x: Float, width: Int): Int? {
+        if (ranges.isEmpty()) return null
+        val targetOffset = 29f * (x / width.coerceAtLeast(1)).coerceIn(0f, 1f)
+        return ranges.indices.minByOrNull { kotlin.math.abs(dayOffset(ranges[it]) - targetOffset) }
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "일별 코어 지수 추세 (0~100)",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.weight(1f)
-                )
-                DetailChevron(tint = MaterialTheme.colorScheme.primary)
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (histories.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(190.dp),
-                    contentAlignment = Alignment.Center
-                ) {
+        Column(Modifier.fillMaxWidth().padding(20.dp)) {
+            MarketIndexHeader(
+                title = "코어 지수 · 30D",
+                current = current,
+                change = change,
+                low = allScores.minOrNull(),
+                average = average,
+                high = allScores.maxOrNull(),
+                onClick = onClick
+            )
+            Spacer(Modifier.height(12.dp))
+            if (ranges.isEmpty()) {
+                Box(Modifier.fillMaxWidth().height(270.dp), contentAlignment = Alignment.Center) {
                     Text(
-                        text = "코어 지수 기록을 준비하고 있습니다.\n업데이트 후 하루씩 누적됩니다.",
-                        color = MaterialTheme.colorScheme.outline,
+                        "코어 지수 기록을 준비하고 있습니다.\n업데이트 후 하루씩 누적됩니다.",
+                        color = axisColor,
                         fontSize = 13.sp
                     )
                 }
             } else {
+                selected?.let { range ->
+                    Text(
+                        buildString {
+                            append(range.history.dateString)
+                            append(" · 시작 ${range.startScore} · 마지막 ${range.lastScore}")
+                            append(" · 최저 ${range.low} · 최고 ${range.high}")
+                            append("\n화면 ${formatMinutesToHoursAndMinutes(range.history.totalScreenTimeMinutes)}")
+                            append(" · 관리 ${formatMinutesToHoursAndMinutes(range.history.distractingTimeMinutes)}")
+                            append(" · 언락 ${range.history.unlockCount}회")
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(surfaceColor.copy(alpha = 0.72f), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
                 Canvas(
-                    modifier = Modifier
+                    Modifier
                         .fillMaxWidth()
-                        .height(190.dp)
-                        .pointerInput(histories) {
+                        .height(270.dp)
+                        .pointerInput(ranges) {
                             detectTapGestures { tap ->
-                                val selectedIndex = if (histories.size == 1) {
-                                    0
-                                } else {
-                                    ((tap.x / size.width) * (histories.size - 1))
-                                        .roundToInt()
-                                        .coerceIn(0, histories.lastIndex)
+                                nearestIndex(tap.x, size.width)?.let { index ->
+                                    selectedIndex = index
+                                    onDaySelected(ranges[index].history)
                                 }
-                                onDaySelected(histories[selectedIndex])
                             }
+                        }
+                        .pointerInput(ranges) {
+                            detectHorizontalDragGestures(
+                                onDragStart = { selectedIndex = nearestIndex(it.x, size.width) },
+                                onHorizontalDrag = { event, _ -> selectedIndex = nearestIndex(event.position.x, size.width) }
+                            )
                         }
                 ) {
-                    val width = size.width
-                    val height = size.height - 35f // X축 라벨용 여백
+                    val scoreBottom = 190.dp.toPx()
+                    val volumeTop = 205.dp.toPx()
+                    val volumeBottom = size.height - 10.dp.toPx()
+                    val plotInset = 6.dp.toPx()
+                    val plotWidth = (size.width - plotInset * 2f).coerceAtLeast(1f)
+                    fun scoreY(score: Float): Float = scoreBottom - scoreBottom * score.coerceIn(0f, 100f) / 100f
+                    fun xFor(index: Int): Float = plotInset + plotWidth * dayOffset(ranges[index]) / 29f
 
-                    // 1. 꺾은선 좌표 계산
-                    val n = histories.size
-                    val stepX = if (n > 1) width / (n - 1) else width / 2
-                    val points = histories.mapIndexed { index, item ->
-                        val x = if (n > 1) index * stepX else width / 2
-                        val y = height - (height * (item.finalScore.coerceIn(0, 100) / 100f))
-                        Offset(x, y)
+                    listOf(50, 70, 90).forEach { score ->
+                        val y = scoreY(score.toFloat())
+                        drawLine(axisColor.copy(alpha = 0.22f), Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
+                    }
+                    for (day in 0..29 step 7) {
+                        val x = plotInset + plotWidth * day / 29f
+                        drawLine(
+                            axisColor.copy(alpha = 0.1f),
+                            Offset(x, 0f),
+                            Offset(x, volumeBottom),
+                            1.dp.toPx()
+                        )
                     }
 
-                    // 2. 하단 그라데이션 채우기 (Fill Path)
-                    if (points.isNotEmpty()) {
-                        val fillPath = Path().apply {
-                            moveTo(points.first().x, height)
-                            points.forEach { lineTo(it.x, it.y) }
-                            lineTo(points.last().x, height)
-                            close()
-                        }
-                        drawPath(
-                            path = fillPath,
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    ScoreGreen.copy(alpha = 0.35f),
-                                    Color.Transparent
-                                ),
-                                startY = 0f,
-                                endY = height
+                    val maxUsage = (ranges.maxOfOrNull { it.history.totalScreenTimeMinutes } ?: 0L)
+                        .coerceAtLeast(1L)
+                    val candleWidth = (size.width / 30f * 0.58f).coerceIn(3.dp.toPx(), 10.dp.toPx())
+                    ranges.forEachIndexed { index, range ->
+                        val x = xFor(index)
+                        val totalHeight = (volumeBottom - volumeTop) * range.history.totalScreenTimeMinutes / maxUsage.toFloat()
+                        val managedHeight = (volumeBottom - volumeTop) * range.history.distractingTimeMinutes / maxUsage.toFloat()
+                        drawRoundRect(
+                            Color(0xFF26A69A).copy(alpha = 0.45f),
+                            Offset(x - candleWidth / 2f, volumeBottom - totalHeight),
+                            Size(candleWidth, totalHeight),
+                            CornerRadius(2f)
+                        )
+                        drawRoundRect(
+                            ScoreRed.copy(alpha = 0.8f),
+                            Offset(x - candleWidth / 2f, volumeBottom - managedHeight),
+                            Size(candleWidth, managedHeight),
+                            CornerRadius(2f)
+                        )
+
+                        if (range.hasIntradaySamples) {
+                            val candleColor = if (range.lastScore >= range.startScore) ScoreGreen else ScoreRed
+                            drawLine(
+                                candleColor,
+                                Offset(x, scoreY(range.high.toFloat())),
+                                Offset(x, scoreY(range.low.toFloat())),
+                                1.5.dp.toPx()
                             )
-                        )
+                            val top = minOf(scoreY(range.startScore.toFloat()), scoreY(range.lastScore.toFloat()))
+                            val bodyHeight = kotlin.math.abs(scoreY(range.startScore.toFloat()) - scoreY(range.lastScore.toFloat()))
+                                .coerceAtLeast(2.dp.toPx())
+                            drawRoundRect(
+                                candleColor,
+                                Offset(x - candleWidth / 2f, top),
+                                Size(candleWidth, bodyHeight),
+                                CornerRadius(2f)
+                            )
+                        } else {
+                            drawCircle(axisColor, 2.5.dp.toPx(), Offset(x, scoreY(range.lastScore.toFloat())))
+                        }
                     }
 
-                    // 3. 메인 꺾은선 그리기 (Stroke Path)
-                    if (points.size > 1) {
-                        val linePath = Path().apply {
-                            moveTo(points.first().x, points.first().y)
-                            for (i in 1 until points.size) {
-                                lineTo(points[i].x, points[i].y)
-                            }
-                        }
-                        drawPath(
-                            path = linePath,
-                            color = ScoreGreen,
-                            style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round)
-                        )
-                    }
-
-                    // 4. 각 포인트 원형 점 및 라벨
-                    points.forEachIndexed { index, pt ->
-                        val score = histories[index].finalScore
-                        val isPresetChange = index > 0 &&
-                            histories[index - 1].coreIndexPresetId != histories[index].coreIndexPresetId
-                        val isReconstructed = histories[index].scoreModelVersion == 3
-                        val dotColor = when {
-                            score >= 80 -> ScoreGreen
-                            score >= 60 -> ScoreYellow
-                            score >= 40 -> ScoreOrange
-                            else -> ScoreRed
-                        }
-
-                        // 외부 글로우 링
-                        drawCircle(
-                            color = when {
-                                isPresetChange -> presetChangeRingColor
-                                isReconstructed -> reconstructedRingColor
-                                else -> Color(pointRingColor)
-                            },
-                            radius = when {
-                                isPresetChange -> 8.dp.toPx()
-                                isReconstructed -> 7.dp.toPx()
-                                else -> 6.dp.toPx()
-                            },
-                            center = pt
-                        )
-                        // 내부 점
-                        drawCircle(
-                            color = dotColor,
-                            radius = 4.dp.toPx(),
-                            center = pt
-                        )
-
-                        // 텍스트 라벨 (7일일 때는 매일, 30일일 때는 5일 간격 또는 시작/끝)
-                        val shouldShowLabel = if (n <= 7) true else (index % 5 == 0 || index == n - 1)
-                        if (shouldShowLabel) {
-                            val dateStr = histories[index].dateString
-                            val dayLabel = if (dateStr.length >= 10) dateStr.substring(8) else "${index + 1}"
-                            drawContext.canvas.nativeCanvas.apply {
-                                val paint = android.graphics.Paint().apply {
-                                    color = axisTextColor
-                                    textSize = 24f
-                                    textAlign = android.graphics.Paint.Align.CENTER
-                                }
-                                drawText(com.digitscore.app.i18n.UiTranslator.translate("${dayLabel}일"), pt.x, height + 28f, paint)
-
-                                // 7일 뷰에서는 포인트 위에 점수도 작게 표시
-                                if (n <= 7) {
-                                    val scorePaint = android.graphics.Paint().apply {
-                                        color = scoreTextColor
-                                        textSize = 22f
-                                        isFakeBoldText = true
-                                        textAlign = android.graphics.Paint.Align.CENTER
-                                    }
-                                    val textY = (pt.y - 12f).coerceAtLeast(20f)
-                                    drawText("$score", pt.x, textY, scorePaint)
-                                }
+                    val movingPath = Path()
+                    var pathStarted = false
+                    movingAverages.forEachIndexed { index, value ->
+                        if (value != null) {
+                            val x = xFor(index)
+                            val y = scoreY(value)
+                            if (!pathStarted) {
+                                movingPath.moveTo(x, y)
+                                pathStarted = true
+                            } else {
+                                movingPath.lineTo(x, y)
                             }
                         }
                     }
+                    if (pathStarted) {
+                        drawPath(movingPath, lineColor, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))
+                    }
+
+                    selectedIndex?.let { index ->
+                        val x = xFor(index)
+                        drawLine(
+                            axisColor.copy(alpha = 0.75f),
+                            Offset(x, 0f),
+                            Offset(x, volumeBottom),
+                            1.dp.toPx()
+                        )
+                        drawCircle(surfaceColor, 5.dp.toPx(), Offset(x, scoreY(ranges[index].lastScore.toFloat())))
+                        drawCircle(lineColor, 3.dp.toPx(), Offset(x, scoreY(ranges[index].lastScore.toFloat())))
+                    }
                 }
-                if (hasPresetChanges) {
-                    Text(
-                        text = "큰 테두리는 프리셋이 바뀐 날입니다.",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.primary
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(firstDate.toString().substring(5), fontSize = 11.sp, color = axisColor)
+                    Text(today.toString().substring(5), fontSize = 11.sp, color = axisColor)
+                }
+                ChartLegendGrid(
+                    listOf(
+                        ScoreGreen to "회복",
+                        ScoreRed to "하락/관리",
+                        lineColor to "7일 평균",
+                        Color(0xFF26A69A) to "화면"
                     )
-                }
-                if (hasReconstructedDays) {
-                    Text(
-                        text = "옅은 테두리는 기존 상세 세션으로 복원한 날짜입니다.",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
+                )
                 Text(
-                    text = "그래프의 날짜를 누르면 하루 중 변화를 볼 수 있습니다.",
+                    "범위봉은 하루의 시작·마지막·최저·최고를 표시합니다. 점은 하루 표본이 없는 일별 기록입니다.",
+                    modifier = Modifier.padding(top = 8.dp),
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    "날짜를 누르면 하루 중 5분 단위 변화를 확인할 수 있습니다.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.outline
+                )
             }
         }
     }

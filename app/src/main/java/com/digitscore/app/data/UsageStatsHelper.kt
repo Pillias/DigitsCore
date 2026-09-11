@@ -322,8 +322,10 @@ object UsageStatsHelper {
     )
 
     /** 현재 시각을 끝으로 하는 직전 24시간의 언락·알림 흐름을 24개 시간 버킷으로 계산합니다. */
-    fun getRolling24HourUnlockInsights(context: Context): UnlockInsights {
-        val end = System.currentTimeMillis()
+    fun getRolling24HourUnlockInsights(
+        context: Context,
+        end: Long = System.currentTimeMillis()
+    ): UnlockInsights {
         return getUnlockInsights(
             context = context,
             start = end - 24 * 60 * 60_000L,
