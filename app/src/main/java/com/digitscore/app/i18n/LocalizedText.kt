@@ -130,8 +130,8 @@ object UiTranslator {
         "코어 지수" to "Core Index",
         "7일 평균" to "7-Day Average",
         "하락/관리" to "Decline / Managed",
-        "차트를 누르거나 드래그해 시점별 기록을 확인하세요. 빈 구간은 화면 OFF 또는 기록 없음입니다." to
-            "Tap or drag the chart to inspect each point. Empty spans mean screen off or no record.",
+        "차트를 누르거나 드래그해 시점별 기록을 확인하세요. 화면 OFF 구간은 관측값 사이를 직선으로 잇고 사용량은 0으로 표시합니다." to
+            "Tap or drag the chart to inspect each point. Screen-off spans connect observations with a straight line while usage remains zero.",
         "범위봉은 하루의 시작·마지막·최저·최고를 표시합니다. 점은 하루 표본이 없는 일별 기록입니다." to
             "Range bars show each day's start, last, low, and high. A dot is a daily record without intraday samples.",
         "날짜를 누르면 하루 중 5분 단위 변화를 확인할 수 있습니다." to

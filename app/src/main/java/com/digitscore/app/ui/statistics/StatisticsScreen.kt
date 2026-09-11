@@ -691,37 +691,33 @@ private fun RollingMarketChartCard(
                             scoreBottom - scoreBottom * sample.score.coerceIn(0, 100) / 100f
                         )
                     }
-                    val segments = visible.indices.fold(mutableListOf<MutableList<Int>>()) { groups, index ->
-                        if (groups.isEmpty() || (index > 0 && visible[index].timestampMillis - visible[index - 1].timestampMillis > 15 * 60_000L)) {
-                            groups.add(mutableListOf())
+                    if (points.size > 1) {
+                        val fillPath = Path().apply {
+                            moveTo(points.first().x, scoreBottom)
+                            points.forEach { lineTo(it.x, it.y) }
+                            lineTo(points.last().x, scoreBottom)
+                            close()
                         }
-                        groups.last().add(index)
-                        groups
-                    }
-                    segments.forEach { indexes ->
-                        if (indexes.size > 1) {
-                            val linePath = Path().apply {
-                                moveTo(points[indexes.first()].x, points[indexes.first()].y)
-                                indexes.drop(1).forEach { lineTo(points[it].x, points[it].y) }
-                            }
-                            val fillPath = Path().apply {
-                                moveTo(points[indexes.first()].x, scoreBottom)
-                                indexes.forEach { lineTo(points[it].x, points[it].y) }
-                                lineTo(points[indexes.last()].x, scoreBottom)
-                                close()
-                            }
-                            drawPath(
-                                fillPath,
-                                brush = Brush.verticalGradient(
-                                    colors = listOf(lineColor.copy(alpha = 0.28f), Color.Transparent),
-                                    startY = 0f,
-                                    endY = scoreBottom
-                                )
+                        drawPath(
+                            fillPath,
+                            brush = Brush.verticalGradient(
+                                colors = listOf(lineColor.copy(alpha = 0.18f), Color.Transparent),
+                                startY = 0f,
+                                endY = scoreBottom
                             )
-                            drawPath(linePath, lineColor, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round))
-                        } else {
-                            drawCircle(lineColor, 2.5.dp.toPx(), points[indexes.first()])
+                        )
+                        val linePath = Path().apply {
+                            moveTo(points.first().x, points.first().y)
+                            points.drop(1).forEach { lineTo(it.x, it.y) }
                         }
+                        drawPath(
+                            linePath,
+                            lineColor,
+                            style = Stroke(3.dp.toPx(), cap = StrokeCap.Round)
+                        )
+                    }
+                    if (points.size == 1) {
+                        drawCircle(lineColor, 3.dp.toPx(), points.first())
                     }
 
                     val maxUsage = (summary.hourlyTotalMillis.maxOrNull() ?: 0L).coerceAtLeast(60_000L)
@@ -775,7 +771,7 @@ private fun RollingMarketChartCard(
                 )
             }
             Text(
-                "차트를 누르거나 드래그해 시점별 기록을 확인하세요. 빈 구간은 화면 OFF 또는 기록 없음입니다.",
+                "차트를 누르거나 드래그해 시점별 기록을 확인하세요. 화면 OFF 구간은 관측값 사이를 직선으로 잇고 사용량은 0으로 표시합니다.",
                 modifier = Modifier.padding(top = 8.dp),
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.outline
