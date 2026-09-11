@@ -64,6 +64,32 @@ object UiTranslator {
         Regex("평균 (\\d+)점") to "\$1 pts average",
         Regex("기간 중 최고 (\\d+)점, 최저 (\\d+)점입니다\\.") to
             "Highest \$1 pts and lowest \$2 pts in this period.",
+        Regex("현재 (\\d+)점 · 최저 (\\d+) · 최고 (\\d+)") to
+            "Current \$1 pts · Low \$2 · High \$3",
+        Regex("최저 (\\d+)점, 최고 (\\d+)점이며 (\\d+)개 구간을 표시합니다\\.") to
+            "Low \$1 pts, high \$2 pts, across \$3 recorded intervals.",
+        Regex("화면 (.+) · 언락 (\\d+)회") to "Screen \$1 · \$2 unlocks",
+        Regex("(\\d+)회 열음") to "\$1 unlocks",
+        Regex("같은 기간 OS 감지 알림은 (\\d+)건입니다\\.") to
+            "The OS detected \$1 notifications in the same period.",
+        Regex("최근 24시간 (.+) 사용했습니다\\.") to "Used for \$1 during the last 24 hours.",
+        Regex("(.+) 앱의 가장 긴 전면 사용 세션입니다\\.") to
+            "The longest foreground session was in \$1.",
+        Regex("월요일 평균 (.+)") to "Monday average: \$1",
+        Regex("화요일 평균 (.+)") to "Tuesday average: \$1",
+        Regex("수요일 평균 (.+)") to "Wednesday average: \$1",
+        Regex("목요일 평균 (.+)") to "Thursday average: \$1",
+        Regex("금요일 평균 (.+)") to "Friday average: \$1",
+        Regex("토요일 평균 (.+)") to "Saturday average: \$1",
+        Regex("일요일 평균 (.+)") to "Sunday average: \$1",
+        Regex("이전 7일 (.+) · 최근 7일 (.+)") to
+            "Previous 7 days \$1 · Recent 7 days \$2",
+        Regex("최근 7일 하루 평균은 이전 7일보다 (\\d+)분 늘었고, 요일별 평균도 함께 비교합니다\\.") to
+            "The recent 7-day daily average is \$1 min higher than the previous 7 days; weekday averages are also compared.",
+        Regex("최근 7일 하루 평균은 이전 7일보다 (\\d+)분 줄었고, 요일별 평균도 함께 비교합니다\\.") to
+            "The recent 7-day daily average is \$1 min lower than the previous 7 days; weekday averages are also compared.",
+        Regex("최근 7일 하루 평균은 이전 7일보다 0분 같고, 요일별 평균도 함께 비교합니다\\.") to
+            "The recent and previous 7-day daily averages are equal; weekday averages are also compared.",
         Regex("최저 (\\d+)점 · 최고 (\\d+)점 · 마지막 (\\d+)점") to
             "Low \$1 pts · High \$2 pts · Last \$3 pts",
         Regex("(\\d+)일은 기존 상세 세션으로 복원한 코어 지수입니다\\.") to
@@ -95,6 +121,55 @@ object UiTranslator {
     private val replacements = listOf(
         "사용 균형 통계 & 리포트" to "Usage Balance & Reports",
         "사용 균형 분석" to "Usage Balance Summary",
+        "최근 24시간 코어 지수" to "Core Index · Last 24 Hours",
+        "표본 준비 중" to "Preparing Samples",
+        "최근 24시간 코어 지수 표본을 준비하고 있습니다." to
+            "Preparing Core Index samples for the last 24 hours.",
+        "이 기기에서 저장된 최근 24시간 코어 지수 표본이 아직 없습니다." to
+            "No Core Index samples from the last 24 hours are stored on this device yet.",
+        "자정에 초기화하지 않고 조회 시점 직전 24시간만 표시합니다. 화면이 꺼진 구간은 표본을 만들지 않습니다." to
+            "Shows the 24 hours immediately before viewing without resetting at midnight. No samples are created while the screen is off.",
+        "자정이 아니라 조회 시점 직전 24시간 기준입니다." to
+            "Based on the 24 hours immediately before viewing, not midnight.",
+        "24시간 사용과 언락" to "24-Hour Usage & Unlocks",
+        "현재 시각 직전 24시간의 전면 앱 사용과 잠금 해제 흐름입니다." to
+            "Foreground app usage and unlock activity during the 24 hours immediately before viewing.",
+        "청록색은 전체 전면 사용, 빨간색은 4·5단계 앱, 노란 점은 언락 횟수입니다." to
+            "Teal is total foreground use, red is level 4–5 apps, and yellow dots are unlocks.",
+        "24시간 사용 흐름" to "24-Hour Usage Flow",
+        "24시간 핵심 정보" to "24-Hour Highlights",
+        "가장 많이 사용" to "Most Used",
+        "가장 많이 사용한 앱" to "Most Used App",
+        "화면 ON·잠금 해제 상태에서 최상단이었던 시간만 포함합니다." to
+            "Includes only time when the screen was on, unlocked, and the app was foremost.",
+        "최장 연속 사용" to "Longest Session",
+        "기록 없음" to "No records",
+        "최근 24시간에 저장된 사용 세션이 없습니다." to
+            "No usage sessions were stored in the last 24 hours.",
+        "화면을 끄거나 다른 앱으로 전환하면 세션이 종료됩니다." to
+            "A session ends when the screen turns off or another app takes the foreground.",
+        "관리 앱 사용" to "Managed App Usage",
+        "4·5단계 앱" to "Level 4–5 Apps",
+        "최근 24시간 중 균형 등급 4·5단계 앱을 전면에서 사용한 시간입니다." to
+            "Foreground usage time for balance-rating level 4–5 apps during the last 24 hours.",
+        "앱 등급을 변경하면 이후 세션부터 새 등급으로 기록됩니다." to
+            "A changed app rating applies to sessions recorded afterward.",
+        "언락 간격" to "Unlock Interval",
+        "24시간 언락 흐름" to "24-Hour Unlock Flow",
+        "연속 언락 사이 평균 간격은" to "The average interval between unlocks is",
+        "계산 전" to "not available yet",
+        "같은 기간 OS 감지 알림은" to "OS-detected notifications in the same period:",
+        "이 기기에서는 알림 이벤트 수를 제공하지 않을 수 있습니다." to
+            "This device might not provide notification-event counts.",
+        "30일 패턴" to "30-Day Patterns",
+        "최근 7일과 이전 7일 · 요일별 평균" to
+            "Recent vs previous 7 days · Weekday averages",
+        "두 개의 7일 구간이 쌓이면 단기 변화를 비교합니다." to
+            "Short-term change appears after two seven-day periods are recorded.",
+        "7일은 별도 탭이 아니라 30일 장기 흐름을 해석하는 이동 구간으로 사용합니다." to
+            "Seven days is used as a moving comparison window within the 30-day trend, not as a separate tab.",
+        "최근 7일의 변화는 30일 흐름 안에서 함께 비교합니다." to
+            "Recent seven-day change is compared within the 30-day trend.",
         "일별 코어 지수 추세" to "Daily Core Index Trend",
         "코어 지수 프리셋" to "Core Index Preset",
         "최근 24시간 사용 흐름에서 중요하게 볼 항목을 선택합니다." to
@@ -430,6 +505,7 @@ object UiTranslator {
 
     private val exactReplacements = mapOf(
         "뒤로가기" to "Back", "통계 리포트" to "Statistics", "앱 가중치 설정" to "App Ratings",
+        "최근 24시간" to "Last 24 Hours", "최근 30일" to "Last 30 Days",
         "모드 설정" to "Settings", "현재 프리셋" to "Current Preset", "기본값 초기화" to "Reset Defaults",
         "선택됨" to "Selected", "화면" to "Screen", "언락" to "Unlocks", "방해" to "Managed",
         "관리" to "Managed", "성장" to "Growth", "균형" to "Balanced", "알림" to "Notifications",

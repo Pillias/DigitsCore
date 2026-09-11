@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface CoreIndexSampleDao {
+    @Query("SELECT * FROM core_index_samples WHERE timestampMillis >= :startMillis ORDER BY timestampMillis ASC")
+    fun observeSince(startMillis: Long): Flow<List<CoreIndexSampleEntity>>
+
     @Query("SELECT * FROM core_index_samples WHERE dateString = :dateString ORDER BY timestampMillis ASC")
     fun observeForDate(dateString: String): Flow<List<CoreIndexSampleEntity>>
 
