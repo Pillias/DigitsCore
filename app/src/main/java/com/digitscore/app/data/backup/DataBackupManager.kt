@@ -11,6 +11,7 @@ import com.digitscore.app.data.entity.DailyScoreHistoryEntity
 import com.digitscore.app.data.entity.DailyUsageCoverageEntity
 import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.data.entity.ForegroundUsageSessionEntity
+import com.digitscore.app.data.entity.CoreIndexSampleEntity
 import com.digitscore.app.model.AppCategoryType
 import com.digitscore.app.model.CoreIndexPreset
 import kotlinx.coroutines.Dispatchers
@@ -25,7 +26,7 @@ import java.util.Locale
 
 object DataBackupManager {
 
-    private const val BACKUP_SCHEMA_VERSION = 5
+    private const val BACKUP_SCHEMA_VERSION = 6
     private const val MAX_BACKUP_BYTES = 20 * 1024 * 1024
     private val DATE_PATTERN = Regex("\\d{4}-\\d{2}-\\d{2}")
     private const val BACKUP_CACHE_MAX_AGE_MILLIS = 24 * 60 * 60 * 1_000L
@@ -53,6 +54,7 @@ object DataBackupManager {
         val dailyAppUsage = db.dailyAppUsageDao().getAll()
         val dailyCoverage = db.dailyAppUsageDao().getAllCoverage()
         val detailedSessions = db.foregroundUsageSessionDao().getAll()
+        val coreIndexSamples = db.coreIndexSampleDao().getAll()
 
         val rootJson = JSONObject()
         rootJson.put("version", BACKUP_SCHEMA_VERSION)
@@ -163,6 +165,22 @@ object DataBackupManager {
         }
         rootJson.put("foregroundUsageSessions", sessionsArray)
 
+        // 6. 최근 30일 5분 단위 코어 지수 변화 표본
+        val samplesArray = JSONArray()
+        for (sample in coreIndexSamples) {
+            samplesArray.put(JSONObject().apply {
+                put("bucketStartTimestamp", sample.bucketStartTimestamp)
+                put("timestampMillis", sample.timestampMillis)
+                put("dateString", sample.dateString)
+                put("score", sample.score)
+                put("exactScore", sample.exactScore)
+                put("rollingLoad", sample.rollingLoad)
+                put("acuteLoad", sample.acuteLoad)
+                put("presetId", sample.presetId)
+            })
+        }
+        rootJson.put("coreIndexSamples", samplesArray)
+
         rootJson.toString(2)
     }
 
@@ -217,7 +235,7 @@ object DataBackupManager {
                         productiveTimeMinutes = hObj.getLong("productiveTimeMinutes").coerceIn(0L, 1_440L),
                         idleMinutes = hObj.getLong("idleMinutes").coerceIn(0L, 1_440L),
                         unlockCount = hObj.getInt("unlockCount").coerceIn(0, 10_000),
-                        scoreModelVersion = hObj.optInt("scoreModelVersion", 1).coerceIn(1, 2),
+                        scoreModelVersion = hObj.optInt("scoreModelVersion", 1).coerceIn(1, 3),
                         coreIndexPresetId = CoreIndexPreset.fromId(
                             hObj.optString("coreIndexPresetId", CoreIndexPreset.BALANCED.id)
                         ).id,
@@ -369,6 +387,37 @@ object DataBackupManager {
                     }
                 }
                 db.foregroundUsageSessionDao().insertAll(sessions)
+            }
+
+            if (rootJson.has("coreIndexSamples")) {
+                val samplesArray = rootJson.getJSONArray("coreIndexSamples")
+                require(samplesArray.length() <= 20_000) { "Too many Core Index samples" }
+                val samples = buildList {
+                    for (i in 0 until samplesArray.length()) {
+                        val obj = samplesArray.getJSONObject(i)
+                        val bucket = obj.getLong("bucketStartTimestamp")
+                        val timestamp = obj.getLong("timestampMillis")
+                        val dateString = obj.getString("dateString")
+                        require(bucket >= 0L && timestamp >= bucket) { "Invalid Core Index sample time" }
+                        require(DATE_PATTERN.matches(dateString)) { "Invalid Core Index sample date" }
+                        add(
+                            CoreIndexSampleEntity(
+                                bucketStartTimestamp = bucket,
+                                timestampMillis = timestamp,
+                                dateString = dateString,
+                                score = obj.getInt("score").coerceIn(1, 100),
+                                exactScore = obj.optDouble("exactScore", obj.getInt("score").toDouble())
+                                    .coerceIn(1.0, 100.0),
+                                rollingLoad = obj.optDouble("rollingLoad", 0.0).coerceAtLeast(0.0),
+                                acuteLoad = obj.optDouble("acuteLoad", 0.0).coerceAtLeast(0.0),
+                                presetId = CoreIndexPreset.fromId(
+                                    obj.optString("presetId", CoreIndexPreset.BALANCED.id)
+                                ).id
+                            )
+                        )
+                    }
+                }
+                db.coreIndexSampleDao().insertAll(samples)
             }
             }
 

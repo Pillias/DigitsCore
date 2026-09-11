@@ -3,6 +3,7 @@ package com.digitscore.app.ui.statistics
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,6 +36,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.material3.TextButton
 import com.digitscore.app.i18n.Text
 import com.digitscore.app.i18n.UiTranslator
 import androidx.compose.material3.TopAppBar
@@ -59,11 +62,14 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.digitscore.app.data.DigitsDatabase
+import com.digitscore.app.data.CoreIndexHistoryRepair
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
+import com.digitscore.app.data.entity.CoreIndexSampleEntity
 import com.digitscore.app.model.CoreIndexPreset
 import com.digitscore.app.ui.theme.ScoreGreen
 import com.digitscore.app.ui.theme.ScoreOrange
@@ -72,6 +78,7 @@ import com.digitscore.app.ui.theme.ScoreYellow
 import com.digitscore.app.ui.components.DetailChevron
 import com.digitscore.app.ui.components.InformationDetailDialog
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.time.LocalDate
@@ -89,8 +96,14 @@ fun StatisticsScreen(
     val db = remember { DigitsDatabase.getInstance(context) }
     var selectedTabIndex by remember { mutableIntStateOf(0) } // 0: 7일, 1: 30일
     var selectedDetail by remember { mutableStateOf<StatisticsDetail?>(null) }
+    var selectedDay by remember { mutableStateOf<DailyScoreHistoryEntity?>(null) }
 
     val allHistories by db.scoreDao().getAllScoreHistories().collectAsState(initial = emptyList())
+    val selectedDaySamplesFlow = remember(selectedDay?.dateString) {
+        selectedDay?.let { db.coreIndexSampleDao().observeForDate(it.dateString) }
+            ?: flowOf(emptyList())
+    }
+    val selectedDaySamples by selectedDaySamplesFlow.collectAsState(initial = emptyList())
 
     // 누적 UsageStats 기반 30일 소급은 정확한 전면 앱 시간을 보장하지 못하므로 중단합니다.
     // 과거 버전이 데이터 없는 날을 100점으로 만든 행만 정리하고, 이후 기록은 실시간
@@ -111,6 +124,7 @@ fun StatisticsScreen(
                 startDateString = dateFormat.format(rangeStart.time),
                 endDateString = dateFormat.format(today.time)
             )
+            CoreIndexHistoryRepair.repairLegacyRows(db)
         }
     }
 
@@ -234,12 +248,14 @@ fun StatisticsScreen(
             item {
                 ScoreTrendLineChartCard(
                     histories = coreIndexHistories,
+                    onDaySelected = { selectedDay = it },
                     onClick = {
                         val average = if (coreIndexHistories.isEmpty()) null else
                             (coreIndexHistories.sumOf { it.finalScore } / coreIndexHistories.size.toFloat()).roundToInt()
                         val high = coreIndexHistories.maxOfOrNull { it.finalScore }
                         val low = coreIndexHistories.minOfOrNull { it.finalScore }
                         val presetChanges = coreIndexPresetChanges(coreIndexHistories)
+                        val reconstructedCount = coreIndexHistories.count { it.scoreModelVersion == 3 }
                         selectedDetail = StatisticsDetail(
                             title = "일별 코어 지수 추세",
                             value = average?.let { "평균 ${it}점" } ?: "기록 준비 중",
@@ -257,6 +273,9 @@ fun StatisticsScreen(
                                             "${change.dateString} ${CoreIndexPreset.fromId(change.presetId).title}"
                                         }
                                     )
+                                }
+                                if (reconstructedCount > 0) {
+                                    append("\n${reconstructedCount}일은 기존 상세 세션으로 복원한 코어 지수입니다.")
                                 }
                             }
                         )
@@ -302,6 +321,14 @@ fun StatisticsScreen(
             description = detail.description,
             supportingText = detail.supportingText,
             onDismiss = { selectedDetail = null }
+        )
+    }
+
+    selectedDay?.let { history ->
+        IntradayCoreIndexDialog(
+            history = history,
+            samples = selectedDaySamples,
+            onDismiss = { selectedDay = null }
         )
     }
 }
@@ -358,16 +385,19 @@ internal fun historiesInCalendarRange(
 @Composable
 private fun ScoreTrendLineChartCard(
     histories: List<DailyScoreHistoryEntity>,
+    onDaySelected: (DailyScoreHistoryEntity) -> Unit,
     onClick: () -> Unit
 ) {
     val axisTextColor = MaterialTheme.colorScheme.outline.toArgb()
     val scoreTextColor = MaterialTheme.colorScheme.onSurface.toArgb()
     val pointRingColor = MaterialTheme.colorScheme.surface.toArgb()
     val presetChangeRingColor = MaterialTheme.colorScheme.primary
+    val reconstructedRingColor = MaterialTheme.colorScheme.outline
     val hasPresetChanges = coreIndexPresetChanges(histories).isNotEmpty()
+    val hasReconstructedDays = histories.any { it.scoreModelVersion == 3 }
 
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -379,7 +409,7 @@ private fun ScoreTrendLineChartCard(
                 .padding(20.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -413,6 +443,18 @@ private fun ScoreTrendLineChartCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(190.dp)
+                        .pointerInput(histories) {
+                            detectTapGestures { tap ->
+                                val selectedIndex = if (histories.size == 1) {
+                                    0
+                                } else {
+                                    ((tap.x / size.width) * (histories.size - 1))
+                                        .roundToInt()
+                                        .coerceIn(0, histories.lastIndex)
+                                }
+                                onDaySelected(histories[selectedIndex])
+                            }
+                        }
                 ) {
                     val width = size.width
                     val height = size.height - 35f // X축 라벨용 여백
@@ -467,6 +509,7 @@ private fun ScoreTrendLineChartCard(
                         val score = histories[index].finalScore
                         val isPresetChange = index > 0 &&
                             histories[index - 1].coreIndexPresetId != histories[index].coreIndexPresetId
+                        val isReconstructed = histories[index].scoreModelVersion == 3
                         val dotColor = when {
                             score >= 80 -> ScoreGreen
                             score >= 60 -> ScoreYellow
@@ -476,8 +519,16 @@ private fun ScoreTrendLineChartCard(
 
                         // 외부 글로우 링
                         drawCircle(
-                            color = if (isPresetChange) presetChangeRingColor else Color(pointRingColor),
-                            radius = if (isPresetChange) 8.dp.toPx() else 6.dp.toPx(),
+                            color = when {
+                                isPresetChange -> presetChangeRingColor
+                                isReconstructed -> reconstructedRingColor
+                                else -> Color(pointRingColor)
+                            },
+                            radius = when {
+                                isPresetChange -> 8.dp.toPx()
+                                isReconstructed -> 7.dp.toPx()
+                                else -> 6.dp.toPx()
+                            },
                             center = pt
                         )
                         // 내부 점
@@ -522,10 +573,119 @@ private fun ScoreTrendLineChartCard(
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
+                if (hasReconstructedDays) {
+                    Text(
+                        text = "옅은 테두리는 기존 상세 세션으로 복원한 날짜입니다.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+                Text(
+                    text = "그래프의 날짜를 누르면 하루 중 변화를 볼 수 있습니다.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Spacer(modifier = Modifier.height(10.dp))
             }
         }
     }
+}
+
+@Composable
+private fun IntradayCoreIndexDialog(
+    history: DailyScoreHistoryEntity,
+    samples: List<CoreIndexSampleEntity>,
+    onDismiss: () -> Unit
+) {
+    val axisColor = MaterialTheme.colorScheme.outline
+    val lineColor = MaterialTheme.colorScheme.primary
+    val minimum = samples.minOfOrNull { it.score }
+    val maximum = samples.maxOfOrNull { it.score }
+    val latest = samples.lastOrNull()?.score
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("${history.dateString} · 하루 코어 지수", fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (samples.isEmpty()) {
+                    Text(
+                        "이 날짜의 하루 중 변화 표본은 없습니다. 5분 단위 기록은 이번 버전부터 최대 30일간 보관됩니다.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Text(
+                        "최저 ${minimum}점 · 최고 ${maximum}점 · 마지막 ${latest}점",
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Canvas(
+                        modifier = Modifier.fillMaxWidth().height(210.dp)
+                    ) {
+                        val graphHeight = size.height - 24.dp.toPx()
+                        listOf(40, 70, 100).forEach { score ->
+                            val y = graphHeight - graphHeight * (score / 100f)
+                            drawLine(
+                                color = axisColor.copy(alpha = 0.25f),
+                                start = Offset(0f, y),
+                                end = Offset(size.width, y),
+                                strokeWidth = 1.dp.toPx()
+                            )
+                        }
+
+                        val points = samples.map { sample ->
+                            val calendar = Calendar.getInstance().apply {
+                                timeInMillis = sample.timestampMillis
+                            }
+                            val minuteOfDay = calendar.get(Calendar.HOUR_OF_DAY) * 60 +
+                                calendar.get(Calendar.MINUTE)
+                            Offset(
+                                x = size.width * (minuteOfDay / 1_440f),
+                                y = graphHeight - graphHeight * (sample.score.coerceIn(0, 100) / 100f)
+                            )
+                        }
+                        if (points.size > 1) {
+                            val path = Path().apply {
+                                moveTo(points.first().x, points.first().y)
+                                points.drop(1).forEach { lineTo(it.x, it.y) }
+                            }
+                            drawPath(
+                                path = path,
+                                color = lineColor,
+                                style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                            )
+                        }
+                        points.forEach { point ->
+                            drawCircle(lineColor, radius = 2.5.dp.toPx(), center = point)
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("00:00", fontSize = 11.sp, color = axisColor)
+                        Text("12:00", fontSize = 11.sp, color = axisColor)
+                        Text("24:00", fontSize = 11.sp, color = axisColor)
+                    }
+                    Text(
+                        "화면이 켜진 동안 같은 5분 구간의 최신 계산값을 저장합니다. 화면을 끈 동안에는 기록하지 않고 다음 사용 시 회복된 값으로 이어집니다.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    Text(
+                        "프리셋: ${CoreIndexPreset.fromId(samples.last().presetId).title}",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("닫기") }
+        }
+    )
 }
 
 /**

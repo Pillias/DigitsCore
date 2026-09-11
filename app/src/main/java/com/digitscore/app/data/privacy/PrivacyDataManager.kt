@@ -34,6 +34,7 @@ object PrivacyDataManager {
         db.withTransaction {
             db.dailyAppUsageDao().deleteAllHistory()
             db.foregroundUsageSessionDao().deleteAll()
+            db.coreIndexSampleDao().deleteAll()
             db.scoreDao().deleteAllScoreHistories()
         }
         appContext.getSharedPreferences("tracking_state", Context.MODE_PRIVATE)

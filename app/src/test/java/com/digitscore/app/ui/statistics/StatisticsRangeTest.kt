@@ -48,7 +48,7 @@ class StatisticsRangeTest {
         val histories = listOf(
             history("2026-09-08"),
             history("2026-09-09", scoreModelVersion = 2),
-            history("2026-09-10", scoreModelVersion = 2)
+            history("2026-09-10", scoreModelVersion = 3)
         )
 
         assertEquals(
