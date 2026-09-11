@@ -22,7 +22,7 @@ object DynamicIconGenerator {
     fun createScoreBitmapIcon(
         context: Context,
         score: Int,
-        style: StatusIconStyle = StatusIconStyle.SCORE_TIER
+        style: StatusIconStyle = StatusIconStyle.BIG_NUMBER
     ): Bitmap {
         val normalizedScore = score.coerceIn(0, 100)
         val density = context.resources.displayMetrics.density
@@ -31,6 +31,21 @@ object DynamicIconGenerator {
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val tierColor = scoreTierColor(normalizedScore)
+
+        if (style == StatusIconStyle.BIG_NUMBER) {
+            // 상태바 한 칸 전체를 숫자에 사용합니다. 밝고 어두운 배경 모두에서
+            // 읽히도록 흰색 채움과 검은 외곽선은 유지하되 장식은 넣지 않습니다.
+            drawScoreText(
+                canvas = canvas,
+                size = size,
+                score = normalizedScore,
+                centerX = size / 2f,
+                centerY = size * 0.52f,
+                maxWidth = size * 0.96f,
+                scaleForDigits = floatArrayOf(0.98f, 0.84f, 0.60f)
+            )
+            return bitmap
+        }
 
         if (style == StatusIconStyle.NUMBER_FOCUS) {
             drawSeparatedPowerSymbol(canvas, size, tierColor)
@@ -81,6 +96,7 @@ object DynamicIconGenerator {
                 ringPaint.color = tierColor
                 canvas.drawArc(ringBounds, arcStart, fullSweep, false, ringPaint)
             }
+            StatusIconStyle.BIG_NUMBER -> Unit // 위의 큰 숫자 전용 경로에서 반환됩니다.
             StatusIconStyle.NUMBER_FOCUS -> Unit // 위의 분리형 전용 경로에서 반환됩니다.
         }
 
@@ -163,6 +179,6 @@ object DynamicIconGenerator {
     fun createScoreIconCompat(
         context: Context,
         score: Int,
-        style: StatusIconStyle = StatusIconStyle.SCORE_TIER
+        style: StatusIconStyle = StatusIconStyle.BIG_NUMBER
     ): IconCompat = IconCompat.createWithBitmap(createScoreBitmapIcon(context, score, style))
 }

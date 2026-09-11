@@ -47,7 +47,7 @@ object ScoreNotificationManager {
         unlockCount: Int,
         hideSensitiveOnLockScreen: Boolean = true,
         rollingScoreDetail: RollingScoreDetail? = null,
-        statusIconStyle: StatusIconStyle = StatusIconStyle.SCORE_TIER
+        statusIconStyle: StatusIconStyle = StatusIconStyle.BIG_NUMBER
     ): Notification {
         val strings = AppLocale.stringsContext(context)
         val launchIntent = Intent(context, MainActivity::class.java).apply {
@@ -124,7 +124,7 @@ object ScoreNotificationManager {
         unlockCount: Int,
         hideSensitiveOnLockScreen: Boolean = true,
         rollingScoreDetail: RollingScoreDetail? = null,
-        statusIconStyle: StatusIconStyle = StatusIconStyle.SCORE_TIER
+        statusIconStyle: StatusIconStyle = StatusIconStyle.BIG_NUMBER
     ) {
         val notification = buildScoreNotification(
             context,

@@ -5,9 +5,14 @@ import org.junit.Test
 
 class StatusIconStyleTest {
     @Test
-    fun `unknown and missing style safely use tier style`() {
-        assertEquals(StatusIconStyle.SCORE_TIER, StatusIconStyle.fromId(null))
-        assertEquals(StatusIconStyle.SCORE_TIER, StatusIconStyle.fromId("unknown"))
+    fun `unknown and missing style safely use large number style`() {
+        assertEquals(StatusIconStyle.BIG_NUMBER, StatusIconStyle.fromId(null))
+        assertEquals(StatusIconStyle.BIG_NUMBER, StatusIconStyle.fromId("unknown"))
+    }
+
+    @Test
+    fun `saved large number style is restored`() {
+        assertEquals(StatusIconStyle.BIG_NUMBER, StatusIconStyle.fromId("big_number"))
     }
 
     @Test
