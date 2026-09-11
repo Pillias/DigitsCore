@@ -33,7 +33,7 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
         UserSettingsEntity::class,
         ForegroundUsageSessionEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = true
 )
 abstract class DigitsDatabase : RoomDatabase() {
@@ -167,6 +167,28 @@ abstract class DigitsDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE user_settings ADD COLUMN selectedCoreIndexPresetId TEXT NOT NULL DEFAULT 'balanced'"
+                )
+                db.execSQL(
+                    """UPDATE user_settings
+                       SET selectedCoreIndexPresetId = CASE selectedPresetModeId
+                           WHEN 'study' THEN 'focus'
+                           WHEN 'worker' THEN 'focus'
+                           WHEN 'eye_health' THEN 'screen_rest'
+                           WHEN 'kids' THEN 'family'
+                           ELSE 'balanced'
+                       END""".trimIndent()
+                )
+                // v9의 코어 지수는 모두 현재의 일상 균형 계수로 계산됐습니다.
+                db.execSQL(
+                    "ALTER TABLE daily_score_history ADD COLUMN coreIndexPresetId TEXT NOT NULL DEFAULT 'balanced'"
+                )
+            }
+        }
+
         @Volatile
         private var INSTANCE: DigitsDatabase? = null
 
@@ -189,7 +211,8 @@ abstract class DigitsDatabase : RoomDatabase() {
                         MIGRATION_5_6,
                         MIGRATION_6_7,
                         MIGRATION_7_8,
-                        MIGRATION_8_9
+                        MIGRATION_8_9,
+                        MIGRATION_9_10
                     )
                     .fallbackToDestructiveMigrationOnDowngrade()
                 if (passphrase != null) {

@@ -71,6 +71,7 @@ import com.digitscore.app.data.security.DatabaseEncryptionManager
 import com.digitscore.app.data.security.DatabaseSecurityMode
 import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.data.entity.applyTo
+import com.digitscore.app.model.CoreIndexPreset
 import com.digitscore.app.model.PresetMode
 import com.digitscore.app.ui.components.SectionHeading
 import com.digitscore.app.ui.components.DetailChevron
@@ -126,8 +127,10 @@ fun PresetModeScreen(
     val settings = userSettings ?: UserSettingsEntity()
     val selectedModeId = settings.selectedPresetModeId
     val selectedPreset = PresetMode.fromId(selectedModeId)
+    val selectedCoreIndexPreset = CoreIndexPreset.fromId(settings.selectedCoreIndexPresetId)
     var showPrivacyPolicy by remember { mutableStateOf(false) }
     var isPresetMenuExpanded by remember { mutableStateOf(false) }
+    var isCoreIndexPresetMenuExpanded by remember { mutableStateOf(false) }
     var isLanguageMenuExpanded by remember { mutableStateOf(false) }
     var isStatusIconMenuExpanded by remember { mutableStateOf(false) }
     var isWidgetBackgroundMenuExpanded by remember { mutableStateOf(false) }
@@ -160,6 +163,18 @@ fun PresetModeScreen(
                     maxYesterdayPenalty = rule.maxYesterdayPenalty
                 )
             )
+        }
+    }
+
+    fun selectCoreIndexPreset(preset: CoreIndexPreset) {
+        isCoreIndexPresetMenuExpanded = false
+        scope.launch(Dispatchers.IO) {
+            db.settingsDao().insertOrUpdateSettings(
+                settings.copy(selectedCoreIndexPresetId = preset.id)
+            )
+            if (settings.isTrackingEnabled) {
+                TrackerForegroundService.refreshNotification(context)
+            }
         }
     }
 
@@ -280,6 +295,93 @@ fun PresetModeScreen(
                                 }
                             }
                         }
+                    }
+                }
+            }
+
+            item {
+                SectionHeading(
+                    title = "코어 지수 프리셋",
+                    subtitle = "최근 24시간 사용 흐름에서 중요하게 볼 항목을 선택합니다."
+                )
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        ExposedDropdownMenuBox(
+                            expanded = isCoreIndexPresetMenuExpanded,
+                            onExpandedChange = {
+                                isCoreIndexPresetMenuExpanded = !isCoreIndexPresetMenuExpanded
+                            }
+                        ) {
+                            OutlinedTextField(
+                                value = selectedCoreIndexPreset.title,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("현재 프리셋") },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(
+                                        expanded = isCoreIndexPresetMenuExpanded
+                                    )
+                                },
+                                modifier = Modifier.menuAnchor().fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = isCoreIndexPresetMenuExpanded,
+                                onDismissRequest = { isCoreIndexPresetMenuExpanded = false }
+                            ) {
+                                CoreIndexPreset.entries.forEach { preset ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Column {
+                                                Text(preset.title, fontWeight = FontWeight.SemiBold)
+                                                Text(
+                                                    preset.sensitivitySummary,
+                                                    fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.outline
+                                                )
+                                            }
+                                        },
+                                        onClick = { selectCoreIndexPreset(preset) },
+                                        trailingIcon = if (preset == selectedCoreIndexPreset) {
+                                            {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = UiTranslator.translate("선택됨"),
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        } else null
+                                    )
+                                }
+                            }
+                        }
+
+                        Text(
+                            selectedCoreIndexPreset.description,
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            selectedCoreIndexPreset.sensitivitySummary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            "프리셋 변경 즉시 최근 24시간 기록을 새 기준으로 다시 계산합니다.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
                     }
                 }
             }

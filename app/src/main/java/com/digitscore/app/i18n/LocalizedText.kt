@@ -92,6 +92,14 @@ object UiTranslator {
         "사용 균형 통계 & 리포트" to "Usage Balance & Reports",
         "사용 균형 분석" to "Usage Balance Summary",
         "일별 코어 지수 추세" to "Daily Core Index Trend",
+        "코어 지수 프리셋" to "Core Index Preset",
+        "최근 24시간 사용 흐름에서 중요하게 볼 항목을 선택합니다." to
+            "Choose what the rolling 24-hour Core Index should emphasize.",
+        "프리셋 변경 즉시 최근 24시간 기록을 새 기준으로 다시 계산합니다." to
+            "Changing the preset immediately recalculates the last 24 hours with the new profile.",
+        "큰 테두리는 프리셋이 바뀐 날입니다." to
+            "A large ring marks the day when the preset changed.",
+        "프리셋 변경:" to "Preset changes:",
         "평균 코어 지수" to "Average Core Index",
         "코어 지수 기록" to "Core Index Records",
         "코어 지수 기록을 준비하고 있습니다." to "Core Index history is being prepared.",

@@ -33,14 +33,14 @@ TrackerForegroundService — 화면 켜짐 중 주기 갱신 및 경계 처리
 
 ### 저장
 
-Room 데이터베이스 버전은 v9입니다.
+Room 데이터베이스 버전은 v10입니다.
 
 - `foreground_usage_sessions`: 앱별 상세 시작·종료 구간, 30일
 - `daily_app_usage`: 앱별 일일 사용 집계, 365일
 - `daily_usage_coverage`: 날짜별 자체 측정 완료 여부
-- `daily_score_history`: 일별 코어 지수·화면·언락 집계. `scoreModelVersion=2`인 행만 코어 지수 통계에 사용하고, 이전 행의 사용량·언락 집계는 계속 보존
+- `daily_score_history`: 일별 코어 지수·화면·언락과 당시 `coreIndexPresetId` 집계. `scoreModelVersion=2`인 행만 코어 지수 통계에 사용하고, 이전 행의 사용량·언락 집계는 계속 보존
 - `app_weights`: 앱별 5단계 등급과 사용자 변경 여부
-- `user_settings`: 프리셋, 점수 계수, 추적·알림·잠금화면·상태 아이콘·위젯 배경 설정
+- `user_settings`: 코어 지수 프리셋, 호환용 구식 점수 계수, 추적·알림·잠금화면·상태 아이콘·위젯 배경 설정
 
 SQLCipher DB 암호는 Android Keystore로 보호합니다. 이전 평문 DB를 암호화 DB로 안전하게 옮기는 경로와 실패 시 기존 기록을 보존하는 호환 모드가 있습니다.
 

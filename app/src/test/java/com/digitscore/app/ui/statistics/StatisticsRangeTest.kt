@@ -6,7 +6,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class StatisticsRangeTest {
-    private fun history(date: String, scoreModelVersion: Int = 1) = DailyScoreHistoryEntity(
+    private fun history(
+        date: String,
+        scoreModelVersion: Int = 1,
+        coreIndexPresetId: String = "balanced"
+    ) = DailyScoreHistoryEntity(
         dateString = date,
         finalScore = 70,
         totalScreenTimeMinutes = 100,
@@ -14,7 +18,8 @@ class StatisticsRangeTest {
         productiveTimeMinutes = 10,
         idleMinutes = 200,
         unlockCount = 30,
-        scoreModelVersion = scoreModelVersion
+        scoreModelVersion = scoreModelVersion,
+        coreIndexPresetId = coreIndexPresetId
     )
 
     @Test
@@ -49,6 +54,24 @@ class StatisticsRangeTest {
         assertEquals(
             listOf("2026-09-09", "2026-09-10"),
             coreIndexHistories(histories).map { it.dateString }
+        )
+    }
+
+    @Test
+    fun presetChangesAreReportedAtTheFirstDayUsingTheNewPreset() {
+        val histories = listOf(
+            history("2026-09-08", 2, "balanced"),
+            history("2026-09-09", 2, "balanced"),
+            history("2026-09-10", 2, "focus"),
+            history("2026-09-11", 2, "screen_rest")
+        )
+
+        assertEquals(
+            listOf(
+                CoreIndexPresetChange("2026-09-10", "focus"),
+                CoreIndexPresetChange("2026-09-11", "screen_rest")
+            ),
+            coreIndexPresetChanges(histories)
         )
     }
 }

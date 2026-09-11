@@ -16,5 +16,7 @@ data class DailyScoreHistoryEntity(
     val unlockCount: Int,
     /** 1: 기존 일일 점수, 2: 최근 24시간 코어 지수 */
     val scoreModelVersion: Int = 1,
+    /** 해당 기록을 계산할 때 사용한 코어 지수 프리셋 ID */
+    val coreIndexPresetId: String = "balanced",
     val lastUpdatedTimestamp: Long = System.currentTimeMillis()
 )

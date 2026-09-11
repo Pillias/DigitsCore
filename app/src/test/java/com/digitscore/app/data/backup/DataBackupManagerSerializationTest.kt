@@ -46,6 +46,7 @@ class DataBackupManagerSerializationTest {
             idleMinutes = 300,
             unlockCount = 22,
             scoreModelVersion = 2,
+            coreIndexPresetId = "focus",
             lastUpdatedTimestamp = 1234567890L
         )
 
@@ -57,6 +58,7 @@ class DataBackupManagerSerializationTest {
         assertEquals(300L, history.idleMinutes)
         assertEquals(22, history.unlockCount)
         assertEquals(2, history.scoreModelVersion)
+        assertEquals("focus", history.coreIndexPresetId)
         assertEquals(1234567890L, history.lastUpdatedTimestamp)
     }
 
@@ -90,6 +92,7 @@ class DataBackupManagerSerializationTest {
         val settings = UserSettingsEntity(
             id = 1,
             selectedPresetModeId = "study",
+            selectedCoreIndexPresetId = "focus",
             minimumScoreDefenseLine = 70,
             targetUnlockCount = 15,
             distractingWeightPerMinute = 1.2f,
@@ -103,6 +106,7 @@ class DataBackupManagerSerializationTest {
 
         assertEquals(1, settings.id)
         assertEquals("study", settings.selectedPresetModeId)
+        assertEquals("focus", settings.selectedCoreIndexPresetId)
         assertEquals(70, settings.minimumScoreDefenseLine)
         assertEquals(15, settings.targetUnlockCount)
         assertEquals(1.2f, settings.distractingWeightPerMinute, 0.01f)

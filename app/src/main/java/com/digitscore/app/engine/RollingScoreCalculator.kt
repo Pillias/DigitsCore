@@ -1,5 +1,6 @@
 package com.digitscore.app.engine
 
+import com.digitscore.app.model.CoreIndexPreset
 import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -52,7 +53,8 @@ object RollingScoreCalculator {
         sessions: List<RollingUsageSession>,
         nowMillis: Long,
         rollingUnlockCount: Int = 0,
-        calibrationUsageMillis: Long? = null
+        calibrationUsageMillis: Long? = null,
+        preset: CoreIndexPreset = CoreIndexPreset.BALANCED
     ): RollingScoreDetail {
         val windowStart = nowMillis - WINDOW_MILLIS
         val clipped = sessions.asSequence()
@@ -72,10 +74,12 @@ object RollingScoreCalculator {
         val usageMillis = clipped.sumOf { it.endTimeMillis - it.startTimeMillis }
         var rollingLoad = clipped.sumOf { session ->
             val minutes = (session.endTimeMillis - session.startTimeMillis) / 60_000.0
-            val perMinute = 0.040 + (extraLoadPerMinute[session.categoryLevel] ?: 0.020)
-            minutes * perMinute * if (session.isLateNight && session.categoryLevel >= 4) 1.25 else 1.0
+            val perMinute = 0.040 * preset.baseLoadMultiplier +
+                (extraLoadPerMinute[session.categoryLevel] ?: 0.020) * preset.categoryLoadMultiplier
+            minutes * perMinute *
+                if (session.isLateNight && session.categoryLevel >= 4) preset.lateNightMultiplier else 1.0
         }
-        rollingLoad += max(0, rollingUnlockCount - 20) * 0.12
+        rollingLoad += max(0, rollingUnlockCount - preset.unlockThreshold) * preset.unlockLoadPerExcess
 
         val last = merged.lastOrNull()
         val isActive = last != null && nowMillis - last.endTimeMillis <= ACTIVE_GRACE_MILLIS
@@ -95,9 +99,12 @@ object RollingScoreCalculator {
         }
         val peakAcute = if (last != null) {
             val sessionMinutes = (last.endTimeMillis - last.startTimeMillis) / 60_000.0
-            34.0 * (max(sessionMinutes - 30.0, 0.0) / 150.0).pow(1.3) * acuteFactor
+            34.0 * (max(sessionMinutes - preset.continuousLoadStartMinutes, 0.0) / 150.0).pow(1.3) *
+                acuteFactor * preset.acuteLoadMultiplier
         } else 0.0
-        val acuteLoad = if (isActive) peakAcute else peakAcute * 0.5.pow(restMinutes / 35.0)
+        val acuteLoad = if (isActive) peakAcute else {
+            peakAcute * 0.5.pow(restMinutes / preset.recoveryHalfLifeMinutes)
+        }
 
         val totalLoad = rollingLoad + acuteLoad
         val rawScore = 100.0 / (1.0 + (totalLoad / 45.0).pow(1.43))
