@@ -486,7 +486,7 @@ fun PresetModeScreen(
                         ) {
                             OutlinedTextField(
                                 value = when (selectedIconStyle) {
-                                    StatusIconStyle.BIG_NUMBER -> "큰 숫자형 (권장)"
+                                    StatusIconStyle.BIG_NUMBER -> "코어 숫자형 (권장)"
                                     StatusIconStyle.SCORE_PROPORTION -> "점수 비율형"
                                     StatusIconStyle.SCORE_TIER -> "전원 단계형"
                                     StatusIconStyle.NUMBER_FOCUS -> "숫자 분리형"
@@ -503,7 +503,7 @@ fun PresetModeScreen(
                                 onDismissRequest = { isStatusIconMenuExpanded = false }
                             ) {
                                 listOf(
-                                    StatusIconStyle.BIG_NUMBER to "큰 숫자형 (권장)",
+                                    StatusIconStyle.BIG_NUMBER to "코어 숫자형 (권장)",
                                     StatusIconStyle.SCORE_TIER to "전원 단계형",
                                     StatusIconStyle.SCORE_PROPORTION to "점수 비율형",
                                     StatusIconStyle.NUMBER_FOCUS to "숫자 분리형"
@@ -539,7 +539,7 @@ fun PresetModeScreen(
                         Text(
                             text = when (selectedIconStyle) {
                                 StatusIconStyle.BIG_NUMBER ->
-                                    "전원 모양 없이 상태바 영역 전체에 점수를 가장 크게 표시합니다."
+                                    "큰 점수의 가독성을 유지하면서 얇은 전원 원호로 DigitsCore를 표현합니다."
                                 StatusIconStyle.SCORE_PROPORTION ->
                                     "빨간 원호 위를 현재 점수만큼 녹색이 채웁니다. 중앙 막대는 점수 구간색으로 바뀝니다."
                                 StatusIconStyle.SCORE_TIER ->

@@ -33,16 +33,17 @@ object DynamicIconGenerator {
         val tierColor = scoreTierColor(normalizedScore)
 
         if (style == StatusIconStyle.BIG_NUMBER) {
-            // 상태바 한 칸 전체를 숫자에 사용합니다. 밝고 어두운 배경 모두에서
-            // 읽히도록 흰색 채움과 검은 외곽선은 유지하되 장식은 넣지 않습니다.
+            // 기존 big_number 저장값은 유지하되, 남는 상·하단 여백에 얇은
+            // 전원 버튼 실루엣을 넣어 단색 상태바에서도 DigitsCore를 식별합니다.
+            drawCoreNumberFrame(canvas, size, tierColor)
             drawScoreText(
                 canvas = canvas,
                 size = size,
                 score = normalizedScore,
                 centerX = size / 2f,
-                centerY = size * 0.52f,
-                maxWidth = size * 0.96f,
-                scaleForDigits = floatArrayOf(0.98f, 0.84f, 0.60f)
+                centerY = size * 0.59f,
+                maxWidth = size * 0.86f,
+                scaleForDigits = floatArrayOf(0.90f, 0.82f, 0.58f)
             )
             return bitmap
         }
@@ -96,7 +97,7 @@ object DynamicIconGenerator {
                 ringPaint.color = tierColor
                 canvas.drawArc(ringBounds, arcStart, fullSweep, false, ringPaint)
             }
-            StatusIconStyle.BIG_NUMBER -> Unit // 위의 큰 숫자 전용 경로에서 반환됩니다.
+            StatusIconStyle.BIG_NUMBER -> Unit // 위의 코어 숫자 전용 경로에서 반환됩니다.
             StatusIconStyle.NUMBER_FOCUS -> Unit // 위의 분리형 전용 경로에서 반환됩니다.
         }
 
@@ -118,6 +119,33 @@ object DynamicIconGenerator {
             scaleForDigits = floatArrayOf(0.68f, 0.58f, 0.43f)
         )
         return bitmap
+    }
+
+    private fun drawCoreNumberFrame(canvas: Canvas, size: Int, color: Int) {
+        val strokeWidth = size * 0.047f
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = color
+            this.style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            this.strokeWidth = strokeWidth
+        }
+
+        // 위쪽을 넓게 비운 U자형 원호라 큰 숫자의 폭을 거의 침범하지 않습니다.
+        // 상태바가 색을 단색으로 치환해도 전원 막대와 대칭 원호의 외곽은 남습니다.
+        val bounds = RectF(
+            size * 0.03f,
+            size * 0.12f,
+            size * 0.97f,
+            size * 0.98f
+        )
+        canvas.drawArc(bounds, -38f, 256f, false, paint)
+        canvas.drawLine(
+            size * 0.5f,
+            size * 0.02f,
+            size * 0.5f,
+            size * 0.17f,
+            paint
+        )
     }
 
     private fun drawSeparatedPowerSymbol(canvas: Canvas, size: Int, color: Int) {
