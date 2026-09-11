@@ -12,6 +12,7 @@ data class UserSettingsEntity(
     @PrimaryKey
     val id: Int = 1,
     val selectedPresetModeId: String = "balanced",
+    val selectedCoreIndexPresetId: String = "balanced",
     val minimumScoreDefenseLine: Int = 60, // 최저 점수 방어선
     val targetUnlockCount: Int = 30,       // 일일 목표 언락 횟수
     val distractingWeightPerMinute: Float = 0.6f, // 방해 앱 1분당 감점치

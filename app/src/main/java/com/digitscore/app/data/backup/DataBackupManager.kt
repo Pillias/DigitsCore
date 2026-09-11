@@ -12,6 +12,7 @@ import com.digitscore.app.data.entity.DailyUsageCoverageEntity
 import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.data.entity.ForegroundUsageSessionEntity
 import com.digitscore.app.model.AppCategoryType
+import com.digitscore.app.model.CoreIndexPreset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
@@ -24,10 +25,22 @@ import java.util.Locale
 
 object DataBackupManager {
 
-    private const val BACKUP_SCHEMA_VERSION = 4
+    private const val BACKUP_SCHEMA_VERSION = 5
     private const val MAX_BACKUP_BYTES = 20 * 1024 * 1024
     private val DATE_PATTERN = Regex("\\d{4}-\\d{2}-\\d{2}")
     private const val BACKUP_CACHE_MAX_AGE_MILLIS = 24 * 60 * 60 * 1_000L
+
+    private fun coreIndexPresetIdFromBackup(settings: JSONObject): String {
+        val migratedLegacyId = when (settings.optString("selectedPresetModeId", "balanced")) {
+            "study", "worker" -> CoreIndexPreset.FOCUS.id
+            "eye_health" -> CoreIndexPreset.SCREEN_REST.id
+            "kids" -> CoreIndexPreset.FAMILY.id
+            else -> CoreIndexPreset.BALANCED.id
+        }
+        return CoreIndexPreset.fromId(
+            settings.optString("selectedCoreIndexPresetId", migratedLegacyId)
+        ).id
+    }
 
     /**
      * DB의 모든 데이터(점수 히스토리, 설정, 앱 분류 가중치)를 JSON 문자열로 직렬화합니다.
@@ -57,6 +70,7 @@ object DataBackupManager {
                 put("idleMinutes", h.idleMinutes)
                 put("unlockCount", h.unlockCount)
                 put("scoreModelVersion", h.scoreModelVersion)
+                put("coreIndexPresetId", h.coreIndexPresetId)
                 put("lastUpdatedTimestamp", h.lastUpdatedTimestamp)
             }
             historiesArray.put(hObj)
@@ -67,6 +81,7 @@ object DataBackupManager {
         if (settings != null) {
             val sObj = JSONObject().apply {
                 put("selectedPresetModeId", settings.selectedPresetModeId)
+                put("selectedCoreIndexPresetId", settings.selectedCoreIndexPresetId)
                 put("minimumScoreDefenseLine", settings.minimumScoreDefenseLine)
                 put("targetUnlockCount", settings.targetUnlockCount)
                 put("distractingWeightPerMinute", settings.distractingWeightPerMinute.toDouble())
@@ -203,6 +218,9 @@ object DataBackupManager {
                         idleMinutes = hObj.getLong("idleMinutes").coerceIn(0L, 1_440L),
                         unlockCount = hObj.getInt("unlockCount").coerceIn(0, 10_000),
                         scoreModelVersion = hObj.optInt("scoreModelVersion", 1).coerceIn(1, 2),
+                        coreIndexPresetId = CoreIndexPreset.fromId(
+                            hObj.optString("coreIndexPresetId", CoreIndexPreset.BALANCED.id)
+                        ).id,
                         lastUpdatedTimestamp = hObj.optLong("lastUpdatedTimestamp", System.currentTimeMillis())
                     )
                     db.scoreDao().insertOrUpdateScoreHistory(history)
@@ -215,6 +233,7 @@ object DataBackupManager {
                 val settings = UserSettingsEntity(
                     id = 1,
                     selectedPresetModeId = sObj.optString("selectedPresetModeId", "balanced"),
+                    selectedCoreIndexPresetId = coreIndexPresetIdFromBackup(sObj),
                     minimumScoreDefenseLine = sObj.optInt("minimumScoreDefenseLine", 60).coerceIn(0, 100),
                     targetUnlockCount = sObj.optInt("targetUnlockCount", 30).coerceIn(0, 1_000),
                     distractingWeightPerMinute = sObj.optDouble("distractingWeightPerMinute", 0.6).toFloat().coerceIn(0f, 10f),

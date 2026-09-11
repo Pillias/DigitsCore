@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
+import com.digitscore.app.model.CoreIndexPreset
 import com.digitscore.app.ui.theme.ScoreGreen
 import com.digitscore.app.ui.theme.ScoreOrange
 import com.digitscore.app.ui.theme.ScoreRed
@@ -238,6 +239,7 @@ fun StatisticsScreen(
                             (coreIndexHistories.sumOf { it.finalScore } / coreIndexHistories.size.toFloat()).roundToInt()
                         val high = coreIndexHistories.maxOfOrNull { it.finalScore }
                         val low = coreIndexHistories.minOfOrNull { it.finalScore }
+                        val presetChanges = coreIndexPresetChanges(coreIndexHistories)
                         selectedDetail = StatisticsDetail(
                             title = "일별 코어 지수 추세",
                             value = average?.let { "평균 ${it}점" } ?: "기록 준비 중",
@@ -246,7 +248,17 @@ fun StatisticsScreen(
                             } else {
                                 "기간 중 최고 ${high}점, 최저 ${low}점입니다."
                             },
-                            supportingText = "기존 일일 초기화 점수는 이 그래프에 포함하지 않습니다."
+                            supportingText = buildString {
+                                append("기존 일일 초기화 점수는 이 그래프에 포함하지 않습니다.")
+                                if (presetChanges.isNotEmpty()) {
+                                    append("\n프리셋 변경: ")
+                                    append(
+                                        presetChanges.joinToString(" · ") { change ->
+                                            "${change.dateString} ${CoreIndexPreset.fromId(change.presetId).title}"
+                                        }
+                                    )
+                                }
+                            }
                         )
                     }
                 )
@@ -302,6 +314,19 @@ internal fun coreIndexHistories(
     it.scoreModelVersion >= CORE_INDEX_SCORE_MODEL_VERSION
 }
 
+internal data class CoreIndexPresetChange(
+    val dateString: String,
+    val presetId: String
+)
+
+internal fun coreIndexPresetChanges(
+    histories: List<DailyScoreHistoryEntity>
+): List<CoreIndexPresetChange> = histories.zipWithNext().mapNotNull { (previous, current) ->
+    if (previous.coreIndexPresetId == current.coreIndexPresetId) null else {
+        CoreIndexPresetChange(current.dateString, current.coreIndexPresetId)
+    }
+}
+
 private data class StatisticsDetail(
     val title: String,
     val value: String,
@@ -338,6 +363,8 @@ private fun ScoreTrendLineChartCard(
     val axisTextColor = MaterialTheme.colorScheme.outline.toArgb()
     val scoreTextColor = MaterialTheme.colorScheme.onSurface.toArgb()
     val pointRingColor = MaterialTheme.colorScheme.surface.toArgb()
+    val presetChangeRingColor = MaterialTheme.colorScheme.primary
+    val hasPresetChanges = coreIndexPresetChanges(histories).isNotEmpty()
 
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
@@ -438,6 +465,8 @@ private fun ScoreTrendLineChartCard(
                     // 4. 각 포인트 원형 점 및 라벨
                     points.forEachIndexed { index, pt ->
                         val score = histories[index].finalScore
+                        val isPresetChange = index > 0 &&
+                            histories[index - 1].coreIndexPresetId != histories[index].coreIndexPresetId
                         val dotColor = when {
                             score >= 80 -> ScoreGreen
                             score >= 60 -> ScoreYellow
@@ -447,8 +476,8 @@ private fun ScoreTrendLineChartCard(
 
                         // 외부 글로우 링
                         drawCircle(
-                            color = Color(pointRingColor),
-                            radius = 6.dp.toPx(),
+                            color = if (isPresetChange) presetChangeRingColor else Color(pointRingColor),
+                            radius = if (isPresetChange) 8.dp.toPx() else 6.dp.toPx(),
                             center = pt
                         )
                         // 내부 점
@@ -485,6 +514,13 @@ private fun ScoreTrendLineChartCard(
                             }
                         }
                     }
+                }
+                if (hasPresetChanges) {
+                    Text(
+                        text = "큰 테두리는 프리셋이 바뀐 날입니다.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
                 Spacer(modifier = Modifier.height(10.dp))
             }

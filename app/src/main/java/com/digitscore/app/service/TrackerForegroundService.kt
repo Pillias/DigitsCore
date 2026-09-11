@@ -22,6 +22,7 @@ import com.digitscore.app.engine.RollingScoreCalculator
 import com.digitscore.app.engine.RollingUsageSession
 import com.digitscore.app.model.AppUsage
 import com.digitscore.app.model.PresetMode
+import com.digitscore.app.model.CoreIndexPreset
 import com.digitscore.app.notification.ScoreNotificationManager
 import com.digitscore.app.notification.StatusIconStyle
 import com.digitscore.app.receiver.ScreenEventReceiver
@@ -399,11 +400,15 @@ class TrackerForegroundService : Service() {
                 if (!wasCalibrated && recordedUsageMillis >= 60 * 60 * 1_000L) {
                     trackingPreferences.edit().putBoolean("rolling_score_calibrated", true).apply()
                 }
+                val coreIndexPreset = CoreIndexPreset.fromId(
+                    settings?.selectedCoreIndexPresetId ?: CoreIndexPreset.BALANCED.id
+                )
                 val rollingScoreDetail = RollingScoreCalculator.calculate(
                         sessions = recentSessions,
                         nowMillis = now,
                         rollingUnlockCount = estimatedRollingUnlocks,
-                        calibrationUsageMillis = recordedUsageMillis
+                        calibrationUsageMillis = recordedUsageMillis,
+                        preset = coreIndexPreset
                     )
                 ScoreRepository.updateRollingScoreDetail(rollingScoreDetail)
 
@@ -440,7 +445,8 @@ class TrackerForegroundService : Service() {
                         productiveTimeMinutes = scoreDetail.productiveTimeMinutes,
                         idleMinutes = realIdleMinutes,
                         unlockCount = finalUnlockCount,
-                        scoreModelVersion = 2
+                        scoreModelVersion = 2,
+                        coreIndexPresetId = coreIndexPreset.id
                     )
                 )
             }
