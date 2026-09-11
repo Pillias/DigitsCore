@@ -66,6 +66,12 @@ object UiTranslator {
             "Highest \$1 pts and lowest \$2 pts in this period.",
         Regex("현재 (\\d+)점 · 최저 (\\d+) · 최고 (\\d+)") to
             "Current \$1 pts · Low \$2 · High \$3",
+        Regex("최저 (\\d+|—) · 평균 (\\d+|—) · 최고 (\\d+|—)") to
+            "Low \$1 · Average \$2 · High \$3",
+        Regex("(\\d{4}-\\d{2}-\\d{2}) · 시작 (\\d+) · 마지막 (\\d+) · 최저 (\\d+) · 최고 (\\d+)") to
+            "\$1 · Start \$2 · Last \$3 · Low \$4 · High \$5",
+        Regex("화면 (.+) · 관리 (.+) · 언락 (\\d+)회( · .+)?") to
+            "Screen \$1 · Managed \$2 · \$3 unlocks\$4",
         Regex("최저 (\\d+)점, 최고 (\\d+)점이며 (\\d+)개 구간을 표시합니다\\.") to
             "Low \$1 pts, high \$2 pts, across \$3 recorded intervals.",
         Regex("화면 (.+) · 언락 (\\d+)회") to "Screen \$1 · \$2 unlocks",
@@ -121,6 +127,15 @@ object UiTranslator {
     private val replacements = listOf(
         "사용 균형 통계 & 리포트" to "Usage Balance & Reports",
         "사용 균형 분석" to "Usage Balance Summary",
+        "코어 지수" to "Core Index",
+        "7일 평균" to "7-Day Average",
+        "하락/관리" to "Decline / Managed",
+        "차트를 누르거나 드래그해 시점별 기록을 확인하세요. 빈 구간은 화면 OFF 또는 기록 없음입니다." to
+            "Tap or drag the chart to inspect each point. Empty spans mean screen off or no record.",
+        "범위봉은 하루의 시작·마지막·최저·최고를 표시합니다. 점은 하루 표본이 없는 일별 기록입니다." to
+            "Range bars show each day's start, last, low, and high. A dot is a daily record without intraday samples.",
+        "날짜를 누르면 하루 중 5분 단위 변화를 확인할 수 있습니다." to
+            "Tap a date to inspect its five-minute changes.",
         "최근 24시간 코어 지수" to "Core Index · Last 24 Hours",
         "표본 준비 중" to "Preparing Samples",
         "최근 24시간 코어 지수 표본을 준비하고 있습니다." to
@@ -508,7 +523,7 @@ object UiTranslator {
         "최근 24시간" to "Last 24 Hours", "최근 30일" to "Last 30 Days",
         "모드 설정" to "Settings", "현재 프리셋" to "Current Preset", "기본값 초기화" to "Reset Defaults",
         "선택됨" to "Selected", "화면" to "Screen", "언락" to "Unlocks", "방해" to "Managed",
-        "관리" to "Managed", "성장" to "Growth", "균형" to "Balanced", "알림" to "Notifications",
+        "관리" to "Managed", "성장" to "Growth", "균형" to "Balanced", "회복" to "Recovery", "알림" to "Notifications",
         "검색" to "Search", "적용 및 저장" to "Apply & Save", "데이터 복원" to "Restore Data",
         "암호화 백업" to "Encrypted Backup", "앱 정보" to "App Information", "저장" to "Save",
         "취소" to "Cancel", "삭제" to "Delete", "닫기" to "Close", "확인" to "OK",
