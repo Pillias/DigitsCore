@@ -92,6 +92,8 @@ object ScoreNotificationManager {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setVisibility(
                 if (hideSensitiveOnLockScreen) NotificationCompat.VISIBILITY_PRIVATE
                 else NotificationCompat.VISIBILITY_PUBLIC
@@ -110,6 +112,8 @@ object ScoreNotificationManager {
                     .setContentText(strings.getString(R.string.unlock_for_details))
                     .setOngoing(true)
                     .setPriority(NotificationCompat.PRIORITY_LOW)
+                    .setCategory(NotificationCompat.CATEGORY_SERVICE)
+                    .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
                     .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                     .setContentIntent(pendingIntent)
                     .build()

@@ -1,6 +1,7 @@
 package com.digitscore.app.notification
 
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -35,7 +36,8 @@ object DynamicIconGenerator {
         if (style == StatusIconStyle.BIG_NUMBER) {
             // 기존 big_number 저장값은 유지하되, 남는 상·하단 여백에 얇은
             // 전원 버튼 실루엣을 넣어 단색 상태바에서도 DigitsCore를 식별합니다.
-            drawCoreNumberFrame(canvas, size, tierColor)
+            val contrastColor = statusIconContrastColor(context.resources.configuration.uiMode)
+            drawCoreNumberFrame(canvas, size, contrastColor)
             drawScoreText(
                 canvas = canvas,
                 size = size,
@@ -43,7 +45,8 @@ object DynamicIconGenerator {
                 centerX = size / 2f,
                 centerY = size * 0.59f,
                 maxWidth = size * 0.86f,
-                scaleForDigits = floatArrayOf(0.90f, 0.82f, 0.58f)
+                scaleForDigits = floatArrayOf(0.90f, 0.82f, 0.58f),
+                solidColor = contrastColor
             )
             return bitmap
         }
@@ -168,7 +171,8 @@ object DynamicIconGenerator {
         centerX: Float,
         centerY: Float,
         maxWidth: Float,
-        scaleForDigits: FloatArray
+        scaleForDigits: FloatArray,
+        @ColorInt solidColor: Int? = null
     ) {
         val text = score.toString()
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -183,6 +187,13 @@ object DynamicIconGenerator {
         val bounds = Rect()
         textPaint.getTextBounds(text, 0, text.length, bounds)
         val baseline = centerY - bounds.exactCenterY()
+
+        if (solidColor != null) {
+            textPaint.style = Paint.Style.FILL
+            textPaint.color = solidColor
+            canvas.drawText(text, centerX, baseline, textPaint)
+            return
+        }
 
         // 밝고 어두운 상태바 모두에서 숫자의 경계를 잃지 않도록 외곽선을 먼저 그립니다.
         textPaint.style = Paint.Style.STROKE
@@ -203,6 +214,14 @@ object DynamicIconGenerator {
             else -> RED
         }
     )
+
+    @ColorInt
+    internal fun statusIconContrastColor(uiMode: Int): Int =
+        if (uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES) {
+            Color.WHITE
+        } else {
+            Color.BLACK
+        }
 
     fun createScoreIconCompat(
         context: Context,

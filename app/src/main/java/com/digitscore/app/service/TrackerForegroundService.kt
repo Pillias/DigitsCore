@@ -4,6 +4,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.res.Configuration
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -131,6 +132,12 @@ class TrackerForegroundService : Service() {
         restoreScreenState()
         restoreTodayHistory()
         startPeriodicTracking()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // 밝은/어두운 시스템 모드가 바뀌면 코어 숫자형의 대비색을 즉시 다시 만듭니다.
+        recalculateAndNotify()
     }
 
     private fun registerScreenReceiver() {
@@ -449,7 +456,7 @@ class TrackerForegroundService : Service() {
 
                 // 알림 갱신
                 if (settings?.isNotificationEnabled != false) {
-                    ScoreNotificationManager.updateScoreNotification(
+                    val notification = ScoreNotificationManager.buildScoreNotification(
                         applicationContext,
                         scoreDetail,
                         finalUnlockCount,
@@ -457,6 +464,9 @@ class TrackerForegroundService : Service() {
                         rollingScoreDetail,
                         StatusIconStyle.fromId(settings?.statusIconStyleId)
                     )
+                    // 단순 notify 갱신 대신 foreground 연결을 다시 확인해 OEM 재시작이나
+                    // 일시적인 알림 제거 뒤에도 상태 아이콘이 복원되도록 합니다.
+                    startForeground(ScoreNotificationManager.NOTIFICATION_ID, notification)
                 }
 
                 // DB 일일 히스토리 업데이트

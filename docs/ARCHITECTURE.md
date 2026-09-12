@@ -51,7 +51,7 @@ SQLCipher DB 암호는 Android Keystore로 보호합니다. 이전 평문 DB를 
 ### UI와 외부 표시
 
 - Jetpack Compose + Material 3: 온보딩, 대시보드, 통계, 앱 등급, 점수 설정
-- 상태바: Canvas로 점수 또는 전원 버튼을 그려 큰 점수와 얇은 전원 실루엣을 결합한 코어 숫자형을 포함한 네 가지 표시 스타일 제공
+- 상태바: Canvas로 점수 또는 전원 버튼을 그려 큰 점수와 얇은 전원 실루엣을 시스템 밝기 모드 대비 단색으로 표시하는 코어 숫자형을 포함한 네 가지 스타일 제공. foreground-service immediate 표시와 주기적 `startForeground` 재확인으로 아이콘 복원력을 높임
 - 런처: 고정 B1 전원 버튼 아이콘
 - Jetpack Glance 위젯: 1×1부터 2×2 이상까지 반응형 레이아웃, dark/white/transparent 배경
 - 언어: 한국어·영어 문자열 리소스와 기존 Compose 문구 호환 번역 계층
@@ -72,4 +72,4 @@ GitHub Actions는 PR, main push, `v*` 태그에서 다음을 실행합니다.
 3. Android 에뮬레이터에서 v1.0.60 평문 DB의 암호화 이전 테스트
 4. 업로드 서명 secret이 모두 있을 때만 태그의 정식 서명 APK/AAB 게시
 
-서명 secret이 없는 현재 공개 GitHub Release는 별도로 올린 실사용 검증용 debug APK입니다.
+PR과 main push는 저장공간을 소비하는 APK 아티팩트를 남기지 않습니다. 수동 실행만 7일간 debug 아티팩트를 보관하며, `v*` 태그는 세 검증이 모두 통과한 뒤 debug APK를 Actions 저장소를 거치지 않고 GitHub Release에 직접 게시합니다. 업로드 서명 secret이 없는 현재 공개 GitHub Release는 실사용 검증용 debug APK입니다.
