@@ -51,7 +51,7 @@ SQLCipher DB 암호는 Android Keystore로 보호합니다. 이전 평문 DB를 
 ### UI와 외부 표시
 
 - Jetpack Compose + Material 3: 온보딩, 대시보드, 통계, 앱 등급, 점수 설정
-- 상태바: Canvas로 점수 또는 전원 버튼을 그려 큰 점수와 얇은 전원 실루엣을 결합한 코어 숫자형을 포함한 네 가지 표시 스타일 제공
+- 상태바: Canvas로 점수 또는 전원 버튼을 그려 큰 점수와 얇은 전원 실루엣을 시스템 밝기 모드 대비 단색으로 표시하는 코어 숫자형을 포함한 네 가지 스타일 제공. foreground-service immediate 표시와 주기적 `startForeground` 재확인으로 아이콘 복원력을 높임
 - 런처: 고정 B1 전원 버튼 아이콘
 - Jetpack Glance 위젯: 1×1부터 2×2 이상까지 반응형 레이아웃, dark/white/transparent 배경
 - 언어: 한국어·영어 문자열 리소스와 기존 Compose 문구 호환 번역 계층
