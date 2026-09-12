@@ -72,4 +72,4 @@ GitHub Actions는 PR, main push, `v*` 태그에서 다음을 실행합니다.
 3. Android 에뮬레이터에서 v1.0.60 평문 DB의 암호화 이전 테스트
 4. 업로드 서명 secret이 모두 있을 때만 태그의 정식 서명 APK/AAB 게시
 
-서명 secret이 없는 현재 공개 GitHub Release는 별도로 올린 실사용 검증용 debug APK입니다.
+PR과 main push는 저장공간을 소비하는 APK 아티팩트를 남기지 않습니다. 수동 실행만 7일간 debug 아티팩트를 보관하며, `v*` 태그는 세 검증이 모두 통과한 뒤 debug APK를 Actions 저장소를 거치지 않고 GitHub Release에 직접 게시합니다. 업로드 서명 secret이 없는 현재 공개 GitHub Release는 실사용 검증용 debug APK입니다.
