@@ -29,13 +29,59 @@ class UsageStatsHelperTest {
     }
 
     @Test
-    fun usageBelowTenSeconds_isExcluded() {
-        assertFalse(
+    fun positiveUsageBelowTenSeconds_isIncluded() {
+        assertTrue(
             UsageStatsHelper.shouldIncludeUsagePackage(
                 packageName = "com.example.short",
-                usageTimeMillis = 9_999L
+                usageTimeMillis = 1L
             )
         )
+    }
+
+    @Test
+    fun zeroLengthUsage_isExcluded() {
+        assertFalse(
+            UsageStatsHelper.shouldIncludeUsagePackage(
+                packageName = "com.example.zero",
+                usageTimeMillis = 0L
+            )
+        )
+    }
+
+    @Test
+    fun unlockCandidates_pairScreenAndKeyguardWithoutDoubleCounting() {
+        val events = listOf(
+            com.digitscore.app.data.entity.DeviceInteractionEventEntity(
+                1_000L,
+                com.digitscore.app.data.entity.DeviceInteractionEventEntity.SCREEN_INTERACTIVE
+            ),
+            com.digitscore.app.data.entity.DeviceInteractionEventEntity(
+                3_000L,
+                com.digitscore.app.data.entity.DeviceInteractionEventEntity.KEYGUARD_HIDDEN
+            ),
+            com.digitscore.app.data.entity.DeviceInteractionEventEntity(
+                60_000L,
+                com.digitscore.app.data.entity.DeviceInteractionEventEntity.SCREEN_INTERACTIVE
+            ),
+            com.digitscore.app.data.entity.DeviceInteractionEventEntity(
+                61_000L,
+                com.digitscore.app.data.entity.DeviceInteractionEventEntity.USER_PRESENT
+            )
+        )
+
+        assertEquals(listOf(3_000L, 61_000L), UsageStatsHelper.resolvedUnlockTimestamps(events))
+    }
+
+    @Test
+    fun screenInteractiveWithoutUnlock_isNotCounted() {
+        val events = listOf(
+            com.digitscore.app.data.entity.DeviceInteractionEventEntity(
+                1_000L,
+                com.digitscore.app.data.entity.DeviceInteractionEventEntity.SCREEN_INTERACTIVE
+            )
+        )
+
+        assertEquals(emptyList<Long>(), UsageStatsHelper.resolvedUnlockTimestamps(events))
     }
 
     @Test

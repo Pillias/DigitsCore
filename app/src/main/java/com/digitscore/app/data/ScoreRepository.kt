@@ -2,6 +2,7 @@ package com.digitscore.app.data
 
 import com.digitscore.app.engine.ScoreDetail
 import com.digitscore.app.engine.RollingScoreDetail
+import com.digitscore.app.engine.CoreIndexGuidance
 import com.digitscore.app.model.AppUsage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +28,12 @@ object ScoreRepository {
     private val _isServiceRunning = MutableStateFlow(false)
     val isServiceRunning = _isServiceRunning.asStateFlow()
 
+    private val _measurementDiagnostics = MutableStateFlow(MeasurementDiagnostics())
+    val measurementDiagnostics = _measurementDiagnostics.asStateFlow()
+
+    private val _coreIndexGuidance = MutableStateFlow<CoreIndexGuidance?>(null)
+    val coreIndexGuidance = _coreIndexGuidance.asStateFlow()
+
     fun updateScoreDetail(detail: ScoreDetail?) {
         _currentScoreDetail.value = detail
     }
@@ -45,5 +52,13 @@ object ScoreRepository {
 
     fun setServiceRunning(running: Boolean) {
         _isServiceRunning.value = running
+    }
+
+    fun updateMeasurementDiagnostics(diagnostics: MeasurementDiagnostics) {
+        _measurementDiagnostics.value = diagnostics
+    }
+
+    fun updateCoreIndexGuidance(guidance: CoreIndexGuidance?) {
+        _coreIndexGuidance.value = guidance
     }
 }

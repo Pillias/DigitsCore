@@ -5,12 +5,13 @@
 ```text
 Android UsageEvents
         ↓
-UsageStatsHelper — 화면 ON·잠금 해제·전면 앱 구간 재구성
+UsageStatsHelper — 최초 상태 복원 + 커서 이후 증분 이벤트 재구성
         ↓
 TrackerForegroundService — 화면 켜짐 중 주기 갱신 및 경계 처리
-        ├─ Room + SQLCipher — 상세 30일 / 일별 집계 365일
+        ├─ Room + SQLCipher — 상세 30일 / 일별 집계 365일 / 상호작용 25시간
         ├─ ScoreRepository(StateFlow) — 현재 프로세스의 화면 상태
         ├─ RollingScoreCalculator — 최근 24시간 코어 지수
+        ├─ CoreIndexCoach — 변화 원인·회복 예상·한 가지 제안
         ├─ ScoreNotificationManager — 상태바 알림
         └─ ScoreWidget(Glance) — 반응형 홈 위젯
 ```
@@ -19,29 +20,33 @@ TrackerForegroundService — 화면 켜짐 중 주기 갱신 및 경계 처리
 
 ### 측정
 
-- `UsageStatsHelper`: `UsageStatsManager.queryEvents()`를 해석해 전면 앱 세션, 화면시간, 언락과 알림 interruption 수를 계산합니다.
-- `TrackerForegroundService`: 사용자가 추적을 켠 경우에만 동작합니다. 화면 OFF에서는 반복 계산을 멈추고 화면 전환 이벤트의 시각으로 세션을 닫습니다.
+- `UsageStatsHelper`: `UsageStatsManager.queryEvents()`를 해석해 전면 앱 세션, 화면시간, 실제 잠금 해제와 알림 interruption 수를 계산합니다. 0ms보다 긴 모든 전면 세션을 유지합니다.
+- `TrackerForegroundService`: 사용자가 추적을 켠 경우에만 동작합니다. 시작 때 오늘 상태를 한 번 복원하고 이후 마지막 처리 커서 이후 이벤트만 읽습니다. 화면 OFF에서는 반복 계산을 멈추고 화면 전환 이벤트의 시각으로 세션을 닫습니다.
 - `ScreenEventReceiver`, `BootCompletedReceiver`: 화면·잠금 상태와 사용자가 활성화한 추적 복원을 연결합니다.
+- 잠금 해제는 `ACTION_USER_PRESENT`와 `UsageEvents.KEYGUARD_HIDDEN`을 15초 안에서 한 건으로 합칩니다. 단순 화면 켜짐은 잠금 해제로 세지 않으며 누락 구간을 추정하지 않습니다.
 
 ### 점수
 
 - `RollingScoreCalculator`: 메인 코어 지수. 최근 24시간 누적 부하, 연속 사용 급성 부하, 휴식 회복, 언락과 심야 가중치를 처리합니다.
 - `ScoreCalculator`: 기존 자정 기준 계산. 저장 데이터와 기존 설정 호환을 위해 내부에만 남아 있으며 UI에는 노출하지 않습니다.
 - `ScoreRepository`: 서비스가 계산한 현재 점수와 사용량을 Compose 화면·알림·위젯에 전달하는 프로세스 내 `StateFlow` 저장소입니다.
+- `CoreIndexCoach`: 현재와 직전 표본, 최근 세션, 14일 기록을 비교해 변화 원인 한 문장, 3점 회복 예상, 하루 요약과 한 가지 제안을 만듭니다.
+- `MeasurementDiagnostics`: 이벤트 조회 범위·건수·시간, 측정 주기 CPU 시간, 화면 ON·잠금 해제 구간의 전면 앱 포착률을 노출해 실기기 정확도와 비용을 비교할 근거를 만듭니다.
 
 수식은 [SCORING.md](SCORING.md)를 참고하세요.
 
 ### 저장
 
-Room 데이터베이스 버전은 v11입니다.
+Room 데이터베이스 버전은 v13입니다.
 
 - `foreground_usage_sessions`: 앱별 상세 시작·종료 구간, 30일
 - `core_index_samples`: 화면 ON 상태에서 갱신한 5분 단위 코어 지수·부하·프리셋 표본, 30일
-- `daily_app_usage`: 앱별 일일 사용 집계, 365일
+- `daily_app_usage`: 앱별 일일 사용시간·실행·1분 미만 실행·최장 세션 집계, 365일
 - `daily_usage_coverage`: 날짜별 자체 측정 완료 여부
 - `daily_score_history`: 일별 코어 지수·화면·언락과 당시 `coreIndexPresetId` 집계. `scoreModelVersion=2`인 행만 코어 지수 통계에 사용하고, 이전 행의 사용량·언락 집계는 계속 보존
+- `device_interaction_events`: 잠금 해제와 알림 interruption의 최소 타임스탬프, 25시간. 원본 앱 이벤트 전체는 저장하지 않음
 
-통계의 24시간 화면은 `core_index_samples`와 `foreground_usage_sessions`를 조회 시점 직전 24시간으로 잘라 사용하며, 언락은 같은 범위의 OS UsageEvents를 24개 시간 버킷으로 계산합니다. 30일 화면만 날짜별 집계를 사용합니다.
+통계의 24시간 화면은 `core_index_samples`, `foreground_usage_sessions`, `device_interaction_events`를 조회 시점 직전 24시간으로 잘라 사용합니다. 30일 화면만 날짜별 집계를 사용합니다.
 24시간 복합 차트는 5분 코어 지수 표본을 하나의 연속 추세선으로 표시합니다. 화면 OFF로 표본이 없는 구간은 앞뒤 관측값을 직선으로 연결하되, 하단 사용량 막대에는 추정값을 채우지 않고 0으로 유지합니다. 전면 사용량과 언락은 같은 24개 버킷에 정렬합니다. 30일 범위봉은 날짜별 5분 표본에서 시작·마지막·최저·최고를 만들고, 표본이 없는 기존 일별 행은 단일 점으로 구분합니다. 7일 이동평균은 누락일을 0으로 채우지 않습니다.
 - `app_weights`: 앱별 5단계 등급과 사용자 변경 여부
 - `user_settings`: 코어 지수 프리셋, 호환용 구식 점수 계수, 추적·알림·잠금화면·상태 아이콘·위젯 배경 설정

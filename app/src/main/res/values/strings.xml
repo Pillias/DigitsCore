@@ -2,6 +2,11 @@
     <string name="app_name">DigitsCore</string>
     <string name="notification_channel_name">DigitsCore 실시간 점수</string>
     <string name="notification_channel_description">스마트폰 사용 흐름에 따른 코어 지수를 상태바에 표시합니다.</string>
+    <string name="guidance_channel_name">DigitsCore 균형 알림</string>
+    <string name="guidance_channel_description">코어 지수가 주요 기준선을 내려갈 때 한 번의 휴식을 제안합니다.</string>
+    <string name="guidance_notification_title">코어 지수 %1$d · 잠깐 흐름을 확인하세요</string>
+    <string name="guidance_notification_recovery">%1$d점 기준선을 지났습니다. 지금 화면을 내려놓으면 약 %2$d분 뒤 회복 흐름이 예상됩니다.</string>
+    <string name="guidance_notification_break">%1$d점 기준선을 지났습니다. 다음 확인을 미루고 10분만 쉬어보세요.</string>
     <string name="widget_description">코어 지수와 사용 통계를 홈 화면에서 확인합니다.</string>
     <string name="digitscore_score">코어 지수</string>
     <string name="rolling_24_hours">최근 24시간</string>
@@ -64,7 +69,7 @@
     <string name="grade_f_description">사용 흐름을 전환할 충분한 휴식이 필요합니다.</string>
     <string name="onboarding_tagline">스마트폰 사용 흐름을 실시간 점수로 확인하고\n나만의 균형을 만들어 보세요.</string>
     <string name="privacy_local_title">사용 기록은 기기 안에서만 처리됩니다</string>
-    <string name="privacy_local_body">앱 이름·사용 시간·잠금 해제 횟수의 근사치를 점수 계산에 사용하며 서버나 개발자에게 전송하지 않습니다. 권한과 추적은 언제든 끌 수 있습니다.</string>
+    <string name="privacy_local_body">앱 이름·사용 시간·앱 실행 횟수와 실제로 관측된 잠금 해제 이벤트를 점수 계산에 사용하며 서버나 개발자에게 전송하지 않습니다. 권한과 추적은 언제든 끌 수 있습니다.</string>
     <string name="privacy_more">개인정보 처리 안내 자세히 보기</string>
     <string name="usage_access_title">사용 정보 접근 권한 (필수)</string>
     <string name="usage_access_body">화면에 표시된 앱의 사용 시간을 실시간으로 집계하기 위해 필요합니다.</string>
@@ -76,13 +81,13 @@
     <string name="open_settings">설정</string>
     <string name="privacy_title">개인정보 처리 안내</string>
     <string name="privacy_data_title">처리하는 정보</string>
-    <string name="privacy_data_body">DigitsCore는 사용 정보 접근 권한이 허용된 경우 앱 이름, 패키지 이름, 화면이 켜지고 잠금 해제된 동안 최상단에 표시된 앱의 사용 구간과 기기 잠금 해제 횟수의 근사치를 읽습니다. 화면이 꺼진 백그라운드 재생은 집계하지 않습니다.</string>
+    <string name="privacy_data_body">DigitsCore는 사용 정보 접근 권한이 허용된 경우 앱 이름, 패키지 이름, 화면이 켜지고 잠금 해제된 동안 최상단에 표시된 앱의 사용 구간·실행 횟수와 실제로 관측된 잠금 해제 이벤트를 읽습니다. 화면이 꺼진 백그라운드 재생은 집계하지 않습니다.</string>
     <string name="privacy_purpose_title">이용 목적</string>
     <string name="privacy_purpose_body">해당 정보는 디지털 사용 습관을 계산하고 점수·통계를 기기 화면과 알림에 표시하는 데만 사용합니다.</string>
     <string name="privacy_storage_title">저장 및 전송</string>
     <string name="privacy_storage_body">분석 결과와 설정은 SQLCipher로 암호화된 기기 내부 DB에 저장되고 DB 암호는 Android Keystore로 보호됩니다. OS 자동 백업과 기기 이전에서는 제외됩니다. 서버 전송은 없으며, 수동 백업은 사용자 비밀번호로 AES-256-GCM 암호화됩니다.</string>
     <string name="privacy_choice_title">사용자 선택권</string>
-    <string name="privacy_choice_body">상세 사용 구간과 5분 단위 코어 지수 표본은 30일, 날짜별 집계는 365일 보관합니다. 사용자가 만든 암호화 백업에는 내보낸 시점의 상세 기록도 포함됩니다. 잠금 화면 상세 숨김, 추적 중지와 모든 사용 기록 즉시 삭제를 지원하며 Android 설정에서 권한을 언제든 철회할 수 있습니다.</string>
+    <string name="privacy_choice_body">상세 사용 구간과 5분 단위 코어 지수 표본은 30일, 잠금 해제·알림 최소 이벤트는 25시간, 날짜별 사용·실행 집계는 365일 보관합니다. 사용자가 만든 암호화 백업에는 내보낸 시점의 상세 기록도 포함됩니다. 잠금 화면 상세 숨김, 추적 중지와 모든 사용 기록 즉시 삭제를 지원하며 Android 설정에서 권한을 언제든 철회할 수 있습니다.</string>
     <string name="privacy_contact_title">문의</string>
     <string name="privacy_contact_body">개인정보 관련 문의는 Google Play 스토어에 표시된 개발자 연락처를 이용해 주세요.</string>
     <string name="confirm">확인</string>

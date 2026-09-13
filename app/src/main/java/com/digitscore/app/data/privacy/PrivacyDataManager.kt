@@ -35,6 +35,7 @@ object PrivacyDataManager {
             db.dailyAppUsageDao().deleteAllHistory()
             db.foregroundUsageSessionDao().deleteAll()
             db.coreIndexSampleDao().deleteAll()
+            db.deviceInteractionEventDao().deleteAll()
             db.scoreDao().deleteAllScoreHistories()
         }
         appContext.getSharedPreferences("tracking_state", Context.MODE_PRIVATE)
@@ -45,6 +46,8 @@ object PrivacyDataManager {
         ScoreRepository.updateUnlockCount(0)
         ScoreRepository.updateScoreDetail(null)
         ScoreRepository.updateRollingScoreDetail(null)
+        ScoreRepository.updateCoreIndexGuidance(null)
+        ScoreRepository.updateMeasurementDiagnostics(com.digitscore.app.data.MeasurementDiagnostics())
         DataBackupManager.cleanupStaleBackups(appContext, maxAgeMillis = 0L)
     }
 }

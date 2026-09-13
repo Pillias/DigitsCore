@@ -1,5 +1,7 @@
 # Google Play 출시 체크리스트
 
+16개 핵심 항목의 단일 현황표와 완료 조건은 [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md), Play Console 입력 초안은 [docs/PLAY_CONSOLE_SUBMISSION.md](docs/PLAY_CONSOLE_SUBMISSION.md)를 기준으로 합니다.
+
 ## 코드에서 준비됨
 
 - [x] `compileSdk`/`targetSdk` API 36
@@ -11,6 +13,12 @@
 - [x] 권한 요청 전 기기 내 처리 고지
 - [x] 앱 내 개인정보 처리 안내
 - [x] 전면 앱 단독 집계와 화면 OFF·잠금 경계 회귀 테스트
+- [x] 프로세스 시작 1회 복원 후 커서 기반 증분 UsageEvents 처리
+- [x] ACTION_USER_PRESENT/KEYGUARD_HIDDEN 실제 이벤트 기반 최근 24시간 언락
+- [x] 1분 미만 사용·앱별 실행 횟수·짧은 실행 횟수 집계 및 그래프
+- [x] 전면 앱 포착률·이벤트 조회시간·CPU 처리시간 측정 진단
+- [x] 변화 원인·예상 회복·하루 요약·자기 과거 비교·한 가지 제안과 임계치 알림
+- [x] 사용자가 내용을 검토한 뒤 복사·공유하는 개인정보 최소화 버그 리포트
 - [x] 앱 시간대·세션·7일 추세 및 언락/알림 비교 그래프
 - [x] 7일·4주·12주·6개월·1년 장기 통계와 요일별 평균 그래프
 - [x] 최근 24시간 코어 지수, 50~90점 반응 확대 및 점수 회귀 테스트
@@ -34,11 +42,16 @@
 - [ ] `PRIVACY_POLICY.md`의 개발자명·지원 이메일 입력
 - [ ] 개인정보처리방침을 공개 HTTPS URL에 게시
 - [ ] 실사용 debug APK와 별도로 Play 업로드용 release AAB 최종 서명 확인
-- [ ] Samsung·Xiaomi 등 실제 기기에서 장기 전면 앱 측정 비교
+- [ ] Samsung·Pixel·Xiaomi에서 2~4주 전면 앱 시간·실제 언락 비교
+- [ ] 일별·앱별 시간 오차율, 전면 앱 포착률, 배터리 사용량과 CPU 시간 기록
+- [ ] 큰 글꼴·다크모드·TalkBack·가로화면·태블릿 테스트
+- [ ] 20~50명 실제 사용자의 30일 점수 분포 검증
 - [ ] 30일 이상 누적 후 장기·요일별 통계 정확성 확인
 - [ ] 50~90점 반응 확대 후 실제 점수 분포 검토
 
 keystore는 저장소에 커밋하지 않습니다. Base64 값은 macOS에서 다음처럼 만들 수 있습니다.
+
+새 업로드 키는 저장소 밖의 절대 경로를 지정해 `scripts/create_upload_keystore.sh`로 만들 수 있습니다. 최초 Play 업로드 전에 오프라인 복구본을 먼저 확보합니다.
 
 ```bash
 base64 -i digitscore-upload.jks | pbcopy

@@ -15,7 +15,9 @@ data class AppUsage(
     val usageTimeMillis: Long,
     val categoryType: AppCategoryType = AppCategoryType.NEUTRAL,
     val lastTimeUsedMillis: Long = 0L,
-    val lateNightUsageMillis: Long = 0L
+    val lateNightUsageMillis: Long = 0L,
+    val sessionCount: Int = 0,
+    val shortSessionCount: Int = 0
 ) {
     val usageTimeMinutes: Long
         get() = usageTimeMillis / 1000 / 60

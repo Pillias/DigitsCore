@@ -27,6 +27,9 @@ interface ScoreDao {
     @Query("SELECT * FROM daily_score_history ORDER BY dateString DESC LIMIT :limit")
     fun getRecentDaysHistories(limit: Int): Flow<List<DailyScoreHistoryEntity>>
 
+    @Query("SELECT * FROM daily_score_history WHERE scoreModelVersion >= 2 ORDER BY dateString DESC LIMIT :limit")
+    suspend fun getRecentCoreIndexHistories(limit: Int): List<DailyScoreHistoryEntity>
+
     @Query("SELECT * FROM daily_score_history WHERE scoreModelVersion < 2 ORDER BY dateString ASC")
     suspend fun getLegacyScoreHistories(): List<DailyScoreHistoryEntity>
 

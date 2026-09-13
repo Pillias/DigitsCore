@@ -2,7 +2,7 @@
 
 DigitsCore는 Android에서 **화면이 켜지고 잠금 해제된 동안 실제로 전면에 표시된 앱**을 측정해, 최근 24시간의 사용 흐름을 1~100 범위의 **코어 지수(Core Index)**로 보여주는 디지털 웰빙 앱입니다.
 
-[최신 Release](https://github.com/Pillias/DigitsCore/releases/latest) · [점수 계산 방식](docs/SCORING.md) · [구조](docs/ARCHITECTURE.md) · [개인정보처리방침](PRIVACY_POLICY.md)
+[최신 Release](https://github.com/Pillias/DigitsCore/releases/latest) · [점수 계산 방식](docs/SCORING.md) · [구조](docs/ARCHITECTURE.md) · [출시 준비 현황](docs/RELEASE_READINESS.md) · [개인정보처리방침](PRIVACY_POLICY.md)
 
 > 현재 GitHub Release의 APK는 실사용 검증용 debug 서명 빌드입니다. Google Play 배포용 업로드 키 서명 AAB와는 구분됩니다.
 
@@ -15,6 +15,8 @@ DigitsCore는 Android에서 **화면이 켜지고 잠금 해제된 동안 실제
 - 앱 전환, 화면 OFF, 잠금, Activity 종료, 재부팅 경계에서 열려 있는 구간을 닫습니다.
 - 화면이 꺼진 백그라운드 음악·영상 재생은 사용시간과 점수에서 제외합니다.
 - 서비스 갱신 주기와 별개로 이벤트 타임스탬프를 사용하므로 1분 미만 구간도 통째로 버리지 않습니다.
+- 프로세스 시작 때 상태를 한 번 복원한 뒤에는 마지막 처리 시점 이후의 이벤트만 증분 조회합니다.
+- 앱별 총 시간과 별개로 실행 횟수·1분 미만 실행 횟수를 일별로 보관해 짧은 확인 습관도 분석합니다.
 - 제조사별 중복 가능성이 있는 `queryAndAggregateUsageStats().totalTimeInForeground`는 앱별 시간의 기준으로 사용하지 않습니다.
 
 Samsung Digital Wellbeing 같은 제조사 시스템 앱의 내부 집계값을 직접 읽는 공개 API는 없습니다. DigitsCore는 공개 Android 이벤트로 독립 계산하므로 제조사·OS의 이벤트 전달 및 보존 정책에 따라 시스템 앱과 차이가 날 수 있습니다.
@@ -48,8 +50,13 @@ Samsung Digital Wellbeing 같은 제조사 시스템 앱의 내부 집계값을 
 - 코어 지수 날짜 선택 시 해당 날짜의 5분 단위 하루 변화 그래프
 - 요일별 평균 사용 추세 그래프
 - 시간대별 언락 분포와 평균 언락 간격
-- Android가 제공하는 notification interruption 이벤트 수와 언락 횟수 비교
+- 실제 `ACTION_USER_PRESENT`/`KEYGUARD_HIDDEN` 이벤트 기반 언락 횟수와 Android가 제공하는 notification interruption 이벤트 수 비교
 - 앱 상세 화면 우측 상단에서 5단계 균형 등급 변경
+- 앱 상세의 최근 14일 실행 횟수·1분 미만 실행 횟수 그래프
+- 지수 변화의 주원인, 쉬었을 때 예상 회복 시간, 자신의 직전 7일 기준, 한 가지 행동 제안
+- 70·60·50점을 아래로 통과할 때 6시간 재알림 제한이 적용된 부드러운 안내
+
+여기서 `실행 횟수`는 앱 프로세스가 새로 만들어진 횟수가 아니라, 다른 앱 또는 잠금 화면에서 해당 앱이 다시 전면 사용 세션을 시작한 횟수입니다. 같은 앱 안의 Activity 전환은 하나로 이어 붙이고, 60초 미만으로 끝난 양수 길이 세션을 `1분 미만 실행`으로 표시합니다.
 
 알림 비교는 이벤트 수의 상관관계를 살피는 참고 정보이며 특정 알림이 언락의 직접 원인이라는 뜻은 아닙니다. 별도 알림 접근 권한이나 `NotificationListenerService`는 사용하지 않습니다.
 
@@ -81,14 +88,18 @@ Samsung Digital Wellbeing 같은 제조사 시스템 앱의 내부 집계값을 
 
 - 앱별 시작·종료 상세 세션: 30일
 - 화면 ON 상태의 5분 단위 코어 지수 변화 표본: 30일
-- 앱별 날짜·사용시간·세션·최장 세션·심야 사용 집계: 365일
-- 저장소: SQLCipher로 암호화된 기기 내부 Room DB(v11)
+- 앱별 날짜·사용시간·실행·1분 미만 실행·최장 세션·심야 사용 집계: 365일
+- 실제 잠금 해제와 알림 interruption 최소 이벤트: 최근 25시간
+- 저장소: SQLCipher로 암호화된 기기 내부 Room DB(v13)
 - DB 암호: Android Keystore로 보호
 - OS 자동 백업 및 기기 간 자동 전송: 제외
 - 수동 백업: 사용자 비밀번호 기반 AES-256-GCM 암호화
 - 서버 전송, 계정, 광고 SDK, 분석 SDK: 없음
 - 잠금 화면의 점수·화면시간·언락 상세: 기본 숨김
 - 설정에서 추적 중지와 모든 사용 기록 즉시 삭제 지원
+- 설정의 버그 리포트에서 앱·기기·측정 진단을 미리 확인한 뒤 복사 또는 Android 공유 화면으로 전달
+
+버그 리포트에는 앱 목록, 패키지 이름, 사용/점수 이력, 알림 내용, 계정 및 기기 식별자가 자동 첨부되지 않습니다. 전송 대상은 사용자가 직접 선택하며 앱이 개발자 서버로 자동 전송하지 않습니다.
 
 암호화 백업은 내보내는 시점에 남아 있는 30일 상세 세션도 포함합니다. 비밀번호는 앱이나 백업 파일에 저장되지 않으므로 분실하면 복원할 수 없습니다. 자세한 내용은 [개인정보처리방침](PRIVACY_POLICY.md)을 참고하세요.
 
@@ -126,7 +137,7 @@ Samsung Digital Wellbeing 같은 제조사 시스템 앱의 내부 집계값을 
 gradle :app:testDebugUnitTest :app:assembleDebug --no-daemon
 ```
 
-저장소에는 Gradle wrapper 실행 파일/JAR가 포함되어 있지 않으므로 로컬 Gradle 8.11.1이 필요합니다. Google Play 절차는 [출시 체크리스트](PLAY_RELEASE_CHECKLIST.md)를 참고하세요.
+저장소에는 Gradle wrapper 실행 파일/JAR가 포함되어 있지 않으므로 로컬 Gradle 8.11.1이 필요합니다. Google Play 절차는 [출시 체크리스트](PLAY_RELEASE_CHECKLIST.md), 항목별 상태는 [출시 준비 현황](docs/RELEASE_READINESS.md)을 참고하세요.
 
 ## 기술 구성과 검증
 
@@ -143,12 +154,16 @@ gradle :app:testDebugUnitTest :app:assembleDebug --no-daemon
 
 ## 알려진 제약과 다음 검증
 
-- 제조사별 UsageEvents 전달 차이를 Samsung·Xiaomi 등 실제 기기에서 장기 비교해야 합니다.
+- 앱의 `측정 상태` 상세에서 전면 앱 포착률, 마지막 이벤트 조회 구간·건수·소요시간, 당일 누적 조회·CPU 시간을 확인할 수 있습니다. CPU 시간은 배터리 비율이 아니므로 Android 배터리 사용량과 함께 봐야 합니다.
+- 제조사별 UsageEvents 전달 차이를 Samsung·Pixel·Xiaomi 실제 기기에서 2~4주 비교하고 시간 오차·배터리 소모를 수치화해야 합니다.
+- 실제 이벤트 기반 언락은 화면이 단순히 켜진 `SCREEN_INTERACTIVE`를 세지 않습니다. OS/제조사가 `KEYGUARD_HIDDEN`을 전달하지 못했고 실행 중 서비스도 `ACTION_USER_PRESENT`를 받지 못한 구간은 추정값으로 채우지 않습니다.
 - 30일·365일 통계는 DigitsCore가 직접 저장한 기록을 기준으로 누적됩니다. 코어 지수 전환 전에 저장된 최근 30일 상세 세션이 있으면 일별 코어 지수만 한 번 복원하며, 세션 증거가 없는 날짜는 임의로 채우지 않습니다.
 - 코어 지수 프리셋은 전체 사용, 연속 사용, 심야와 언락 민감도를 조정합니다. 변경 즉시 최근 24시간을 다시 계산하며 변경일은 점수 통계에 표시합니다.
 - 업데이트 전 일별 점수는 코어 지수 통계에서 제외합니다. 같은 날짜의 화면시간·관리 앱 시간·언락 집계는 유지되며, 업데이트 후 저장된 코어 지수만 점수 추세와 평균에 사용합니다.
 - Google Play 배포 전 업로드 keystore, 공개 개인정보처리방침 URL, Data safety, Foreground Service special-use 신고가 필요합니다.
 - GitHub Release는 현재 debug 서명 APK이며 Play 배포용 정식 서명 파일은 아직 공개하지 않습니다.
+
+실기기 측정은 [정확도·배터리 검증 프로토콜](docs/DEVICE_VALIDATION_PROTOCOL.md), Play 입력값은 [제출 준비서](docs/PLAY_CONSOLE_SUBMISSION.md), 30일 제품 검증은 [사용자 검증 계획](docs/USER_VALIDATION_PROTOCOL.md)에 정리되어 있습니다.
 
 ## 릴리스
 

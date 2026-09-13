@@ -12,6 +12,7 @@ import com.digitscore.app.data.dao.ScoreDao
 import com.digitscore.app.data.dao.SettingsDao
 import com.digitscore.app.data.dao.ForegroundUsageSessionDao
 import com.digitscore.app.data.dao.CoreIndexSampleDao
+import com.digitscore.app.data.dao.DeviceInteractionEventDao
 import com.digitscore.app.data.entity.AppWeightEntity
 import com.digitscore.app.data.entity.DailyAppUsageEntity
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
@@ -19,6 +20,7 @@ import com.digitscore.app.data.entity.DailyUsageCoverageEntity
 import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.data.entity.ForegroundUsageSessionEntity
 import com.digitscore.app.data.entity.CoreIndexSampleEntity
+import com.digitscore.app.data.entity.DeviceInteractionEventEntity
 import com.digitscore.app.model.AppCategoryType
 import com.digitscore.app.data.security.DatabaseEncryptionManager
 import kotlinx.coroutines.CoroutineScope
@@ -34,9 +36,10 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
         DailyScoreHistoryEntity::class,
         UserSettingsEntity::class,
         ForegroundUsageSessionEntity::class,
-        CoreIndexSampleEntity::class
+        CoreIndexSampleEntity::class,
+        DeviceInteractionEventEntity::class
     ],
-    version = 11,
+    version = 13,
     exportSchema = true
 )
 abstract class DigitsDatabase : RoomDatabase() {
@@ -46,6 +49,7 @@ abstract class DigitsDatabase : RoomDatabase() {
     abstract fun settingsDao(): SettingsDao
     abstract fun foregroundUsageSessionDao(): ForegroundUsageSessionDao
     abstract fun coreIndexSampleDao(): CoreIndexSampleDao
+    abstract fun deviceInteractionEventDao(): DeviceInteractionEventDao
 
     companion object {
         private const val DATABASE_NAME = "digitscore_database"
@@ -216,6 +220,28 @@ abstract class DigitsDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `device_interaction_events` (
+                       `timestampMillis` INTEGER NOT NULL,
+                       `eventType` INTEGER NOT NULL,
+                       PRIMARY KEY(`timestampMillis`, `eventType`))""".trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_device_interaction_events_timestampMillis` ON `device_interaction_events` (`timestampMillis`)"
+                )
+            }
+        }
+
+        private val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE daily_app_usage ADD COLUMN shortSessionCount INTEGER NOT NULL DEFAULT 0"
+                )
+            }
+        }
+
         @Volatile
         private var INSTANCE: DigitsDatabase? = null
 
@@ -240,7 +266,9 @@ abstract class DigitsDatabase : RoomDatabase() {
                         MIGRATION_7_8,
                         MIGRATION_8_9,
                         MIGRATION_9_10,
-                        MIGRATION_10_11
+                        MIGRATION_10_11,
+                        MIGRATION_11_12,
+                        MIGRATION_12_13
                     )
                     .fallbackToDestructiveMigrationOnDowngrade()
                 if (passphrase != null) {

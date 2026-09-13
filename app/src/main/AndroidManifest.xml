@@ -47,7 +47,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Real-time digital detox score tracking and status bar notification" />
+                android:value="User-started on-device foreground app and unlock tracking for the rolling 24-hour Core Index" />
         </service>
 
         <receiver

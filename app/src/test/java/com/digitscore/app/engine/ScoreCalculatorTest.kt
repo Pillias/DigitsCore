@@ -140,6 +140,18 @@ class ScoreCalculatorTest {
     }
 
     @Test
+    fun briefApps_areSummedBeforeMinuteDisplayAggregation() {
+        val apps = listOf(
+            AppUsage("first", "First", 35_000L),
+            AppUsage("second", "Second", 35_000L)
+        )
+
+        val detail = ScoreCalculator.calculateScore(apps, 0, 0)
+
+        assertEquals(1L, detail.totalScreenTimeMinutes)
+    }
+
+    @Test
     fun testProductiveBonus_cappedAtMaximum() {
         // 1단계 성장 앱은 50%만 적용되며, 장시간 사용해도 최대 15점으로 제한됩니다.
         val apps = listOf(

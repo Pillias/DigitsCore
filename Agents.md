@@ -7,6 +7,10 @@
 - [x] 화면 ON·잠금 해제 상태의 최상단 앱 단독 집계
 - [x] Activity 전환, 화면 OFF, 잠금, 종료, 재부팅 세션 경계 처리
 - [x] 1분 미만 구간을 버리지 않는 이벤트 타임스탬프 기반 계산
+- [x] 프로세스 시작 1회 상태 복원 후 UsageEvents 증분 처리
+- [x] 앱별 실행·1분 미만 실행 일별 집계와 14일 그래프
+- [x] ACTION_USER_PRESENT/KEYGUARD_HIDDEN 기반 실제 24시간 언락과 25시간 최소 이벤트 보관
+- [x] 전면 앱 포착률·이벤트 조회시간·CPU 처리시간 측정 진단
 - [x] 상세 세션 30일, 일별 집계 365일 보관
 - [x] SQLCipher + Android Keystore 기기 내 암호화
 - [x] 기존 평문 DB 무손실 이전과 에뮬레이터 회귀 테스트
@@ -38,6 +42,8 @@
 - [x] 공통 밝은·어두운 테마, 타이포, 모서리와 섹션 제목 체계
 - [x] 대시보드·통계·앱 등급의 모든 주요 정보 항목 상세 진입
 - [x] 밝은 테마 그래프 라벨 대비와 상세 진입 접근성 표시
+- [x] 변화 원인·회복 예상·자기 과거 비교·하루 요약·한 가지 제안
+- [x] 70/60/50 하향 통과 안내와 6시간 재알림 제한
 
 ### 배포와 개인정보
 
@@ -45,15 +51,20 @@
 - [x] OS 자동 백업·기기 이전 제외
 - [x] PR/main/tag CI에서 단위 테스트, debug, R8 release, DB 이전 검증
 - [x] GitHub Release debug APK 배포
+- [x] 앱·기기·측정 진단만 사용자가 검토 후 공유하는 버그 리포트
+- [x] 앱 내 16항목 출시 준비 체크리스트 및 외부 검증 프로토콜
 
 ## 다음 검증
 
-- [ ] Samsung·Xiaomi 등 제조사별 장기 실기기 측정 비교
+- [ ] Samsung·Pixel·Xiaomi에서 2~4주 시간 정확도·배터리 실측
+- [ ] 20~50명 실제 사용자의 30일 점수 분포 검증
 - [ ] 50~90점 반응 확대 적용 후 실제 사용자 분포와 변화 빈도 검토
 - [ ] 코어 지수 프리셋별 실제 사용자 분포와 점수 이동 폭 검증
 - [ ] 30일 이상 축적된 요일별·기간별 통계 정확성 검토
 - [ ] 업로드 keystore와 GitHub Secrets 구성
 - [ ] 공개 개인정보처리방침 URL 및 Google Play Data safety 확정
 - [ ] Play 내부 테스트용 정식 서명 AAB 배포
+
+최신 상태·완료 조건은 [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md), 기기 시험은 [docs/DEVICE_VALIDATION_PROTOCOL.md](docs/DEVICE_VALIDATION_PROTOCOL.md), Play 입력은 [docs/PLAY_CONSOLE_SUBMISSION.md](docs/PLAY_CONSOLE_SUBMISSION.md), 사용자 시험은 [docs/USER_VALIDATION_PROTOCOL.md](docs/USER_VALIDATION_PROTOCOL.md)를 기준으로 합니다.
 
 점수 상세는 [docs/SCORING.md](docs/SCORING.md), 데이터 흐름은 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)를 참고합니다.

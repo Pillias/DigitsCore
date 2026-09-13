@@ -21,7 +21,9 @@ import com.digitscore.app.service.TrackerForegroundService
 object ScoreNotificationManager {
 
     const val CHANNEL_ID = "digitscore_status_channel"
+    const val GUIDANCE_CHANNEL_ID = "digitscore_guidance_channel"
     const val NOTIFICATION_ID = 1001
+    private const val GUIDANCE_NOTIFICATION_ID = 1002
 
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -38,7 +40,49 @@ object ScoreNotificationManager {
             }
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    GUIDANCE_CHANNEL_ID,
+                    strings.getString(R.string.guidance_channel_name),
+                    NotificationManager.IMPORTANCE_DEFAULT
+                ).apply {
+                    description = strings.getString(R.string.guidance_channel_description)
+                    enableVibration(false)
+                }
+            )
         }
+    }
+
+    fun showGuidanceNotification(
+        context: Context,
+        score: Int,
+        threshold: Int,
+        recoveryMinutes: Int?
+    ) {
+        val strings = AppLocale.stringsContext(context)
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            2,
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val body = recoveryMinutes?.let {
+            strings.getString(R.string.guidance_notification_recovery, threshold, it)
+        } ?: strings.getString(R.string.guidance_notification_break, threshold)
+        val notification = NotificationCompat.Builder(context, GUIDANCE_CHANNEL_ID)
+            .setSmallIcon(DynamicIconGenerator.createScoreIconCompat(context, score, StatusIconStyle.BIG_NUMBER))
+            .setContentTitle(strings.getString(R.string.guidance_notification_title, score))
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setOnlyAlertOnce(true)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(GUIDANCE_NOTIFICATION_ID, notification)
     }
 
     fun buildScoreNotification(

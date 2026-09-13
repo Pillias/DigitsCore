@@ -31,7 +31,18 @@ internal data class ForegroundUsageResult(
     val segments: List<ForegroundUsageSegment>,
     val unlockCount: Int,
     val assignedUsageMillis: Long,
-    val hasForegroundEvidence: Boolean
+    val observableUnlockedMillis: Long,
+    val hasForegroundEvidence: Boolean,
+    val endingState: ForegroundTrackerState
+)
+
+/** 증분 UsageEvents 조회 사이에 이어지는 화면·잠금·전면 앱 상태입니다. */
+data class ForegroundTrackerState(
+    val activePackage: String? = null,
+    val activeClass: String? = null,
+    val activeInstanceId: Int? = null,
+    val screenInteractive: Boolean = true,
+    val keyguardHidden: Boolean = true
 )
 
 data class ForegroundUsageSegment(
@@ -51,7 +62,8 @@ internal object ForegroundUsageAggregator {
         startTimeMillis: Long,
         endTimeMillis: Long,
         lateNightEndTimeMillis: Long,
-        events: List<ForegroundTimelineEvent>
+        events: List<ForegroundTimelineEvent>,
+        initialState: ForegroundTrackerState = ForegroundTrackerState()
     ): ForegroundUsageResult {
         require(endTimeMillis >= startTimeMillis)
 
@@ -60,16 +72,15 @@ internal object ForegroundUsageAggregator {
         val lastUsed = mutableMapOf<String, Long>()
         val segments = mutableListOf<ForegroundUsageSegment>()
 
-        var activePackage: String? = null
-        var activeClass: String? = null
-        var activeInstanceId: Int? = null
-        var screenInteractive = true
-        var keyguardHidden = true
+        var activePackage: String? = initialState.activePackage
+        var activeClass: String? = initialState.activeClass
+        var activeInstanceId: Int? = initialState.activeInstanceId
+        var screenInteractive = initialState.screenInteractive
+        var keyguardHidden = initialState.keyguardHidden
         var cursor = startTimeMillis
         var unlockCount = 0
-        var screenInteractiveCount = 0
-        var hasKeyguardEvents = false
         var hasForegroundEvidence = false
+        var observableUnlockedMillis = 0L
 
         fun canAssignTime(): Boolean =
             screenInteractive && keyguardHidden && !activePackage.isNullOrBlank()
@@ -77,7 +88,11 @@ internal object ForegroundUsageAggregator {
         fun addActiveInterval(untilMillis: Long) {
             val intervalStart = cursor.coerceIn(startTimeMillis, endTimeMillis)
             val intervalEnd = untilMillis.coerceIn(startTimeMillis, endTimeMillis)
-            if (intervalEnd <= intervalStart || !canAssignTime()) return
+            if (intervalEnd <= intervalStart) return
+            if (screenInteractive && keyguardHidden) {
+                observableUnlockedMillis += intervalEnd - intervalStart
+            }
+            if (!canAssignTime()) return
 
             val packageName = activePackage ?: return
             val duration = intervalEnd - intervalStart
@@ -131,7 +146,6 @@ internal object ForegroundUsageAggregator {
 
                 ForegroundTimelineEventType.SCREEN_INTERACTIVE -> {
                     screenInteractive = true
-                    if (countUnlock) screenInteractiveCount++
                 }
 
                 ForegroundTimelineEventType.SCREEN_NON_INTERACTIVE -> {
@@ -139,12 +153,10 @@ internal object ForegroundUsageAggregator {
                 }
 
                 ForegroundTimelineEventType.KEYGUARD_SHOWN -> {
-                    if (countUnlock) hasKeyguardEvents = true
                     keyguardHidden = false
                 }
 
                 ForegroundTimelineEventType.KEYGUARD_HIDDEN -> {
-                    if (countUnlock) hasKeyguardEvents = true
                     keyguardHidden = true
                     if (countUnlock) unlockCount++
                 }
@@ -182,9 +194,17 @@ internal object ForegroundUsageAggregator {
             lateNightUsageMillisByPackage = lateNightUsage,
             lastUsedMillisByPackage = lastUsed,
             segments = segments,
-            unlockCount = if (hasKeyguardEvents) unlockCount else screenInteractiveCount,
+            unlockCount = unlockCount,
             assignedUsageMillis = assignedUsageMillis,
-            hasForegroundEvidence = hasForegroundEvidence || usage.isNotEmpty()
+            observableUnlockedMillis = observableUnlockedMillis.coerceAtMost(endTimeMillis - startTimeMillis),
+            hasForegroundEvidence = hasForegroundEvidence || usage.isNotEmpty(),
+            endingState = ForegroundTrackerState(
+                activePackage = activePackage,
+                activeClass = activeClass,
+                activeInstanceId = activeInstanceId,
+                screenInteractive = screenInteractive,
+                keyguardHidden = keyguardHidden
+            )
         )
     }
 }

@@ -118,6 +118,21 @@ object ScoreCalculator {
             }
         }
 
+        // 화면 합계는 앱마다 분 단위로 먼저 잘라 더하지 않습니다. 여러 개의 짧은
+        // 세션도 합산 후 1분이 되면 일별 집계·알림·위젯 시간에 반영됩니다.
+        totalScreenMinutes = appsUsage.sumOf { it.usageTimeMillis.coerceAtLeast(0L) } / 60_000L
+        distractingMinutes = appsUsage
+            .filter { it.categoryType.isPenalty }
+            .sumOf { it.usageTimeMillis.coerceAtLeast(0L) } / 60_000L
+        productiveMinutes = appsUsage
+            .filter { it.categoryType.isBonus }
+            .sumOf { it.usageTimeMillis.coerceAtLeast(0L) } / 60_000L
+        lateNightDistractingMinutes = appsUsage
+            .filter { it.categoryType.isPenalty }
+            .sumOf {
+                it.lateNightUsageMillis.coerceIn(0L, it.usageTimeMillis.coerceAtLeast(0L))
+            } / 60_000L
+
         // 방해 앱 총 페널티 (로그 가속 감점 + 심야 추가 감점)
         val overallDistractingPenalty = totalDistractingPenalty + totalLateNightPenalty
 

@@ -16,6 +16,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.automirrored.filled.FactCheck
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.AlertDialog
@@ -65,6 +67,7 @@ import com.digitscore.app.i18n.AppLocale
 import com.digitscore.app.i18n.UiTranslator
 import com.digitscore.app.BuildConfig
 import com.digitscore.app.data.DigitsDatabase
+import com.digitscore.app.data.ScoreRepository
 import com.digitscore.app.data.backup.DataBackupManager
 import com.digitscore.app.data.privacy.PrivacyDataManager
 import com.digitscore.app.data.security.DatabaseEncryptionManager
@@ -125,6 +128,7 @@ fun PresetModeScreen(
     val databaseSecurityStatus = remember { DatabaseEncryptionManager.currentStatus() }
 
     val userSettings by db.settingsDao().getSettingsFlow().collectAsState(initial = null)
+    val measurementDiagnostics by ScoreRepository.measurementDiagnostics.collectAsState()
     val settings = userSettings ?: UserSettingsEntity()
     val selectedModeId = settings.selectedPresetModeId
     val selectedPreset = PresetMode.fromId(selectedModeId)
@@ -138,6 +142,8 @@ fun PresetModeScreen(
     var showBackupPasswordDialog by remember { mutableStateOf(false) }
     var pendingEncryptedImport by remember { mutableStateOf<ByteArray?>(null) }
     var showDeleteHistoryConfirmation by remember { mutableStateOf(false) }
+    var showBugReport by remember { mutableStateOf(false) }
+    var showReleaseReadiness by remember { mutableStateOf(false) }
     var selectedDetail by remember { mutableStateOf<SettingsDetail?>(null) }
 
     fun selectPreset(mode: PresetMode) {
@@ -1394,6 +1400,30 @@ fun PresetModeScreen(
             }
 
             item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { showBugReport = true },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.BugReport, contentDescription = null)
+                        Text("버그 리포트", modifier = Modifier.padding(start = 6.dp), fontSize = 12.sp)
+                    }
+                    OutlinedButton(
+                        onClick = { showReleaseReadiness = true },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.FactCheck, contentDescription = null)
+                        Text("출시 체크리스트", modifier = Modifier.padding(start = 6.dp), fontSize = 12.sp)
+                    }
+                }
+            }
+
+            item {
                 Spacer(modifier = Modifier.height(30.dp))
             }
         }
@@ -1402,6 +1432,20 @@ fun PresetModeScreen(
 
     if (showPrivacyPolicy) {
         PrivacyPolicyDialog(onDismiss = { showPrivacyPolicy = false })
+    }
+
+    if (showBugReport) {
+        BugReportDialog(
+            diagnostics = measurementDiagnostics,
+            trackingEnabled = settings.isTrackingEnabled,
+            notificationEnabled = settings.isNotificationEnabled,
+            databaseMode = databaseSecurityStatus.mode.name.lowercase(),
+            onDismiss = { showBugReport = false }
+        )
+    }
+
+    if (showReleaseReadiness) {
+        ReleaseReadinessDialog(onDismiss = { showReleaseReadiness = false })
     }
 
     selectedDetail?.let { detail ->

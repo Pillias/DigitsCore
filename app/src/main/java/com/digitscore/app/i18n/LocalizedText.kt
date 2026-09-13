@@ -58,6 +58,36 @@ fun Text(
 
 object UiTranslator {
     private val dynamicEnglishReplacements = listOf(
+        Regex("완료 (\\d+)/16 · 검증 준비 (\\d+) · 관리자 입력 (\\d+) · 외부 검증 (\\d+)") to
+            "Complete \$1/16 · Ready to validate \$2 · Owner action \$3 · External validation \$4",
+        Regex("오늘 (\\d+)회 · 1분 미만 (\\d+)회") to
+            "\$1 opens today · \$2 under one minute",
+        Regex("짧은 확인이 전체 실행의 (\\d+)%입니다\\. 습관적으로 여는 흐름인지 살펴보세요\\.") to
+            "Brief checks are \$1% of opens. See whether this is a habitual pattern.",
+        Regex("(.+) · 오늘 (\\d+)회") to "\$1 · \$2 opens today",
+        Regex("오늘 (\\d+)회 열었고, 그중 1분 미만은 (\\d+)회입니다\\.") to
+            "Opened \$1 times today; \$2 were under one minute.",
+        Regex("(.+) 사용이 최근 부하의 가장 큰 원인입니다\\.") to
+            "\$1 usage is the largest recent load.",
+        Regex("직전 기록보다 (\\d+)점 올랐습니다\\.") to "Up \$1 points from the previous reading.",
+        Regex("직전 기록보다 (\\d+)점 낮아졌습니다\\.") to "Down \$1 points from the previous reading.",
+        Regex("지금 화면을 쉬면 약 (\\d+)분 뒤 (\\d+)점에 도달할 것으로 예상됩니다\\.") to
+            "If you rest from the screen now, the index is estimated to reach \$2 in about \$1 min.",
+        Regex("화면 (.+) · 앱 (\\d+)회 실행 · 1분 미만 (\\d+)회") to
+            "Screen \$1 · \$2 app opens · \$3 under one minute",
+        Regex("최근 기록 평균은 (\\d+)점입니다\\. 이전 비교 기간을 준비하고 있습니다\\.") to
+            "Your recent average is \$1. Preparing the previous comparison period.",
+        Regex("최근 7일 평균 (\\d+)점 · 이전 7일 대비 (-?\\d+)점") to
+            "Recent 7-day average \$1 · \$2 vs previous 7 days",
+        Regex("(증분 수집|상태 복원) · 전면 앱 포착률 (\\d+%|—)") to
+            "\$1 · Foreground coverage \$2",
+        Regex("전면 앱 포착률 (\\d+)%") to "Foreground coverage \$1%",
+        Regex("최근 조회 (\\d+)초 · 이벤트 (\\d+)개 · (\\d+)ms") to
+            "Last query \$1 sec · \$2 events · \$3 ms",
+        Regex("오늘 (\\d+)회 측정 · 조회 (\\d+)ms · CPU (\\d+)ms") to
+            "\$1 cycles today · queries \$2 ms · CPU \$3 ms",
+        Regex("실제 이벤트 기준 최근 24시간 언락 (\\d+)회") to
+            "\$1 unlocks in the last 24 hours from recorded events",
         Regex("(\\d+)개 앱 · 항목을 누르면 등급 설명과 변경 옵션을 볼 수 있습니다\\.") to
             "\$1 apps · Tap an item to view its rating details and options.",
         Regex("(\\d+)일 기록") to "\$1 days recorded",
@@ -125,6 +155,34 @@ object UiTranslator {
     )
 
     private val replacements = listOf(
+        "지금의 한 가지 제안" to "One suggestion now",
+        "오늘의 사용 흐름" to "Today's Usage Pattern",
+        "지수가 움직인 이유" to "Why the index moved",
+        "회복 예상" to "Recovery Estimate",
+        "오늘 요약" to "Today Summary",
+        "나의 최근 기준" to "My Recent Baseline",
+        "사용 흐름을 학습하고 있습니다." to "Learning your usage pattern.",
+        "연속 사용이 현재 지수 변화의 가장 큰 원인입니다." to "Continuous use is the biggest driver of the current change.",
+        "잦은 화면 확인이 최근 부하에 반영됐습니다." to "Frequent screen checks are reflected in the recent load.",
+        "화면을 내려놓은 뒤 회복이 진행 중입니다." to "The index is recovering while the screen is down.",
+        "최근 사용 흐름은 안정적입니다." to "Your recent usage pattern is steady.",
+        "직전 기록과 같은 점수지만 사용 흐름은 계속 갱신됩니다." to "The score is unchanged, but the usage pattern keeps updating.",
+        "3시간 안의 뚜렷한 회복보다 최근 24시간 누적 사용을 먼저 줄이는 편이 좋습니다." to
+            "Reducing the rolling 24-hour load will help more than expecting a clear recovery within three hours.",
+        "기록이 쌓이면 자신의 지난 사용 흐름과 비교합니다." to "Once enough history is recorded, this compares against your own past pattern.",
+        "지금의 흐름을 유지하고 다음 확인을 의식적으로 선택해보세요." to "Keep this pattern and choose the next check intentionally.",
+        "지금 한 번, 10분 동안 화면을 내려놓아 보세요." to "Put the screen down for ten minutes now.",
+        "알림을 잠시 두고 화면 없는 휴식을 시작해보세요." to "Leave notifications for a moment and take a screen-free break.",
+        "다음 확인 두 번을 한 번으로 묶어보세요." to "Combine the next two checks into one.",
+        "심야 사용을 마치고 화면 밝기를 내려놓을 시간입니다." to "Wind down late-night use and put the screen away.",
+        "측정 상태" to "Measurement Status",
+        "증분 수집" to "Incremental collection",
+        "상태 복원" to "State restore",
+        "측정 정확도와 처리 비용" to "Measurement Accuracy & Cost",
+        "포착률 계산 중" to "Calculating coverage",
+        "통계에서 확인" to "View in Statistics",
+        "포착률은 화면 ON·잠금 해제 시간 중 전면 앱을 특정한 비율입니다. CPU 시간은 측정기의 처리 비용이며 배터리 비율과 같지 않습니다. 실제 배터리 영향은 Android 배터리 사용량과 장기 실기기 시험에서 함께 확인해야 합니다." to
+            "Coverage is the share of screen-on, unlocked time assigned to a foreground app. CPU time is processing cost, not battery percentage. Verify real battery impact with Android battery usage and long-running device tests.",
         "사용 균형 통계 & 리포트" to "Usage Balance & Reports",
         "사용 균형 분석" to "Usage Balance Summary",
         "코어 지수" to "Core Index",
@@ -364,6 +422,12 @@ object UiTranslator {
         "등급은 우측 상단 드롭다운에서 변경할 수 있습니다." to "Change the rating from the dropdown in the top-right corner.",
         "언제 많이 사용했나요?" to "When did you use it most?",
         "한 번에 너무 길게 사용했나요?" to "Were sessions too long?",
+        "하루에 몇 번 열었나요?" to "How often did you open it?",
+        "아직 앱 실행 기록이 없습니다." to "No app-open records yet.",
+        "최근 14일 앱 실행 횟수와 1분 미만 실행 그래프" to
+            "Chart of app opens and under-one-minute opens over the last 14 days",
+        "전체 실행" to "All opens",
+        "주황색 · 1분 미만" to "Orange · under one minute",
         "최근 앱 사용 세션 길이 그래프" to "Recent Session Length Chart",
         "최근 세션" to "Recent Sessions",
         "30분 이상은 주황색" to "30+ minutes shown in orange",
@@ -473,8 +537,8 @@ object UiTranslator {
             "Screen-off background playback is excluded.",
         "기록된 날짜의 잠금 해제 횟수 평균입니다." to
             "Average unlock count across recorded days.",
-        "짧은 앱 사용은 시간과 별도로 언락 횟수에 반영됩니다." to
-            "Brief app use is represented separately in the unlock count.",
+        "짧은 앱 사용은 시간과 별도로 앱별 실행 횟수에 반영됩니다." to
+            "Brief app use is represented separately in each app's open count.",
         "하루 평균 사용량" to "Average Daily Usage",
         "하루 폰 켠 횟수" to "Average Daily Unlocks",
         "기록된 사용량 데이터가 없습니다." to "No recorded usage data.",
@@ -530,7 +594,70 @@ object UiTranslator {
         "설정" to "Settings", "상세 보기" to "View details", "전체 보기" to "View all",
         "기본값" to "Defaults", "관리 앱" to "Managed Apps",
         "월" to "Mon", "화" to "Tue", "수" to "Wed", "목" to "Thu",
-        "금" to "Fri", "토" to "Sat", "일" to "Sun"
+        "금" to "Fri", "토" to "Sat", "일" to "Sun",
+        "버그 리포트" to "Bug Report", "출시 체크리스트" to "Release Checklist",
+        "출시 준비 체크리스트" to "Release Readiness Checklist",
+        "문제가 생긴 상황과 재현 순서를 적어주세요. 아래 보고서를 확인한 뒤 직접 공유합니다." to
+            "Describe what happened and how to reproduce it. Review the report below before sharing.",
+        "문제 상황과 재현 순서" to "What happened and reproduction steps",
+        "예: 위젯이 오전 10시 이후 갱신되지 않음" to "Example: The widget stopped updating after 10 AM",
+        "첨부되는 진단 정보" to "Included diagnostics",
+        "앱 버전·기기 모델·Android 버전·권한 상태·측정 성능만 포함합니다. 앱 목록, 사용 이력, 점수 기록, 알림 내용, 계정 및 기기 식별자는 포함하지 않습니다." to
+            "Includes only the app version, device model, Android version, permission state, and measurement performance. It excludes app lists, usage and score history, notification content, accounts, and device identifiers.",
+        "리포트 복사" to "Copy Report", "공유" to "Share", "버그 리포트 공유" to "Share Bug Report",
+        "버그 리포트를 복사했습니다." to "Bug report copied.",
+        "반드시 필요한 것" to "Required for Release", "상품성을 위해 필요한 것" to "Product Readiness",
+        "완료" to "Complete", "검증 준비" to "Ready to Validate", "관리자 입력" to "Owner Action", "외부 검증" to "External Validation",
+        "기기·사용자·Play Console이 필요한 항목은 코드만으로 완료 처리하지 않습니다. 저장소 docs/RELEASE_READINESS.md에 실행 절차와 증빙 위치를 정리했습니다." to
+            "Items requiring devices, users, or Play Console are not marked complete from code alone. Execution steps and evidence locations are in docs/RELEASE_READINESS.md.",
+        "최근 24시간 실제 언락 이벤트" to "Actual Unlock Events in the Last 24 Hours",
+        "ACTION_USER_PRESENT와 KEYGUARD_HIDDEN 관측 이벤트만 집계하고 추정치는 사용하지 않습니다." to
+            "Counts only observed ACTION_USER_PRESENT and KEYGUARD_HIDDEN events; no estimates are used.",
+        "UsageEvents 증분 처리" to "Incremental UsageEvents Processing",
+        "프로세스 시작 시 상태를 한 번 복원한 뒤 마지막 커서 이후 이벤트만 조회합니다." to
+            "Restores state once at process start, then queries only events after the last cursor.",
+        "Samsung·Pixel·Xiaomi 장기 측정" to "Long-term Samsung, Pixel, and Xiaomi Measurement",
+        "기기별 2~4주 실측은 실제 기기와 측정 담당자가 필요합니다." to
+            "Two to four weeks of measurement per device requires physical devices and testers.",
+        "정확도와 배터리 수치화" to "Quantified Accuracy and Battery Use",
+        "포착률·조회시간·CPU 진단은 준비됐습니다. 장기 기기 시험에서 시간 오차와 배터리 값을 채워야 합니다." to
+            "Coverage, query time, and CPU diagnostics are ready. Long-running device tests must supply time-error and battery measurements.",
+        "업로드 키와 서명 AAB" to "Upload Key and Signed AAB",
+        "서명 자동화는 준비됐지만 업로드 키 생성·보관 및 GitHub Secrets 입력이 필요합니다." to
+            "Signing automation is ready, but the upload key must be created, backed up, and added to GitHub Secrets.",
+        "개인정보·지원·Data Safety" to "Privacy, Support, and Data Safety",
+        "개인정보처리방침 초안과 Data Safety 답안은 준비됐습니다. 개발자명·지원 이메일·공개 URL 확정이 필요합니다." to
+            "The privacy-policy draft and Data Safety answers are ready. The developer name, support email, and public URL must be finalized.",
+        "FGS 설명과 시연 영상" to "FGS Description and Demo Video",
+        "제출 설명과 촬영 순서는 준비됐습니다. 실기기 화면 녹화와 Play Console 제출이 남았습니다." to
+            "The declaration text and shot list are ready. Device recording and Play Console submission remain.",
+        "Android Vitals 감시" to "Android Vitals Monitoring",
+        "내부 테스트 업로드 뒤 Play Console에서 Crash·ANR·wake lock을 실제 감시해야 합니다." to
+            "Crash, ANR, and wake-lock metrics must be monitored in Play Console after an internal-test upload.",
+        "접근성·화면 크기 시험" to "Accessibility and Screen-size Testing",
+        "테마·반응형 기반은 준비됐습니다. 큰 글꼴·TalkBack·가로·태블릿 수동 매트릭스 시험이 남았습니다." to
+            "Theme and responsive foundations are ready. Manual large-text, TalkBack, landscape, and tablet matrix testing remains.",
+        "20~50명 30일 점수 검증" to "30-day Score Validation with 20–50 Users",
+        "동의한 실제 사용자를 모집해 개인 식별 없는 집계 결과를 검증해야 합니다." to
+            "Consenting users must be recruited to validate aggregated results without personal identifiers.",
+        "점수 변화 이유 한 문장" to "One-sentence Reason for Score Changes",
+        "현재 지수 변화의 가장 큰 원인을 대시보드에 표시합니다." to
+            "Shows the largest driver of the current index change on the dashboard.",
+        "예상 회복 시간" to "Estimated Recovery Time",
+        "화면을 쉬었을 때 목표 지수까지의 예상 시간을 표시합니다." to
+            "Shows the estimated time to reach the target index while resting from the screen.",
+        "부드러운 임계치 알림" to "Gentle Threshold Alerts",
+        "70·60·50 하향 통과 때만 안내하고 6시간 재알림 제한을 적용합니다." to
+            "Notifies only on downward crossings of 70, 60, and 50, with a six-hour cooldown.",
+        "하루·주간 핵심 요약" to "Daily and Weekly Highlights",
+        "최근 24시간 사용과 최근 7일/이전 7일 비교를 제공합니다." to
+            "Provides last-24-hour usage and a recent-versus-previous seven-day comparison.",
+        "한 번에 한 가지 제안" to "One Action at a Time",
+        "현재 흐름에서 실행할 한 가지 행동만 추천합니다." to
+            "Recommends only one actionable step for the current pattern.",
+        "사용자 자신의 과거와 비교" to "Comparison with Personal History",
+        "고정 타인 평균 대신 사용자의 최근 기록을 기준선으로 사용합니다." to
+            "Uses the user's recent history as the baseline instead of a fixed population average."
     )
 
     fun translate(source: String): String {

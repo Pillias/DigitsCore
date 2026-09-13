@@ -1,5 +1,6 @@
 package com.digitscore.app.i18n
 
+import com.digitscore.app.support.ReleaseReadiness
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
@@ -115,7 +116,20 @@ class UiTranslatorTest {
                 "30일 패턴",
                 "월요일 평균 3시간 2분",
                 "최근 7일 하루 평균은 이전 7일보다 12분 줄었고, 요일별 평균도 함께 비교합니다.",
-                "이전 7일 3시간 4분 · 최근 7일 2시간 52분"
+                "이전 7일 3시간 4분 · 최근 7일 2시간 52분",
+                "지수가 움직인 이유",
+                "YouTube 사용이 최근 부하의 가장 큰 원인입니다.",
+                "지금 화면을 쉬면 약 20분 뒤 76점에 도달할 것으로 예상됩니다.",
+                "화면 2시간 · 앱 14회 실행 · 1분 미만 9회",
+                "최근 7일 평균 74점 · 이전 7일 대비 -2점",
+                "증분 수집 · 전면 앱 포착률 96%",
+                "최근 조회 62초 · 이벤트 17개 · 4ms",
+                "오늘 31회 측정 · 조회 52ms · CPU 310ms",
+                "실제 이벤트 기준 최근 24시간 언락 28회",
+                "하루에 몇 번 열었나요?",
+                "최근 14일 앱 실행 횟수와 1분 미만 실행 그래프",
+                "오늘 14회 · 1분 미만 9회",
+                "짧은 확인이 전체 실행의 64%입니다. 습관적으로 여는 흐름인지 살펴보세요."
             )
             auditedUiTexts.forEach { source ->
                 val english = UiTranslator.translate(source)
@@ -144,6 +158,45 @@ class UiTranslatorTest {
             Locale.setDefault(Locale.ENGLISH)
             assertEquals("당근", UiTranslator.translate("당근"))
             assertEquals("삼성 브라우저", UiTranslator.translate("삼성 브라우저"))
+        } finally {
+            Locale.setDefault(previous)
+        }
+    }
+
+    @Test
+    fun englishModeFullyTranslatesSupportAndReadinessUi() {
+        val previous = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.ENGLISH)
+            val supportTexts = listOf(
+                "버그 리포트",
+                "출시 체크리스트",
+                "출시 준비 체크리스트",
+                "문제가 생긴 상황과 재현 순서를 적어주세요. 아래 보고서를 확인한 뒤 직접 공유합니다.",
+                "문제 상황과 재현 순서",
+                "예: 위젯이 오전 10시 이후 갱신되지 않음",
+                "첨부되는 진단 정보",
+                "앱 버전·기기 모델·Android 버전·권한 상태·측정 성능만 포함합니다. 앱 목록, 사용 이력, 점수 기록, 알림 내용, 계정 및 기기 식별자는 포함하지 않습니다.",
+                "리포트 복사",
+                "공유",
+                "완료 8/16 · 검증 준비 3 · 관리자 입력 2 · 외부 검증 3",
+                "반드시 필요한 것",
+                "상품성을 위해 필요한 것",
+                "기기·사용자·Play Console이 필요한 항목은 코드만으로 완료 처리하지 않습니다. 저장소 docs/RELEASE_READINESS.md에 실행 절차와 증빙 위치를 정리했습니다."
+            ) + ReleaseReadiness.all.flatMap { listOf(it.title, it.detail) } +
+                ReleaseReadiness.all.map {
+                    when (it.status) {
+                        com.digitscore.app.support.ReadinessStatus.COMPLETE -> "완료"
+                        com.digitscore.app.support.ReadinessStatus.READY_TO_VALIDATE -> "검증 준비"
+                        com.digitscore.app.support.ReadinessStatus.OWNER_ACTION -> "관리자 입력"
+                        com.digitscore.app.support.ReadinessStatus.EXTERNAL_VALIDATION -> "외부 검증"
+                    }
+                }
+
+            supportTexts.forEach { source ->
+                val english = UiTranslator.translate(source)
+                assertFalse("Untranslated Korean remains in: $english", english.contains(Regex("[가-힣]")))
+            }
         } finally {
             Locale.setDefault(previous)
         }

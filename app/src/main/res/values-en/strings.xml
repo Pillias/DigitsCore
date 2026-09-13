@@ -2,6 +2,11 @@
     <string name="app_name">DigitsCore</string>
     <string name="notification_channel_name">DigitsCore live index</string>
     <string name="notification_channel_description">Shows your live Core Index based on your phone-use pattern.</string>
+    <string name="guidance_channel_name">DigitsCore balance guidance</string>
+    <string name="guidance_channel_description">Suggests one gentle break when your Core Index crosses a key threshold.</string>
+    <string name="guidance_notification_title">Core Index %1$d · Check your pattern</string>
+    <string name="guidance_notification_recovery">You crossed the %1$d-point line. Putting the screen down now may start recovery in about %2$d min.</string>
+    <string name="guidance_notification_break">You crossed the %1$d-point line. Delay the next check and take a 10-minute break.</string>
     <string name="widget_description">See your Core Index and usage stats on the Home screen.</string>
     <string name="digitscore_score">Core Index</string>
     <string name="rolling_24_hours">Last 24 hours</string>
@@ -64,7 +69,7 @@
     <string name="grade_f_description">A meaningful break can help reset your usage pattern.</string>
     <string name="onboarding_tagline">See your phone-use pattern as a live score\nand build your own balance.</string>
     <string name="privacy_local_title">Usage data stays on your device</string>
-    <string name="privacy_local_body">Approximate app names, usage time and unlock counts are used to calculate your score. Nothing is sent to the developer or a server, and you can turn off access and tracking at any time.</string>
+    <string name="privacy_local_body">App names, usage time, app-open counts, and observed unlock events are used to calculate your score. Nothing is sent to the developer or a server, and you can turn off access and tracking at any time.</string>
     <string name="privacy_more">Read the privacy notice</string>
     <string name="usage_access_title">Usage access (Required)</string>
     <string name="usage_access_body">Required to measure the app currently visible on screen.</string>
@@ -76,13 +81,13 @@
     <string name="open_settings">Settings</string>
     <string name="privacy_title">Privacy notice</string>
     <string name="privacy_data_title">Data processed</string>
-    <string name="privacy_data_body">When Usage Access is granted, DigitsCore reads app names, package names, approximate unlock counts and usage sessions for the top app while the screen is on and unlocked. Background playback with the screen off is not measured.</string>
+    <string name="privacy_data_body">When Usage Access is granted, DigitsCore reads app names, package names, observed unlock events, and usage sessions and open counts for the top app while the screen is on and unlocked. Background playback with the screen off is not measured.</string>
     <string name="privacy_purpose_title">Purpose</string>
     <string name="privacy_purpose_body">This data is used only to calculate digital-use patterns and display scores and statistics in the app and notifications.</string>
     <string name="privacy_storage_title">Storage and transfer</string>
     <string name="privacy_storage_body">Results and settings are stored in an on-device SQLCipher-encrypted database protected by Android Keystore. They are excluded from OS backup and device transfer. Nothing is sent to a server. Manual backups use password-based AES-256-GCM encryption.</string>
     <string name="privacy_choice_title">Your choices</string>
-    <string name="privacy_choice_body">Detailed sessions and five-minute Core Index samples are retained for 30 days; daily aggregates are retained for 365 days. An encrypted export includes details available at export time. You can hide lock-screen details, stop tracking, delete all history immediately, or revoke access in Android settings.</string>
+    <string name="privacy_choice_body">Detailed sessions and five-minute Core Index samples are retained for 30 days, minimal unlock and notification events for 25 hours, and daily usage and open-count aggregates for 365 days. An encrypted export includes details available at export time. You can hide lock-screen details, stop tracking, delete all history immediately, or revoke access in Android settings.</string>
     <string name="privacy_contact_title">Contact</string>
     <string name="privacy_contact_body">Use the developer contact shown on Google Play for privacy questions.</string>
     <string name="confirm">OK</string>

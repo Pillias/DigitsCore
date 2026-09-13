@@ -131,6 +131,7 @@ object DataBackupManager {
                 put("appName", record.appName)
                 put("usageMillis", record.usageMillis)
                 put("sessionCount", record.sessionCount)
+                put("shortSessionCount", record.shortSessionCount)
                 put("longestSessionMillis", record.longestSessionMillis)
                 put("lateNightUsageMillis", record.lateNightUsageMillis)
                 put("categoryLevel", record.categoryLevel)
@@ -331,6 +332,7 @@ object DataBackupManager {
                                 appName = appName,
                                 usageMillis = obj.getLong("usageMillis").coerceIn(0L, 86_400_000L),
                                 sessionCount = obj.optInt("sessionCount", 0).coerceIn(0, 10_000),
+                                shortSessionCount = obj.optInt("shortSessionCount", 0).coerceIn(0, 10_000),
                                 longestSessionMillis = obj.optLong("longestSessionMillis", 0L).coerceIn(0L, 86_400_000L),
                                 lateNightUsageMillis = obj.optLong("lateNightUsageMillis", 0L).coerceIn(0L, 18_000_000L),
                                 categoryLevel = obj.optInt("categoryLevel", 3).coerceIn(1, 5),

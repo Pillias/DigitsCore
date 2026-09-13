@@ -143,7 +143,7 @@ class ForegroundUsageAggregatorTest {
     }
 
     @Test
-    fun screenInteractive_isUnlockFallbackOnlyWithoutKeyguardEvents() {
+    fun screenInteractive_isNotTreatedAsUnlock() {
         val fallback = aggregate(
             endSecond = 20,
             events = listOf(
@@ -163,12 +163,12 @@ class ForegroundUsageAggregatorTest {
             )
         )
 
-        assertEquals(2, fallback.unlockCount)
+        assertEquals(0, fallback.unlockCount)
         assertEquals(2, keyguardBased.unlockCount)
     }
 
     @Test
-    fun keyguardStateBeforeDay_doesNotDisableTodayScreenInteractiveFallback() {
+    fun keyguardStateBeforeDay_doesNotTurnScreenOnIntoUnlock() {
         val result = aggregate(
             endSecond = 20,
             events = listOf(
@@ -179,7 +179,7 @@ class ForegroundUsageAggregatorTest {
             )
         )
 
-        assertEquals(2, result.unlockCount)
+        assertEquals(0, result.unlockCount)
     }
 
     @Test
@@ -213,6 +213,27 @@ class ForegroundUsageAggregatorTest {
 
         assertTrue(result.assignedUsageMillis <= 30_000L)
         assertEquals(result.assignedUsageMillis, result.usageMillisByPackage.values.sum())
+        assertEquals(30_000L, result.observableUnlockedMillis)
+    }
+
+    @Test
+    fun incrementalState_continuesActiveAppWithoutAnotherResume() {
+        val first = ForegroundUsageAggregator.aggregate(
+            startTimeMillis = 0L,
+            endTimeMillis = 10_000L,
+            lateNightEndTimeMillis = 0L,
+            events = listOf(event(0, ForegroundTimelineEventType.APP_RESUMED, "youtube"))
+        )
+        val second = ForegroundUsageAggregator.aggregate(
+            startTimeMillis = 10_000L,
+            endTimeMillis = 20_000L,
+            lateNightEndTimeMillis = 0L,
+            events = emptyList(),
+            initialState = first.endingState
+        )
+
+        assertEquals(10_000L, first.usageMillisByPackage["youtube"])
+        assertEquals(10_000L, second.usageMillisByPackage["youtube"])
     }
 
     @Test
