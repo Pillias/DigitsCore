@@ -1,14 +1,14 @@
 package com.digitscore.app.ui.dashboard
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -58,8 +58,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -87,6 +85,8 @@ import com.digitscore.app.ui.theme.ScoreOrange
 import com.digitscore.app.ui.theme.ScoreRed
 import com.digitscore.app.ui.theme.ScoreYellow
 import com.digitscore.app.ui.components.DetailChevron
+import com.digitscore.app.ui.components.CoreIndexGauge
+import com.digitscore.app.ui.components.ResponsiveContent
 import com.digitscore.app.ui.components.SectionHeading
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -163,13 +163,13 @@ fun DashboardScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
+        ResponsiveContent(modifier = Modifier.padding(paddingValues)) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
             // 1. 원형 점수 인디케이터 (클릭 시 점수 산출 상세 내역 팝업)
             item {
                 ScoreGaugeCard(
@@ -230,6 +230,7 @@ fun DashboardScreen(
             item {
                 Spacer(modifier = Modifier.height(24.dp))
             }
+        }
         }
     }
 
@@ -342,72 +343,132 @@ private fun ScoreGaugeCard(
 ) {
     val context = LocalContext.current
     val gradeText = context.localizedGrade(grade)
-    val animatedScore by animateFloatAsState(
-        targetValue = score.coerceIn(0, 100).toFloat(),
-        animationSpec = tween(durationMillis = 700),
-        label = "scoreGauge"
-    )
-    val scoreColor = when {
-        score >= 80 -> ScoreGreen
-        score >= 60 -> ScoreYellow
-        score >= 40 -> ScoreOrange
-        else -> ScoreRed
-    }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .semantics { contentDescription = context.getString(R.string.score_accessibility, score, gradeText) },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        shape = RoundedCornerShape(20.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shape = MaterialTheme.shapes.large
     ) {
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(20.dp)
         ) {
-            Text(
-                text = "${stringResource(R.string.digitscore_score)} · ${stringResource(R.string.rolling_24_hours)}",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.outline
-            )
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(190.dp)) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val strokeWidth = 16.dp.toPx()
-                    drawArc(
-                        color = Color.Gray.copy(alpha = 0.2f),
-                        startAngle = 135f,
-                        sweepAngle = 270f,
-                        useCenter = false,
-                        topLeft = Offset(strokeWidth / 2f, strokeWidth / 2f),
-                        size = Size(size.width - strokeWidth, size.height - strokeWidth),
-                        style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+            val useWideLayout = maxWidth >= 560.dp
+            if (useWideLayout) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(28.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CoreIndexGauge(
+                        score = score,
+                        grade = gradeText,
+                        modifier = Modifier.size(172.dp)
                     )
-                    drawArc(
-                        color = scoreColor,
-                        startAngle = 135f,
-                        sweepAngle = 270f * (animatedScore / 100f),
-                        useCenter = false,
-                        topLeft = Offset(strokeWidth / 2f, strokeWidth / 2f),
-                        size = Size(size.width - strokeWidth, size.height - strokeWidth),
-                        style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                    ScoreGaugeSummary(
+                        rollingScore = rollingScore,
+                        modifier = Modifier.weight(1f)
                     )
                 }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(text = score.toString(), fontSize = 54.sp, fontWeight = FontWeight.Black, color = scoreColor)
-                    Text(text = gradeText, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "${stringResource(R.string.digitscore_score)} · ${stringResource(R.string.rolling_24_hours)}",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    CoreIndexGauge(
+                        score = score,
+                        grade = gradeText,
+                        modifier = Modifier.size(184.dp)
+                    )
+                    ScoreStatusChip(rollingStatusText(rollingScore))
+                    ScoreDetailAffordance()
                 }
             }
-            Text(
-                text = rollingStatusText(rollingScore),
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(text = stringResource(R.string.tap_score_details), fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
         }
+    }
+}
+
+@Composable
+private fun ScoreGaugeSummary(
+    rollingScore: RollingScoreDetail?,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = "${stringResource(R.string.digitscore_score)} · ${stringResource(R.string.rolling_24_hours)}",
+            style = MaterialTheme.typography.titleMedium
+        )
+        ScoreStatusChip(rollingStatusText(rollingScore))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            HeroMetric(
+                label = stringResource(R.string.recent_usage),
+                value = formatMinutesToHoursAndMinutes(rollingScore?.recentUsageMinutes ?: 0L),
+                modifier = Modifier.weight(1f)
+            )
+            HeroMetric(
+                label = stringResource(R.string.continuous_usage),
+                value = formatMinutesToHoursAndMinutes(rollingScore?.continuousUsageMinutes ?: 0L),
+                modifier = Modifier.weight(1f)
+            )
+        }
+        ScoreDetailAffordance()
+    }
+}
+
+@Composable
+private fun ScoreStatusChip(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+            .background(
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                MaterialTheme.shapes.small
+            )
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    )
+}
+
+@Composable
+private fun HeroMetric(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.small)
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Text(text = label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+        Text(text = value, style = MaterialTheme.typography.titleMedium)
+    }
+}
+
+@Composable
+private fun ScoreDetailAffordance() {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = stringResource(R.string.tap_score_details),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.outline
+        )
+        DetailChevron()
     }
 }
 

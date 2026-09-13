@@ -82,6 +82,7 @@ import com.digitscore.app.ui.theme.ScoreRed
 import com.digitscore.app.ui.theme.ScoreYellow
 import com.digitscore.app.ui.components.DetailChevron
 import com.digitscore.app.ui.components.InformationDetailDialog
+import com.digitscore.app.ui.components.ResponsiveContent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
@@ -198,13 +199,13 @@ fun StatisticsScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
-        ) {
+        ResponsiveContent(modifier = Modifier.padding(paddingValues)) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
             // 1. 분석 목적 선택 (직전 24시간 흐름 / 최근 30일 패턴)
             item {
                 TabRow(
@@ -391,6 +392,7 @@ fun StatisticsScreen(
             item {
                 Spacer(modifier = Modifier.height(24.dp))
             }
+        }
         }
     }
 
