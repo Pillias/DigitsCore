@@ -76,6 +76,7 @@ import com.digitscore.app.model.PresetMode
 import com.digitscore.app.ui.components.SectionHeading
 import com.digitscore.app.ui.components.DetailChevron
 import com.digitscore.app.ui.components.InformationDetailDialog
+import com.digitscore.app.ui.components.ResponsiveContent
 import com.digitscore.app.notification.StatusIconStyle
 import com.digitscore.app.service.TrackerForegroundService
 import com.digitscore.app.widget.ScoreWidget
@@ -234,13 +235,13 @@ fun PresetModeScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
+        ResponsiveContent(modifier = Modifier.padding(paddingValues)) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
@@ -1395,6 +1396,7 @@ fun PresetModeScreen(
             item {
                 Spacer(modifier = Modifier.height(30.dp))
             }
+        }
         }
     }
 

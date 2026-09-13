@@ -59,6 +59,7 @@ import com.digitscore.app.ui.theme.ScoreGreen
 import com.digitscore.app.ui.theme.ScoreYellow
 import com.digitscore.app.ui.privacy.PrivacyPolicyDialog
 import com.digitscore.app.ui.components.DetailChevron
+import com.digitscore.app.ui.components.ResponsiveContent
 import androidx.compose.ui.res.stringResource
 import com.digitscore.app.R
 
@@ -102,14 +103,14 @@ fun OnboardingScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
+    ResponsiveContent(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
@@ -237,6 +238,7 @@ fun OnboardingScreen(
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
             )
+        }
         }
     }
 

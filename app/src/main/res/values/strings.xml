@@ -14,6 +14,7 @@
     <string name="score_steady">최근 24시간 흐름 안정 · 부하 %1$s</string>
     <string name="score_detail_title">코어 지수 · 최근 24시간</string>
     <string name="recent_usage">최근 24시간 사용</string>
+    <string name="continuous_usage">현재 연속 사용</string>
     <string name="rolling_load">24시간 누적 부하</string>
     <string name="acute_load">연속 사용 가속 부하</string>
     <string name="score_method_note">수면이나 화면 OFF 자체를 가점으로 주지 않습니다. 화면이 꺼진 백그라운드 재생은 집계에서 제외합니다.</string>

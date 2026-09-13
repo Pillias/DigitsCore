@@ -14,6 +14,7 @@
     <string name="score_steady">24-hour pattern steady · Load %1$s</string>
     <string name="score_detail_title">Core Index · Last 24 hours</string>
     <string name="recent_usage">Usage in last 24 hours</string>
+    <string name="continuous_usage">Current continuous use</string>
     <string name="rolling_load">24-hour rolling load</string>
     <string name="acute_load">Continuous-use load</string>
     <string name="score_method_note">Sleep and screen-off time do not add points. Background playback while the screen is off is excluded.</string>

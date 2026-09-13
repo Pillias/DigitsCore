@@ -56,6 +56,7 @@ import com.digitscore.app.model.AppCategoryType
 import com.digitscore.app.i18n.UiTranslator
 import com.digitscore.app.model.AppUsage
 import com.digitscore.app.ui.components.DetailChevron
+import com.digitscore.app.ui.components.ResponsiveContent
 import com.digitscore.app.ui.theme.ScoreGreen
 import com.digitscore.app.ui.theme.ScoreRed
 import kotlinx.coroutines.Dispatchers
@@ -118,12 +119,12 @@ fun AppWeightSettingsScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 20.dp)
-        ) {
+        ResponsiveContent(modifier = Modifier.padding(paddingValues)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp)
+            ) {
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
@@ -223,6 +224,7 @@ fun AppWeightSettingsScreen(
                     }
                 }
             }
+        }
         }
     }
 
