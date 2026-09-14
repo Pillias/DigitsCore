@@ -50,15 +50,25 @@ class ScoreWidget : GlanceAppWidget() {
     )
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        // Glance 작업은 서비스와 다른 시점에 실행될 수 있으므로 영구 snapshot을 우선합니다.
+        // 이전 버전에서 snapshot이 아직 없는 경우에만 프로세스 Repository로 호환합니다.
+        val persistedSnapshot = WidgetSnapshotStore.read(context)
         val scoreDetail = ScoreRepository.currentScoreDetail.value
         val rollingScoreDetail = ScoreRepository.rollingScoreDetail.value
         val settings = DigitsDatabase.getInstance(context).settingsDao().getSettings()
         val strings = AppLocale.stringsContext(context)
-        val unlockCount = ScoreRepository.currentUnlockCount.value
-        val score = rollingScoreDetail?.finalScore ?: 80
+        val unlockCount = persistedSnapshot?.unlockCount
+            ?: ScoreRepository.currentUnlockCount.value
+        val score = persistedSnapshot?.score
+            ?: rollingScoreDetail?.finalScore
+            ?: 80
         val grade = ScoreGrade.fromScore(score)
-        val screenMinutes = scoreDetail?.totalScreenTimeMinutes ?: 0L
-        val managedMinutes = scoreDetail?.distractingTimeMinutes ?: 0L
+        val screenMinutes = persistedSnapshot?.screenMinutes
+            ?: scoreDetail?.totalScreenTimeMinutes
+            ?: 0L
+        val managedMinutes = persistedSnapshot?.managedMinutes
+            ?: scoreDetail?.distractingTimeMinutes
+            ?: 0L
         val backgroundStyle = WidgetBackgroundStyle.fromId(settings?.widgetBackgroundStyleId)
         val palette = WidgetPalette.forStyle(backgroundStyle)
         val scoreBitmap = DynamicIconGenerator.createScoreBitmapIcon(
@@ -68,7 +78,7 @@ class ScoreWidget : GlanceAppWidget() {
         val managedTime = formatMinutes(strings, managedMinutes)
         val localizedGrade = strings.localizedGrade(grade)
         val stateText = strings.getString(
-            when (rollingScoreDetail?.flow) {
+            when (persistedSnapshot?.flow ?: rollingScoreDetail?.flow) {
                 ScoreFlow.USING -> R.string.widget_state_using
                 ScoreFlow.RECOVERING -> R.string.widget_state_recovering
                 ScoreFlow.STEADY -> R.string.widget_state_steady

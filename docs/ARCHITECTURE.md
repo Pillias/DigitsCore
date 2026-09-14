@@ -32,6 +32,7 @@ TrackerForegroundService — 화면 켜짐 중 주기 갱신 및 경계 처리
 - `ScoreRepository`: 서비스가 계산한 현재 점수와 사용량을 Compose 화면·알림·위젯에 전달하는 프로세스 내 `StateFlow` 저장소입니다.
 - `CoreIndexCoach`: 현재와 직전 표본, 최근 세션, 14일 기록을 비교해 변화 원인 한 문장, 3점 회복 예상, 하루 요약과 한 가지 제안을 만듭니다.
 - `MeasurementDiagnostics`: 이벤트 조회 범위·건수·시간, 측정 주기 CPU 시간, 화면 ON·잠금 해제 구간의 전면 앱 포착률을 노출해 실기기 정확도와 비용을 비교할 근거를 만듭니다.
+- `WidgetSnapshotStore`: 서비스가 확정한 점수·화면시간·관리시간·언락·흐름을 앱 전용 SharedPreferences에 먼저 저장합니다. Glance 작업이 지연되거나 프로세스가 재생성되어도 메모리 기본값 80/0으로 되돌아가지 않고 마지막 확정값을 그립니다.
 
 수식은 [SCORING.md](SCORING.md)를 참고하세요.
 

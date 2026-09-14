@@ -34,6 +34,8 @@ import com.digitscore.app.notification.ScoreNotificationManager
 import com.digitscore.app.notification.StatusIconStyle
 import com.digitscore.app.receiver.ScreenEventReceiver
 import com.digitscore.app.widget.ScoreWidget
+import com.digitscore.app.widget.WidgetSnapshot
+import com.digitscore.app.widget.WidgetSnapshotStore
 import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -65,7 +67,7 @@ class TrackerForegroundService : Service() {
     private var accumulatedIdleMinutes: Long = 0L
     private var todayUnlockCount: Int = 0
     private var currentDateString: String = getTodayDateString()
-    private var lastWidgetScore: Int? = null
+    private var lastRenderedWidgetSnapshot: WidgetSnapshot? = null
     private var lastWidgetUpdatedAt: Long = 0L
     private var lastSamplePrunedAt: Long = 0L
     private var cachedTodaySnapshot: TodayUsageSnapshot? = null
@@ -532,14 +534,35 @@ class TrackerForegroundService : Service() {
                     lastSamplePrunedAt = now
                 }
 
-                // 점수 변화는 즉시, 나머지 사용량은 최대 5분 간격으로 위젯에 반영합니다.
-                if (lastWidgetScore != rollingScoreDetail.finalScore || now - lastWidgetUpdatedAt >= 5 * 60_000L) {
+                // Glance는 이 프로세스의 Repository가 초기화된 뒤 실행될 수 있으므로 계산 결과를
+                // 먼저 영구 snapshot으로 확정합니다. 표시값이 바뀌면 즉시, 그대로여도 5분마다
+                // launcher에 재전송하여 OEM이 놓친 갱신을 복구합니다.
+                val widgetSnapshot = WidgetSnapshot(
+                    score = rollingScoreDetail.finalScore,
+                    screenMinutes = scoreDetail.totalScreenTimeMinutes,
+                    managedMinutes = scoreDetail.distractingTimeMinutes,
+                    unlockCount = finalUnlockCount,
+                    flow = rollingScoreDetail.flow,
+                    updatedAtMillis = now
+                ).sanitized()
+                val snapshotPersisted = WidgetSnapshotStore.write(
+                    applicationContext,
+                    widgetSnapshot
+                )
+                val displayedValuesChanged = !widgetSnapshot.hasSameDisplayedValues(
+                    lastRenderedWidgetSnapshot
+                )
+                if (
+                    snapshotPersisted &&
+                    (displayedValuesChanged || now - lastWidgetUpdatedAt >= 5 * 60_000L)
+                ) {
                     try {
                         ScoreWidget().updateAll(applicationContext)
-                        lastWidgetScore = rollingScoreDetail.finalScore
+                        lastRenderedWidgetSnapshot = widgetSnapshot
                         lastWidgetUpdatedAt = now
-                    } catch (_: Exception) {
+                    } catch (error: Exception) {
                         // 런처 위젯 오류가 핵심 측정 및 알림 갱신을 중단하지 않게 합니다.
+                        android.util.Log.w("DigitsCoreWidget", "Widget update request failed", error)
                     }
                 }
 

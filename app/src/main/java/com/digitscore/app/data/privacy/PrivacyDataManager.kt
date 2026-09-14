@@ -5,7 +5,10 @@ import androidx.room.withTransaction
 import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.data.ScoreRepository
 import com.digitscore.app.service.TrackerForegroundService
+import com.digitscore.app.widget.WidgetSnapshotStore
+import com.digitscore.app.widget.ScoreWidget
 import com.digitscore.app.data.backup.DataBackupManager
+import androidx.glance.appwidget.updateAll
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -42,12 +45,14 @@ object PrivacyDataManager {
             .edit()
             .clear()
             .commit()
+        WidgetSnapshotStore.clear(appContext)
         ScoreRepository.updateAppsUsage(emptyList())
         ScoreRepository.updateUnlockCount(0)
         ScoreRepository.updateScoreDetail(null)
         ScoreRepository.updateRollingScoreDetail(null)
         ScoreRepository.updateCoreIndexGuidance(null)
         ScoreRepository.updateMeasurementDiagnostics(com.digitscore.app.data.MeasurementDiagnostics())
+        runCatching { ScoreWidget().updateAll(appContext) }
         DataBackupManager.cleanupStaleBackups(appContext, maxAgeMillis = 0L)
     }
 }
