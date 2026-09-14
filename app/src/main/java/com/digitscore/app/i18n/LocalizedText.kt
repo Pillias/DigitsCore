@@ -128,8 +128,6 @@ object UiTranslator {
             "The recent and previous 7-day daily averages are equal; weekday averages are also compared.",
         Regex("최저 (\\d+)점 · 최고 (\\d+)점 · 마지막 (\\d+)점") to
             "Low \$1 pts · High \$2 pts · Last \$3 pts",
-        Regex("(\\d+)일은 기존 상세 세션으로 복원한 코어 지수입니다\\.") to
-            "\$1 days use Core Index values reconstructed from existing detailed sessions.",
         Regex("점선은 설정한 기준선 (\\d+)점을 나타냅니다\\.") to
             "The dotted line marks your \$1-point target.",
         Regex("하루 평균 화면 (\\d+)분, 관리 앱 (\\d+)분, 언락 (\\d+)회입니다\\.") to
@@ -188,10 +186,12 @@ object UiTranslator {
         "코어 지수" to "Core Index",
         "7일 평균" to "7-Day Average",
         "하락/관리" to "Decline / Managed",
-        "차트를 누르거나 드래그해 시점별 기록을 확인하세요. 화면 OFF 구간은 관측값 사이를 직선으로 잇고 사용량은 0으로 표시합니다." to
-            "Tap or drag the chart to inspect each point. Screen-off spans connect observations with a straight line while usage remains zero.",
-        "범위봉은 하루의 시작·마지막·최저·최고를 표시합니다. 점은 하루 표본이 없는 일별 기록입니다." to
-            "Range bars show each day's start, last, low, and high. A dot is a daily record without intraday samples.",
+        "차트를 누르거나 드래그해 시점별 기록을 확인하세요. 화면을 끄고 쉰 구간은 다음 회복값까지 선으로 이어지며 사용량은 0으로 표시됩니다." to
+            "Tap or drag the chart to inspect each point. Screen-off breaks connect to the next recovered value while usage remains zero.",
+        "화면을 끄고 쉬는 동안 연속 사용 부하가 줄어 코어 지수가 회복됩니다. 차트는 다음 사용 시 계산된 회복값까지 흐름을 이어 표시합니다." to
+            "Putting the screen down reduces continuous-use load and lets the Core Index recover. The chart connects the trend to the recovered value calculated at the next use.",
+        "범위봉은 하루의 시작·마지막·최저·최고 코어 지수를, 아래 막대는 기록된 모든 날짜의 화면 사용을 표시합니다." to
+            "Range bars show each day's opening, last, low, and high Core Index; the lower bars show screen use for every recorded day.",
         "날짜를 누르면 하루 중 5분 단위 변화를 확인할 수 있습니다." to
             "Tap a date to inspect its five-minute changes.",
         "최근 24시간 코어 지수" to "Core Index · Last 24 Hours",
@@ -200,10 +200,6 @@ object UiTranslator {
             "Preparing Core Index samples for the last 24 hours.",
         "이 기기에서 저장된 최근 24시간 코어 지수 표본이 아직 없습니다." to
             "No Core Index samples from the last 24 hours are stored on this device yet.",
-        "자정에 초기화하지 않고 조회 시점 직전 24시간만 표시합니다. 화면이 꺼진 구간은 표본을 만들지 않습니다." to
-            "Shows the 24 hours immediately before viewing without resetting at midnight. No samples are created while the screen is off.",
-        "자정이 아니라 조회 시점 직전 24시간 기준입니다." to
-            "Based on the 24 hours immediately before viewing, not midnight.",
         "24시간 사용과 언락" to "24-Hour Usage & Unlocks",
         "현재 시각 직전 24시간의 전면 앱 사용과 잠금 해제 흐름입니다." to
             "Foreground app usage and unlock activity during the 24 hours immediately before viewing.",
@@ -234,15 +230,15 @@ object UiTranslator {
         "같은 기간 OS 감지 알림은" to "OS-detected notifications in the same period:",
         "이 기기에서는 알림 이벤트 수를 제공하지 않을 수 있습니다." to
             "This device might not provide notification-event counts.",
-        "30일 패턴" to "30-Day Patterns",
+        "4주 패턴" to "4-Week Patterns",
         "최근 7일과 이전 7일 · 요일별 평균" to
             "Recent vs previous 7 days · Weekday averages",
         "두 개의 7일 구간이 쌓이면 단기 변화를 비교합니다." to
             "Short-term change appears after two seven-day periods are recorded.",
-        "7일은 별도 탭이 아니라 30일 장기 흐름을 해석하는 이동 구간으로 사용합니다." to
-            "Seven days is used as a moving comparison window within the 30-day trend, not as a separate tab.",
-        "최근 7일의 변화는 30일 흐름 안에서 함께 비교합니다." to
-            "Recent seven-day change is compared within the 30-day trend.",
+        "최근 4주 안에서 최근 7일과 이전 7일을 비교하고, 네 번의 같은 요일 기록으로 요일별 흐름을 살펴봅니다." to
+            "Compares the recent and previous seven days, then uses four weeks of matching weekdays to show weekday patterns.",
+        "최근 7일의 변화는 4주 흐름 안에서 함께 비교합니다." to
+            "Recent seven-day change is compared within the four-week trend.",
         "일별 코어 지수 추세" to "Daily Core Index Trend",
         "코어 지수 프리셋" to "Core Index Preset",
         "최근 24시간 사용 흐름에서 중요하게 볼 항목을 선택합니다." to
@@ -253,35 +249,32 @@ object UiTranslator {
             "A large ring marks the day when the preset changed.",
         "프리셋 변경:" to "Preset changes:",
         "하루 코어 지수" to "Core Index During the Day",
-        "이 날짜의 하루 중 변화 표본은 없습니다. 5분 단위 기록은 이번 버전부터 최대 30일간 보관됩니다." to
-            "No intraday samples are available for this date. Five-minute samples are retained for up to 30 days from this version onward.",
-        "화면이 켜진 동안 같은 5분 구간의 최신 계산값을 저장합니다. 화면을 끈 동안에는 기록하지 않고 다음 사용 시 회복된 값으로 이어집니다." to
-            "While the screen is on, the latest value in each five-minute interval is saved. Screen-off time is not sampled; the chart resumes with the recovered value at the next use.",
+        "이 날짜에는 하루 중 변화 기록이 없습니다. 세부 변화는 화면을 사용하는 동안 5분 단위로 저장됩니다." to
+            "No intraday changes are available for this date. Detailed changes are saved every five minutes while the screen is in use.",
+        "화면을 사용하는 동안 5분 단위의 최신 값을 저장합니다. 화면을 끄고 쉬면 지수가 회복되고, 다음 사용 시 계산된 값까지 선으로 이어집니다." to
+            "The latest value is saved every five minutes during use. Putting the screen down lets the index recover, and the chart connects to the value calculated at the next use.",
         "그래프의 날짜를 누르면 하루 중 변화를 볼 수 있습니다." to
             "Tap a date on the chart to view changes during that day.",
-        "옅은 테두리는 기존 상세 세션으로 복원한 날짜입니다." to
-            "A light ring marks a date reconstructed from existing detailed sessions.",
         "프리셋:" to "Preset:",
         "앱별 시작·종료 상세와 5분 단위 코어 지수 표본은 30일, 날짜별 집계는 365일 보관합니다." to
             "App start/end details and five-minute Core Index samples are retained for 30 days; daily summaries are retained for 365 days.",
         "평균 코어 지수" to "Average Core Index",
         "코어 지수 기록" to "Core Index Records",
         "코어 지수 기록을 준비하고 있습니다." to "Core Index history is being prepared.",
-        "업데이트 후 하루씩 누적됩니다." to "It accumulates daily after this update.",
-        "업데이트 후 측정된 코어 지수가 아직 없습니다." to
-            "No Core Index has been recorded since this update yet.",
-        "기존 일일 초기화 점수는 이 그래프에 포함하지 않습니다." to
-            "Previous daily-reset scores are excluded from this chart.",
-        "기존 일일 초기화 점수와 기록이 없는 날짜는 평균에 포함하지 않습니다." to
-            "Previous daily-reset scores and dates without records are excluded from the average.",
+        "사용 흐름을 측정하면 날짜별 기록이 쌓입니다." to
+            "Daily records accumulate as your usage pattern is measured.",
+        "이 기간에 계산된 코어 지수가 아직 없습니다." to
+            "No Core Index has been calculated in this period yet.",
+        "코어 지수가 계산된 날짜만 평균에 포함합니다." to
+            "Only dates with a calculated Core Index are included in the average.",
         "선택한 기간에 저장된 최근 24시간 코어 지수의 산술 평균입니다." to
             "Arithmetic mean of the rolling 24-hour Core Index saved in the selected period.",
-        "최근 24시간 방식으로 저장된 코어 지수 기록 수입니다." to
-            "Number of Core Index records saved with the rolling 24-hour model.",
-        "업데이트 전 기록은 사용시간과 언락 통계에는 유지되지만 점수 통계에는 섞지 않습니다." to
-            "Pre-update records remain in usage and unlock statistics but are excluded from score statistics.",
+        "선택한 기간에 코어 지수가 계산되어 저장된 날짜 수입니다." to
+            "Number of dates with a calculated and saved Core Index in the selected period.",
+        "사용시간 기록과 코어 지수 기록의 날짜 수는 서로 다를 수 있습니다." to
+            "The number of usage days and Core Index days can differ.",
         "기록 준비 중" to "Preparing History",
-        "새 방식 측정일" to "Days on the new model",
+        "지수가 계산된 날" to "Days with an index",
         "점수 프리셋 모드 선택" to "Choose a Score Preset",
         "점수가 이 이하로 떨어지면 사용 균형 안내를 강조합니다." to "Guidance is emphasized when the score falls below this value.",
         "이전 사용량 이월" to "Previous-use Carryover",
@@ -497,22 +490,12 @@ object UiTranslator {
         "비밀번호 확인" to "Confirm Password",
         "비밀번호 · 8자 이상" to "Password · 8+ characters",
         "최근 7일" to "Last 7 Days",
-        "최근 30일" to "Last 30 Days",
-        "최근 30일 중 DigitsCore가 실제 저장한" to "DigitsCore recorded",
-        "일을 표시합니다." to "days in the last 30 days.",
         "기록 범위:" to "Recorded range:",
-        "장기 일별 저장 기능이 적용된 날부터 하루씩 누적됩니다." to
-            "Daily history accumulates one day at a time from the date long-term storage became available.",
         "최근 4주" to "Last 4 Weeks",
         "최근 12주" to "Last 12 Weeks",
         "최근 6개월" to "Last 6 Months",
         "최근 1년" to "Last Year",
         "일별 점수 추세" to "Daily Score Trend",
-        "30일 기록 범위" to "30-day Recording Range",
-        "DigitsCore가 직접 측정해 저장한 날짜만 표시합니다." to
-            "Only dates directly measured and saved by DigitsCore are shown.",
-        "상세 세션은 30일, 날짜별 집계는 365일 보관합니다. 기록이 없는 날짜를 0분이나 100점으로 채우지 않습니다." to
-            "Detailed sessions are kept for 30 days and daily totals for 365 days. Missing dates are not filled with zero minutes or a 100 score.",
         "선택한 생활 유형의 참고 기준과 실제 기간 평균을 비교합니다." to
             "Compares the selected lifestyle benchmark with your period average.",
         "조사 평균은 건강 진단 기준이 아닙니다." to "Survey averages are not medical guidance.",
@@ -584,7 +567,7 @@ object UiTranslator {
 
     private val exactReplacements = mapOf(
         "뒤로가기" to "Back", "통계 리포트" to "Statistics", "앱 가중치 설정" to "App Ratings",
-        "최근 24시간" to "Last 24 Hours", "최근 30일" to "Last 30 Days",
+        "최근 24시간" to "Last 24 Hours", "최근 4주" to "Last 4 Weeks",
         "모드 설정" to "Settings", "현재 프리셋" to "Current Preset", "기본값 초기화" to "Reset Defaults",
         "선택됨" to "Selected", "화면" to "Screen", "언락" to "Unlocks", "방해" to "Managed",
         "관리" to "Managed", "성장" to "Growth", "균형" to "Balanced", "회복" to "Recovery", "알림" to "Notifications",

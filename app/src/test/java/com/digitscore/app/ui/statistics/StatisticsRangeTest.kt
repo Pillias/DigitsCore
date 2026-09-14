@@ -23,7 +23,7 @@ class StatisticsRangeTest {
     )
 
     @Test
-    fun sevenAndThirtyDayTabsUseCalendarRanges() {
+    fun sevenDayAndFourWeekTabsUseCalendarRanges() {
         val today = LocalDate.of(2026, 9, 7)
         val histories = listOf(
             history("2026-09-07"),
@@ -38,9 +38,18 @@ class StatisticsRangeTest {
             historiesInCalendarRange(histories, 7, today).map { it.dateString }
         )
         assertEquals(
-            listOf("2026-08-09", "2026-08-31", "2026-09-01", "2026-09-07"),
-            historiesInCalendarRange(histories, 30, today).map { it.dateString }
+            listOf("2026-08-31", "2026-09-01", "2026-09-07"),
+            historiesInCalendarRange(histories, 28, today).map { it.dateString }
         )
+    }
+
+    @Test
+    fun fourteenRecordedDaysOccupyHalfOfTheFourWeekAxis() {
+        val today = LocalDate.of(2026, 9, 14)
+
+        assertEquals(0, calendarDayOffset("2026-08-18", 28, today))
+        assertEquals(14, calendarDayOffset("2026-09-01", 28, today))
+        assertEquals(27, calendarDayOffset("2026-09-14", 28, today))
     }
 
     @Test

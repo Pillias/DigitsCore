@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -16,6 +17,7 @@ import androidx.compose.material3.Surface
 import com.digitscore.app.i18n.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -42,6 +44,8 @@ import com.digitscore.app.ui.onboarding.OnboardingScreen
 import com.digitscore.app.ui.settings.AppWeightSettingsScreen
 import com.digitscore.app.ui.settings.PresetModeScreen
 import com.digitscore.app.ui.statistics.StatisticsScreen
+import com.digitscore.app.ui.theme.AppTheme
+import com.digitscore.app.ui.theme.AppThemeMode
 import com.digitscore.app.ui.theme.DigitsCoreTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -65,7 +69,11 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            DigitsCoreTheme {
+            var themeMode by remember {
+                mutableStateOf(AppTheme.currentMode(this@MainActivity))
+            }
+            val systemIsDark = isSystemInDarkTheme()
+            DigitsCoreTheme(darkTheme = themeMode.usesDarkColors(systemIsDark)) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -140,6 +148,10 @@ class MainActivity : ComponentActivity() {
                                     PresetModeScreen(
                                         onNavigateBack = {
                                             navController.popBackStack()
+                                        },
+                                        onThemeModeChanged = { selectedMode: AppThemeMode ->
+                                            AppTheme.saveMode(applicationContext, selectedMode)
+                                            themeMode = selectedMode
                                         }
                                     )
                                 }

@@ -102,18 +102,18 @@ fun StatisticsScreen(
 ) {
     val context = LocalContext.current
     val db = remember { DigitsDatabase.getInstance(context) }
-    var selectedTabIndex by remember { mutableIntStateOf(0) } // 0: 최근 24시간, 1: 최근 30일
+    var selectedTabIndex by remember { mutableIntStateOf(0) } // 0: 최근 24시간, 1: 최근 4주
     var selectedDetail by remember { mutableStateOf<StatisticsDetail?>(null) }
     var selectedDay by remember { mutableStateOf<DailyScoreHistoryEntity?>(null) }
     var rollingWindowEndMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val rollingWindowStartMillis = rollingWindowEndMillis - ROLLING_24_HOURS_MILLIS
-    val thirtyDayStartMillis = remember {
+    val fourWeekStartMillis = remember {
         Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0)
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
-            add(Calendar.DAY_OF_YEAR, -29)
+            add(Calendar.DAY_OF_YEAR, -(FOUR_WEEK_DAYS - 1))
         }.timeInMillis
     }
 
@@ -121,8 +121,8 @@ fun StatisticsScreen(
     val rollingSamples by remember(rollingWindowStartMillis) {
         db.coreIndexSampleDao().observeSince(rollingWindowStartMillis)
     }.collectAsState(initial = emptyList())
-    val thirtyDaySamples by remember(thirtyDayStartMillis) {
-        db.coreIndexSampleDao().observeSince(thirtyDayStartMillis)
+    val fourWeekSamples by remember(fourWeekStartMillis) {
+        db.coreIndexSampleDao().observeSince(fourWeekStartMillis)
     }.collectAsState(initial = emptyList())
     val rollingSessions by remember(rollingWindowStartMillis) {
         db.foregroundUsageSessionDao().observeSince(rollingWindowStartMillis)
@@ -134,9 +134,8 @@ fun StatisticsScreen(
     }
     val selectedDaySamples by selectedDaySamplesFlow.collectAsState(initial = emptyList())
 
-    // 누적 UsageStats 기반 30일 소급은 정확한 전면 앱 시간을 보장하지 못하므로 중단합니다.
-    // 과거 버전이 데이터 없는 날을 100점으로 만든 행만 정리하고, 이후 기록은 실시간
-    // UsageEvents 측정 결과가 매일 쌓이도록 둡니다.
+    // 누적 UsageStats 기반 소급은 정확한 전면 앱 시간을 보장하지 못하므로 사용하지 않습니다.
+    // 데이터 없는 날을 100점으로 만든 구형 행만 정리하고, 실제 UsageEvents 측정 결과만 둡니다.
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
@@ -170,9 +169,9 @@ fun StatisticsScreen(
         }
     }
 
-    // 장기 탭은 DB 행 개수 LIMIT가 아니라 오늘을 포함한 실제 30일 달력 범위입니다.
+    // 장기 탭은 DB 행 개수 LIMIT가 아니라 오늘을 포함한 네 개의 달력 주 범위입니다.
     val histories = remember(allHistories) {
-        historiesInCalendarRange(allHistories, 30)
+        historiesInCalendarRange(allHistories, FOUR_WEEK_DAYS)
     }
     val coreIndexHistories = remember(histories) {
         coreIndexHistories(histories)
@@ -206,7 +205,7 @@ fun StatisticsScreen(
                     .padding(horizontal = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
-            // 1. 분석 목적 선택 (직전 24시간 흐름 / 최근 30일 패턴)
+            // 1. 분석 목적 선택 (최근 24시간 흐름 / 최근 4주 패턴)
             item {
                 TabRow(
                     selectedTabIndex = selectedTabIndex,
@@ -235,7 +234,7 @@ fun StatisticsScreen(
                         onClick = { selectedTabIndex = 1 },
                         text = {
                             Text(
-                                "최근 30일",
+                                "최근 4주",
                                 fontWeight = if (selectedTabIndex == 1) FontWeight.Bold else FontWeight.Normal,
                                 color = if (selectedTabIndex == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
                             )
@@ -264,7 +263,7 @@ fun StatisticsScreen(
                                 } else {
                                     "최저 ${visible.minOf { it.score }}점, 최고 ${visible.maxOf { it.score }}점이며 ${visible.size}개 구간을 표시합니다."
                                 },
-                                supportingText = "자정에 초기화하지 않고 조회 시점 직전 24시간만 표시합니다. 화면이 꺼진 구간은 표본을 만들지 않습니다."
+                                supportingText = "화면을 끄고 쉬는 동안 연속 사용 부하가 줄어 코어 지수가 회복됩니다. 차트는 다음 사용 시 계산된 회복값까지 흐름을 이어 표시합니다."
                             )
                         }
                     )
@@ -279,50 +278,10 @@ fun StatisticsScreen(
                     )
                 }
             } else {
-                if (histories.size < 30) {
-                    item {
-                        Card(
-                            modifier = Modifier.clickable {
-                                selectedDetail = StatisticsDetail(
-                                    title = "30일 기록 범위",
-                                    value = "${histories.size}일 기록",
-                                    description = "DigitsCore가 직접 측정해 저장한 날짜만 표시합니다.",
-                                    supportingText = "상세 세션은 30일, 날짜별 집계는 365일 보관합니다. 기록이 없는 날짜를 0분이나 100점으로 채우지 않습니다."
-                                )
-                            },
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-                            ),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = buildString {
-                                        append("최근 30일 중 DigitsCore가 실제 저장한 ${histories.size}일을 표시합니다.")
-                                        histories.firstOrNull()?.let { first ->
-                                            append(" 기록 범위: ${first.dateString}")
-                                            histories.lastOrNull()?.let { last -> append(" ~ ${last.dateString}") }
-                                            append(".")
-                                        }
-                                        append(" 장기 일별 저장 기능이 적용된 날부터 하루씩 누적됩니다.")
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                DetailChevron()
-                            }
-                        }
-                    }
-                }
-
                 item {
-                    ThirtyDayMarketChartCard(
-                        histories = coreIndexHistories,
-                        samples = thirtyDaySamples,
+                    FourWeekMarketChartCard(
+                        histories = histories,
+                        samples = fourWeekSamples,
                         onDaySelected = { selectedDay = it },
                         onClick = {
                             val average = if (coreIndexHistories.isEmpty()) null else
@@ -330,17 +289,16 @@ fun StatisticsScreen(
                             val high = coreIndexHistories.maxOfOrNull { it.finalScore }
                             val low = coreIndexHistories.minOfOrNull { it.finalScore }
                             val presetChanges = coreIndexPresetChanges(coreIndexHistories)
-                            val reconstructedCount = coreIndexHistories.count { it.scoreModelVersion == 3 }
                             selectedDetail = StatisticsDetail(
                                 title = "일별 코어 지수 추세",
                                 value = average?.let { "평균 ${it}점" } ?: "기록 준비 중",
                                 description = if (average == null) {
-                                    "업데이트 후 측정된 코어 지수가 아직 없습니다."
+                                    "이 기간에 계산된 코어 지수가 아직 없습니다."
                                 } else {
                                     "기간 중 최고 ${high}점, 최저 ${low}점입니다."
                                 },
                                 supportingText = buildString {
-                                    append("최근 7일의 변화는 30일 흐름 안에서 함께 비교합니다.")
+                                    append("최근 7일의 변화는 4주 흐름 안에서 함께 비교합니다.")
                                     if (presetChanges.isNotEmpty()) {
                                         append("\n프리셋 변경: ")
                                         append(
@@ -348,9 +306,6 @@ fun StatisticsScreen(
                                                 "${change.dateString} ${CoreIndexPreset.fromId(change.presetId).title}"
                                             }
                                         )
-                                    }
-                                    if (reconstructedCount > 0) {
-                                        append("\n${reconstructedCount}일은 기존 상세 세션으로 복원한 코어 지수입니다.")
                                     }
                                 }
                             )
@@ -374,7 +329,7 @@ fun StatisticsScreen(
                 }
 
                 item {
-                    ThirtyDayPatternCard(
+                    FourWeekPatternCard(
                         histories = histories,
                         onClick = { selectedDetail = it }
                     )
@@ -416,6 +371,7 @@ fun StatisticsScreen(
 }
 
 private const val ROLLING_24_HOURS_MILLIS = 24 * 60 * 60_000L
+private const val FOUR_WEEK_DAYS = 28
 
 internal data class RollingUsageSummary(
     val totalMillis: Long,
@@ -773,7 +729,7 @@ private fun RollingMarketChartCard(
                 )
             }
             Text(
-                "차트를 누르거나 드래그해 시점별 기록을 확인하세요. 화면 OFF 구간은 관측값 사이를 직선으로 잇고 사용량은 0으로 표시합니다.",
+                "차트를 누르거나 드래그해 시점별 기록을 확인하세요. 화면을 끄고 쉰 구간은 다음 회복값까지 선으로 이어지며 사용량은 0으로 표시됩니다.",
                 modifier = Modifier.padding(top = 8.dp),
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.outline
@@ -920,7 +876,7 @@ private fun RollingUsageSummaryCards(
 }
 
 @Composable
-private fun ThirtyDayPatternCard(
+private fun FourWeekPatternCard(
     histories: List<DailyScoreHistoryEntity>,
     onClick: (StatisticsDetail) -> Unit
 ) {
@@ -949,13 +905,13 @@ private fun ThirtyDayPatternCard(
             val delta = if (recentAverage != null && previousAverage != null) recentAverage - previousAverage else null
             onClick(
                 StatisticsDetail(
-                    "30일 패턴",
+                    "4주 패턴",
                     busiest?.let { "${weekdayLabels[it.key - 1]}요일 평균 ${formatMinutesToHoursAndMinutes(it.value)}" }
                         ?: "기록 준비 중",
                     delta?.let {
                         "최근 7일 하루 평균은 이전 7일보다 ${kotlin.math.abs(it)}분 ${if (it > 0) "늘었고" else if (it < 0) "줄었고" else "같고"}, 요일별 평균도 함께 비교합니다."
                     } ?: "두 개의 7일 구간이 쌓이면 단기 변화를 비교합니다.",
-                    "7일은 별도 탭이 아니라 30일 장기 흐름을 해석하는 이동 구간으로 사용합니다."
+                    "최근 4주 안에서 최근 7일과 이전 7일을 비교하고, 네 번의 같은 요일 기록으로 요일별 흐름을 살펴봅니다."
                 )
             )
         },
@@ -968,7 +924,7 @@ private fun ThirtyDayPatternCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("30일 패턴", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("4주 패턴", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 DetailChevron(tint = MaterialTheme.colorScheme.primary)
             }
             Text(
@@ -1065,6 +1021,19 @@ internal fun historiesInCalendarRange(
         .toList()
 }
 
+internal fun calendarDayOffset(
+    dateString: String,
+    days: Int,
+    today: LocalDate = LocalDate.now()
+): Int {
+    val safeDays = days.coerceAtLeast(2)
+    val firstDate = today.minusDays((safeDays - 1).toLong())
+    val date = runCatching { LocalDate.parse(dateString) }.getOrDefault(firstDate)
+    return java.time.temporal.ChronoUnit.DAYS.between(firstDate, date)
+        .toInt()
+        .coerceIn(0, safeDays - 1)
+}
+
 internal data class DailyCoreRange(
     val history: DailyScoreHistoryEntity,
     val startScore: Int,
@@ -1115,13 +1084,14 @@ internal fun sevenDayMovingAverages(ranges: List<DailyCoreRange>): List<Float?> 
 }
 
 @Composable
-private fun ThirtyDayMarketChartCard(
+private fun FourWeekMarketChartCard(
     histories: List<DailyScoreHistoryEntity>,
     samples: List<CoreIndexSampleEntity>,
     onDaySelected: (DailyScoreHistoryEntity) -> Unit,
     onClick: () -> Unit
 ) {
-    val ranges = remember(histories, samples) { buildDailyCoreRanges(histories, samples) }
+    val scoreHistories = remember(histories) { coreIndexHistories(histories) }
+    val ranges = remember(scoreHistories, samples) { buildDailyCoreRanges(scoreHistories, samples) }
     val movingAverages = remember(ranges) { sevenDayMovingAverages(ranges) }
     val axisColor = MaterialTheme.colorScheme.outline
     val lineColor = MaterialTheme.colorScheme.primary
@@ -1135,16 +1105,21 @@ private fun ThirtyDayMarketChartCard(
     val allScores = ranges.flatMap { listOf(it.low, it.high) }
     val average = ranges.takeIf { it.isNotEmpty() }?.map { it.lastScore }?.average()?.roundToInt()
     val today = LocalDate.now()
-    val firstDate = today.minusDays(29)
+    val firstDate = today.minusDays((FOUR_WEEK_DAYS - 1).toLong())
+    val lastDayOffset = (FOUR_WEEK_DAYS - 1).toLong()
 
-    fun dayOffset(range: DailyCoreRange): Long = runCatching {
-        java.time.temporal.ChronoUnit.DAYS.between(firstDate, LocalDate.parse(range.history.dateString))
-    }.getOrDefault(0L).coerceIn(0L, 29L)
+    fun dayOffset(dateString: String): Long = calendarDayOffset(
+        dateString = dateString,
+        days = FOUR_WEEK_DAYS,
+        today = today
+    ).toLong()
 
     fun nearestIndex(x: Float, width: Int): Int? {
         if (ranges.isEmpty()) return null
-        val targetOffset = 29f * (x / width.coerceAtLeast(1)).coerceIn(0f, 1f)
-        return ranges.indices.minByOrNull { kotlin.math.abs(dayOffset(ranges[it]) - targetOffset) }
+        val targetOffset = lastDayOffset * (x / width.coerceAtLeast(1)).coerceIn(0f, 1f)
+        return ranges.indices.minByOrNull {
+            kotlin.math.abs(dayOffset(ranges[it].history.dateString) - targetOffset)
+        }
     }
 
     Card(
@@ -1154,7 +1129,7 @@ private fun ThirtyDayMarketChartCard(
     ) {
         Column(Modifier.fillMaxWidth().padding(20.dp)) {
             MarketIndexHeader(
-                title = "코어 지수 · 30D",
+                title = "코어 지수 · 4W",
                 current = current,
                 change = change,
                 low = allScores.minOrNull(),
@@ -1163,10 +1138,10 @@ private fun ThirtyDayMarketChartCard(
                 onClick = onClick
             )
             Spacer(Modifier.height(12.dp))
-            if (ranges.isEmpty()) {
+            if (histories.isEmpty() && ranges.isEmpty()) {
                 Box(Modifier.fillMaxWidth().height(270.dp), contentAlignment = Alignment.Center) {
                     Text(
-                        "코어 지수 기록을 준비하고 있습니다.\n업데이트 후 하루씩 누적됩니다.",
+                        "코어 지수 기록을 준비하고 있습니다.\n사용 흐름을 측정하면 날짜별 기록이 쌓입니다.",
                         color = axisColor,
                         fontSize = 13.sp
                     )
@@ -1216,14 +1191,17 @@ private fun ThirtyDayMarketChartCard(
                     val plotInset = 6.dp.toPx()
                     val plotWidth = (size.width - plotInset * 2f).coerceAtLeast(1f)
                     fun scoreY(score: Float): Float = scoreBottom - scoreBottom * score.coerceIn(0f, 100f) / 100f
-                    fun xFor(index: Int): Float = plotInset + plotWidth * dayOffset(ranges[index]) / 29f
+                    fun xForDate(dateString: String): Float =
+                        plotInset + plotWidth * dayOffset(dateString) / lastDayOffset.toFloat()
+
+                    fun xFor(index: Int): Float = xForDate(ranges[index].history.dateString)
 
                     listOf(50, 70, 90).forEach { score ->
                         val y = scoreY(score.toFloat())
                         drawLine(axisColor.copy(alpha = 0.22f), Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
                     }
-                    for (day in 0..29 step 7) {
-                        val x = plotInset + plotWidth * day / 29f
+                    listOf(0, 7, 14, 21, 27).forEach { day ->
+                        val x = plotInset + plotWidth * day / lastDayOffset.toFloat()
                         drawLine(
                             axisColor.copy(alpha = 0.1f),
                             Offset(x, 0f),
@@ -1232,13 +1210,13 @@ private fun ThirtyDayMarketChartCard(
                         )
                     }
 
-                    val maxUsage = (ranges.maxOfOrNull { it.history.totalScreenTimeMinutes } ?: 0L)
+                    val maxUsage = (histories.maxOfOrNull { it.totalScreenTimeMinutes } ?: 0L)
                         .coerceAtLeast(1L)
-                    val candleWidth = (size.width / 30f * 0.58f).coerceIn(3.dp.toPx(), 10.dp.toPx())
-                    ranges.forEachIndexed { index, range ->
-                        val x = xFor(index)
-                        val totalHeight = (volumeBottom - volumeTop) * range.history.totalScreenTimeMinutes / maxUsage.toFloat()
-                        val managedHeight = (volumeBottom - volumeTop) * range.history.distractingTimeMinutes / maxUsage.toFloat()
+                    val candleWidth = (size.width / FOUR_WEEK_DAYS * 0.58f).coerceIn(3.dp.toPx(), 10.dp.toPx())
+                    histories.forEach { history ->
+                        val x = xForDate(history.dateString)
+                        val totalHeight = (volumeBottom - volumeTop) * history.totalScreenTimeMinutes / maxUsage.toFloat()
+                        val managedHeight = (volumeBottom - volumeTop) * history.distractingTimeMinutes / maxUsage.toFloat()
                         drawRoundRect(
                             Color(0xFF26A69A).copy(alpha = 0.45f),
                             Offset(x - candleWidth / 2f, volumeBottom - totalHeight),
@@ -1251,7 +1229,10 @@ private fun ThirtyDayMarketChartCard(
                             Size(candleWidth, managedHeight),
                             CornerRadius(2f)
                         )
+                    }
 
+                    ranges.forEachIndexed { index, range ->
+                        val x = xFor(index)
                         if (range.hasIntradaySamples) {
                             val candleColor = if (range.lastScore >= range.startScore) ScoreGreen else ScoreRed
                             drawLine(
@@ -1305,8 +1286,14 @@ private fun ThirtyDayMarketChartCard(
                     }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(firstDate.toString().substring(5), fontSize = 11.sp, color = axisColor)
-                    Text(today.toString().substring(5), fontSize = 11.sp, color = axisColor)
+                    listOf(0L, 7L, 14L, 21L, 27L).forEach { offset ->
+                        val date = firstDate.plusDays(offset)
+                        Text(
+                            "${date.monthValue}/${date.dayOfMonth}",
+                            fontSize = 10.sp,
+                            color = axisColor
+                        )
+                    }
                 }
                 ChartLegendGrid(
                     listOf(
@@ -1317,7 +1304,7 @@ private fun ThirtyDayMarketChartCard(
                     )
                 )
                 Text(
-                    "범위봉은 하루의 시작·마지막·최저·최고를 표시합니다. 점은 하루 표본이 없는 일별 기록입니다.",
+                    "범위봉은 하루의 시작·마지막·최저·최고 코어 지수를, 아래 막대는 기록된 모든 날짜의 화면 사용을 표시합니다.",
                     modifier = Modifier.padding(top = 8.dp),
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1353,7 +1340,7 @@ private fun IntradayCoreIndexDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (samples.isEmpty()) {
                     Text(
-                        "이 날짜의 하루 중 변화 표본은 없습니다. 5분 단위 기록은 이번 버전부터 최대 30일간 보관됩니다.",
+                        "이 날짜에는 하루 중 변화 기록이 없습니다. 세부 변화는 화면을 사용하는 동안 5분 단위로 저장됩니다.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
@@ -1411,7 +1398,7 @@ private fun IntradayCoreIndexDialog(
                         Text("24:00", fontSize = 11.sp, color = axisColor)
                     }
                     Text(
-                        "화면이 켜진 동안 같은 5분 구간의 최신 계산값을 저장합니다. 화면을 끈 동안에는 기록하지 않고 다음 사용 시 회복된 값으로 이어집니다.",
+                        "화면을 사용하는 동안 5분 단위의 최신 값을 저장합니다. 화면을 끄고 쉬면 지수가 회복되고, 다음 사용 시 계산된 값까지 선으로 이어집니다.",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -1616,7 +1603,7 @@ private fun AnalyticsSummaryCards(
                             "평균 코어 지수",
                             avgScore?.let { "${it}점" } ?: "기록 준비 중",
                             "선택한 기간에 저장된 최근 24시간 코어 지수의 산술 평균입니다.",
-                            "기존 일일 초기화 점수와 기록이 없는 날짜는 평균에 포함하지 않습니다."
+                            "코어 지수가 계산된 날짜만 평균에 포함합니다."
                         )
                     )
                 }
@@ -1627,14 +1614,14 @@ private fun AnalyticsSummaryCards(
                 value = "${coreIndexHistories.size}일",
                 icon = Icons.Default.CheckCircle,
                 iconColor = ScoreGreen,
-                subtitle = "새 방식 측정일",
+                subtitle = "지수가 계산된 날",
                 onClick = {
                     onDetailRequested(
                         StatisticsDetail(
                             "코어 지수 기록",
                             "${coreIndexHistories.size}일",
-                            "최근 24시간 방식으로 저장된 코어 지수 기록 수입니다.",
-                            "업데이트 전 기록은 사용시간과 언락 통계에는 유지되지만 점수 통계에는 섞지 않습니다."
+                            "선택한 기간에 코어 지수가 계산되어 저장된 날짜 수입니다.",
+                            "사용시간 기록과 코어 지수 기록의 날짜 수는 서로 다를 수 있습니다."
                         )
                     )
                 }

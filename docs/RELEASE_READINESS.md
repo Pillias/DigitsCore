@@ -23,7 +23,7 @@
 | 6 | 개인정보·지원 이메일·Data Safety | 관리자 입력 | 정책 초안과 [PLAY_CONSOLE_SUBMISSION.md](PLAY_CONSOLE_SUBMISSION.md) 답안 | 실명/이메일/HTTPS URL 입력 후 Console 제출 |
 | 7 | FGS 설명·시연 영상 | 검증 준비 | manifest `specialUse`, 사용자 시작/중지, 제출 문구·촬영 순서 | 접근 가능한 영상 URL과 Play 승인 |
 | 8 | Android Vitals Crash/ANR 감시 | 외부 검증 | 감시 항목·주기·중단 기준 문서화 | 내부/비공개 트랙 설치 후 28일 대시보드 증빙 |
-| 9 | 큰 글꼴·다크·TalkBack·가로·태블릿 | 검증 준비 | 반응형/테마 기반과 테스트 매트릭스 준비 | 모든 조합의 통과/이슈/스크린샷 기록 |
+| 9 | 큰 글꼴·다크·TalkBack·가로·태블릿 | 검증 준비 | 시스템/밝게/어둡게 즉시 전환과 반응형 기반, 테스트 매트릭스 준비 | 모든 조합의 통과/이슈/스크린샷 기록 |
 | 10 | 20~50명 30일 점수 분포 | 외부 검증 | [USER_VALIDATION_PROTOCOL.md](USER_VALIDATION_PROTOCOL.md) | 최소 20명·30일 집계, 분포/이탈/피드백 분석 |
 
 ## 상품성을 위해 필요한 것

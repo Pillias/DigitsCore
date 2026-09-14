@@ -21,16 +21,33 @@ import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
     primary = AccentCyan,
+    onPrimary = Color(0xFF001D33),
+    primaryContainer = Color(0xFF0D3A5A),
+    onPrimaryContainer = Color(0xFFD6ECFF),
     secondary = ScoreGreen,
+    onSecondary = Color(0xFF00391B),
+    secondaryContainer = Color(0xFF0B4A2B),
+    onSecondaryContainer = Color(0xFFB5F6CF),
     tertiary = ScoreYellow,
+    onTertiary = Color(0xFF3B2F00),
+    tertiaryContainer = Color(0xFF544600),
+    onTertiaryContainer = Color(0xFFFFF1A6),
     background = DarkBackground,
+    onBackground = Color(0xFFF0F6FC),
     surface = DarkSurface,
+    onSurface = Color(0xFFF0F6FC),
     surfaceVariant = DarkCard,
-    onPrimary = Color.Black,
-    onSecondary = Color.Black,
-    onTertiary = Color.Black,
-    onBackground = Color.White,
-    onSurface = Color.White
+    surfaceContainer = DarkSurface,
+    surfaceContainerLow = Color(0xFF11161D),
+    surfaceContainerHigh = DarkCard,
+    surfaceContainerHighest = Color(0xFF292F37),
+    onSurfaceVariant = Color(0xFFC9D1D9),
+    outline = Color(0xFF8B949E),
+    outlineVariant = Color(0xFF30363D),
+    error = Color(0xFFFFB4AB),
+    onError = Color(0xFF690005),
+    errorContainer = Color(0xFF93000A),
+    onErrorContainer = Color(0xFFFFDAD6)
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -80,7 +97,11 @@ fun DigitsCoreTheme(
         SideEffect {
             val window = (view.context as Activity).window
             window.statusBarColor = colorScheme.background.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            window.navigationBarColor = colorScheme.background.toArgb()
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !darkTheme
+                isAppearanceLightNavigationBars = !darkTheme
+            }
         }
     }
 

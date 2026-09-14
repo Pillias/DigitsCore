@@ -14,7 +14,7 @@ DigitsCore는 사용자가 Android의 사용 정보 접근 권한을 직접 허�
 - 화면이 켜진 동안 계산한 5분 단위 코어 지수 변화 표본(30일)
 - `ACTION_USER_PRESENT` 또는 Android UsageEvents의 `KEYGUARD_HIDDEN`으로 관측한 기기 잠금 해제 시각과 횟수(25시간)
 - Android UsageEvents가 제공하는 알림 interruption 이벤트 수
-- 사용자가 앱에서 지정한 분류, 점수 규칙, 언어·알림·위젯 표시 설정
+- 사용자가 앱에서 지정한 분류, 점수 규칙, 언어·화면 모드·알림·위젯 표시 설정
 - 홈 위젯 재생성을 위한 마지막 코어 지수·화면시간·관리 앱 시간·언락 횟수·상태 요약
 
 ## 2. 처리 목적

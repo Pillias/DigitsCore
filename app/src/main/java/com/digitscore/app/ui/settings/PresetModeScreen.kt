@@ -80,6 +80,8 @@ import com.digitscore.app.ui.components.SectionHeading
 import com.digitscore.app.ui.components.DetailChevron
 import com.digitscore.app.ui.components.InformationDetailDialog
 import com.digitscore.app.ui.components.ResponsiveContent
+import com.digitscore.app.ui.theme.AppTheme
+import com.digitscore.app.ui.theme.AppThemeMode
 import com.digitscore.app.notification.StatusIconStyle
 import com.digitscore.app.service.TrackerForegroundService
 import com.digitscore.app.widget.ScoreWidget
@@ -120,7 +122,8 @@ private fun InputStream.readBytesWithLimit(maxBytes: Int = MAX_IMPORT_BYTES): By
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PresetModeScreen(
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onThemeModeChanged: (AppThemeMode) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -137,6 +140,7 @@ fun PresetModeScreen(
     var isPresetMenuExpanded by remember { mutableStateOf(false) }
     var isCoreIndexPresetMenuExpanded by remember { mutableStateOf(false) }
     var isLanguageMenuExpanded by remember { mutableStateOf(false) }
+    var isThemeMenuExpanded by remember { mutableStateOf(false) }
     var isStatusIconMenuExpanded by remember { mutableStateOf(false) }
     var isWidgetBackgroundMenuExpanded by remember { mutableStateOf(false) }
     var showBackupPasswordDialog by remember { mutableStateOf(false) }
@@ -298,6 +302,61 @@ fun PresetModeScreen(
                                                 AppLocale.applyLanguage(context as Activity, code)
                                             }
                                         }
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(stringResource(R.string.theme_mode), fontWeight = FontWeight.Bold)
+                        Text(
+                            stringResource(R.string.theme_mode_description),
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                        ExposedDropdownMenuBox(
+                            expanded = isThemeMenuExpanded,
+                            onExpandedChange = { isThemeMenuExpanded = !isThemeMenuExpanded }
+                        ) {
+                            val themeMode = AppTheme.currentMode(context)
+                            OutlinedTextField(
+                                value = when (themeMode) {
+                                    AppThemeMode.SYSTEM -> stringResource(R.string.theme_system)
+                                    AppThemeMode.LIGHT -> stringResource(R.string.theme_light)
+                                    AppThemeMode.DARK -> stringResource(R.string.theme_dark)
+                                },
+                                onValueChange = {},
+                                readOnly = true,
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(isThemeMenuExpanded)
+                                },
+                                modifier = Modifier.menuAnchor().fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = isThemeMenuExpanded,
+                                onDismissRequest = { isThemeMenuExpanded = false }
+                            ) {
+                                AppThemeMode.entries.forEach { mode ->
+                                    val label = when (mode) {
+                                        AppThemeMode.SYSTEM -> stringResource(R.string.theme_system)
+                                        AppThemeMode.LIGHT -> stringResource(R.string.theme_light)
+                                        AppThemeMode.DARK -> stringResource(R.string.theme_dark)
+                                    }
+                                    DropdownMenuItem(
+                                        text = { Text(label) },
+                                        onClick = {
+                                            isThemeMenuExpanded = false
+                                            onThemeModeChanged(mode)
+                                        },
+                                        trailingIcon = if (themeMode == mode) {
+                                            {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = UiTranslator.translate("선택됨"),
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        } else null
                                     )
                                 }
                             }
