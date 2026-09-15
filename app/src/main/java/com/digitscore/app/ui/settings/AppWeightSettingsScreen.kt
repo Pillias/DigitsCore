@@ -94,7 +94,7 @@ fun AppWeightSettingsScreen(
             it.packageName.contains(searchQuery, ignoreCase = true)
         }.map { app ->
             val saved = appWeightMap[app.packageName]
-            app.copy(categoryType = saved?.categoryType ?: app.categoryType)
+            app.copy(categoryType = (saved?.categoryType ?: app.categoryType).canonical)
         }
     }
 
@@ -230,7 +230,7 @@ fun AppWeightSettingsScreen(
 
     // 카테고리 변경 다이얼로그
     selectedAppForEdit?.let { targetApp ->
-        var currentCategory by remember { mutableStateOf(targetApp.categoryType) }
+        var currentCategory by remember { mutableStateOf(targetApp.categoryType.canonical) }
 
         AlertDialog(
             onDismissRequest = { selectedAppForEdit = null },
@@ -305,8 +305,6 @@ fun AppWeightSettingsScreen(
 @Composable
 private fun ratingColor(category: AppCategoryType): Color = when (category.level) {
     1 -> ScoreGreen
-    2 -> Color(0xFF38A6A5)
-    3 -> MaterialTheme.colorScheme.outline
-    4 -> Color(0xFFE58A3A)
+    2 -> MaterialTheme.colorScheme.outline
     else -> ScoreRed
 }

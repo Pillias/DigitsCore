@@ -61,6 +61,39 @@ data class UnlockInsights(
     val notificationEventsSupported: Boolean
 )
 
+/**
+ * PiP·분할 화면의 동시 앱/등급 변화 때문에 저장 조각이 나뉘어도 실제 주 앱을
+ * 계속 사용한 구간은 한 번의 실행으로 봅니다. 다른 주 앱이 사이에 끼면 합치지 않습니다.
+ */
+internal fun mergePrimaryUsageSegments(
+    segments: List<ForegroundUsageSegment>
+): List<ForegroundUsageSegment> {
+    val merged = mutableListOf<ForegroundUsageSegment>()
+    segments.sortedBy { it.startTimeMillis }.forEach { segment ->
+        val previous = merged.lastOrNull()
+        if (previous != null &&
+            previous.packageName == segment.packageName &&
+            segment.startTimeMillis <= previous.endTimeMillis + 1_000L
+        ) {
+            val higherLoadSegment = if (
+                segment.effectiveCategoryLevel > previous.effectiveCategoryLevel
+            ) segment else previous
+            merged[merged.lastIndex] = previous.copy(
+                endTimeMillis = maxOf(previous.endTimeMillis, segment.endTimeMillis),
+                effectivePackageName = higherLoadSegment.effectivePackageName,
+                effectiveCategoryLevel = maxOf(
+                    previous.effectiveCategoryLevel,
+                    segment.effectiveCategoryLevel
+                ),
+                concurrentAppCount = maxOf(previous.concurrentAppCount, segment.concurrentAppCount)
+            )
+        } else {
+            merged += segment
+        }
+    }
+    return merged
+}
+
 object UsageStatsHelper {
 
     private const val FOREGROUND_STATE_LOOKBACK_MILLIS = 6 * 60 * 60 * 1_000L
@@ -133,9 +166,9 @@ object UsageStatsHelper {
             ApplicationInfo.CATEGORY_VIDEO -> AppCategoryType.DISTRACTING
 
             ApplicationInfo.CATEGORY_SOCIAL,
-            ApplicationInfo.CATEGORY_NEWS -> AppCategoryType.MILDLY_DISTRACTING
+            ApplicationInfo.CATEGORY_NEWS -> AppCategoryType.DISTRACTING
 
-            ApplicationInfo.CATEGORY_PRODUCTIVITY -> AppCategoryType.MILDLY_PRODUCTIVE
+            ApplicationInfo.CATEGORY_PRODUCTIVITY -> AppCategoryType.PRODUCTIVE
             else -> AppCategoryType.NEUTRAL
         }
 
@@ -168,7 +201,7 @@ object UsageStatsHelper {
         val normalizedPackage = packageName.lowercase()
         return when {
             EDUCATION_PACKAGE_PREFIXES.any(normalizedPackage::startsWith) -> AppCategoryType.PRODUCTIVE
-            SHOPPING_PACKAGE_PREFIXES.any(normalizedPackage::startsWith) -> AppCategoryType.MILDLY_DISTRACTING
+            SHOPPING_PACKAGE_PREFIXES.any(normalizedPackage::startsWith) -> AppCategoryType.DISTRACTING
             else -> defaultCategoryForApplicationCategory(applicationCategory)
         }
     }
@@ -179,7 +212,7 @@ object UsageStatsHelper {
         savedEntity: AppWeightEntity?
     ): AppCategoryType {
         // 사용자가 직접 지정한 분류를 최우선으로 존중합니다.
-        savedEntity?.let { return it.categoryType }
+        savedEntity?.let { return it.categoryType.canonical }
         val applicationCategory = try {
             pm.getApplicationInfo(packageName, 0).category
         } catch (_: Exception) {
@@ -221,6 +254,7 @@ object UsageStatsHelper {
             }
             val type = when (androidEvent.eventType) {
                 UsageEvents.Event.ACTIVITY_RESUMED -> ForegroundTimelineEventType.APP_RESUMED
+                UsageEvents.Event.USER_INTERACTION -> ForegroundTimelineEventType.APP_INTERACTION
                 UsageEvents.Event.ACTIVITY_PAUSED -> ForegroundTimelineEventType.APP_PAUSED
                 UsageEvents.Event.ACTIVITY_STOPPED -> ForegroundTimelineEventType.APP_STOPPED
                 UsageEvents.Event.SCREEN_INTERACTIVE -> ForegroundTimelineEventType.SCREEN_INTERACTIVE
@@ -324,10 +358,10 @@ object UsageStatsHelper {
         }
         val todayStart = today.timeInMillis
         val database = DigitsDatabase.getInstance(context)
-        val appSegments = database.foregroundUsageSessionDao()
+        val appSegments = mergePrimaryUsageSegments(database.foregroundUsageSessionDao()
             .getBetween(todayStart, now)
             .filter { it.packageName == packageName }
-            .map { ForegroundUsageSegment(it.packageName, it.startTimeMillis, it.endTimeMillis) }
+            .map { ForegroundUsageSegment(it.packageName, it.startTimeMillis, it.endTimeMillis) })
 
         val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         val cutoff = (today.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -364) }
@@ -464,11 +498,13 @@ object UsageStatsHelper {
         val lateNightEndTime = startTime + (5 * 60 * 60 * 1000L) // 오늘 새벽 5시
         val queryStart = (startTime - FOREGROUND_STATE_LOOKBACK_MILLIS).coerceAtLeast(0L)
         val queried = queryUsageEvents(usageStatsManager, queryStart, endTime)
+        val categoryLevelResolver = categoryLevelResolver(context, appWeightMap)
         val exclusiveUsage = ForegroundUsageAggregator.aggregate(
             startTimeMillis = startTime,
             endTimeMillis = endTime,
             lateNightEndTimeMillis = minOf(endTime, lateNightEndTime),
-            events = queried.timelineEvents
+            events = queried.timelineEvents,
+            categoryLevelResolver = categoryLevelResolver
         )
 
         return buildSnapshot(
@@ -498,12 +534,14 @@ object UsageStatsHelper {
         }
         val queried = queryUsageEvents(usageStatsManager, startTime, endTime)
         val todayStart = getStartOfTodayMillis()
+        val categoryLevelResolver = categoryLevelResolver(context, appWeightMap)
         val exclusiveUsage = ForegroundUsageAggregator.aggregate(
             startTimeMillis = startTime,
             endTimeMillis = endTime,
             lateNightEndTimeMillis = minOf(endTime, todayStart + 5 * 60 * 60 * 1_000L),
             events = queried.timelineEvents,
-            initialState = initialState
+            initialState = initialState,
+            categoryLevelResolver = categoryLevelResolver
         )
         return buildSnapshot(
             context = context,
@@ -530,6 +568,10 @@ object UsageStatsHelper {
 
         val pm = context.packageManager
         val result = mutableListOf<AppUsage>()
+        val includedSegments = exclusiveUsage.segments.filter {
+            shouldIncludeUsagePackage(it.packageName, it.durationMillis)
+        }
+        val primarySessions = mergePrimaryUsageSegments(includedSegments)
 
         for ((pkgName, rawTimeMillis) in exclusiveUsage.usageMillisByPackage) {
             // ForegroundUsageAggregator already clips every segment to the requested
@@ -548,9 +590,7 @@ object UsageStatsHelper {
                 val category = resolveCategory(pm, pkgName, savedEntity)
                 val lateNightTime = (exclusiveUsage.lateNightUsageMillisByPackage[pkgName] ?: 0L)
                     .coerceIn(0L, timeMillis)
-                val packageSegments = exclusiveUsage.segments.filter {
-                    it.packageName == pkgName && shouldIncludeUsagePackage(it.packageName, it.durationMillis)
-                }
+                val packageSegments = primarySessions.filter { it.packageName == pkgName }
 
                 result.add(
                     AppUsage(
@@ -572,10 +612,8 @@ object UsageStatsHelper {
             unlockCount = resolvedUnlockTimestamps(interactionEvents).size,
             assignedUsageMillis = exclusiveUsage.assignedUsageMillis,
             hasForegroundEvidence = exclusiveUsage.hasForegroundEvidence,
-            foregroundSegments = exclusiveUsage.segments.filter {
-                shouldIncludeUsagePackage(it.packageName, it.durationMillis)
-            },
-            sessionSummariesByPackage = exclusiveUsage.segments
+            foregroundSegments = includedSegments,
+            sessionSummariesByPackage = primarySessions
                 .groupBy { it.packageName }
                 .mapValues { (_, segments) ->
                     AppSessionSummary(
@@ -591,6 +629,23 @@ object UsageStatsHelper {
             queryWindowMillis = queryWindowMillis,
             incremental = incremental
         )
+    }
+
+    private fun categoryLevelResolver(
+        context: Context,
+        appWeightMap: Map<String, AppWeightEntity>
+    ): (String) -> Int {
+        val packageManager = context.packageManager
+        val cache = mutableMapOf<String, Int>()
+        return { packageName ->
+            cache.getOrPut(packageName) {
+                resolveCategory(
+                    packageManager,
+                    packageName,
+                    appWeightMap[packageName]
+                ).canonical.level
+            }
+        }
     }
 
     /** 프로세스 시작 시 만든 오늘 스냅샷에 이후 증분 조각을 겹침 없이 합칩니다. */
@@ -610,6 +665,9 @@ object UsageStatsHelper {
         (base.foregroundSegments + delta.foregroundSegments).sortedBy { it.startTimeMillis }.forEach { segment ->
             val previous = segments.lastOrNull()
             if (previous != null && previous.packageName == segment.packageName &&
+                previous.effectivePackageName == segment.effectivePackageName &&
+                previous.effectiveCategoryLevel == segment.effectiveCategoryLevel &&
+                previous.concurrentAppCount == segment.concurrentAppCount &&
                 segment.startTimeMillis <= previous.endTimeMillis + 1_000L
             ) {
                 segments[segments.lastIndex] = previous.copy(
@@ -622,9 +680,10 @@ object UsageStatsHelper {
         val interactions = (base.interactionEvents + delta.interactionEvents)
             .distinctBy { it.timestampMillis to it.eventType }
             .sortedBy { it.timestampMillis }
+        val primarySessions = mergePrimaryUsageSegments(segments)
         return TodayUsageSnapshot(
             appsUsage = apps.values.map { app ->
-                val appSegments = segments.filter { it.packageName == app.packageName }
+                val appSegments = primarySessions.filter { it.packageName == app.packageName }
                 app.copy(
                     sessionCount = appSegments.size,
                     shortSessionCount = appSegments.count { it.durationMillis < 60_000L }
@@ -633,7 +692,7 @@ object UsageStatsHelper {
             unlockCount = resolvedUnlockTimestamps(interactions).size,
             assignedUsageMillis = base.assignedUsageMillis + delta.assignedUsageMillis,
             hasForegroundEvidence = base.hasForegroundEvidence || delta.hasForegroundEvidence,
-            sessionSummariesByPackage = segments.groupBy { it.packageName }.mapValues { (_, values) ->
+            sessionSummariesByPackage = primarySessions.groupBy { it.packageName }.mapValues { (_, values) ->
                 AppSessionSummary(values.size, values.maxOfOrNull { it.durationMillis } ?: 0L)
             },
             foregroundSegments = segments,

@@ -17,7 +17,7 @@
 |---|---|---|---|---|
 | 1 | 최근 24시간 실제 잠금 해제 | 완료 | `ACTION_USER_PRESENT` 및 `KEYGUARD_HIDDEN` 이벤트를 25시간 보관·중복 제거 | 자동 회귀 테스트 통과 |
 | 2 | UsageEvents 증분 처리 | 완료 | 시작 시 1회 복원 후 마지막 커서 이후 이벤트만 조회 | 증분/재시작/날짜 경계 테스트 통과 |
-| 3 | Samsung·Pixel·Xiaomi 2~4주 측정 | 외부 검증 | [DEVICE_VALIDATION_PROTOCOL.md](DEVICE_VALIDATION_PROTOCOL.md) | 제조사별 최소 1대, 14일 이상 결과표 첨부 |
+| 3 | Samsung 우선 2~4주 측정, 이후 Pixel·Xiaomi 확대 | 외부 검증 | [DEVICE_VALIDATION_PROTOCOL.md](DEVICE_VALIDATION_PROTOCOL.md) | Samsung 최소 1대·14일 이상 결과표 첨부 후 타 제조사 동일 검증 |
 | 4 | 정확도·배터리 수치화 | 검증 준비 | 앱 내 포착률·조회시간·CPU 진단 및 버그 리포트 첨부 | 제조사별 시간 MAE/MAPE와 일일 배터리 중앙값 기록 |
 | 5 | 업로드 키·서명 AAB | 관리자 입력 | 환경변수 기반 release 서명/CI 게시와 `scripts/create_upload_keystore.sh` | 오프라인 백업, Secrets 등록, `jarsigner -verify` 통과 |
 | 6 | 개인정보·지원 이메일·Data Safety | 관리자 입력 | 정책 초안과 [PLAY_CONSOLE_SUBMISSION.md](PLAY_CONSOLE_SUBMISSION.md) 답안 | 실명/이메일/HTTPS URL 입력 후 Console 제출 |

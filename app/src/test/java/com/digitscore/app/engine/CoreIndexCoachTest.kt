@@ -14,9 +14,9 @@ class CoreIndexCoachTest {
     fun repeatedShortSessions_areCountedAsAppOpens() {
         val now = 10 * 60_000L
         val sessions = listOf(
-            RollingUsageSession("chat", 1_000L, 21_000L, 4),
-            RollingUsageSession("chat", 60_000L, 105_000L, 4),
-            RollingUsageSession("chat", 120_000L, 240_000L, 4)
+            RollingUsageSession("chat", 1_000L, 21_000L, 3),
+            RollingUsageSession("chat", 60_000L, 105_000L, 3),
+            RollingUsageSession("chat", 120_000L, 240_000L, 3)
         )
         val detail = RollingScoreCalculator.calculate(
             sessions,
@@ -28,7 +28,7 @@ class CoreIndexCoachTest {
             detail = detail,
             previousScore = detail.finalScore,
             sessions = sessions,
-            apps = listOf(AppUsage("chat", "Chat", 185_000L, AppCategoryType.MILDLY_DISTRACTING)),
+            apps = listOf(AppUsage("chat", "Chat", 185_000L, AppCategoryType.DISTRACTING)),
             rollingUnlockTimestamps = emptyList(),
             histories = emptyList(),
             nowMillis = now,
@@ -38,6 +38,36 @@ class CoreIndexCoachTest {
 
         assertEquals(3, guidance.todayOpenCount)
         assertEquals(2, guidance.shortOpenCount)
+    }
+
+    @Test
+    fun pipLoadChange_doesNotCreateAnExtraAppOpen() {
+        val now = 10 * 60_000L
+        val sessions = listOf(
+            RollingUsageSession("browser", 1_000L, 31_000L, 2, "browser"),
+            RollingUsageSession("browser", 31_000L, 91_000L, 3, "video"),
+            RollingUsageSession("browser", 91_000L, 121_000L, 2, "browser")
+        )
+        val detail = RollingScoreCalculator.calculate(
+            sessions,
+            now,
+            calibrationUsageMillis = 60 * 60_000L
+        )
+
+        val guidance = CoreIndexCoach.create(
+            detail = detail,
+            previousScore = detail.finalScore,
+            sessions = sessions,
+            apps = listOf(AppUsage("browser", "Browser", 120_000L, AppCategoryType.NEUTRAL)),
+            rollingUnlockTimestamps = emptyList(),
+            histories = emptyList(),
+            nowMillis = now,
+            todayStartMillis = 0L,
+            preset = CoreIndexPreset.BALANCED
+        )
+
+        assertEquals(1, guidance.todayOpenCount)
+        assertEquals(0, guidance.shortOpenCount)
     }
 
     @Test

@@ -1268,7 +1268,7 @@ fun AppDetailDialog(
     onCategoryChanged: (AppCategoryType) -> Unit
 ) {
     val context = LocalContext.current
-    var selectedCategory by remember { mutableStateOf(appUsage.categoryType) }
+    var selectedCategory by remember { mutableStateOf(appUsage.categoryType.canonical) }
     var categoryMenuExpanded by remember { mutableStateOf(false) }
     var insights by remember { mutableStateOf<AppUsageInsights?>(null) }
 
@@ -1293,7 +1293,7 @@ fun AppDetailDialog(
                 Box {
                     TextButton(onClick = { categoryMenuExpanded = true }) {
                         Text(
-                            "${selectedCategory.level} · ${selectedCategory.displayName}",
+                            selectedCategory.displayName,
                             fontSize = 11.sp,
                             color = appRatingColor(selectedCategory)
                         )
@@ -1312,7 +1312,7 @@ fun AppDetailDialog(
                                 text = {
                                     Column {
                                         Text(
-                                            "${category.level} · ${category.displayName}",
+                                            category.displayName,
                                             fontWeight = FontWeight.Bold,
                                             color = appRatingColor(category)
                                         )
@@ -1741,8 +1741,6 @@ private fun formatInsightDuration(millis: Long): String {
 @Composable
 private fun appRatingColor(category: AppCategoryType): Color = when (category.level) {
     1 -> ScoreGreen
-    2 -> Color(0xFF38A6A5)
-    3 -> MaterialTheme.colorScheme.outline
-    4 -> ScoreOrange
+    2 -> MaterialTheme.colorScheme.outline
     else -> ScoreRed
 }

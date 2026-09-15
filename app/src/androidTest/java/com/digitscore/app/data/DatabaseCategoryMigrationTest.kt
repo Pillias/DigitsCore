@@ -1,0 +1,91 @@
+package com.digitscore.app.data
+
+import androidx.room.testing.MigrationTestHelper
+import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+
+@RunWith(AndroidJUnit4::class)
+class DatabaseCategoryMigrationTest {
+    private val databaseName = "digitscore-category-migration-test"
+
+    @get:Rule
+    val helper = MigrationTestHelper(
+        InstrumentationRegistry.getInstrumentation(),
+        DigitsDatabase::class.java,
+        emptyList(),
+        FrameworkSQLiteOpenHelperFactory()
+    )
+
+    @After
+    fun deleteDatabase() {
+        InstrumentationRegistry.getInstrumentation().targetContext.deleteDatabase(databaseName)
+    }
+
+    @Test
+    fun migration13To14CanonicalizesThreeTiersAndInitializesPipFields() {
+        helper.createDatabase(databaseName, 13).apply {
+            execSQL(
+                "INSERT INTO app_weights(packageName, appName, categoryType, customWeight, isUserModified) " +
+                    "VALUES ('study.app', 'Study', 'MILDLY_PRODUCTIVE', NULL, 1)"
+            )
+            execSQL(
+                "INSERT INTO app_weights(packageName, appName, categoryType, customWeight, isUserModified) " +
+                    "VALUES ('video.app', 'Video', 'MILDLY_DISTRACTING', NULL, 1)"
+            )
+            execSQL(
+                "INSERT INTO daily_app_usage(dateString, packageName, appName, usageMillis, sessionCount, " +
+                    "shortSessionCount, longestSessionMillis, lateNightUsageMillis, categoryLevel, lastUpdatedTimestamp) " +
+                    "VALUES ('2026-09-16', 'study.app', 'Study', 60000, 1, 0, 60000, 0, 2, 1)"
+            )
+            execSQL(
+                "INSERT INTO foreground_usage_sessions(packageName, startTimeMillis, endTimeMillis, dateString, " +
+                    "appName, categoryLevel, isLateNight, lastUpdatedTimestamp) " +
+                    "VALUES ('video.app', 1000, 61000, '2026-09-16', 'Video', 5, 0, 1)"
+            )
+            close()
+        }
+
+        val migrated = helper.runMigrationsAndValidate(
+            databaseName,
+            14,
+            true,
+            DigitsDatabase.MIGRATION_13_14
+        )
+
+        migrated.query(
+            "SELECT categoryType FROM app_weights WHERE packageName = 'study.app'"
+        ).use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("PRODUCTIVE", cursor.getString(0))
+        }
+        migrated.query(
+            "SELECT categoryType FROM app_weights WHERE packageName = 'video.app'"
+        ).use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("DISTRACTING", cursor.getString(0))
+        }
+        migrated.query(
+            "SELECT categoryLevel FROM daily_app_usage WHERE packageName = 'study.app'"
+        ).use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(1, cursor.getInt(0))
+        }
+        migrated.query(
+            "SELECT categoryLevel, effectivePackageName, effectiveCategoryLevel, concurrentAppCount " +
+                "FROM foreground_usage_sessions WHERE packageName = 'video.app'"
+        ).use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(3, cursor.getInt(0))
+            assertEquals("video.app", cursor.getString(1))
+            assertEquals(3, cursor.getInt(2))
+            assertEquals(1, cursor.getInt(3))
+        }
+        migrated.close()
+    }
+}

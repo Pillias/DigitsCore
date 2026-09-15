@@ -31,7 +31,7 @@ class ForegroundUsageAggregatorTest {
     )
 
     @Test
-    fun appSwitch_assignsEachIntervalToOnlyOneApp() {
+    fun pausedAppFallsBackToAnotherStillVisibleAppWithoutDoubleCounting() {
         val result = aggregate(
             endSecond = 30,
             events = listOf(
@@ -41,9 +41,9 @@ class ForegroundUsageAggregatorTest {
             )
         )
 
-        assertEquals(10_000L, result.usageMillisByPackage["youtube"])
+        assertEquals(20_000L, result.usageMillisByPackage["youtube"])
         assertEquals(10_000L, result.usageMillisByPackage["duolingo"])
-        assertEquals(20_000L, result.assignedUsageMillis)
+        assertEquals(30_000L, result.assignedUsageMillis)
     }
 
     @Test
@@ -214,6 +214,61 @@ class ForegroundUsageAggregatorTest {
         assertTrue(result.assignedUsageMillis <= 30_000L)
         assertEquals(result.assignedUsageMillis, result.usageMillisByPackage.values.sum())
         assertEquals(30_000L, result.observableUnlockedMillis)
+    }
+
+    @Test
+    fun splitScreen_assignsTimeToInteractedAppButUsesHighestVisibleLevel() {
+        val levels = mapOf("duolingo" to 1, "youtube" to 3)
+        val result = ForegroundUsageAggregator.aggregate(
+            startTimeMillis = 0L,
+            endTimeMillis = 30_000L,
+            lateNightEndTimeMillis = 0L,
+            events = listOf(
+                event(0, ForegroundTimelineEventType.APP_RESUMED, "duolingo", "Lesson"),
+                event(5, ForegroundTimelineEventType.APP_RESUMED, "youtube", "Watch"),
+                event(10, ForegroundTimelineEventType.APP_INTERACTION, "duolingo", "Lesson"),
+                event(20, ForegroundTimelineEventType.APP_STOPPED, "youtube", "Watch"),
+                event(30, ForegroundTimelineEventType.APP_STOPPED, "duolingo", "Lesson")
+            ),
+            categoryLevelResolver = { levels[it] ?: 2 }
+        )
+
+        assertEquals(25_000L, result.usageMillisByPackage["duolingo"])
+        assertEquals(5_000L, result.usageMillisByPackage["youtube"])
+        assertEquals(30_000L, result.assignedUsageMillis)
+        assertTrue(result.segments.any {
+            it.concurrentAppCount == 2 && it.effectiveCategoryLevel == 3 &&
+                it.effectivePackageName == "youtube"
+        })
+    }
+
+    @Test
+    fun pip_keepsPausedVideoAsScoreContextUntilStoppedWithoutAddingTime() {
+        val levels = mapOf("youtube" to 3, "browser" to 1)
+        val result = ForegroundUsageAggregator.aggregate(
+            startTimeMillis = 0L,
+            endTimeMillis = 50_000L,
+            lateNightEndTimeMillis = 0L,
+            events = listOf(
+                event(0, ForegroundTimelineEventType.APP_RESUMED, "youtube", "Watch"),
+                event(10, ForegroundTimelineEventType.APP_PAUSED, "youtube", "Watch"),
+                event(10, ForegroundTimelineEventType.APP_RESUMED, "browser", "Main"),
+                event(40, ForegroundTimelineEventType.APP_STOPPED, "youtube", "Watch"),
+                event(50, ForegroundTimelineEventType.APP_STOPPED, "browser", "Main")
+            ),
+            categoryLevelResolver = { levels[it] ?: 2 }
+        )
+
+        assertEquals(10_000L, result.usageMillisByPackage["youtube"])
+        assertEquals(40_000L, result.usageMillisByPackage["browser"])
+        assertEquals(50_000L, result.assignedUsageMillis)
+        assertEquals(
+            30_000L,
+            result.segments.filter {
+                it.packageName == "browser" && it.effectiveCategoryLevel == 3 &&
+                    it.effectivePackageName == "youtube" && it.concurrentAppCount == 2
+            }.sumOf { it.durationMillis }
+        )
     }
 
     @Test

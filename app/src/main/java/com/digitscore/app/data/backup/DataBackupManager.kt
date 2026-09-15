@@ -26,10 +26,14 @@ import java.util.Locale
 
 object DataBackupManager {
 
-    private const val BACKUP_SCHEMA_VERSION = 6
+    private const val BACKUP_SCHEMA_VERSION = 7
     private const val MAX_BACKUP_BYTES = 20 * 1024 * 1024
     private val DATE_PATTERN = Regex("\\d{4}-\\d{2}-\\d{2}")
     private const val BACKUP_CACHE_MAX_AGE_MILLIS = 24 * 60 * 60 * 1_000L
+
+    private fun categoryLevelFromBackup(level: Int, backupVersion: Int): Int =
+        if (backupVersion <= 6) AppCategoryType.fromLegacyLevel(level)
+        else AppCategoryType.normalizeLevel(level)
 
     private fun coreIndexPresetIdFromBackup(settings: JSONObject): String {
         val migratedLegacyId = when (settings.optString("selectedPresetModeId", "balanced")) {
@@ -116,7 +120,7 @@ object DataBackupManager {
             val aObj = JSONObject().apply {
                 put("packageName", app.packageName)
                 put("appName", app.appName)
-                put("categoryType", app.categoryType.name)
+                put("categoryType", app.categoryType.canonical.name)
             }
             appsArray.put(aObj)
         }
@@ -160,6 +164,9 @@ object DataBackupManager {
                 put("dateString", session.dateString)
                 put("appName", session.appName)
                 put("categoryLevel", session.categoryLevel)
+                put("effectivePackageName", session.effectivePackageName)
+                put("effectiveCategoryLevel", session.effectiveCategoryLevel)
+                put("concurrentAppCount", session.concurrentAppCount)
                 put("isLateNight", session.isLateNight)
                 put("lastUpdatedTimestamp", session.lastUpdatedTimestamp)
             })
@@ -214,7 +221,8 @@ object DataBackupManager {
             }
             val db = DigitsDatabase.getInstance(context)
             val rootJson = JSONObject(jsonString)
-            require(rootJson.optInt("version", -1) in 1..BACKUP_SCHEMA_VERSION) {
+            val backupVersion = rootJson.optInt("version", -1)
+            require(backupVersion in 1..BACKUP_SCHEMA_VERSION) {
                 "Unsupported backup schema version"
             }
 
@@ -297,7 +305,7 @@ object DataBackupManager {
                     val aObj = appsArray.getJSONObject(i)
                     val catName = aObj.optString("categoryType", "NEUTRAL")
                     val cat = try {
-                        AppCategoryType.valueOf(catName)
+                        AppCategoryType.valueOf(catName).canonical
                     } catch (e: Exception) {
                         AppCategoryType.NEUTRAL
                     }
@@ -335,7 +343,10 @@ object DataBackupManager {
                                 shortSessionCount = obj.optInt("shortSessionCount", 0).coerceIn(0, 10_000),
                                 longestSessionMillis = obj.optLong("longestSessionMillis", 0L).coerceIn(0L, 86_400_000L),
                                 lateNightUsageMillis = obj.optLong("lateNightUsageMillis", 0L).coerceIn(0L, 18_000_000L),
-                                categoryLevel = obj.optInt("categoryLevel", 3).coerceIn(1, 5),
+                                categoryLevel = categoryLevelFromBackup(
+                                    obj.optInt("categoryLevel", if (backupVersion <= 6) 3 else 2),
+                                    backupVersion
+                                ),
                                 lastUpdatedTimestamp = obj.optLong("lastUpdatedTimestamp", System.currentTimeMillis())
                             )
                         )
@@ -382,7 +393,21 @@ object DataBackupManager {
                                 endTimeMillis = end,
                                 dateString = dateString,
                                 appName = appName,
-                                categoryLevel = obj.optInt("categoryLevel", 3).coerceIn(1, 5),
+                                categoryLevel = categoryLevelFromBackup(
+                                    obj.optInt("categoryLevel", if (backupVersion <= 6) 3 else 2),
+                                    backupVersion
+                                ),
+                                effectivePackageName = obj.optString("effectivePackageName", packageName)
+                                    .takeIf { it.length in 1..255 }
+                                    ?: packageName,
+                                effectiveCategoryLevel = categoryLevelFromBackup(
+                                    obj.optInt(
+                                        "effectiveCategoryLevel",
+                                        obj.optInt("categoryLevel", if (backupVersion <= 6) 3 else 2)
+                                    ),
+                                    backupVersion
+                                ),
+                                concurrentAppCount = obj.optInt("concurrentAppCount", 1).coerceIn(1, 4),
                                 isLateNight = obj.optBoolean("isLateNight", false),
                                 lastUpdatedTimestamp = obj.optLong("lastUpdatedTimestamp", System.currentTimeMillis())
                             )

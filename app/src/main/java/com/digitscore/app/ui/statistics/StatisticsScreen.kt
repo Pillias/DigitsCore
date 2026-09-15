@@ -385,6 +385,13 @@ internal data class RollingUsageSummary(
     val topAppName: String?
 )
 
+private data class PrimarySessionInterval(
+    val packageName: String,
+    val appName: String,
+    val startTimeMillis: Long,
+    val endTimeMillis: Long
+)
+
 internal fun summarizeRollingUsage(
     sessions: List<ForegroundUsageSessionEntity>,
     windowStartMillis: Long,
@@ -396,10 +403,9 @@ internal fun summarizeRollingUsage(
     val hourlyManaged = LongArray(24)
     val packageTotals = mutableMapOf<String, Long>()
     val appNames = mutableMapOf<String, String>()
-    var longestMillis = 0L
-    var longestApp: String? = null
+    val primarySessions = mutableListOf<PrimarySessionInterval>()
 
-    sessions.forEach { session ->
+    sessions.sortedBy { it.startTimeMillis }.forEach { session ->
         val start = maxOf(session.startTimeMillis, windowStartMillis)
         val end = minOf(session.endTimeMillis, windowEndMillis)
         if (end <= start) return@forEach
@@ -408,9 +414,16 @@ internal fun summarizeRollingUsage(
         packageTotals[session.packageName] =
             (packageTotals[session.packageName] ?: 0L) + clippedDuration
         appNames[session.packageName] = session.appName
-        if (clippedDuration > longestMillis) {
-            longestMillis = clippedDuration
-            longestApp = session.appName
+        val previousPrimary = primarySessions.lastOrNull()
+        if (previousPrimary != null &&
+            previousPrimary.packageName == session.packageName &&
+            start <= previousPrimary.endTimeMillis + 1_000L
+        ) {
+            primarySessions[primarySessions.lastIndex] = previousPrimary.copy(
+                endTimeMillis = maxOf(previousPrimary.endTimeMillis, end)
+            )
+        } else {
+            primarySessions += PrimarySessionInterval(session.packageName, session.appName, start, end)
         }
 
         var cursor = start
@@ -424,19 +437,20 @@ internal fun summarizeRollingUsage(
             )
             val interval = (bucketEnd - cursor).coerceAtLeast(0L)
             hourlyTotal[bucket] += interval
-            if (session.categoryLevel >= 4) hourlyManaged[bucket] += interval
+            if (session.effectiveCategoryLevel >= 3) hourlyManaged[bucket] += interval
             cursor = bucketEnd
         }
     }
 
     val topPackage = packageTotals.maxByOrNull { it.value }
+    val longestSession = primarySessions.maxByOrNull { it.endTimeMillis - it.startTimeMillis }
     return RollingUsageSummary(
         totalMillis = hourlyTotal.sum(),
         managedMillis = hourlyManaged.sum(),
         hourlyTotalMillis = hourlyTotal.toList(),
         hourlyManagedMillis = hourlyManaged.toList(),
-        longestSessionMillis = longestMillis,
-        longestSessionAppName = longestApp,
+        longestSessionMillis = longestSession?.let { it.endTimeMillis - it.startTimeMillis } ?: 0L,
+        longestSessionAppName = longestSession?.appName,
         topAppMillis = topPackage?.value ?: 0L,
         topAppName = topPackage?.key?.let(appNames::get)
     )
@@ -842,13 +856,13 @@ private fun RollingUsageSummaryCards(
                 value = formatMinutesToHoursAndMinutes(summary.managedMillis / 60_000L),
                 icon = Icons.Default.CheckCircle,
                 iconColor = ScoreRed,
-                subtitle = "4·5단계 앱",
+                subtitle = "몰입 관리 앱",
                 onClick = {
                     onDetailRequested(
                         StatisticsDetail(
                             "관리 앱 사용",
                             formatMinutesToHoursAndMinutes(summary.managedMillis / 60_000L),
-                            "최근 24시간 중 균형 등급 4·5단계 앱을 전면에서 사용한 시간입니다.",
+                            "최근 24시간 중 몰입 관리 앱이 전면 또는 병렬 화면에 표시된 시간입니다.",
                             "앱 등급을 변경하면 이후 세션부터 새 등급으로 기록됩니다."
                         )
                     )
@@ -1706,7 +1720,7 @@ private fun AnalyticsSummaryCards(
                             "관리 앱 비중",
                             "${managedShare}%",
                             "전체 화면시간 ${formatMinutesToHoursAndMinutes(totalScreenTime)} 중 관리 앱을 ${formatMinutesToHoursAndMinutes(totalManagedTime)} 사용했습니다.",
-                            "균형 등급 4·5단계로 설정한 앱의 전면 사용시간 비율입니다."
+                            "몰입 관리 앱이 전면 또는 병렬 화면에 표시된 사용시간 비율입니다."
                         )
                     )
                 }

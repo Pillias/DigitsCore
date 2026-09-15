@@ -233,8 +233,8 @@ object UiTranslator {
         "24시간 사용과 언락" to "24-Hour Usage & Unlocks",
         "현재 시각 직전 24시간의 전면 앱 사용과 잠금 해제 흐름입니다." to
             "Foreground app usage and unlock activity during the 24 hours immediately before viewing.",
-        "청록색은 전체 전면 사용, 빨간색은 4·5단계 앱, 노란 점은 언락 횟수입니다." to
-            "Teal is total foreground use, red is level 4–5 apps, and yellow dots are unlocks.",
+        "청록색은 전체 전면 사용, 빨간색은 몰입 관리 앱의 전면·병렬 표시, 노란 점은 언락 횟수입니다." to
+            "Teal is total foreground use, red is foreground or concurrent exposure to Immersion Management apps, and yellow dots are unlocks.",
         "24시간 사용 흐름" to "24-Hour Usage Flow",
         "24시간 핵심 정보" to "24-Hour Highlights",
         "가장 많이 사용" to "Most Used",
@@ -248,9 +248,9 @@ object UiTranslator {
         "화면을 끄거나 다른 앱으로 전환하면 세션이 종료됩니다." to
             "A session ends when the screen turns off or another app takes the foreground.",
         "관리 앱 사용" to "Managed App Usage",
-        "4·5단계 앱" to "Level 4–5 Apps",
-        "최근 24시간 중 균형 등급 4·5단계 앱을 전면에서 사용한 시간입니다." to
-            "Foreground usage time for balance-rating level 4–5 apps during the last 24 hours.",
+        "몰입 관리 앱" to "Immersion Management Apps",
+        "최근 24시간 중 몰입 관리 앱이 전면 또는 병렬 화면에 표시된 시간입니다." to
+            "Time an Immersion Management app was foreground or concurrently visible during the last 24 hours.",
         "앱 등급을 변경하면 이후 세션부터 새 등급으로 기록됩니다." to
             "A changed app rating applies to sessions recorded afterward.",
         "언락 간격" to "Unlock Interval",
@@ -542,8 +542,8 @@ object UiTranslator {
         "전체 화면시간 중" to "Of Total Screen Time",
         "최근 4주 기록에서 화면을 켜고 전면 앱을 가장 오래 사용한 날입니다." to
             "The day with the most screen-on foreground app use in the last four weeks.",
-        "균형 등급 4·5단계로 설정한 앱의 전면 사용시간 비율입니다." to
-            "Share of foreground time spent in apps rated level 4 or 5.",
+        "몰입 관리 앱이 전면 또는 병렬 화면에 표시된 사용시간 비율입니다." to
+            "Share of usage time with an Immersion Management app in the foreground or concurrently visible.",
         "4주 차트에서 날짜별 화면시간, 관리 앱 시간과 언락 횟수를 함께 비교합니다." to
             "The four-week chart compares daily screen time, managed-app time, and unlocks.",
         "현재 지수는 최근 24시간 사용 흐름으로 계산하며, 4주 차트는 날짜별 변화를 보여줍니다." to

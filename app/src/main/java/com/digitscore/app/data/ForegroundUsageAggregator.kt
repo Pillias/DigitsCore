@@ -2,7 +2,8 @@ package com.digitscore.app.data
 
 /**
  * UsageEvents를 테스트 가능한 순수 이벤트로 변환한 모델입니다.
- * 한 시점에는 오직 하나의 package만 화면 사용시간을 소유합니다.
+ * 화면 시간은 최근 상호작용한 package 하나가 소유하고, 점수 부하는 동시에 표시된
+ * 앱(PiP·분할 화면 포함) 중 가장 높은 3단계 등급을 따릅니다.
  */
 internal data class ForegroundTimelineEvent(
     val timestampMillis: Long,
@@ -14,6 +15,7 @@ internal data class ForegroundTimelineEvent(
 
 internal enum class ForegroundTimelineEventType {
     APP_RESUMED,
+    APP_INTERACTION,
     APP_PAUSED,
     APP_STOPPED,
     SCREEN_INTERACTIVE,
@@ -36,26 +38,41 @@ internal data class ForegroundUsageResult(
     val endingState: ForegroundTrackerState
 )
 
+/** Samsung multi-resume/PiP 이벤트에서 STOPPED 전까지 화면에 남아 있다고 본 Activity입니다. */
+data class ForegroundActivityState(
+    val packageName: String,
+    val className: String? = null,
+    val instanceId: Int? = null,
+    val isResumed: Boolean = true,
+    val lastActivatedMillis: Long = 0L
+)
+
 /** 증분 UsageEvents 조회 사이에 이어지는 화면·잠금·전면 앱 상태입니다. */
 data class ForegroundTrackerState(
     val activePackage: String? = null,
     val activeClass: String? = null,
     val activeInstanceId: Int? = null,
     val screenInteractive: Boolean = true,
-    val keyguardHidden: Boolean = true
+    val keyguardHidden: Boolean = true,
+    val visibleActivities: List<ForegroundActivityState> = emptyList()
 )
 
 data class ForegroundUsageSegment(
     val packageName: String,
     val startTimeMillis: Long,
-    val endTimeMillis: Long
+    val endTimeMillis: Long,
+    val effectivePackageName: String = packageName,
+    val effectiveCategoryLevel: Int = 2,
+    val concurrentAppCount: Int = 1
 ) {
     val durationMillis: Long get() = (endTimeMillis - startTimeMillis).coerceAtLeast(0L)
 }
 
 /**
- * 화면이 상호작용 가능하고 잠금이 해제된 동안 가장 최근에 RESUMED 된 앱 하나만
- * 시간을 소유하도록 계산합니다. OS의 누적 UsageStats 값은 이 계산에 사용하지 않습니다.
+ * 화면이 상호작용 가능하고 잠금이 해제된 동안 가장 최근에 상호작용한 앱 하나만
+ * 시간을 소유합니다. 다중 RESUMED 또는 PAUSED 후 STOPPED 되지 않은 앱은 화면에
+ * 함께 보이는 후보로 유지하여, 해당 구간의 점수 등급만 후보 중 가장 높은 값으로
+ * 계산합니다. 두 앱의 시간을 더하지 않으므로 실제 경과시간을 초과하지 않습니다.
  */
 internal object ForegroundUsageAggregator {
     fun aggregate(
@@ -63,7 +80,8 @@ internal object ForegroundUsageAggregator {
         endTimeMillis: Long,
         lateNightEndTimeMillis: Long,
         events: List<ForegroundTimelineEvent>,
-        initialState: ForegroundTrackerState = ForegroundTrackerState()
+        initialState: ForegroundTrackerState = ForegroundTrackerState(),
+        categoryLevelResolver: (String) -> Int = { 2 }
     ): ForegroundUsageResult {
         require(endTimeMillis >= startTimeMillis)
 
@@ -75,6 +93,18 @@ internal object ForegroundUsageAggregator {
         var activePackage: String? = initialState.activePackage
         var activeClass: String? = initialState.activeClass
         var activeInstanceId: Int? = initialState.activeInstanceId
+        val visibleActivities = initialState.visibleActivities.toMutableList().apply {
+            if (isEmpty() && !initialState.activePackage.isNullOrBlank()) {
+                add(
+                    ForegroundActivityState(
+                        packageName = initialState.activePackage,
+                        className = initialState.activeClass,
+                        instanceId = initialState.activeInstanceId,
+                        lastActivatedMillis = startTimeMillis
+                    )
+                )
+            }
+        }
         var screenInteractive = initialState.screenInteractive
         var keyguardHidden = initialState.keyguardHidden
         var cursor = startTimeMillis
@@ -84,6 +114,30 @@ internal object ForegroundUsageAggregator {
 
         fun canAssignTime(): Boolean =
             screenInteractive && keyguardHidden && !activePackage.isNullOrBlank()
+
+        fun matchesActivity(
+            activity: ForegroundActivityState,
+            event: ForegroundTimelineEvent
+        ): Boolean {
+            if (event.packageName != activity.packageName) return false
+            val eventInstanceId = event.instanceId?.takeIf { it != 0 }
+            val currentInstanceId = activity.instanceId?.takeIf { it != 0 }
+            if (eventInstanceId != null && currentInstanceId != null) {
+                return eventInstanceId == currentInstanceId
+            }
+            val eventClass = event.className
+            return eventClass.isNullOrBlank() || activity.className.isNullOrBlank() ||
+                eventClass == activity.className
+        }
+
+        fun selectFallbackPrimary() {
+            val fallback = visibleActivities
+                .filter { it.isResumed }
+                .maxByOrNull { it.lastActivatedMillis }
+            activePackage = fallback?.packageName
+            activeClass = fallback?.className
+            activeInstanceId = fallback?.instanceId
+        }
 
         fun addActiveInterval(untilMillis: Long) {
             val intervalStart = cursor.coerceIn(startTimeMillis, endTimeMillis)
@@ -98,11 +152,41 @@ internal object ForegroundUsageAggregator {
             val duration = intervalEnd - intervalStart
             usage[packageName] = (usage[packageName] ?: 0L) + duration
 
+            val visiblePackages = visibleActivities
+                .map { it.packageName }
+                .filter { it.isNotBlank() }
+                .distinct()
+                .ifEmpty { listOf(packageName) }
+            val effectiveApp = visiblePackages
+                .map { visiblePackage ->
+                    visiblePackage to categoryLevelResolver(visiblePackage).coerceIn(1, 3)
+                }
+                .maxWithOrNull(
+                    compareBy<Pair<String, Int>> { it.second }
+                        .thenBy { if (it.first == packageName) 1 else 0 }
+                )
+                ?: (packageName to categoryLevelResolver(packageName).coerceIn(1, 3))
+            val effectivePackageName = effectiveApp.first
+            val effectiveCategoryLevel = effectiveApp.second
+            val concurrentAppCount = visiblePackages.size.coerceAtLeast(1)
+
             val previous = segments.lastOrNull()
-            if (previous?.packageName == packageName && previous.endTimeMillis == intervalStart) {
+            if (previous?.packageName == packageName &&
+                previous.effectivePackageName == effectivePackageName &&
+                previous.effectiveCategoryLevel == effectiveCategoryLevel &&
+                previous.concurrentAppCount == concurrentAppCount &&
+                previous.endTimeMillis == intervalStart
+            ) {
                 segments[segments.lastIndex] = previous.copy(endTimeMillis = intervalEnd)
             } else {
-                segments += ForegroundUsageSegment(packageName, intervalStart, intervalEnd)
+                segments += ForegroundUsageSegment(
+                    packageName = packageName,
+                    startTimeMillis = intervalStart,
+                    endTimeMillis = intervalEnd,
+                    effectivePackageName = effectivePackageName,
+                    effectiveCategoryLevel = effectiveCategoryLevel,
+                    concurrentAppCount = concurrentAppCount
+                )
             }
 
             val lateStart = maxOf(intervalStart, startTimeMillis)
@@ -129,6 +213,16 @@ internal object ForegroundUsageAggregator {
                 ForegroundTimelineEventType.APP_RESUMED -> {
                     val packageName = event.packageName
                     if (!packageName.isNullOrBlank()) {
+                        val existingIndex = visibleActivities.indexOfFirst { matchesActivity(it, event) }
+                        val resumed = ForegroundActivityState(
+                            packageName = packageName,
+                            className = event.className,
+                            instanceId = event.instanceId,
+                            isResumed = true,
+                            lastActivatedMillis = event.timestampMillis
+                        )
+                        if (existingIndex >= 0) visibleActivities[existingIndex] = resumed
+                        else visibleActivities += resumed
                         activePackage = packageName
                         activeClass = event.className
                         activeInstanceId = event.instanceId
@@ -137,11 +231,49 @@ internal object ForegroundUsageAggregator {
                     }
                 }
 
-                ForegroundTimelineEventType.APP_PAUSED,
-                ForegroundTimelineEventType.APP_STOPPED -> if (matchesActive(event)) {
-                    activePackage = null
-                    activeClass = null
-                    activeInstanceId = null
+                ForegroundTimelineEventType.APP_INTERACTION -> {
+                    val packageName = event.packageName
+                    if (!packageName.isNullOrBlank()) {
+                        val candidates = visibleActivities.withIndex()
+                            .filter { it.value.packageName == packageName }
+                        val existingIndex = candidates.maxByOrNull {
+                            it.value.lastActivatedMillis
+                        }?.index
+                        if (existingIndex != null) {
+                            val previous = visibleActivities[existingIndex]
+                            visibleActivities[existingIndex] = previous.copy(
+                                isResumed = true,
+                                lastActivatedMillis = event.timestampMillis
+                            )
+                            activeClass = previous.className
+                            activeInstanceId = previous.instanceId
+                        } else {
+                            visibleActivities += ForegroundActivityState(
+                                packageName = packageName,
+                                className = event.className,
+                                instanceId = event.instanceId,
+                                lastActivatedMillis = event.timestampMillis
+                            )
+                            activeClass = event.className
+                            activeInstanceId = event.instanceId
+                        }
+                        activePackage = packageName
+                        lastUsed[packageName] = event.timestampMillis
+                        hasForegroundEvidence = true
+                    }
+                }
+
+                ForegroundTimelineEventType.APP_PAUSED -> {
+                    val index = visibleActivities.indexOfFirst { matchesActivity(it, event) }
+                    if (index >= 0) {
+                        visibleActivities[index] = visibleActivities[index].copy(isResumed = false)
+                    }
+                    if (matchesActive(event)) selectFallbackPrimary()
+                }
+
+                ForegroundTimelineEventType.APP_STOPPED -> {
+                    visibleActivities.removeAll { matchesActivity(it, event) }
+                    if (matchesActive(event)) selectFallbackPrimary()
                 }
 
                 ForegroundTimelineEventType.SCREEN_INTERACTIVE -> {
@@ -168,6 +300,7 @@ internal object ForegroundUsageAggregator {
                     activePackage = null
                     activeClass = null
                     activeInstanceId = null
+                    visibleActivities.clear()
                 }
             }
         }
@@ -203,7 +336,8 @@ internal object ForegroundUsageAggregator {
                 activeClass = activeClass,
                 activeInstanceId = activeInstanceId,
                 screenInteractive = screenInteractive,
-                keyguardHidden = keyguardHidden
+                keyguardHidden = keyguardHidden,
+                visibleActivities = visibleActivities.toList()
             )
         )
     }

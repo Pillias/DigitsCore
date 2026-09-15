@@ -30,7 +30,7 @@ class CoreIndexPresetTest {
 
     @Test
     fun familyIsMoreSensitiveToLongManagedUse() {
-        val sessions = listOf(session(minutes = 120, level = 5))
+        val sessions = listOf(session(minutes = 120, level = 3))
 
         val balanced = score(sessions, CoreIndexPreset.BALANCED)
         val family = score(sessions, CoreIndexPreset.FAMILY)
@@ -40,7 +40,7 @@ class CoreIndexPresetTest {
 
     @Test
     fun nightBalanceOnlyAddsMeaningfulPressureToLateNightManagedUse() {
-        val sessions = listOf(session(minutes = 90, level = 5, isLateNight = true))
+        val sessions = listOf(session(minutes = 90, level = 3, isLateNight = true))
 
         val balanced = score(sessions, CoreIndexPreset.BALANCED)
         val night = score(sessions, CoreIndexPreset.NIGHT_BALANCE)

@@ -12,9 +12,9 @@ class StatisticsRollingWindowTest {
     @Test
     fun `summary clips sessions to the rolling 24 hour window`() {
         val sessions = listOf(
-            session("video", "Video", windowStart - hour, windowStart + hour, 5),
+            session("video", "Video", windowStart - hour, windowStart + hour, 3),
             session("study", "Study", windowStart + 2 * hour, windowStart + 7 * hour / 2, 1),
-            session("video", "Video", windowEnd - hour, windowEnd + hour, 5)
+            session("video", "Video", windowEnd - hour, windowEnd + hour, 3)
         )
 
         val summary = summarizeRollingUsage(sessions, windowStart, windowEnd)
@@ -37,7 +37,7 @@ class StatisticsRollingWindowTest {
                 "Social",
                 windowStart + hour / 2,
                 windowStart + 2 * hour + hour / 2,
-                4
+                3
             )
         )
 
@@ -47,6 +47,24 @@ class StatisticsRollingWindowTest {
         assertEquals(hour, summary.hourlyTotalMillis[1])
         assertEquals(hour / 2, summary.hourlyTotalMillis[2])
         assertEquals(summary.hourlyTotalMillis, summary.hourlyManagedMillis)
+    }
+
+    @Test
+    fun `pip metadata fragments remain one primary session without double time`() {
+        val start = windowStart + hour
+        val sessions = listOf(
+            session("browser", "Browser", start, start + 10 * 60_000L, 2),
+            session("browser", "Browser", start + 10 * 60_000L, start + 30 * 60_000L, 2)
+                .copy(effectivePackageName = "video", effectiveCategoryLevel = 3, concurrentAppCount = 2),
+            session("browser", "Browser", start + 30 * 60_000L, start + 40 * 60_000L, 2)
+        )
+
+        val summary = summarizeRollingUsage(sessions, windowStart, windowEnd)
+
+        assertEquals(40 * 60_000L, summary.totalMillis)
+        assertEquals(20 * 60_000L, summary.managedMillis)
+        assertEquals(40 * 60_000L, summary.longestSessionMillis)
+        assertEquals("Browser", summary.longestSessionAppName)
     }
 
     private fun session(

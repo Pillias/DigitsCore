@@ -52,7 +52,7 @@ jobs:
           retention-days: 7
 
   database-upgrade-test:
-    name: Test v1.0.60 Database Upgrade
+    name: Test Database Migrations
     runs-on: ubuntu-latest
 
     steps:

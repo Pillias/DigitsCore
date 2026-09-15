@@ -15,9 +15,9 @@ class RollingScoreCalculatorTest {
     }
 
     @Test
-    fun threeHoursOfLevel5UsageFallsNear40() {
+    fun threeHoursOfImmersionManagementUsageFallsNear40() {
         val result = RollingScoreCalculator.calculate(
-            listOf(session(minutes = 180, level = 5, end = now)),
+            listOf(session(minutes = 180, level = 3, end = now)),
             now
         )
         assertTrue("score=${result.finalScore}", result.finalScore in 38..47)
@@ -27,7 +27,7 @@ class RollingScoreCalculatorTest {
     fun threeHoursRestAfterGamingRecoversNear70ButNotTo100() {
         val gameEnd = now - 180 * 60_000L
         val result = RollingScoreCalculator.calculate(
-            listOf(session(minutes = 180, level = 5, end = gameEnd)),
+            listOf(session(minutes = 180, level = 3, end = gameEnd)),
             now
         )
         assertTrue("score=${result.finalScore}", result.finalScore in 68..78)
@@ -41,6 +41,33 @@ class RollingScoreCalculatorTest {
             now
         )
         assertTrue(result.finalScore < 100)
+    }
+
+    @Test
+    fun switchingAppsDoesNotResetContinuousUseAcceleration() {
+        val sessions = listOf(
+            RollingUsageSession(
+                packageName = "study",
+                startTimeMillis = now - 90 * 60_000L,
+                endTimeMillis = now - 45 * 60_000L,
+                categoryLevel = 1
+            ),
+            RollingUsageSession(
+                packageName = "video",
+                startTimeMillis = now - 45 * 60_000L,
+                endTimeMillis = now,
+                categoryLevel = 3
+            )
+        )
+
+        val result = RollingScoreCalculator.calculate(
+            sessions,
+            now,
+            calibrationUsageMillis = 60 * 60_000L
+        )
+
+        assertEquals(90L, result.continuousUsageMinutes)
+        assertTrue(result.acuteLoad > 0.0)
     }
 
     @Test
@@ -59,12 +86,12 @@ class RollingScoreCalculatorTest {
     @Test
     fun ordinaryManagedUsageProducesClearerScoreMovement() {
         val twoHours = RollingScoreCalculator.calculate(
-            splitSessions(totalMinutes = 120, level = 5),
+            splitSessions(totalMinutes = 120, level = 3),
             now,
             calibrationUsageMillis = 60 * 60_000L
         )
         val threeHours = RollingScoreCalculator.calculate(
-            splitSessions(totalMinutes = 180, level = 5),
+            splitSessions(totalMinutes = 180, level = 3),
             now,
             calibrationUsageMillis = 60 * 60_000L
         )

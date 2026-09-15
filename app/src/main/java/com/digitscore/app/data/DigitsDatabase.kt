@@ -39,7 +39,7 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
         CoreIndexSampleEntity::class,
         DeviceInteractionEventEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = true
 )
 abstract class DigitsDatabase : RoomDatabase() {
@@ -242,6 +242,61 @@ abstract class DigitsDatabase : RoomDatabase() {
             }
         }
 
+        internal val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 사용자 선택과 과거 상세 기록을 5단계에서 성장/균형/몰입 관리 3단계로 통합합니다.
+                db.execSQL(
+                    """UPDATE app_weights SET categoryType = CASE categoryType
+                       WHEN 'MILDLY_PRODUCTIVE' THEN 'PRODUCTIVE'
+                       WHEN 'MILDLY_DISTRACTING' THEN 'DISTRACTING'
+                       ELSE categoryType END""".trimIndent()
+                )
+                db.execSQL(
+                    """UPDATE daily_app_usage SET categoryLevel = CASE
+                       WHEN categoryLevel <= 2 THEN 1
+                       WHEN categoryLevel = 3 THEN 2
+                       ELSE 3 END""".trimIndent()
+                )
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `foreground_usage_sessions_new` (
+                       `packageName` TEXT NOT NULL,
+                       `startTimeMillis` INTEGER NOT NULL,
+                       `endTimeMillis` INTEGER NOT NULL,
+                       `dateString` TEXT NOT NULL,
+                       `appName` TEXT NOT NULL,
+                       `categoryLevel` INTEGER NOT NULL,
+                       `effectivePackageName` TEXT NOT NULL,
+                       `effectiveCategoryLevel` INTEGER NOT NULL,
+                       `concurrentAppCount` INTEGER NOT NULL,
+                       `isLateNight` INTEGER NOT NULL,
+                       `lastUpdatedTimestamp` INTEGER NOT NULL,
+                       PRIMARY KEY(`packageName`, `startTimeMillis`))""".trimIndent()
+                )
+                db.execSQL(
+                    """INSERT INTO `foreground_usage_sessions_new` (
+                       `packageName`, `startTimeMillis`, `endTimeMillis`, `dateString`, `appName`,
+                       `categoryLevel`, `effectivePackageName`, `effectiveCategoryLevel`,
+                       `concurrentAppCount`, `isLateNight`, `lastUpdatedTimestamp`)
+                       SELECT `packageName`, `startTimeMillis`, `endTimeMillis`, `dateString`, `appName`,
+                       CASE WHEN `categoryLevel` <= 2 THEN 1 WHEN `categoryLevel` = 3 THEN 2 ELSE 3 END,
+                       `packageName`,
+                       CASE WHEN `categoryLevel` <= 2 THEN 1 WHEN `categoryLevel` = 3 THEN 2 ELSE 3 END,
+                       1, `isLateNight`, `lastUpdatedTimestamp`
+                       FROM `foreground_usage_sessions`""".trimIndent()
+                )
+                db.execSQL("DROP TABLE `foreground_usage_sessions`")
+                db.execSQL("ALTER TABLE `foreground_usage_sessions_new` RENAME TO `foreground_usage_sessions`")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_foreground_usage_sessions_dateString` " +
+                        "ON `foreground_usage_sessions` (`dateString`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_foreground_usage_sessions_endTimeMillis` " +
+                        "ON `foreground_usage_sessions` (`endTimeMillis`)"
+                )
+            }
+        }
+
         @Volatile
         private var INSTANCE: DigitsDatabase? = null
 
@@ -268,7 +323,8 @@ abstract class DigitsDatabase : RoomDatabase() {
                         MIGRATION_9_10,
                         MIGRATION_10_11,
                         MIGRATION_11_12,
-                        MIGRATION_12_13
+                        MIGRATION_12_13,
+                        MIGRATION_13_14
                     )
                     .fallbackToDestructiveMigrationOnDowngrade()
                 if (passphrase != null) {
@@ -353,27 +409,23 @@ abstract class DigitsDatabase : RoomDatabase() {
 
             // 2. 대표적인 앱들에 대한 기본 카테고리 프리셋 시딩
             val initialAppWeights = listOf(
-                // 4단계: SNS·뉴스·쇼핑처럼 사용량 조절을 권장하는 앱
-                AppWeightEntity("com.instagram.android", "Instagram", AppCategoryType.MILDLY_DISTRACTING),
-                AppWeightEntity("com.facebook.katana", "Facebook", AppCategoryType.MILDLY_DISTRACTING),
-                AppWeightEntity("com.twitter.android", "X (Twitter)", AppCategoryType.MILDLY_DISTRACTING),
-                AppWeightEntity("com.alibaba.aliexpresshd", "AliExpress", AppCategoryType.MILDLY_DISTRACTING),
-
-                // 5단계: 게임·동영상·음악처럼 몰입 시간이 길어지기 쉬운 앱
+                // 몰입 관리: SNS·뉴스·쇼핑·게임·동영상·음악처럼 흐름이 길어지기 쉬운 앱
+                AppWeightEntity("com.instagram.android", "Instagram", AppCategoryType.DISTRACTING),
+                AppWeightEntity("com.facebook.katana", "Facebook", AppCategoryType.DISTRACTING),
+                AppWeightEntity("com.twitter.android", "X (Twitter)", AppCategoryType.DISTRACTING),
+                AppWeightEntity("com.alibaba.aliexpresshd", "AliExpress", AppCategoryType.DISTRACTING),
                 AppWeightEntity("com.zhiliaoapp.musically", "TikTok", AppCategoryType.DISTRACTING),
                 AppWeightEntity("com.google.android.youtube", "YouTube", AppCategoryType.DISTRACTING),
                 AppWeightEntity("com.netflix.mediaclient", "Netflix", AppCategoryType.DISTRACTING),
                 AppWeightEntity("com.roblox.client", "Roblox", AppCategoryType.DISTRACTING),
 
-                // 1단계: 교육·학습 앱
+                // 성장: 교육·학습·생산성 앱
                 AppWeightEntity("com.duolingo", "Duolingo", AppCategoryType.PRODUCTIVE),
                 AppWeightEntity("com.ichi2.anki", "AnkiDroid", AppCategoryType.PRODUCTIVE),
-
-                // 2단계: 생산성과 목표 달성을 지원하는 앱
-                AppWeightEntity("notion.id", "Notion", AppCategoryType.MILDLY_PRODUCTIVE),
-                AppWeightEntity("com.todoist", "Todoist", AppCategoryType.MILDLY_PRODUCTIVE),
-                AppWeightEntity("com.google.android.apps.docs", "Google Docs", AppCategoryType.MILDLY_PRODUCTIVE),
-                AppWeightEntity("com.slack", "Slack", AppCategoryType.MILDLY_PRODUCTIVE)
+                AppWeightEntity("notion.id", "Notion", AppCategoryType.PRODUCTIVE),
+                AppWeightEntity("com.todoist", "Todoist", AppCategoryType.PRODUCTIVE),
+                AppWeightEntity("com.google.android.apps.docs", "Google Docs", AppCategoryType.PRODUCTIVE),
+                AppWeightEntity("com.slack", "Slack", AppCategoryType.PRODUCTIVE)
             )
             db.appDao().insertAppWeights(initialAppWeights)
         }

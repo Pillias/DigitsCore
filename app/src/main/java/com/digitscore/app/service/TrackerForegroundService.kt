@@ -400,6 +400,9 @@ class TrackerForegroundService : Service() {
                             dateString = currentDateString,
                             appName = app.appName,
                             categoryLevel = app.categoryType.level,
+                            effectivePackageName = segment.effectivePackageName,
+                            effectiveCategoryLevel = segment.effectiveCategoryLevel,
+                            concurrentAppCount = segment.concurrentAppCount,
                             isLateNight = segment.startTimeMillis < lateNightEnd,
                             lastUpdatedTimestamp = now
                         )
@@ -448,11 +451,21 @@ class TrackerForegroundService : Service() {
                 val realIdleMinutes = (accumulatedIdleMinutes + activeOffMinutes).coerceAtLeast(0L)
 
                 // 점수 계산
-                val scoreDetail = ScoreCalculator.calculateScore(
+                val legacyScoreDetail = ScoreCalculator.calculateScore(
                     appsUsage = appsUsage,
                     idleMinutes = realIdleMinutes,
                     unlockCount = finalUnlockCount,
                     rule = effectiveRule
+                )
+                // 일별 요약·위젯의 등급별 시간도 주 앱 이름이 아니라 PiP·분할 화면에
+                // 실제 적용된 등급을 따릅니다. 점수 자체는 아래 최근 24시간 엔진이 계산합니다.
+                val scoreDetail = legacyScoreDetail.copy(
+                    distractingTimeMinutes = usageSnapshot.foregroundSegments
+                        .filter { it.effectiveCategoryLevel >= 3 }
+                        .sumOf { it.durationMillis } / 60_000L,
+                    productiveTimeMinutes = usageSnapshot.foregroundSegments
+                        .filter { it.effectiveCategoryLevel <= 1 }
+                        .sumOf { it.durationMillis } / 60_000L
                 )
                 ScoreRepository.updateScoreDetail(scoreDetail)
 
@@ -465,7 +478,8 @@ class TrackerForegroundService : Service() {
                             packageName = session.packageName,
                             startTimeMillis = session.startTimeMillis,
                             endTimeMillis = session.endTimeMillis,
-                            categoryLevel = session.categoryLevel,
+                            categoryLevel = session.effectiveCategoryLevel,
+                            effectivePackageName = session.effectivePackageName,
                             isLateNight = session.isLateNight
                         )
                     }

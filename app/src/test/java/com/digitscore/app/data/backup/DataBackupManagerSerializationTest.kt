@@ -44,7 +44,7 @@ class DataBackupManagerSerializationTest {
             sessionCount = 4,
             longestSessionMillis = 1_800_000L,
             lateNightUsageMillis = 600_000L,
-            categoryLevel = 5,
+            categoryLevel = 3,
             lastUpdatedTimestamp = 123L
         )
 
@@ -53,7 +53,7 @@ class DataBackupManagerSerializationTest {
         assertEquals(4, record.sessionCount)
         assertEquals(1_800_000L, record.longestSessionMillis)
         assertEquals(600_000L, record.lateNightUsageMillis)
-        assertEquals(5, record.categoryLevel)
+        assertEquals(3, record.categoryLevel)
     }
 
     @Test

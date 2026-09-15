@@ -9,6 +9,20 @@ import org.junit.Test
 
 class UsageStatsHelperTest {
     @Test
+    fun appRatingsExposeOnlyThreeCanonicalChoices() {
+        assertEquals(
+            listOf(
+                AppCategoryType.PRODUCTIVE,
+                AppCategoryType.NEUTRAL,
+                AppCategoryType.DISTRACTING
+            ),
+            AppCategoryType.orderedEntries
+        )
+        assertEquals(AppCategoryType.PRODUCTIVE, AppCategoryType.MILDLY_PRODUCTIVE.canonical)
+        assertEquals(AppCategoryType.DISTRACTING, AppCategoryType.MILDLY_DISTRACTING.canonical)
+    }
+
+    @Test
     fun unregisteredUserAppWithUsage_isNotDropped() {
         assertTrue(
             UsageStatsHelper.shouldIncludeUsagePackage(
@@ -85,7 +99,7 @@ class UsageStatsHelperTest {
     }
 
     @Test
-    fun gameAudioAndVideoApps_defaultToLevelFive() {
+    fun gameAudioAndVideoApps_defaultToImmersionManagement() {
         assertEquals(
             AppCategoryType.DISTRACTING,
             UsageStatsHelper.defaultCategoryForApplicationCategory(ApplicationInfo.CATEGORY_GAME)
@@ -101,24 +115,24 @@ class UsageStatsHelperTest {
     }
 
     @Test
-    fun productivityApps_defaultToLevelTwo() {
+    fun productivityApps_defaultToGrowth() {
         assertEquals(
-            AppCategoryType.MILDLY_PRODUCTIVE,
+            AppCategoryType.PRODUCTIVE,
             UsageStatsHelper.defaultCategoryForApplicationCategory(ApplicationInfo.CATEGORY_PRODUCTIVITY)
         )
     }
 
     @Test
-    fun shoppingPackages_defaultToLevelFour() {
+    fun shoppingPackages_defaultToImmersionManagement() {
         assertEquals(
-            AppCategoryType.MILDLY_DISTRACTING,
+            AppCategoryType.DISTRACTING,
             UsageStatsHelper.defaultCategoryForPackage(
                 "com.alibaba.aliexpresshd",
                 ApplicationInfo.CATEGORY_UNDEFINED
             )
         )
         assertEquals(
-            AppCategoryType.MILDLY_DISTRACTING,
+            AppCategoryType.DISTRACTING,
             UsageStatsHelper.defaultCategoryForPackage(
                 "com.shopee.my",
                 ApplicationInfo.CATEGORY_UNDEFINED
@@ -142,5 +156,22 @@ class UsageStatsHelperTest {
                 ApplicationInfo.CATEGORY_UNDEFINED
             )
         )
+    }
+
+    @Test
+    fun pipMetadataChanges_doNotSplitThePrimaryAppSession() {
+        val segments = listOf(
+            ForegroundUsageSegment("browser", 0L, 30_000L, "browser", 2, 1),
+            ForegroundUsageSegment("browser", 30_000L, 90_000L, "video", 3, 2),
+            ForegroundUsageSegment("browser", 90_000L, 120_000L, "browser", 2, 1)
+        )
+
+        val merged = mergePrimaryUsageSegments(segments)
+
+        assertEquals(1, merged.size)
+        assertEquals(120_000L, merged.single().durationMillis)
+        assertEquals("video", merged.single().effectivePackageName)
+        assertEquals(3, merged.single().effectiveCategoryLevel)
+        assertEquals(2, merged.single().concurrentAppCount)
     }
 }

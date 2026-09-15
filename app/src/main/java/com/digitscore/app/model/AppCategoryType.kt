@@ -1,10 +1,10 @@
 package com.digitscore.app.model
 
 /**
- * 앱 사용이 디지털 균형에 미치는 정도를 나타내는 5단계 등급입니다.
+ * 앱 사용이 디지털 균형에 미치는 정도를 나타내는 3단계 등급입니다.
  *
- * 기존 PRODUCTIVE / NEUTRAL / DISTRACTING 식별자를 유지하여 이미 저장된 Room 데이터와
- * 백업 파일을 그대로 읽을 수 있게 합니다. 사용자에게는 성장(1)에서 몰입 관리(5) 순으로 표시합니다.
+ * MILDLY_PRODUCTIVE / MILDLY_DISTRACTING은 과거 5단계 데이터와 백업을 읽기 위한
+ * 호환 식별자입니다. UI와 새 기록에는 성장 / 균형 / 몰입 관리 세 등급만 사용합니다.
  */
 enum class AppCategoryType(
     val level: Int,
@@ -18,40 +18,40 @@ enum class AppCategoryType(
         level = 1,
         koreanName = "성장",
         englishName = "Growth",
-        koreanDescription = "학습과 성장에 직접 도움이 되는 앱 · +50%",
-        englishDescription = "Directly supports learning and growth · +50%",
+        koreanDescription = "학습과 성장에 직접 도움이 되는 앱 · 가장 낮은 사용 부하",
+        englishDescription = "Directly supports learning and growth · Lowest usage load",
         scoreMultiplier = 0.5f
     ),
     MILDLY_PRODUCTIVE(
-        level = 2,
-        koreanName = "집중 지원",
-        englishName = "Focus Support",
-        koreanDescription = "목표 달성과 생산성을 지원하는 앱 · +25%",
-        englishDescription = "Supports goals and productivity · +25%",
+        level = 1,
+        koreanName = "성장",
+        englishName = "Growth",
+        koreanDescription = "학습과 생산성을 지원하는 앱 · 가장 낮은 사용 부하",
+        englishDescription = "Supports learning and productivity · Lowest usage load",
         scoreMultiplier = 0.25f
     ),
     NEUTRAL(
-        level = 3,
+        level = 2,
         koreanName = "균형",
         englishName = "Balanced",
-        koreanDescription = "점수에 보너스나 감점을 주지 않는 앱 · 0%",
-        englishDescription = "No score bonus or deduction · 0%",
+        koreanDescription = "일반적인 사용 앱 · 기본 사용 부하",
+        englishDescription = "An app for general use · Standard usage load",
         scoreMultiplier = 0.0f
     ),
     MILDLY_DISTRACTING(
-        level = 4,
-        koreanName = "절제",
-        englishName = "Mindful Use",
-        koreanDescription = "사용 시간을 의식하며 조절할 앱 · -50%",
-        englishDescription = "An app to use with time awareness · -50%",
+        level = 3,
+        koreanName = "몰입 관리",
+        englishName = "Immersion Management",
+        koreanDescription = "사용 흐름이 길어지지 않도록 관리할 앱 · 가장 높은 사용 부하",
+        englishDescription = "An app whose usage flow needs managing · Highest usage load",
         scoreMultiplier = -0.5f
     ),
     DISTRACTING(
-        level = 5,
+        level = 3,
         koreanName = "몰입 관리",
-        englishName = "Deep-use Control",
-        koreanDescription = "사용 시간이 길어지지 않도록 관리할 앱 · -100%",
-        englishDescription = "An app whose long sessions need managing · -100%",
+        englishName = "Immersion Management",
+        koreanDescription = "장시간 사용을 특히 관리할 앱 · 가장 높은 사용 부하",
+        englishDescription = "An app whose long sessions need managing · Highest usage load",
         scoreMultiplier = -1.0f
     );
 
@@ -59,8 +59,27 @@ enum class AppCategoryType(
     val isBonus: Boolean get() = scoreMultiplier > 0f
     val displayName: String get() = if (java.util.Locale.getDefault().language == "en") englishName else koreanName
     val description: String get() = if (java.util.Locale.getDefault().language == "en") englishDescription else koreanDescription
+    val canonical: AppCategoryType
+        get() = when (this) {
+            PRODUCTIVE, MILDLY_PRODUCTIVE -> PRODUCTIVE
+            NEUTRAL -> NEUTRAL
+            MILDLY_DISTRACTING, DISTRACTING -> DISTRACTING
+        }
 
     companion object {
-        val orderedEntries: List<AppCategoryType> = entries.sortedBy { it.level }
+        val orderedEntries: List<AppCategoryType> = listOf(PRODUCTIVE, NEUTRAL, DISTRACTING)
+
+        /** DB v13 이하와 백업 v6 이하에 저장된 5단계 숫자를 새 3단계로 변환합니다. */
+        fun fromLegacyLevel(level: Int): Int = when (level) {
+            1, 2 -> 1
+            3 -> 2
+            else -> 3
+        }
+
+        fun normalizeLevel(level: Int): Int = when {
+            level <= 1 -> 1
+            level == 2 -> 2
+            else -> 3
+        }
     }
 }

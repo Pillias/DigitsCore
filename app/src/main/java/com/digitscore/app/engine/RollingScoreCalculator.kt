@@ -1,6 +1,7 @@
 package com.digitscore.app.engine
 
 import com.digitscore.app.model.CoreIndexPreset
+import com.digitscore.app.model.AppCategoryType
 import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -10,6 +11,7 @@ data class RollingUsageSession(
     val startTimeMillis: Long,
     val endTimeMillis: Long,
     val categoryLevel: Int,
+    val effectivePackageName: String = packageName,
     val isLateNight: Boolean = false
 )
 
@@ -30,7 +32,8 @@ data class RollingScoreDetail(
 
 /**
  * 자정에 초기화하지 않고 최근 24시간 사용 부하와 현재 연속 사용 부하를 함께 계산합니다.
- * 1단계 앱도 화면 피로의 아주 작은 기본 부하만 가지며, 좋은 앱 사용 자체에 가점은 없습니다.
+ * 성장 앱도 화면 피로의 작은 기본 부하만 가지며, 좋은 앱 사용 자체에 가점은 없습니다.
+ * PiP·분할 화면 구간은 시간 합산 없이 동시에 보인 앱 중 가장 높은 부하 등급을 사용합니다.
  */
 object RollingScoreCalculator {
     private const val WINDOW_MILLIS = 24 * 60 * 60 * 1_000L
@@ -43,10 +46,8 @@ object RollingScoreCalculator {
 
     private val extraLoadPerMinute = mapOf(
         1 to 0.0,
-        2 to 0.008,
-        3 to 0.020,
-        4 to 0.055,
-        5 to 0.080
+        2 to 0.020,
+        3 to 0.080
     )
 
     fun calculate(
@@ -63,7 +64,8 @@ object RollingScoreCalculator {
                 it.copy(
                     startTimeMillis = max(it.startTimeMillis, windowStart),
                     endTimeMillis = minOf(it.endTimeMillis, nowMillis),
-                    categoryLevel = it.categoryLevel.coerceIn(1, 5)
+                    categoryLevel = AppCategoryType.normalizeLevel(it.categoryLevel),
+                    effectivePackageName = it.effectivePackageName
                 )
             }
             .filter { it.endTimeMillis > it.startTimeMillis }
@@ -77,7 +79,7 @@ object RollingScoreCalculator {
             val perMinute = 0.040 * preset.baseLoadMultiplier +
                 (extraLoadPerMinute[session.categoryLevel] ?: 0.020) * preset.categoryLoadMultiplier
             minutes * perMinute *
-                if (session.isLateNight && session.categoryLevel >= 4) preset.lateNightMultiplier else 1.0
+                if (session.isLateNight && session.categoryLevel >= 3) preset.lateNightMultiplier else 1.0
         }
         rollingLoad += max(0, rollingUnlockCount - preset.unlockThreshold) * preset.unlockLoadPerExcess
 
@@ -90,12 +92,11 @@ object RollingScoreCalculator {
             ((nowMillis - last.endTimeMillis) / 60_000L).coerceAtLeast(0L)
         } else 0L
 
-        val lastLevel = last?.categoryLevel?.coerceIn(1, 5) ?: 3
+        val lastLevel = last?.categoryLevel?.let { AppCategoryType.normalizeLevel(it) } ?: 2
         val acuteFactor = when (lastLevel) {
-            5 -> 1.0
-            4 -> 0.55
-            3 -> 0.20
-            else -> 0.0
+            3 -> 1.0
+            2 -> 0.45
+            else -> 0.10
         }
         val peakAcute = if (last != null) {
             val sessionMinutes = (last.endTimeMillis - last.startTimeMillis) / 60_000.0
@@ -162,12 +163,15 @@ object RollingScoreCalculator {
         val result = mutableListOf<RollingUsageSession>()
         sessions.forEach { session ->
             val previous = result.lastOrNull()
-            if (previous != null && previous.packageName == session.packageName &&
+            if (previous != null &&
                 session.startTimeMillis - previous.endTimeMillis <= SESSION_JOIN_GAP_MILLIS
             ) {
                 result[result.lastIndex] = previous.copy(
+                    packageName = session.packageName,
                     endTimeMillis = max(previous.endTimeMillis, session.endTimeMillis),
-                    isLateNight = previous.isLateNight || session.isLateNight
+                    categoryLevel = session.categoryLevel,
+                    effectivePackageName = session.effectivePackageName,
+                    isLateNight = session.isLateNight
                 )
             } else {
                 result += session

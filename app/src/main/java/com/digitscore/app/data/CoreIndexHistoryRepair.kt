@@ -33,7 +33,8 @@ object CoreIndexHistoryRepair {
                         packageName = session.packageName,
                         startTimeMillis = session.startTimeMillis,
                         endTimeMillis = session.endTimeMillis,
-                        categoryLevel = session.categoryLevel,
+                        categoryLevel = session.effectiveCategoryLevel,
+                        effectivePackageName = session.effectivePackageName,
                         isLateNight = session.isLateNight
                     )
                 }
