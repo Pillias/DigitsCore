@@ -98,6 +98,10 @@ object UiTranslator {
             "Current \$1 pts · Low \$2 · High \$3",
         Regex("최저 (\\d+|—) · 평균 (\\d+|—) · 최고 (\\d+|—)") to
             "Low \$1 · Average \$2 · High \$3",
+        Regex("24H 범위 최저 (\\d+|—) · 최고 (\\d+|—)") to
+            "24H range: low \$1 · high \$2",
+        Regex("4주 범위 최저 (\\d+|—) · 최고 (\\d+|—)") to
+            "4-week range: low \$1 · high \$2",
         Regex("(\\d{4}-\\d{2}-\\d{2}) · 시작 (\\d+) · 마지막 (\\d+) · 최저 (\\d+) · 최고 (\\d+)") to
             "\$1 · Start \$2 · Last \$3 · Low \$4 · High \$5",
         Regex("화면 (.+) · 관리 (.+) · 언락 (\\d+)회( · .+)?") to
@@ -126,12 +130,35 @@ object UiTranslator {
             "The recent 7-day daily average is \$1 min lower than the previous 7 days; weekday averages are also compared.",
         Regex("최근 7일 하루 평균은 이전 7일보다 0분 같고, 요일별 평균도 함께 비교합니다\\.") to
             "The recent and previous 7-day daily averages are equal; weekday averages are also compared.",
+        Regex("최근 7일의 하루 평균 화면시간이 이전 7일보다 (\\d+)분 늘었습니다\\.") to
+            "Recent daily screen time is \$1 min higher than the previous seven days.",
+        Regex("최근 7일의 하루 평균 화면시간이 이전 7일보다 (\\d+)분 줄었습니다\\.") to
+            "Recent daily screen time is \$1 min lower than the previous seven days.",
+        Regex("최근 7일의 하루 평균 화면시간이 이전 7일보다 0분 같습니다\\.") to
+            "Recent and previous seven-day daily screen time are equal.",
+        Regex("이전 7일보다 하루 평균 (.+) 증가") to
+            "Daily average increased by \$1 vs the previous seven days",
+        Regex("이전 7일보다 하루 평균 (.+) 감소") to
+            "Daily average decreased by \$1 vs the previous seven days",
+        Regex("최다 월 · (.+)") to "Highest Mon · \$1",
+        Regex("최다 화 · (.+)") to "Highest Tue · \$1",
+        Regex("최다 수 · (.+)") to "Highest Wed · \$1",
+        Regex("최다 목 · (.+)") to "Highest Thu · \$1",
+        Regex("최다 금 · (.+)") to "Highest Fri · \$1",
+        Regex("최다 토 · (.+)") to "Highest Sat · \$1",
+        Regex("최다 일 · (.+)") to "Highest Sun · \$1",
         Regex("최저 (\\d+)점 · 최고 (\\d+)점 · 마지막 (\\d+)점") to
             "Low \$1 pts · High \$2 pts · Last \$3 pts",
         Regex("점선은 설정한 기준선 (\\d+)점을 나타냅니다\\.") to
             "The dotted line marks your \$1-point target.",
         Regex("하루 평균 화면 (\\d+)분, 관리 앱 (\\d+)분, 언락 (\\d+)회입니다\\.") to
             "Daily average: \$1 min screen time, \$2 min managed apps, and \$3 unlocks.",
+        Regex("화면 평균 (.+) · 언락 평균 (\\d+)회") to
+            "Screen average \$1 · Unlock average \$2",
+        Regex("같은 기간 코어 지수 범위는 (\\d+)~(\\d+)점입니다\\.") to
+            "The Core Index ranged from \$1 to \$2 in the same period.",
+        Regex("전체 화면시간 (.+) 중 관리 앱을 (.+) 사용했습니다\\.") to
+            "Managed apps accounted for \$2 of \$1 total screen time.",
         Regex("기록된 (\\d+)일 중 (\\d+)일이 기준선 (\\d+)점 이상이었습니다\\.") to
             "\$2 of \$1 recorded days were at or above the \$3-point target.",
         Regex("사용시간 상위 (\\d+)개 앱") to "Top \$1 Apps by Usage",
@@ -182,7 +209,7 @@ object UiTranslator {
         "포착률은 화면 ON·잠금 해제 시간 중 전면 앱을 특정한 비율입니다. CPU 시간은 측정기의 처리 비용이며 배터리 비율과 같지 않습니다. 실제 배터리 영향은 Android 배터리 사용량과 장기 실기기 시험에서 함께 확인해야 합니다." to
             "Coverage is the share of screen-on, unlocked time assigned to a foreground app. CPU time is processing cost, not battery percentage. Verify real battery impact with Android battery usage and long-running device tests.",
         "사용 균형 통계 & 리포트" to "Usage Balance & Reports",
-        "사용 균형 분석" to "Usage Balance Summary",
+        "4주 사용 요약" to "4-Week Usage Summary",
         "코어 지수" to "Core Index",
         "7일 평균" to "7-Day Average",
         "하락/관리" to "Decline / Managed",
@@ -195,6 +222,9 @@ object UiTranslator {
         "날짜를 누르면 하루 중 5분 단위 변화를 확인할 수 있습니다." to
             "Tap a date to inspect its five-minute changes.",
         "최근 24시간 코어 지수" to "Core Index · Last 24 Hours",
+        "현재 코어 지수 · 24H" to "Current Core Index · 24H",
+        "현재 코어 지수 · 4W" to "Current Core Index · 4W",
+        "24시간 내 첫 기록 대비" to "vs first reading in 24H",
         "표본 준비 중" to "Preparing Samples",
         "최근 24시간 코어 지수 표본을 준비하고 있습니다." to
             "Preparing Core Index samples for the last 24 hours.",
@@ -230,13 +260,21 @@ object UiTranslator {
         "같은 기간 OS 감지 알림은" to "OS-detected notifications in the same period:",
         "이 기기에서는 알림 이벤트 수를 제공하지 않을 수 있습니다." to
             "This device might not provide notification-event counts.",
-        "4주 패턴" to "4-Week Patterns",
-        "최근 7일과 이전 7일 · 요일별 평균" to
-            "Recent vs previous 7 days · Weekday averages",
-        "두 개의 7일 구간이 쌓이면 단기 변화를 비교합니다." to
-            "Short-term change appears after two seven-day periods are recorded.",
-        "최근 4주 안에서 최근 7일과 이전 7일을 비교하고, 네 번의 같은 요일 기록으로 요일별 흐름을 살펴봅니다." to
-            "Compares the recent and previous seven days, then uses four weeks of matching weekdays to show weekday patterns.",
+        "4주 사용 패턴" to "4-Week Usage Patterns",
+        "화면을 얼마나 오래 쓰는지 주간·요일별로 비교합니다." to
+            "Compare how long you use the screen by week and weekday.",
+        "주간 하루 평균" to "Daily Average by Week",
+        "요일별 하루 평균" to "Daily Average by Weekday",
+        "이전 7일과 하루 평균 사용시간이 같습니다." to
+            "Daily average usage is unchanged from the previous seven days.",
+        "비교할 주간 사용 기록을 준비하고 있습니다." to
+            "Preparing weekly usage for comparison.",
+        "막대는 사용 기록이 있는 날의 화면시간 평균입니다." to
+            "Bars show average screen time for days with usage records.",
+        "두 개의 7일 구간에 사용 기록이 있으면 주간 변화를 비교합니다." to
+            "Weekly change appears when both seven-day periods contain usage records.",
+        "주간 막대와 요일 막대는 사용 기록이 있는 날의 화면시간 평균입니다. 기록이 없는 날을 0분으로 채우지 않습니다." to
+            "Weekly and weekday bars average days with usage records. Missing days are not filled with zero minutes.",
         "최근 7일의 변화는 4주 흐름 안에서 함께 비교합니다." to
             "Recent seven-day change is compared within the four-week trend.",
         "일별 코어 지수 추세" to "Daily Core Index Trend",
@@ -258,23 +296,12 @@ object UiTranslator {
         "프리셋:" to "Preset:",
         "앱별 시작·종료 상세와 5분 단위 코어 지수 표본은 30일, 날짜별 집계는 365일 보관합니다." to
             "App start/end details and five-minute Core Index samples are retained for 30 days; daily summaries are retained for 365 days.",
-        "평균 코어 지수" to "Average Core Index",
-        "코어 지수 기록" to "Core Index Records",
         "코어 지수 기록을 준비하고 있습니다." to "Core Index history is being prepared.",
         "사용 흐름을 측정하면 날짜별 기록이 쌓입니다." to
             "Daily records accumulate as your usage pattern is measured.",
         "이 기간에 계산된 코어 지수가 아직 없습니다." to
             "No Core Index has been calculated in this period yet.",
-        "코어 지수가 계산된 날짜만 평균에 포함합니다." to
-            "Only dates with a calculated Core Index are included in the average.",
-        "선택한 기간에 저장된 최근 24시간 코어 지수의 산술 평균입니다." to
-            "Arithmetic mean of the rolling 24-hour Core Index saved in the selected period.",
-        "선택한 기간에 코어 지수가 계산되어 저장된 날짜 수입니다." to
-            "Number of dates with a calculated and saved Core Index in the selected period.",
-        "사용시간 기록과 코어 지수 기록의 날짜 수는 서로 다를 수 있습니다." to
-            "The number of usage days and Core Index days can differ.",
         "기록 준비 중" to "Preparing History",
-        "지수가 계산된 날" to "Days with an index",
         "점수 프리셋 모드 선택" to "Choose a Score Preset",
         "점수가 이 이하로 떨어지면 사용 균형 안내를 강조합니다." to "Guidance is emphasized when the score falls below this value.",
         "이전 사용량 이월" to "Previous-use Carryover",
@@ -490,6 +517,7 @@ object UiTranslator {
         "비밀번호 확인" to "Confirm Password",
         "비밀번호 · 8자 이상" to "Password · 8+ characters",
         "최근 7일" to "Last 7 Days",
+        "이전 7일" to "Previous 7 Days",
         "기록 범위:" to "Recorded range:",
         "최근 4주" to "Last 4 Weeks",
         "최근 12주" to "Last 12 Weeks",
@@ -508,9 +536,18 @@ object UiTranslator {
         "목표 달성률" to "Target Success",
         "일평균 화면 시간" to "Daily Screen Average",
         "일평균 언락" to "Daily Unlock Average",
-        "기간 내 평균" to "Period Average",
-        "선택한 기간에 저장된 일별 점수의 산술 평균입니다." to
-            "Arithmetic mean of daily scores saved in the selected period.",
+        "가장 많이 쓴 날" to "Highest-Usage Day",
+        "하루 사용 최고" to "Highest Daily Usage",
+        "관리 앱 비중" to "Managed App Share",
+        "전체 화면시간 중" to "Of Total Screen Time",
+        "최근 4주 기록에서 화면을 켜고 전면 앱을 가장 오래 사용한 날입니다." to
+            "The day with the most screen-on foreground app use in the last four weeks.",
+        "균형 등급 4·5단계로 설정한 앱의 전면 사용시간 비율입니다." to
+            "Share of foreground time spent in apps rated level 4 or 5.",
+        "4주 차트에서 날짜별 화면시간, 관리 앱 시간과 언락 횟수를 함께 비교합니다." to
+            "The four-week chart compares daily screen time, managed-app time, and unlocks.",
+        "현재 지수는 최근 24시간 사용 흐름으로 계산하며, 4주 차트는 날짜별 변화를 보여줍니다." to
+            "The current Index reflects the last 24 hours; the four-week chart shows its daily trend.",
         "기록이 없는 날짜는 평균에 포함하지 않습니다." to
             "Days without a record are excluded from the average.",
         "기준선은 설정에서 변경할 수 있습니다." to "You can change the target in Settings.",

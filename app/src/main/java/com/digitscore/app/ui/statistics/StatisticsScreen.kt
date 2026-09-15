@@ -284,21 +284,20 @@ fun StatisticsScreen(
                         samples = fourWeekSamples,
                         onDaySelected = { selectedDay = it },
                         onClick = {
-                            val average = if (coreIndexHistories.isEmpty()) null else
-                                (coreIndexHistories.sumOf { it.finalScore } / coreIndexHistories.size.toFloat()).roundToInt()
+                            val latest = coreIndexHistories.lastOrNull()?.finalScore
                             val high = coreIndexHistories.maxOfOrNull { it.finalScore }
                             val low = coreIndexHistories.minOfOrNull { it.finalScore }
                             val presetChanges = coreIndexPresetChanges(coreIndexHistories)
                             selectedDetail = StatisticsDetail(
                                 title = "일별 코어 지수 추세",
-                                value = average?.let { "평균 ${it}점" } ?: "기록 준비 중",
-                                description = if (average == null) {
+                                value = latest?.let { "현재 ${it}점" } ?: "기록 준비 중",
+                                description = if (latest == null) {
                                     "이 기간에 계산된 코어 지수가 아직 없습니다."
                                 } else {
-                                    "기간 중 최고 ${high}점, 최저 ${low}점입니다."
+                                    "4주 차트에 표시된 코어 지수 범위는 최저 ${low}점에서 최고 ${high}점입니다."
                                 },
                                 supportingText = buildString {
-                                    append("최근 7일의 변화는 4주 흐름 안에서 함께 비교합니다.")
+                                    append("현재 지수는 최근 24시간 사용 흐름으로 계산하며, 4주 차트는 날짜별 변화를 보여줍니다.")
                                     if (presetChanges.isNotEmpty()) {
                                         append("\n프리셋 변경: ")
                                         append(
@@ -318,10 +317,12 @@ fun StatisticsScreen(
                         histories = histories,
                         onClick = {
                             val count = histories.size.coerceAtLeast(1)
+                            val averageScreen = histories.sumOf { it.totalScreenTimeMinutes } / count
+                            val averageUnlocks = histories.sumOf { it.unlockCount } / count
                             selectedDetail = StatisticsDetail(
                                 title = "사용 시간과 언락",
-                                value = "${histories.size}일 기록",
-                                description = "하루 평균 화면 ${histories.sumOf { it.totalScreenTimeMinutes } / count}분, 관리 앱 ${histories.sumOf { it.distractingTimeMinutes } / count}분, 언락 ${histories.sumOf { it.unlockCount } / count}회입니다.",
+                                value = "화면 평균 ${formatMinutesToHoursAndMinutes(averageScreen)} · 언락 평균 ${averageUnlocks}회",
+                                description = "4주 차트에서 날짜별 화면시간, 관리 앱 시간과 언락 횟수를 함께 비교합니다.",
                                 supportingText = "청록색은 전체 화면시간, 빨간색은 관리 앱 시간, 노란 점은 언락 횟수입니다."
                             )
                         }
@@ -446,9 +447,10 @@ private fun MarketIndexHeader(
     title: String,
     current: Int?,
     change: Int?,
+    changeLabel: String? = null,
     low: Int?,
-    average: Int?,
     high: Int?,
+    rangeLabel: String,
     onClick: () -> Unit
 ) {
     val changeColor = when {
@@ -471,24 +473,28 @@ private fun MarketIndexHeader(
                     fontWeight = FontWeight.ExtraBold
                 )
                 if (change != null) {
-                    Text(
-                        text = when {
-                            change > 0 -> "▲ +$change"
-                            change < 0 -> "▼ $change"
-                            else -> "― 0"
-                        },
-                        modifier = Modifier.padding(start = 10.dp, bottom = 5.dp),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = changeColor
-                    )
+                    Column(modifier = Modifier.padding(start = 10.dp, bottom = 5.dp)) {
+                        Text(
+                            text = when {
+                                change > 0 -> "▲ +$change"
+                                change < 0 -> "▼ $change"
+                                else -> "― 0"
+                            },
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = changeColor
+                        )
+                        changeLabel?.let {
+                            Text(it, fontSize = 9.sp, color = MaterialTheme.colorScheme.outline)
+                        }
+                    }
                 }
             }
         }
         Column(horizontalAlignment = Alignment.End) {
             DetailChevron(tint = MaterialTheme.colorScheme.primary)
             Text(
-                "최저 ${low ?: "—"} · 평균 ${average ?: "—"} · 최고 ${high ?: "—"}",
+                "$rangeLabel 최저 ${low ?: "—"} · 최고 ${high ?: "—"}",
                 modifier = Modifier.padding(top = 10.dp),
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.outline
@@ -536,7 +542,6 @@ private fun RollingMarketChartCard(
     val selectedSample = selectedIndex?.let(visible::getOrNull)
     val current = visible.lastOrNull()?.score
     val change = if (visible.size >= 2) current?.minus(visible.first().score) else null
-    val average = visible.takeIf { it.isNotEmpty() }?.map { it.score }?.average()?.roundToInt()
     val duration = (windowEndMillis - windowStartMillis).coerceAtLeast(1L)
     val selectedBucket = selectedSample?.let {
         (((it.timestampMillis - windowStartMillis) * 24) / duration).toInt().coerceIn(0, 23)
@@ -557,12 +562,13 @@ private fun RollingMarketChartCard(
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             MarketIndexHeader(
-                title = "코어 지수 · 24H",
+                title = "현재 코어 지수 · 24H",
                 current = current,
                 change = change,
+                changeLabel = "24시간 내 첫 기록 대비",
                 low = visible.minOfOrNull { it.score },
-                average = average,
                 high = visible.maxOfOrNull { it.score },
+                rangeLabel = "24H 범위",
                 onClick = onClick
             )
             Spacer(Modifier.height(12.dp))
@@ -899,19 +905,24 @@ private fun FourWeekPatternCard(
     val weekdayLabels = listOf("월", "화", "수", "목", "금", "토", "일")
     val primaryColor = MaterialTheme.colorScheme.primary
     val outlineColor = MaterialTheme.colorScheme.outline
+    val weeklyMax = maxOf(recentAverage ?: 0L, previousAverage ?: 0L, 1L)
+    val weekdayMax = (weekdayAverages.values.maxOrNull() ?: 0L).coerceAtLeast(1L)
+    val weeklyDelta = if (recentAverage != null && previousAverage != null) {
+        recentAverage - previousAverage
+    } else null
 
     Card(
         modifier = Modifier.fillMaxWidth().clickable {
             val delta = if (recentAverage != null && previousAverage != null) recentAverage - previousAverage else null
             onClick(
                 StatisticsDetail(
-                    "4주 패턴",
+                    "4주 사용 패턴",
                     busiest?.let { "${weekdayLabels[it.key - 1]}요일 평균 ${formatMinutesToHoursAndMinutes(it.value)}" }
                         ?: "기록 준비 중",
                     delta?.let {
-                        "최근 7일 하루 평균은 이전 7일보다 ${kotlin.math.abs(it)}분 ${if (it > 0) "늘었고" else if (it < 0) "줄었고" else "같고"}, 요일별 평균도 함께 비교합니다."
-                    } ?: "두 개의 7일 구간이 쌓이면 단기 변화를 비교합니다.",
-                    "최근 4주 안에서 최근 7일과 이전 7일을 비교하고, 네 번의 같은 요일 기록으로 요일별 흐름을 살펴봅니다."
+                        "최근 7일의 하루 평균 화면시간이 이전 7일보다 ${kotlin.math.abs(it)}분 ${if (it > 0) "늘었습니다" else if (it < 0) "줄었습니다" else "같습니다"}."
+                    } ?: "두 개의 7일 구간에 사용 기록이 있으면 주간 변화를 비교합니다.",
+                    "주간 막대와 요일 막대는 사용 기록이 있는 날의 화면시간 평균입니다. 기록이 없는 날을 0분으로 채우지 않습니다."
                 )
             )
         },
@@ -924,40 +935,71 @@ private fun FourWeekPatternCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("4주 패턴", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("4주 사용 패턴", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 DetailChevron(tint = MaterialTheme.colorScheme.primary)
             }
             Text(
-                "최근 7일과 이전 7일 · 요일별 평균",
+                "화면을 얼마나 오래 쓰는지 주간·요일별로 비교합니다.",
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.outline
             )
-            Spacer(Modifier.height(12.dp))
-            val maxAverage = maxOf(
-                recentAverage ?: 0L,
-                previousAverage ?: 0L,
-                weekdayAverages.values.maxOrNull() ?: 0L,
-                1L
+            Spacer(Modifier.height(16.dp))
+            Text("주간 하루 평균", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+            Spacer(Modifier.height(8.dp))
+            WeeklyUsageBar(
+                label = "이전 7일",
+                value = previousAverage,
+                maximum = weeklyMax,
+                color = outlineColor.copy(alpha = 0.6f)
             )
-            Canvas(Modifier.fillMaxWidth().height(110.dp)) {
-                val topHeight = 38.dp.toPx()
-                listOf(previousAverage ?: 0L, recentAverage ?: 0L).forEachIndexed { index, value ->
-                    val y = index * 24.dp.toPx()
-                    drawRoundRect(
-                        color = if (index == 0) outlineColor.copy(alpha = 0.45f) else primaryColor,
-                        topLeft = Offset(0f, y),
-                        size = Size(size.width * value / maxAverage.toFloat(), 12.dp.toPx()),
-                        cornerRadius = CornerRadius(6.dp.toPx())
-                    )
-                }
-                val weekdayTop = topHeight + 18.dp.toPx()
+            Spacer(Modifier.height(7.dp))
+            WeeklyUsageBar(
+                label = "최근 7일",
+                value = recentAverage,
+                maximum = weeklyMax,
+                color = primaryColor
+            )
+            Text(
+                weeklyDelta?.let { delta ->
+                    when {
+                        delta > 0 -> "이전 7일보다 하루 평균 ${formatMinutesToHoursAndMinutes(delta)} 증가"
+                        delta < 0 -> "이전 7일보다 하루 평균 ${formatMinutesToHoursAndMinutes(-delta)} 감소"
+                        else -> "이전 7일과 하루 평균 사용시간이 같습니다."
+                    }
+                } ?: "비교할 주간 사용 기록을 준비하고 있습니다.",
+                modifier = Modifier.padding(top = 8.dp),
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 14.dp)
+                    .height(1.dp)
+                    .background(outlineColor.copy(alpha = 0.18f))
+            )
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("요일별 하루 평균", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                Text(
+                    busiest?.let { "최다 ${weekdayLabels[it.key - 1]} · ${formatMinutesToHoursAndMinutes(it.value)}" }
+                        ?: "기록 준비 중",
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Canvas(Modifier.fillMaxWidth().height(72.dp)) {
                 val step = size.width / 7f
                 weekdayLabels.indices.forEach { index ->
                     val value = weekdayAverages[index + 1] ?: 0L
-                    val height = 44.dp.toPx() * value / maxAverage.toFloat()
+                    val height = size.height * value / weekdayMax.toFloat()
                     drawRoundRect(
                         color = primaryColor.copy(alpha = 0.7f),
-                        topLeft = Offset(index * step + step * 0.2f, weekdayTop + 44.dp.toPx() - height),
+                        topLeft = Offset(index * step + step * 0.2f, size.height - height),
                         size = Size(step * 0.6f, height),
                         cornerRadius = CornerRadius(4.dp.toPx())
                     )
@@ -967,11 +1009,47 @@ private fun FourWeekPatternCard(
                 weekdayLabels.forEach { Text(it, fontSize = 10.sp, color = MaterialTheme.colorScheme.outline) }
             }
             Text(
-                "이전 7일 ${previousAverage?.let(::formatMinutesToHoursAndMinutes) ?: "—"} · 최근 7일 ${recentAverage?.let(::formatMinutesToHoursAndMinutes) ?: "—"}",
+                "막대는 사용 기록이 있는 날의 화면시간 평균입니다.",
+                modifier = Modifier.padding(top = 8.dp),
                 fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.outline
             )
         }
+    }
+}
+
+@Composable
+private fun WeeklyUsageBar(
+    label: String,
+    value: Long?,
+    maximum: Long,
+    color: Color
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(label, modifier = Modifier.width(54.dp), fontSize = 10.sp)
+        Box(
+            Modifier
+                .weight(1f)
+                .height(12.dp)
+                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+        ) {
+            Box(
+                Modifier
+                    .fillMaxWidth(((value ?: 0L) / maximum.toFloat()).coerceIn(0f, 1f))
+                    .height(12.dp)
+                    .background(color, RoundedCornerShape(6.dp))
+            )
+        }
+        Text(
+            value?.let(::formatMinutesToHoursAndMinutes) ?: "—",
+            modifier = Modifier.width(62.dp),
+            fontSize = 10.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -1101,9 +1179,7 @@ private fun FourWeekMarketChartCard(
     }
     val selected = selectedIndex?.let(ranges::getOrNull)
     val current = ranges.lastOrNull()?.lastScore
-    val change = if (ranges.size >= 2) current?.minus(ranges.first().startScore) else null
     val allScores = ranges.flatMap { listOf(it.low, it.high) }
-    val average = ranges.takeIf { it.isNotEmpty() }?.map { it.lastScore }?.average()?.roundToInt()
     val today = LocalDate.now()
     val firstDate = today.minusDays((FOUR_WEEK_DAYS - 1).toLong())
     val lastDayOffset = (FOUR_WEEK_DAYS - 1).toLong()
@@ -1129,12 +1205,12 @@ private fun FourWeekMarketChartCard(
     ) {
         Column(Modifier.fillMaxWidth().padding(20.dp)) {
             MarketIndexHeader(
-                title = "코어 지수 · 4W",
+                title = "현재 코어 지수 · 4W",
                 current = current,
-                change = change,
+                change = null,
                 low = allScores.minOrNull(),
-                average = average,
                 high = allScores.maxOrNull(),
+                rangeLabel = "4주 범위",
                 onClick = onClick
             )
             Spacer(Modifier.height(12.dp))
@@ -1566,10 +1642,6 @@ private fun AnalyticsSummaryCards(
     coreIndexHistories: List<DailyScoreHistoryEntity>,
     onDetailRequested: (StatisticsDetail) -> Unit
 ) {
-    val avgScore = if (coreIndexHistories.isNotEmpty()) {
-        (coreIndexHistories.sumOf { it.finalScore } / coreIndexHistories.size.toFloat()).roundToInt()
-    } else null
-
     val avgScreenTime = if (usageHistories.isNotEmpty()) {
         (usageHistories.sumOf { it.totalScreenTimeMinutes } / usageHistories.size.toFloat()).roundToInt()
     } else 0
@@ -1577,10 +1649,19 @@ private fun AnalyticsSummaryCards(
     val avgUnlockCount = if (usageHistories.isNotEmpty()) {
         (usageHistories.sumOf { it.unlockCount } / usageHistories.size.toFloat()).roundToInt()
     } else 0
+    val highestUsageDay = usageHistories.maxByOrNull { it.totalScreenTimeMinutes }
+    val totalScreenTime = usageHistories.sumOf { it.totalScreenTimeMinutes }
+    val totalManagedTime = usageHistories.sumOf { it.distractingTimeMinutes }
+    val managedShare = if (totalScreenTime > 0L) {
+        (totalManagedTime * 100f / totalScreenTime).roundToInt()
+    } else 0
+    val scoreRange = coreIndexHistories.takeIf { it.isNotEmpty() }?.let { rows ->
+        rows.minOf { it.finalScore } to rows.maxOf { it.finalScore }
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
-            text = "사용 균형 분석",
+            text = "4주 사용 요약",
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground
@@ -1592,36 +1673,40 @@ private fun AnalyticsSummaryCards(
         ) {
             MetricCard(
                 modifier = Modifier.weight(1f),
-                title = "평균 코어 지수",
-                value = avgScore?.let { "${it}점" } ?: "—",
+                title = "가장 많이 쓴 날",
+                value = highestUsageDay?.let {
+                    "${it.dateString.substringAfter('-').replace('-', '/')} · ${formatMinutesToHoursAndMinutes(it.totalScreenTimeMinutes)}"
+                } ?: "—",
                 icon = Icons.Default.Star,
                 iconColor = MaterialTheme.colorScheme.primary,
-                subtitle = "기간 내 평균",
+                subtitle = "하루 사용 최고",
                 onClick = {
                     onDetailRequested(
                         StatisticsDetail(
-                            "평균 코어 지수",
-                            avgScore?.let { "${it}점" } ?: "기록 준비 중",
-                            "선택한 기간에 저장된 최근 24시간 코어 지수의 산술 평균입니다.",
-                            "코어 지수가 계산된 날짜만 평균에 포함합니다."
+                            "가장 많이 쓴 날",
+                            highestUsageDay?.let {
+                                "${it.dateString} · ${formatMinutesToHoursAndMinutes(it.totalScreenTimeMinutes)}"
+                            } ?: "기록 준비 중",
+                            "최근 4주 기록에서 화면을 켜고 전면 앱을 가장 오래 사용한 날입니다.",
+                            scoreRange?.let { "같은 기간 코어 지수 범위는 ${it.first}~${it.second}점입니다." }
                         )
                     )
                 }
             )
             MetricCard(
                 modifier = Modifier.weight(1f),
-                title = "코어 지수 기록",
-                value = "${coreIndexHistories.size}일",
+                title = "관리 앱 비중",
+                value = "${managedShare}%",
                 icon = Icons.Default.CheckCircle,
-                iconColor = ScoreGreen,
-                subtitle = "지수가 계산된 날",
+                iconColor = ScoreRed,
+                subtitle = "전체 화면시간 중",
                 onClick = {
                     onDetailRequested(
                         StatisticsDetail(
-                            "코어 지수 기록",
-                            "${coreIndexHistories.size}일",
-                            "선택한 기간에 코어 지수가 계산되어 저장된 날짜 수입니다.",
-                            "사용시간 기록과 코어 지수 기록의 날짜 수는 서로 다를 수 있습니다."
+                            "관리 앱 비중",
+                            "${managedShare}%",
+                            "전체 화면시간 ${formatMinutesToHoursAndMinutes(totalScreenTime)} 중 관리 앱을 ${formatMinutesToHoursAndMinutes(totalManagedTime)} 사용했습니다.",
+                            "균형 등급 4·5단계로 설정한 앱의 전면 사용시간 비율입니다."
                         )
                     )
                 }
