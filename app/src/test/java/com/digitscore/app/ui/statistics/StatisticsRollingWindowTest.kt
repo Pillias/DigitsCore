@@ -53,10 +53,17 @@ class StatisticsRollingWindowTest {
     fun `pip metadata fragments remain one primary session without double time`() {
         val start = windowStart + hour
         val sessions = listOf(
-            session("browser", "Browser", start, start + 10 * 60_000L, 2),
+            session("browser", "Browser", start, start + 10 * 60_000L, 2)
+                .copy(sessionStartTimeMillis = start),
             session("browser", "Browser", start + 10 * 60_000L, start + 30 * 60_000L, 2)
-                .copy(effectivePackageName = "video", effectiveCategoryLevel = 3, concurrentAppCount = 2),
+                .copy(
+                    effectivePackageName = "video",
+                    effectiveCategoryLevel = 3,
+                    concurrentAppCount = 2,
+                    sessionStartTimeMillis = start
+                ),
             session("browser", "Browser", start + 30 * 60_000L, start + 40 * 60_000L, 2)
+                .copy(sessionStartTimeMillis = start)
         )
 
         val summary = summarizeRollingUsage(sessions, windowStart, windowEnd)

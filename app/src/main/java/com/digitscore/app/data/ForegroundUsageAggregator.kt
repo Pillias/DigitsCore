@@ -44,7 +44,8 @@ data class ForegroundActivityState(
     val className: String? = null,
     val instanceId: Int? = null,
     val isResumed: Boolean = true,
-    val lastActivatedMillis: Long = 0L
+    val lastActivatedMillis: Long = 0L,
+    val sessionStartTimeMillis: Long = lastActivatedMillis
 )
 
 /** 증분 UsageEvents 조회 사이에 이어지는 화면·잠금·전면 앱 상태입니다. */
@@ -63,7 +64,9 @@ data class ForegroundUsageSegment(
     val endTimeMillis: Long,
     val effectivePackageName: String = packageName,
     val effectiveCategoryLevel: Int = 2,
-    val concurrentAppCount: Int = 1
+    val concurrentAppCount: Int = 1,
+    /** 실제 앱 진입을 만든 ACTIVITY_RESUMED 세션의 시작 시각입니다. */
+    val sessionStartTimeMillis: Long = startTimeMillis
 ) {
     val durationMillis: Long get() = (endTimeMillis - startTimeMillis).coerceAtLeast(0L)
 }
@@ -100,7 +103,8 @@ internal object ForegroundUsageAggregator {
                         packageName = initialState.activePackage,
                         className = initialState.activeClass,
                         instanceId = initialState.activeInstanceId,
-                        lastActivatedMillis = startTimeMillis
+                        lastActivatedMillis = startTimeMillis,
+                        sessionStartTimeMillis = startTimeMillis
                     )
                 )
             }
@@ -169,12 +173,18 @@ internal object ForegroundUsageAggregator {
             val effectivePackageName = effectiveApp.first
             val effectiveCategoryLevel = effectiveApp.second
             val concurrentAppCount = visiblePackages.size.coerceAtLeast(1)
+            val sessionStartTimeMillis = visibleActivities
+                .filter { it.packageName == packageName }
+                .maxByOrNull { it.lastActivatedMillis }
+                ?.sessionStartTimeMillis
+                ?: intervalStart
 
             val previous = segments.lastOrNull()
             if (previous?.packageName == packageName &&
                 previous.effectivePackageName == effectivePackageName &&
                 previous.effectiveCategoryLevel == effectiveCategoryLevel &&
                 previous.concurrentAppCount == concurrentAppCount &&
+                previous.sessionStartTimeMillis == sessionStartTimeMillis &&
                 previous.endTimeMillis == intervalStart
             ) {
                 segments[segments.lastIndex] = previous.copy(endTimeMillis = intervalEnd)
@@ -185,7 +195,8 @@ internal object ForegroundUsageAggregator {
                     endTimeMillis = intervalEnd,
                     effectivePackageName = effectivePackageName,
                     effectiveCategoryLevel = effectiveCategoryLevel,
-                    concurrentAppCount = concurrentAppCount
+                    concurrentAppCount = concurrentAppCount,
+                    sessionStartTimeMillis = sessionStartTimeMillis
                 )
             }
 
@@ -214,12 +225,18 @@ internal object ForegroundUsageAggregator {
                     val packageName = event.packageName
                     if (!packageName.isNullOrBlank()) {
                         val existingIndex = visibleActivities.indexOfFirst { matchesActivity(it, event) }
+                        val existingPackageSessionStart = visibleActivities
+                            .filter { it.packageName == packageName }
+                            .maxByOrNull { it.lastActivatedMillis }
+                            ?.sessionStartTimeMillis
                         val resumed = ForegroundActivityState(
                             packageName = packageName,
                             className = event.className,
                             instanceId = event.instanceId,
                             isResumed = true,
-                            lastActivatedMillis = event.timestampMillis
+                            lastActivatedMillis = event.timestampMillis,
+                            // 같은 앱 내부 Activity 전환과 PiP 복귀는 새 실행이 아닙니다.
+                            sessionStartTimeMillis = existingPackageSessionStart ?: event.timestampMillis
                         )
                         if (existingIndex >= 0) visibleActivities[existingIndex] = resumed
                         else visibleActivities += resumed
@@ -242,24 +259,16 @@ internal object ForegroundUsageAggregator {
                         if (existingIndex != null) {
                             val previous = visibleActivities[existingIndex]
                             visibleActivities[existingIndex] = previous.copy(
-                                isResumed = true,
                                 lastActivatedMillis = event.timestampMillis
                             )
                             activeClass = previous.className
                             activeInstanceId = previous.instanceId
-                        } else {
-                            visibleActivities += ForegroundActivityState(
-                                packageName = packageName,
-                                className = event.className,
-                                instanceId = event.instanceId,
-                                lastActivatedMillis = event.timestampMillis
-                            )
-                            activeClass = event.className
-                            activeInstanceId = event.instanceId
+                            activePackage = packageName
+                            lastUsed[packageName] = event.timestampMillis
+                            hasForegroundEvidence = true
                         }
-                        activePackage = packageName
-                        lastUsed[packageName] = event.timestampMillis
-                        hasForegroundEvidence = true
+                        // USER_INTERACTION은 앱 실행 이벤트가 아닙니다. 화면에 보이는 앱의
+                        // 분할 화면/PiP 초점 판별에만 쓰며, 알 수 없는 package는 무시합니다.
                     }
                 }
 
@@ -289,7 +298,21 @@ internal object ForegroundUsageAggregator {
                 }
 
                 ForegroundTimelineEventType.KEYGUARD_HIDDEN -> {
+                    val wasLocked = !keyguardHidden
                     keyguardHidden = true
+                    if (wasLocked) {
+                        activePackage?.let { unlockedPackage ->
+                            visibleActivities.indices.forEach { index ->
+                                val activity = visibleActivities[index]
+                                if (activity.packageName == unlockedPackage) {
+                                    visibleActivities[index] = activity.copy(
+                                        lastActivatedMillis = event.timestampMillis,
+                                        sessionStartTimeMillis = event.timestampMillis
+                                    )
+                                }
+                            }
+                        }
+                    }
                     if (countUnlock) unlockCount++
                 }
 

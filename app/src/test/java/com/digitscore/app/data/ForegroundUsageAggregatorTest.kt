@@ -77,6 +77,10 @@ class ForegroundUsageAggregatorTest {
 
         assertEquals(30_000L, result.usageMillisByPackage["youtube"])
         assertEquals(1, result.unlockCount)
+        assertEquals(
+            setOf(0L, 55_000L),
+            result.segments.map { it.sessionStartTimeMillis }.toSet()
+        )
     }
 
     @Test
@@ -108,6 +112,42 @@ class ForegroundUsageAggregatorTest {
         )
 
         assertEquals(30_000L, result.usageMillisByPackage["youtube"])
+        assertEquals(1, result.segments.map { it.sessionStartTimeMillis }.distinct().size)
+    }
+
+    @Test
+    fun userInteractionForUnknownPackage_doesNotCreateAnOpenOrStealForegroundTime() {
+        val result = aggregate(
+            endSecond = 30,
+            events = listOf(
+                event(0, ForegroundTimelineEventType.APP_RESUMED, "chess", "Game"),
+                event(10, ForegroundTimelineEventType.APP_INTERACTION, "background.service"),
+                event(30, ForegroundTimelineEventType.APP_STOPPED, "chess", "Game")
+            )
+        )
+
+        assertEquals(30_000L, result.usageMillisByPackage["chess"])
+        assertEquals(null, result.usageMillisByPackage["background.service"])
+        assertEquals(setOf(0L), result.segments.map { it.sessionStartTimeMillis }.toSet())
+    }
+
+    @Test
+    fun stoppedThenResumedPackage_createsASecondRealOpenSession() {
+        val result = aggregate(
+            endSecond = 30,
+            events = listOf(
+                event(0, ForegroundTimelineEventType.APP_RESUMED, "chess", "Game"),
+                event(10, ForegroundTimelineEventType.APP_STOPPED, "chess", "Game"),
+                event(20, ForegroundTimelineEventType.APP_RESUMED, "chess", "Game"),
+                event(30, ForegroundTimelineEventType.APP_STOPPED, "chess", "Game")
+            )
+        )
+
+        assertEquals(setOf(0L, 20_000L), result.segments.map { it.sessionStartTimeMillis }.toSet())
+        assertEquals(
+            2,
+            sessionSummariesByPackage(result.segments).getValue("chess").sessionCount
+        )
     }
 
     @Test
@@ -240,6 +280,10 @@ class ForegroundUsageAggregatorTest {
             it.concurrentAppCount == 2 && it.effectiveCategoryLevel == 3 &&
                 it.effectivePackageName == "youtube"
         })
+        assertEquals(
+            1,
+            sessionSummariesByPackage(result.segments).getValue("duolingo").sessionCount
+        )
     }
 
     @Test

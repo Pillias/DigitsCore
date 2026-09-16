@@ -28,7 +28,7 @@ class DatabaseCategoryMigrationTest {
     }
 
     @Test
-    fun migration13To14CanonicalizesThreeTiersAndInitializesPipFields() {
+    fun migration13To15CanonicalizesThreeTiersAndInitializesSessionFields() {
         helper.createDatabase(databaseName, 13).apply {
             execSQL(
                 "INSERT INTO app_weights(packageName, appName, categoryType, customWeight, isUserModified) " +
@@ -44,18 +44,29 @@ class DatabaseCategoryMigrationTest {
                     "VALUES ('2026-09-16', 'study.app', 'Study', 60000, 1, 0, 60000, 0, 2, 1)"
             )
             execSQL(
+                "INSERT INTO daily_app_usage(dateString, packageName, appName, usageMillis, sessionCount, " +
+                    "shortSessionCount, longestSessionMillis, lateNightUsageMillis, categoryLevel, lastUpdatedTimestamp) " +
+                    "VALUES ('2026-09-16', 'video.app', 'Video', 120000, 47, 40, 60000, 0, 5, 1)"
+            )
+            execSQL(
                 "INSERT INTO foreground_usage_sessions(packageName, startTimeMillis, endTimeMillis, dateString, " +
                     "appName, categoryLevel, isLateNight, lastUpdatedTimestamp) " +
                     "VALUES ('video.app', 1000, 61000, '2026-09-16', 'Video', 5, 0, 1)"
+            )
+            execSQL(
+                "INSERT INTO foreground_usage_sessions(packageName, startTimeMillis, endTimeMillis, dateString, " +
+                    "appName, categoryLevel, isLateNight, lastUpdatedTimestamp) " +
+                    "VALUES ('video.app', 61000, 121000, '2026-09-16', 'Video', 5, 0, 1)"
             )
             close()
         }
 
         val migrated = helper.runMigrationsAndValidate(
             databaseName,
-            14,
+            15,
             true,
-            DigitsDatabase.MIGRATION_13_14
+            DigitsDatabase.MIGRATION_13_14,
+            DigitsDatabase.MIGRATION_14_15
         )
 
         migrated.query(
@@ -77,14 +88,28 @@ class DatabaseCategoryMigrationTest {
             assertEquals(1, cursor.getInt(0))
         }
         migrated.query(
-            "SELECT categoryLevel, effectivePackageName, effectiveCategoryLevel, concurrentAppCount " +
-                "FROM foreground_usage_sessions WHERE packageName = 'video.app'"
+            "SELECT categoryLevel, effectivePackageName, effectiveCategoryLevel, concurrentAppCount, " +
+                "sessionStartTimeMillis " +
+                "FROM foreground_usage_sessions WHERE packageName = 'video.app' " +
+                "ORDER BY startTimeMillis"
         ).use { cursor ->
             cursor.moveToFirst()
             assertEquals(3, cursor.getInt(0))
             assertEquals("video.app", cursor.getString(1))
             assertEquals(3, cursor.getInt(2))
             assertEquals(1, cursor.getInt(3))
+            assertEquals(1_000L, cursor.getLong(4))
+            cursor.moveToNext()
+            assertEquals(1_000L, cursor.getLong(4))
+        }
+        migrated.query(
+            "SELECT sessionCount, shortSessionCount, longestSessionMillis " +
+                "FROM daily_app_usage WHERE packageName = 'video.app'"
+        ).use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(1, cursor.getInt(0))
+            assertEquals(0, cursor.getInt(1))
+            assertEquals(120_000L, cursor.getLong(2))
         }
         migrated.close()
     }

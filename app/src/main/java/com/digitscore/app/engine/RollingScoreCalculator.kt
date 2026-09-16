@@ -12,6 +12,7 @@ data class RollingUsageSession(
     val endTimeMillis: Long,
     val categoryLevel: Int,
     val effectivePackageName: String = packageName,
+    val sessionStartTimeMillis: Long = startTimeMillis,
     val isLateNight: Boolean = false
 )
 

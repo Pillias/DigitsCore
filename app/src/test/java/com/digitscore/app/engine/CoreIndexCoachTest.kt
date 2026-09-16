@@ -28,11 +28,19 @@ class CoreIndexCoachTest {
             detail = detail,
             previousScore = detail.finalScore,
             sessions = sessions,
-            apps = listOf(AppUsage("chat", "Chat", 185_000L, AppCategoryType.DISTRACTING)),
+            apps = listOf(
+                AppUsage(
+                    "chat",
+                    "Chat",
+                    185_000L,
+                    AppCategoryType.DISTRACTING,
+                    sessionCount = 3,
+                    shortSessionCount = 2
+                )
+            ),
             rollingUnlockTimestamps = emptyList(),
             histories = emptyList(),
             nowMillis = now,
-            todayStartMillis = 0L,
             preset = CoreIndexPreset.BALANCED
         )
 
@@ -58,11 +66,18 @@ class CoreIndexCoachTest {
             detail = detail,
             previousScore = detail.finalScore,
             sessions = sessions,
-            apps = listOf(AppUsage("browser", "Browser", 120_000L, AppCategoryType.NEUTRAL)),
+            apps = listOf(
+                AppUsage(
+                    "browser",
+                    "Browser",
+                    120_000L,
+                    AppCategoryType.NEUTRAL,
+                    sessionCount = 1
+                )
+            ),
             rollingUnlockTimestamps = emptyList(),
             histories = emptyList(),
             nowMillis = now,
-            todayStartMillis = 0L,
             preset = CoreIndexPreset.BALANCED
         )
 
@@ -94,7 +109,6 @@ class CoreIndexCoachTest {
             rollingUnlockTimestamps = emptyList(),
             histories = histories,
             nowMillis = 1_000L,
-            todayStartMillis = 0L,
             preset = CoreIndexPreset.BALANCED
         )
 

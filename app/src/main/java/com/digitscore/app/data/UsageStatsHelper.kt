@@ -36,7 +36,8 @@ data class TodayUsageSnapshot(
 
 data class AppSessionSummary(
     val sessionCount: Int,
-    val longestSessionMillis: Long
+    val longestSessionMillis: Long,
+    val shortSessionCount: Int = 0
 )
 
 data class DailyAppUsage(
@@ -61,37 +62,28 @@ data class UnlockInsights(
     val notificationEventsSupported: Boolean
 )
 
-/**
- * PiP·분할 화면의 동시 앱/등급 변화 때문에 저장 조각이 나뉘어도 실제 주 앱을
- * 계속 사용한 구간은 한 번의 실행으로 봅니다. 다른 주 앱이 사이에 끼면 합치지 않습니다.
- */
-internal fun mergePrimaryUsageSegments(
+/** 한 번의 실제 앱 진입에 속한 여러 전면 조각을 세션 ID로 묶어 사용시간을 합칩니다. */
+internal fun sessionDurationsByPackage(
     segments: List<ForegroundUsageSegment>
-): List<ForegroundUsageSegment> {
-    val merged = mutableListOf<ForegroundUsageSegment>()
-    segments.sortedBy { it.startTimeMillis }.forEach { segment ->
-        val previous = merged.lastOrNull()
-        if (previous != null &&
-            previous.packageName == segment.packageName &&
-            segment.startTimeMillis <= previous.endTimeMillis + 1_000L
-        ) {
-            val higherLoadSegment = if (
-                segment.effectiveCategoryLevel > previous.effectiveCategoryLevel
-            ) segment else previous
-            merged[merged.lastIndex] = previous.copy(
-                endTimeMillis = maxOf(previous.endTimeMillis, segment.endTimeMillis),
-                effectivePackageName = higherLoadSegment.effectivePackageName,
-                effectiveCategoryLevel = maxOf(
-                    previous.effectiveCategoryLevel,
-                    segment.effectiveCategoryLevel
-                ),
-                concurrentAppCount = maxOf(previous.concurrentAppCount, segment.concurrentAppCount)
-            )
-        } else {
-            merged += segment
-        }
+): Map<String, List<Long>> = segments
+    .filter { it.durationMillis > 0L }
+    .groupBy { it.packageName }
+    .mapValues { (_, packageSegments) ->
+        packageSegments
+            .groupBy { it.sessionStartTimeMillis }
+            .values
+            .map { sessionSegments -> sessionSegments.sumOf { it.durationMillis } }
+            .sortedDescending()
     }
-    return merged
+
+internal fun sessionSummariesByPackage(
+    segments: List<ForegroundUsageSegment>
+): Map<String, AppSessionSummary> = sessionDurationsByPackage(segments).mapValues { (_, durations) ->
+    AppSessionSummary(
+        sessionCount = durations.size,
+        longestSessionMillis = durations.maxOrNull() ?: 0L,
+        shortSessionCount = durations.count { it < 60_000L }
+    )
 }
 
 object UsageStatsHelper {
@@ -358,10 +350,21 @@ object UsageStatsHelper {
         }
         val todayStart = today.timeInMillis
         val database = DigitsDatabase.getInstance(context)
-        val appSegments = mergePrimaryUsageSegments(database.foregroundUsageSessionDao()
+        val appSegments = database.foregroundUsageSessionDao()
             .getBetween(todayStart, now)
             .filter { it.packageName == packageName }
-            .map { ForegroundUsageSegment(it.packageName, it.startTimeMillis, it.endTimeMillis) })
+            .map {
+                ForegroundUsageSegment(
+                    packageName = it.packageName,
+                    startTimeMillis = it.startTimeMillis,
+                    endTimeMillis = it.endTimeMillis,
+                    effectivePackageName = it.effectivePackageName,
+                    effectiveCategoryLevel = it.effectiveCategoryLevel,
+                    concurrentAppCount = it.concurrentAppCount,
+                    sessionStartTimeMillis = it.sessionStartTimeMillis
+                )
+            }
+        val sessionDurations = sessionDurationsByPackage(appSegments)[packageName].orEmpty()
 
         val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         val cutoff = (today.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -364) }
@@ -381,12 +384,12 @@ object UsageStatsHelper {
                     storedByDate[dateString]?.usageMillis ?: 0L
                 },
                 sessionCount = if (dateString == todayDate) {
-                    appSegments.size
+                    sessionDurations.size
                 } else {
                     storedByDate[dateString]?.sessionCount ?: 0
                 },
                 shortSessionCount = if (dateString == todayDate) {
-                    appSegments.count { it.durationMillis < 60_000L }
+                    sessionDurations.count { it < 60_000L }
                 } else {
                     storedByDate[dateString]?.shortSessionCount ?: 0
                 },
@@ -414,7 +417,7 @@ object UsageStatsHelper {
 
         return AppUsageInsights(
             hourlyUsageMillis = hourly.toList(),
-            sessionDurationsMillis = appSegments.map { it.durationMillis },
+            sessionDurationsMillis = sessionDurations,
             dailyUsage = daily
         )
     }
@@ -571,7 +574,7 @@ object UsageStatsHelper {
         val includedSegments = exclusiveUsage.segments.filter {
             shouldIncludeUsagePackage(it.packageName, it.durationMillis)
         }
-        val primarySessions = mergePrimaryUsageSegments(includedSegments)
+        val sessionSummaries = sessionSummariesByPackage(includedSegments)
 
         for ((pkgName, rawTimeMillis) in exclusiveUsage.usageMillisByPackage) {
             // ForegroundUsageAggregator already clips every segment to the requested
@@ -590,7 +593,7 @@ object UsageStatsHelper {
                 val category = resolveCategory(pm, pkgName, savedEntity)
                 val lateNightTime = (exclusiveUsage.lateNightUsageMillisByPackage[pkgName] ?: 0L)
                     .coerceIn(0L, timeMillis)
-                val packageSegments = primarySessions.filter { it.packageName == pkgName }
+                val summary = sessionSummaries[pkgName]
 
                 result.add(
                     AppUsage(
@@ -600,8 +603,8 @@ object UsageStatsHelper {
                         categoryType = category,
                         lastTimeUsedMillis = exclusiveUsage.lastUsedMillisByPackage[pkgName] ?: 0L,
                         lateNightUsageMillis = lateNightTime,
-                        sessionCount = packageSegments.size,
-                        shortSessionCount = packageSegments.count { it.durationMillis < 60_000L }
+                        sessionCount = summary?.sessionCount ?: 0,
+                        shortSessionCount = summary?.shortSessionCount ?: 0
                     )
                 )
             }
@@ -613,14 +616,7 @@ object UsageStatsHelper {
             assignedUsageMillis = exclusiveUsage.assignedUsageMillis,
             hasForegroundEvidence = exclusiveUsage.hasForegroundEvidence,
             foregroundSegments = includedSegments,
-            sessionSummariesByPackage = primarySessions
-                .groupBy { it.packageName }
-                .mapValues { (_, segments) ->
-                    AppSessionSummary(
-                        sessionCount = segments.size,
-                        longestSessionMillis = segments.maxOfOrNull { it.durationMillis } ?: 0L
-                    )
-                },
+            sessionSummariesByPackage = sessionSummaries,
             observableUnlockedMillis = exclusiveUsage.observableUnlockedMillis,
             endingState = exclusiveUsage.endingState,
             interactionEvents = interactionEvents,
@@ -668,6 +664,7 @@ object UsageStatsHelper {
                 previous.effectivePackageName == segment.effectivePackageName &&
                 previous.effectiveCategoryLevel == segment.effectiveCategoryLevel &&
                 previous.concurrentAppCount == segment.concurrentAppCount &&
+                previous.sessionStartTimeMillis == segment.sessionStartTimeMillis &&
                 segment.startTimeMillis <= previous.endTimeMillis + 1_000L
             ) {
                 segments[segments.lastIndex] = previous.copy(
@@ -680,21 +677,19 @@ object UsageStatsHelper {
         val interactions = (base.interactionEvents + delta.interactionEvents)
             .distinctBy { it.timestampMillis to it.eventType }
             .sortedBy { it.timestampMillis }
-        val primarySessions = mergePrimaryUsageSegments(segments)
+        val sessionSummaries = sessionSummariesByPackage(segments)
         return TodayUsageSnapshot(
             appsUsage = apps.values.map { app ->
-                val appSegments = primarySessions.filter { it.packageName == app.packageName }
+                val summary = sessionSummaries[app.packageName]
                 app.copy(
-                    sessionCount = appSegments.size,
-                    shortSessionCount = appSegments.count { it.durationMillis < 60_000L }
+                    sessionCount = summary?.sessionCount ?: 0,
+                    shortSessionCount = summary?.shortSessionCount ?: 0
                 )
             }.sortedByDescending { it.usageTimeMillis },
             unlockCount = resolvedUnlockTimestamps(interactions).size,
             assignedUsageMillis = base.assignedUsageMillis + delta.assignedUsageMillis,
             hasForegroundEvidence = base.hasForegroundEvidence || delta.hasForegroundEvidence,
-            sessionSummariesByPackage = primarySessions.groupBy { it.packageName }.mapValues { (_, values) ->
-                AppSessionSummary(values.size, values.maxOfOrNull { it.durationMillis } ?: 0L)
-            },
+            sessionSummariesByPackage = sessionSummaries,
             foregroundSegments = segments,
             observableUnlockedMillis = base.observableUnlockedMillis + delta.observableUnlockedMillis,
             endingState = delta.endingState,

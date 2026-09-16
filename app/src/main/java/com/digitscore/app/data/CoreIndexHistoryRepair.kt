@@ -35,6 +35,7 @@ object CoreIndexHistoryRepair {
                         endTimeMillis = session.endTimeMillis,
                         categoryLevel = session.effectiveCategoryLevel,
                         effectivePackageName = session.effectivePackageName,
+                        sessionStartTimeMillis = session.sessionStartTimeMillis,
                         isLateNight = session.isLateNight
                     )
                 }

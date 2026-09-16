@@ -161,17 +161,18 @@ class UsageStatsHelperTest {
     @Test
     fun pipMetadataChanges_doNotSplitThePrimaryAppSession() {
         val segments = listOf(
-            ForegroundUsageSegment("browser", 0L, 30_000L, "browser", 2, 1),
-            ForegroundUsageSegment("browser", 30_000L, 90_000L, "video", 3, 2),
-            ForegroundUsageSegment("browser", 90_000L, 120_000L, "browser", 2, 1)
+            ForegroundUsageSegment("browser", 0L, 30_000L, "browser", 2, 1, 0L),
+            ForegroundUsageSegment("video", 30_000L, 40_000L, "video", 3, 1, 30_000L),
+            ForegroundUsageSegment("browser", 40_000L, 100_000L, "video", 3, 2, 0L),
+            ForegroundUsageSegment("browser", 100_000L, 130_000L, "browser", 2, 1, 0L)
         )
 
-        val merged = mergePrimaryUsageSegments(segments)
+        val durations = sessionDurationsByPackage(segments).getValue("browser")
+        val summary = sessionSummariesByPackage(segments).getValue("browser")
 
-        assertEquals(1, merged.size)
-        assertEquals(120_000L, merged.single().durationMillis)
-        assertEquals("video", merged.single().effectivePackageName)
-        assertEquals(3, merged.single().effectiveCategoryLevel)
-        assertEquals(2, merged.single().concurrentAppCount)
+        assertEquals(listOf(120_000L), durations)
+        assertEquals(1, summary.sessionCount)
+        assertEquals(120_000L, summary.longestSessionMillis)
+        assertEquals(0, summary.shortSessionCount)
     }
 }

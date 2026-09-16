@@ -403,6 +403,7 @@ class TrackerForegroundService : Service() {
                             effectivePackageName = segment.effectivePackageName,
                             effectiveCategoryLevel = segment.effectiveCategoryLevel,
                             concurrentAppCount = segment.concurrentAppCount,
+                            sessionStartTimeMillis = segment.sessionStartTimeMillis,
                             isLateNight = segment.startTimeMillis < lateNightEnd,
                             lastUpdatedTimestamp = now
                         )
@@ -480,6 +481,7 @@ class TrackerForegroundService : Service() {
                             endTimeMillis = session.endTimeMillis,
                             categoryLevel = session.effectiveCategoryLevel,
                             effectivePackageName = session.effectivePackageName,
+                            sessionStartTimeMillis = session.sessionStartTimeMillis,
                             isLateNight = session.isLateNight
                         )
                     }
@@ -523,7 +525,6 @@ class TrackerForegroundService : Service() {
                     ),
                     histories = db.scoreDao().getRecentCoreIndexHistories(14),
                     nowMillis = now,
-                    todayStartMillis = todayStart,
                     preset = coreIndexPreset
                 )
                 ScoreRepository.updateCoreIndexGuidance(guidance)

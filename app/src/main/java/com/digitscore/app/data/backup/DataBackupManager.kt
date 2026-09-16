@@ -26,7 +26,7 @@ import java.util.Locale
 
 object DataBackupManager {
 
-    private const val BACKUP_SCHEMA_VERSION = 7
+    private const val BACKUP_SCHEMA_VERSION = 8
     private const val MAX_BACKUP_BYTES = 20 * 1024 * 1024
     private val DATE_PATTERN = Regex("\\d{4}-\\d{2}-\\d{2}")
     private const val BACKUP_CACHE_MAX_AGE_MILLIS = 24 * 60 * 60 * 1_000L
@@ -167,6 +167,7 @@ object DataBackupManager {
                 put("effectivePackageName", session.effectivePackageName)
                 put("effectiveCategoryLevel", session.effectiveCategoryLevel)
                 put("concurrentAppCount", session.concurrentAppCount)
+                put("sessionStartTimeMillis", session.sessionStartTimeMillis)
                 put("isLateNight", session.isLateNight)
                 put("lastUpdatedTimestamp", session.lastUpdatedTimestamp)
             })
@@ -408,6 +409,8 @@ object DataBackupManager {
                                     backupVersion
                                 ),
                                 concurrentAppCount = obj.optInt("concurrentAppCount", 1).coerceIn(1, 4),
+                                sessionStartTimeMillis = obj.optLong("sessionStartTimeMillis", start)
+                                    .coerceIn(0L, start),
                                 isLateNight = obj.optBoolean("isLateNight", false),
                                 lastUpdatedTimestamp = obj.optLong("lastUpdatedTimestamp", System.currentTimeMillis())
                             )

@@ -47,7 +47,6 @@ object CoreIndexCoach {
         rollingUnlockTimestamps: List<Long>,
         histories: List<DailyScoreHistoryEntity>,
         nowMillis: Long,
-        todayStartMillis: Long,
         preset: CoreIndexPreset
     ): CoreIndexGuidance {
         val appNames = apps.associate { it.packageName to it.appName }
@@ -96,10 +95,6 @@ object CoreIndexCoach {
         val validDays = histories.filter { it.scoreModelVersion >= 2 }.sortedBy { it.dateString }
         val recent = validDays.takeLast(7).map { it.finalScore }
         val previous = validDays.dropLast(recent.size).takeLast(7).map { it.finalScore }
-        val todayPrimarySessions = mergePrimarySessions(
-            sessions.filter { it.endTimeMillis > todayStartMillis }
-        )
-
         return CoreIndexGuidance(
             scoreChange = detail.finalScore - (previousScore ?: detail.finalScore),
             cause = cause,
@@ -108,32 +103,11 @@ object CoreIndexCoach {
             recoveryTargetScore = target.takeIf { recovery != null },
             recoveryMinutes = recovery,
             todayUsageMinutes = apps.sumOf { it.usageTimeMillis } / 60_000L,
-            todayOpenCount = todayPrimarySessions.size,
-            shortOpenCount = todayPrimarySessions.count {
-                it.endTimeMillis - maxOf(it.startTimeMillis, todayStartMillis) in 1 until 60_000L
-            },
+            todayOpenCount = apps.sumOf { it.sessionCount },
+            shortOpenCount = apps.sumOf { it.shortSessionCount },
             recentSevenDayAverage = recent.takeIf { it.isNotEmpty() }?.average()?.roundToInt(),
             previousSevenDayAverage = previous.takeIf { it.isNotEmpty() }?.average()?.roundToInt(),
             recommendation = recommendation
         )
-    }
-
-    /** PiP 점수 등급 변화로만 잘린 동일 주 앱 조각은 새 실행으로 세지 않습니다. */
-    private fun mergePrimarySessions(sessions: List<RollingUsageSession>): List<RollingUsageSession> {
-        val merged = mutableListOf<RollingUsageSession>()
-        sessions.sortedBy { it.startTimeMillis }.forEach { session ->
-            val previous = merged.lastOrNull()
-            if (previous != null &&
-                previous.packageName == session.packageName &&
-                session.startTimeMillis <= previous.endTimeMillis + 1_000L
-            ) {
-                merged[merged.lastIndex] = previous.copy(
-                    endTimeMillis = maxOf(previous.endTimeMillis, session.endTimeMillis)
-                )
-            } else {
-                merged += session
-            }
-        }
-        return merged
     }
 }

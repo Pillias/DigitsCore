@@ -39,7 +39,7 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
         CoreIndexSampleEntity::class,
         DeviceInteractionEventEntity::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = true
 )
 abstract class DigitsDatabase : RoomDatabase() {
@@ -294,6 +294,120 @@ abstract class DigitsDatabase : RoomDatabase() {
                     "CREATE INDEX IF NOT EXISTS `index_foreground_usage_sessions_endTimeMillis` " +
                         "ON `foreground_usage_sessions` (`endTimeMillis`)"
                 )
+
+            }
+        }
+
+        internal val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `foreground_usage_sessions_new` (
+                       `packageName` TEXT NOT NULL,
+                       `startTimeMillis` INTEGER NOT NULL,
+                       `endTimeMillis` INTEGER NOT NULL,
+                       `dateString` TEXT NOT NULL,
+                       `appName` TEXT NOT NULL,
+                       `categoryLevel` INTEGER NOT NULL,
+                       `effectivePackageName` TEXT NOT NULL,
+                       `effectiveCategoryLevel` INTEGER NOT NULL,
+                       `concurrentAppCount` INTEGER NOT NULL,
+                       `sessionStartTimeMillis` INTEGER NOT NULL,
+                       `isLateNight` INTEGER NOT NULL,
+                       `lastUpdatedTimestamp` INTEGER NOT NULL,
+                       PRIMARY KEY(`packageName`, `startTimeMillis`))""".trimIndent()
+                )
+                db.execSQL(
+                    """INSERT INTO `foreground_usage_sessions_new` (
+                       `packageName`, `startTimeMillis`, `endTimeMillis`, `dateString`, `appName`,
+                       `categoryLevel`, `effectivePackageName`, `effectiveCategoryLevel`,
+                       `concurrentAppCount`, `sessionStartTimeMillis`, `isLateNight`, `lastUpdatedTimestamp`)
+                       SELECT `packageName`, `startTimeMillis`, `endTimeMillis`, `dateString`, `appName`,
+                       `categoryLevel`, `effectivePackageName`, `effectiveCategoryLevel`,
+                       `concurrentAppCount`, `startTimeMillis`, `isLateNight`, `lastUpdatedTimestamp`
+                       FROM `foreground_usage_sessions`""".trimIndent()
+                )
+                db.execSQL("DROP TABLE `foreground_usage_sessions`")
+                db.execSQL("ALTER TABLE `foreground_usage_sessions_new` RENAME TO `foreground_usage_sessions`")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_foreground_usage_sessions_dateString` " +
+                        "ON `foreground_usage_sessions` (`dateString`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_foreground_usage_sessions_endTimeMillis` " +
+                        "ON `foreground_usage_sessions` (`endTimeMillis`)"
+                )
+
+                // v14의 전면 조각 수를 실행 횟수로 저장했던 값을 최대한 복구합니다.
+                // 같은 package에서 1초 이내로 이어진 조각은 Activity/PiP 분할로 보고
+                // 동일한 세션 시작 시각을 부여합니다. 새 기록은 ACTIVITY_RESUMED에서
+                // 생성된 정확한 sessionStartTimeMillis를 직접 저장합니다.
+                data class LegacyFragment(
+                    val packageName: String,
+                    val startTimeMillis: Long,
+                    val endTimeMillis: Long
+                )
+                val legacyFragments = mutableListOf<LegacyFragment>()
+                db.query(
+                    """SELECT `packageName`, `startTimeMillis`, `endTimeMillis`
+                       FROM `foreground_usage_sessions`
+                       ORDER BY `packageName`, `startTimeMillis`""".trimIndent()
+                ).use { cursor ->
+                    while (cursor.moveToNext()) {
+                        legacyFragments += LegacyFragment(
+                            packageName = cursor.getString(0),
+                            startTimeMillis = cursor.getLong(1),
+                            endTimeMillis = cursor.getLong(2)
+                        )
+                    }
+                }
+                var previousPackage: String? = null
+                var previousEnd = Long.MIN_VALUE
+                var currentSessionStart = 0L
+                legacyFragments.forEach { fragment ->
+                    val continuesSession = fragment.packageName == previousPackage &&
+                        fragment.startTimeMillis <= previousEnd + 1_000L
+                    if (!continuesSession) currentSessionStart = fragment.startTimeMillis
+                    db.execSQL(
+                        """UPDATE `foreground_usage_sessions`
+                           SET `sessionStartTimeMillis` = ?
+                           WHERE `packageName` = ? AND `startTimeMillis` = ?""".trimIndent(),
+                        arrayOf(currentSessionStart, fragment.packageName, fragment.startTimeMillis)
+                    )
+                    previousPackage = fragment.packageName
+                    previousEnd = if (continuesSession) {
+                        maxOf(previousEnd, fragment.endTimeMillis)
+                    } else {
+                        fragment.endTimeMillis
+                    }
+                }
+
+                data class DailySessionKey(val dateString: String, val packageName: String)
+                val sessionDurations = mutableMapOf<DailySessionKey, MutableList<Long>>()
+                db.query(
+                    """SELECT `dateString`, `packageName`, `sessionStartTimeMillis`,
+                       SUM(`endTimeMillis` - `startTimeMillis`)
+                       FROM `foreground_usage_sessions`
+                       GROUP BY `dateString`, `packageName`, `sessionStartTimeMillis`""".trimIndent()
+                ).use { cursor ->
+                    while (cursor.moveToNext()) {
+                        val key = DailySessionKey(cursor.getString(0), cursor.getString(1))
+                        sessionDurations.getOrPut(key) { mutableListOf() } += cursor.getLong(3)
+                    }
+                }
+                sessionDurations.forEach { (key, durations) ->
+                    db.execSQL(
+                        """UPDATE `daily_app_usage`
+                           SET `sessionCount` = ?, `shortSessionCount` = ?, `longestSessionMillis` = ?
+                           WHERE `dateString` = ? AND `packageName` = ?""".trimIndent(),
+                        arrayOf(
+                            durations.size,
+                            durations.count { it in 1 until 60_000L },
+                            durations.maxOrNull() ?: 0L,
+                            key.dateString,
+                            key.packageName
+                        )
+                    )
+                }
             }
         }
 
@@ -324,7 +438,8 @@ abstract class DigitsDatabase : RoomDatabase() {
                         MIGRATION_10_11,
                         MIGRATION_11_12,
                         MIGRATION_12_13,
-                        MIGRATION_13_14
+                        MIGRATION_13_14,
+                        MIGRATION_14_15
                     )
                     .fallbackToDestructiveMigrationOnDowngrade()
                 if (passphrase != null) {

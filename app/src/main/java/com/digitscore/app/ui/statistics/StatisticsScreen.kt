@@ -385,11 +385,9 @@ internal data class RollingUsageSummary(
     val topAppName: String?
 )
 
-private data class PrimarySessionInterval(
+private data class PrimarySessionKey(
     val packageName: String,
-    val appName: String,
-    val startTimeMillis: Long,
-    val endTimeMillis: Long
+    val sessionStartTimeMillis: Long
 )
 
 internal fun summarizeRollingUsage(
@@ -403,7 +401,7 @@ internal fun summarizeRollingUsage(
     val hourlyManaged = LongArray(24)
     val packageTotals = mutableMapOf<String, Long>()
     val appNames = mutableMapOf<String, String>()
-    val primarySessions = mutableListOf<PrimarySessionInterval>()
+    val primarySessionDurations = mutableMapOf<PrimarySessionKey, Long>()
 
     sessions.sortedBy { it.startTimeMillis }.forEach { session ->
         val start = maxOf(session.startTimeMillis, windowStartMillis)
@@ -414,17 +412,9 @@ internal fun summarizeRollingUsage(
         packageTotals[session.packageName] =
             (packageTotals[session.packageName] ?: 0L) + clippedDuration
         appNames[session.packageName] = session.appName
-        val previousPrimary = primarySessions.lastOrNull()
-        if (previousPrimary != null &&
-            previousPrimary.packageName == session.packageName &&
-            start <= previousPrimary.endTimeMillis + 1_000L
-        ) {
-            primarySessions[primarySessions.lastIndex] = previousPrimary.copy(
-                endTimeMillis = maxOf(previousPrimary.endTimeMillis, end)
-            )
-        } else {
-            primarySessions += PrimarySessionInterval(session.packageName, session.appName, start, end)
-        }
+        val sessionKey = PrimarySessionKey(session.packageName, session.sessionStartTimeMillis)
+        primarySessionDurations[sessionKey] =
+            (primarySessionDurations[sessionKey] ?: 0L) + clippedDuration
 
         var cursor = start
         while (cursor < end) {
@@ -443,14 +433,14 @@ internal fun summarizeRollingUsage(
     }
 
     val topPackage = packageTotals.maxByOrNull { it.value }
-    val longestSession = primarySessions.maxByOrNull { it.endTimeMillis - it.startTimeMillis }
+    val longestSession = primarySessionDurations.maxByOrNull { it.value }
     return RollingUsageSummary(
         totalMillis = hourlyTotal.sum(),
         managedMillis = hourlyManaged.sum(),
         hourlyTotalMillis = hourlyTotal.toList(),
         hourlyManagedMillis = hourlyManaged.toList(),
-        longestSessionMillis = longestSession?.let { it.endTimeMillis - it.startTimeMillis } ?: 0L,
-        longestSessionAppName = longestSession?.appName,
+        longestSessionMillis = longestSession?.value ?: 0L,
+        longestSessionAppName = longestSession?.key?.packageName?.let(appNames::get),
         topAppMillis = topPackage?.value ?: 0L,
         topAppName = topPackage?.key?.let(appNames::get)
     )

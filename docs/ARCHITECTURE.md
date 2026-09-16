@@ -20,7 +20,7 @@ TrackerForegroundService — 화면 켜짐 중 주기 갱신 및 경계 처리
 
 ### 측정
 
-- `UsageStatsHelper`: `UsageStatsManager.queryEvents()`를 해석해 전면 앱 세션, 화면시간, 실제 잠금 해제와 알림 interruption 수를 계산합니다. 0ms보다 긴 모든 전면 세션을 유지합니다.
+- `UsageStatsHelper`: `UsageStatsManager.queryEvents()`를 해석해 전면 앱 세션, 화면시간, 실제 잠금 해제와 알림 interruption 수를 계산합니다. 전면 시간 조각과 실제 앱 진입 세션 ID를 분리해 PiP·Activity 전환이 실행 횟수를 늘리지 않게 합니다.
 - `TrackerForegroundService`: 사용자가 추적을 켠 경우에만 동작합니다. 시작 때 오늘 상태를 한 번 복원하고 이후 마지막 처리 커서 이후 이벤트만 읽습니다. 화면 OFF에서는 반복 계산을 멈추고 화면 전환 이벤트의 시각으로 세션을 닫습니다.
 - `ScreenEventReceiver`, `BootCompletedReceiver`: 화면·잠금 상태와 사용자가 활성화한 추적 복원을 연결합니다.
 - 잠금 해제는 `ACTION_USER_PRESENT`와 `UsageEvents.KEYGUARD_HIDDEN`을 15초 안에서 한 건으로 합칩니다. 단순 화면 켜짐은 잠금 해제로 세지 않으며 누락 구간을 추정하지 않습니다.
@@ -38,9 +38,9 @@ TrackerForegroundService — 화면 켜짐 중 주기 갱신 및 경계 처리
 
 ### 저장
 
-Room 데이터베이스 버전은 v14입니다.
+Room 데이터베이스 버전은 v15입니다.
 
-- `foreground_usage_sessions`: 앱별 상세 시작·종료 구간과 분할 화면·PiP의 유효 점수 등급/동시 표시 앱 수, 30일
+- `foreground_usage_sessions`: 앱별 상세 시작·종료 구간, 실제 앱 진입 세션 시작 시각과 분할 화면·PiP의 유효 점수 등급/동시 표시 앱 수, 30일
 - `core_index_samples`: 화면 ON 상태에서 갱신한 5분 단위 코어 지수·부하·프리셋 표본, 30일
 - `daily_app_usage`: 앱별 일일 사용시간·실행·1분 미만 실행·최장 세션 집계, 365일
 - `daily_usage_coverage`: 날짜별 자체 측정 완료 여부

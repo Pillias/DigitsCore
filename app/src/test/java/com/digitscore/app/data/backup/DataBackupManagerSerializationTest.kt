@@ -5,6 +5,7 @@ import com.digitscore.app.data.entity.DailyAppUsageEntity
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
 import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.data.entity.CoreIndexSampleEntity
+import com.digitscore.app.data.entity.ForegroundUsageSessionEntity
 import com.digitscore.app.model.AppCategoryType
 import org.junit.Assert.*
 import org.junit.Test
@@ -13,6 +14,23 @@ import org.junit.Test
  * DataBackupManager의 데이터 모델 및 백업 형식 검증 테스트 (Pure Kotlin)
  */
 class DataBackupManagerSerializationTest {
+
+    @Test
+    fun foregroundFragmentPreservesRealOpenSessionId() {
+        val record = ForegroundUsageSessionEntity(
+            packageName = "com.chess",
+            startTimeMillis = 20_000L,
+            endTimeMillis = 30_000L,
+            dateString = "2026-09-16",
+            appName = "Chess",
+            categoryLevel = 3,
+            sessionStartTimeMillis = 1_000L,
+            isLateNight = false
+        )
+
+        assertEquals(1_000L, record.sessionStartTimeMillis)
+        assertEquals(20_000L, record.startTimeMillis)
+    }
 
     @Test
     fun coreIndexSamplePreservesIntradayFields() {
