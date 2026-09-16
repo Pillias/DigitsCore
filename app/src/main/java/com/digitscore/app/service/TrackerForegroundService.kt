@@ -558,6 +558,9 @@ class TrackerForegroundService : Service() {
                     managedMinutes = scoreDetail.distractingTimeMinutes,
                     unlockCount = finalUnlockCount,
                     flow = rollingScoreDetail.flow,
+                    continuousUsageMinutes = rollingScoreDetail.continuousUsageMinutes,
+                    recommendation = guidance.recommendation,
+                    recoveryMinutes = guidance.recoveryMinutes,
                     updatedAtMillis = now
                 ).sanitized()
                 val snapshotPersisted = WidgetSnapshotStore.write(
@@ -589,7 +592,8 @@ class TrackerForegroundService : Service() {
                         finalUnlockCount,
                         settings?.hideSensitiveNotificationOnLockScreen ?: true,
                         rollingScoreDetail,
-                        StatusIconStyle.fromId(settings?.statusIconStyleId)
+                        StatusIconStyle.fromId(settings?.statusIconStyleId),
+                        guidance
                     )
                     // 단순 notify 갱신 대신 foreground 연결을 다시 확인해 OEM 재시작이나
                     // 일시적인 알림 제거 뒤에도 상태 아이콘이 복원되도록 합니다.

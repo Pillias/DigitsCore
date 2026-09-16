@@ -12,6 +12,9 @@ import com.digitscore.app.R
 import com.digitscore.app.engine.ScoreDetail
 import com.digitscore.app.engine.RollingScoreDetail
 import com.digitscore.app.engine.ScoreGrade
+import com.digitscore.app.engine.CoreIndexCause
+import com.digitscore.app.engine.CoreIndexGuidance
+import com.digitscore.app.engine.CoreIndexRecommendation
 import com.digitscore.app.i18n.AppLocale
 import com.digitscore.app.i18n.localizedGrade
 import com.digitscore.app.i18n.localizedGradeDescription
@@ -73,6 +76,7 @@ object ScoreNotificationManager {
         } ?: strings.getString(R.string.guidance_notification_break, threshold)
         val notification = NotificationCompat.Builder(context, GUIDANCE_CHANNEL_ID)
             .setSmallIcon(DynamicIconGenerator.createScoreIconCompat(context, score, StatusIconStyle.BIG_NUMBER))
+            .setColor(DynamicIconGenerator.statusIconScoreColor(context, score))
             .setContentTitle(strings.getString(R.string.guidance_notification_title, score))
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
@@ -91,7 +95,8 @@ object ScoreNotificationManager {
         unlockCount: Int,
         hideSensitiveOnLockScreen: Boolean = true,
         rollingScoreDetail: RollingScoreDetail? = null,
-        statusIconStyle: StatusIconStyle = StatusIconStyle.BIG_NUMBER
+        statusIconStyle: StatusIconStyle = StatusIconStyle.BIG_NUMBER,
+        guidance: CoreIndexGuidance? = null
     ): Notification {
         val strings = AppLocale.stringsContext(context)
         val launchIntent = Intent(context, MainActivity::class.java).apply {
@@ -122,16 +127,34 @@ object ScoreNotificationManager {
             unlockCount,
             formatMinutesToHoursAndMinutes(strings, scoreDetail.distractingTimeMinutes)
         )
+        val keyMessage = notificationActionMessage(strings, guidance, grade)
+        val causeMessage = notificationCauseMessage(strings, guidance)
+        val recoveryMessage = guidance?.recoveryMinutes?.let { minutes ->
+            guidance.recoveryTargetScore?.let { target ->
+                strings.getString(R.string.notification_recovery_forecast, minutes, target)
+            }
+        }
+        val expandedText = buildList {
+            add("${strings.getString(R.string.notification_key_label)} · $keyMessage")
+            causeMessage?.takeIf { it.isNotBlank() }?.let(::add)
+            recoveryMessage?.takeIf { it.isNotBlank() }?.let(::add)
+            add("")
+            add(contentText)
+        }.joinToString("\n")
 
         val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, score, statusIconStyle)
+        val iconColor = DynamicIconGenerator.statusIconScoreColor(context, score)
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(iconCompat)
+            .setColor(iconColor)
             .setContentTitle(title)
-            .setContentText(contentText)
+            .setContentText(keyMessage)
+            .setSubText(contentText)
             .setStyle(
                 NotificationCompat.BigTextStyle()
-                    .bigText("$contentText\n\n💡 ${strings.localizedGradeDescription(grade)}")
+                    .bigText(expandedText)
+                    .setSummaryText(contentText)
             )
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -152,6 +175,7 @@ object ScoreNotificationManager {
             builder.setPublicVersion(
                 NotificationCompat.Builder(context, CHANNEL_ID)
                     .setSmallIcon(iconCompat)
+                    .setColor(iconColor)
                     .setContentTitle(strings.getString(R.string.tracking_active))
                     .setContentText(strings.getString(R.string.unlock_for_details))
                     .setOngoing(true)
@@ -172,7 +196,8 @@ object ScoreNotificationManager {
         unlockCount: Int,
         hideSensitiveOnLockScreen: Boolean = true,
         rollingScoreDetail: RollingScoreDetail? = null,
-        statusIconStyle: StatusIconStyle = StatusIconStyle.BIG_NUMBER
+        statusIconStyle: StatusIconStyle = StatusIconStyle.BIG_NUMBER,
+        guidance: CoreIndexGuidance? = null
     ) {
         val notification = buildScoreNotification(
             context,
@@ -180,7 +205,8 @@ object ScoreNotificationManager {
             unlockCount,
             hideSensitiveOnLockScreen,
             rollingScoreDetail,
-            statusIconStyle
+            statusIconStyle,
+            guidance
         )
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(NOTIFICATION_ID, notification)
@@ -194,5 +220,49 @@ object ScoreNotificationManager {
             hours > 0 -> context.getString(R.string.format_hours, hours)
             else -> context.getString(R.string.format_minutes, mins)
         }
+    }
+
+    private fun notificationActionMessage(
+        strings: Context,
+        guidance: CoreIndexGuidance?,
+        grade: ScoreGrade
+    ): String = when (guidance?.recommendation) {
+        CoreIndexRecommendation.TAKE_TEN_MINUTE_BREAK ->
+            strings.getString(R.string.notification_action_ten_minute_break)
+        CoreIndexRecommendation.TAKE_QUIET_BREAK ->
+            strings.getString(R.string.notification_action_quiet_break)
+        CoreIndexRecommendation.BATCH_PHONE_CHECKS ->
+            strings.getString(R.string.notification_action_batch_checks)
+        CoreIndexRecommendation.WIND_DOWN ->
+            strings.getString(R.string.notification_action_wind_down)
+        CoreIndexRecommendation.KEEP_BALANCE ->
+            strings.getString(R.string.notification_action_keep_balance)
+        null -> strings.localizedGradeDescription(grade)
+    }
+
+    private fun notificationCauseMessage(
+        strings: Context,
+        guidance: CoreIndexGuidance?
+    ): String? = when (guidance?.cause) {
+        CoreIndexCause.CALIBRATING -> strings.getString(R.string.notification_cause_calibrating)
+        CoreIndexCause.CONTINUOUS_USE -> strings.getString(
+            R.string.notification_cause_continuous,
+            guidance.continuousUsageMinutes.coerceAtLeast(1L)
+        )
+        CoreIndexCause.MANAGED_APP_USE -> guidance.leadingAppName?.let {
+            strings.getString(
+                R.string.notification_cause_managed,
+                it,
+                guidance.leadingAppMinutes
+            )
+        }
+        CoreIndexCause.FREQUENT_UNLOCKS -> strings.getString(
+            R.string.notification_cause_unlocks,
+            guidance.rollingUnlockCount,
+            guidance.shortOpenCount
+        )
+        CoreIndexCause.RECOVERING -> strings.getString(R.string.notification_cause_recovering)
+        CoreIndexCause.STEADY -> strings.getString(R.string.notification_cause_steady)
+        null -> null
     }
 }

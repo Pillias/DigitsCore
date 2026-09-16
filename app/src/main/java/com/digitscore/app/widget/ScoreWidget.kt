@@ -3,6 +3,7 @@ package com.digitscore.app.widget
 import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -31,6 +32,7 @@ import androidx.glance.layout.size
 import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
+import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.digitscore.app.R
@@ -38,6 +40,7 @@ import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.data.ScoreRepository
 import com.digitscore.app.engine.ScoreFlow
 import com.digitscore.app.engine.ScoreGrade
+import com.digitscore.app.engine.CoreIndexRecommendation
 import com.digitscore.app.i18n.AppLocale
 import com.digitscore.app.i18n.localizedGrade
 import com.digitscore.app.notification.DynamicIconGenerator
@@ -70,7 +73,7 @@ class ScoreWidget : GlanceAppWidget() {
             ?: scoreDetail?.distractingTimeMinutes
             ?: 0L
         val backgroundStyle = WidgetBackgroundStyle.fromId(settings?.widgetBackgroundStyleId)
-        val palette = WidgetPalette.forStyle(backgroundStyle)
+        val palette = WidgetPalette.forStyle(backgroundStyle, score)
         val scoreBitmap = DynamicIconGenerator.createScoreBitmapIcon(
             context, score, StatusIconStyle.SCORE_PROPORTION
         )
@@ -85,6 +88,15 @@ class ScoreWidget : GlanceAppWidget() {
                 ScoreFlow.CALIBRATING, null -> R.string.widget_state_calibrating
             }
         )
+        val keyMessage = widgetKeyMessage(
+            strings = strings,
+            recommendation = persistedSnapshot?.recommendation,
+            recoveryMinutes = persistedSnapshot?.recoveryMinutes,
+            fallback = stateText
+        )
+        val continuousMinutes = persistedSnapshot?.continuousUsageMinutes
+            ?: rollingScoreDetail?.continuousUsageMinutes
+            ?: 0L
         val accessibility = strings.getString(
             R.string.widget_accessibility, score, localizedGrade, screenTime, unlockCount
         )
@@ -95,7 +107,8 @@ class ScoreWidget : GlanceAppWidget() {
                 when {
                     currentSize.width >= 105.dp && currentSize.height >= 105.dp -> LargeWidget(
                         scoreBitmap, score, localizedGrade, screenTime, unlockCount, managedTime,
-                        stateText, accessibility, palette, strings
+                        continuousMinutes, keyMessage, accessibility, palette, strings,
+                        currentSize.width
                     )
                     currentSize.width >= 100.dp || currentSize.height >= 100.dp -> MediumWidget(
                         scoreBitmap, localizedGrade, screenTime, accessibility, palette,
@@ -112,18 +125,22 @@ private data class WidgetPalette(
     val background: Color,
     val primary: Color,
     val secondary: Color,
-    val chip: Color
+    val chip: Color,
+    val accent: Color
 ) {
     companion object {
-        fun forStyle(style: WidgetBackgroundStyle): WidgetPalette = when (style) {
+        fun forStyle(style: WidgetBackgroundStyle, score: Int): WidgetPalette = when (style) {
             WidgetBackgroundStyle.DARK -> WidgetPalette(
-                Color(0xFF1A1E24), Color.White, Color(0xFFD1D5DB), Color(0xFF282D35)
+                Color(0xFF1A1E24), Color.White, Color(0xFFD1D5DB), Color(0xFF282D35),
+                darkWidgetAccent(score)
             )
             WidgetBackgroundStyle.WHITE -> WidgetPalette(
-                Color.White, Color(0xFF17191D), Color(0xFF5F6368), Color(0xFFF1F3F4)
+                Color.White, Color(0xFF17191D), Color(0xFF5F6368), Color(0xFFF3F0FA),
+                lightWidgetAccent(score)
             )
             WidgetBackgroundStyle.TRANSPARENT -> WidgetPalette(
-                Color.Transparent, Color.White, Color.White, Color(0x99000000)
+                Color.Transparent, Color.White, Color.White, Color(0xB3000000),
+                darkWidgetAccent(score)
             )
         }
     }
@@ -194,32 +211,55 @@ private fun LargeWidget(
     screenTime: String,
     unlockCount: Int,
     managedTime: String,
-    stateText: String,
+    continuousMinutes: Long,
+    keyMessage: String,
     accessibility: String,
     palette: WidgetPalette,
-    strings: Context
+    strings: Context,
+    widgetWidth: Dp
 ) {
     Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Gauge(scoreBitmap, accessibility, 62)
-        Spacer(GlanceModifier.width(6.dp))
+        Gauge(scoreBitmap, accessibility, 72)
+        Spacer(GlanceModifier.width(8.dp))
         Column {
-            Text(strings.getString(R.string.widget_index), style = widgetTextStyle(palette.secondary, 10), maxLines = 1)
-            Text("$score · $grade", style = widgetTextStyle(palette.primary, 12, FontWeight.Bold), maxLines = 1)
+            Text(
+                strings.getString(R.string.widget_index_24h),
+                style = widgetTextStyle(palette.secondary, 10, FontWeight.Medium),
+                maxLines = 1
+            )
+            Text(
+                grade,
+                style = widgetTextStyle(palette.accent, 14, FontWeight.Bold),
+                maxLines = 1
+            )
+            Text(
+                if (continuousMinutes > 0L) {
+                    strings.getString(R.string.widget_continuous, continuousMinutes)
+                } else {
+                    strings.getString(R.string.widget_score_points, score)
+                },
+                style = widgetTextStyle(palette.secondary, 9),
+                maxLines = 1
+            )
         }
     }
-    Spacer(GlanceModifier.height(5.dp))
-    StatLine(strings.getString(R.string.widget_screen), screenTime, palette)
-    StatLine(
-        strings.getString(R.string.widget_unlocks),
-        strings.getString(R.string.unlock_count_short, unlockCount),
-        palette
-    )
-    StatLine(strings.getString(R.string.widget_managed), managedTime, palette)
-    Spacer(GlanceModifier.height(4.dp))
+    Spacer(GlanceModifier.height(6.dp))
+    val metricWidth = ((widgetWidth - 20.dp) / 3).coerceAtLeast(28.dp)
+    Row(modifier = GlanceModifier.fillMaxWidth()) {
+        StatMetric(strings.getString(R.string.widget_screen), screenTime, palette, metricWidth)
+        StatMetric(
+            strings.getString(R.string.widget_unlocks),
+            strings.getString(R.string.unlock_count_short, unlockCount),
+            palette,
+            metricWidth
+        )
+        StatMetric(strings.getString(R.string.widget_managed), managedTime, palette, metricWidth)
+    }
+    Spacer(GlanceModifier.height(6.dp))
     Text(
-        stateText,
-        modifier = GlanceModifier.fillMaxWidth().background(palette.chip).cornerRadius(7.dp).padding(5.dp),
-        style = widgetTextStyle(palette.primary, 9),
+        keyMessage,
+        modifier = GlanceModifier.fillMaxWidth().background(palette.chip).cornerRadius(9.dp).padding(7.dp),
+        style = widgetTextStyle(palette.primary, 10, FontWeight.Medium),
         maxLines = 2
     )
 }
@@ -235,18 +275,67 @@ private fun Gauge(bitmap: android.graphics.Bitmap, accessibility: String, size: 
 }
 
 @Composable
-private fun StatLine(label: String, value: String, palette: WidgetPalette) {
-    Row(modifier = GlanceModifier.fillMaxWidth()) {
-        Text("$label  ", style = widgetTextStyle(palette.secondary, 9), maxLines = 1)
-        Text(value, style = widgetTextStyle(palette.primary, 10, FontWeight.Bold), maxLines = 1)
+private fun StatMetric(label: String, value: String, palette: WidgetPalette, width: Dp) {
+    Column(
+        modifier = GlanceModifier.width(width),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            label,
+            style = widgetTextStyle(palette.secondary, 8),
+            maxLines = 1
+        )
+        Text(
+            value,
+            style = widgetTextStyle(palette.primary, 10, FontWeight.Bold, TextAlign.Center),
+            maxLines = 1
+        )
     }
 }
 
 private fun widgetTextStyle(
     color: Color,
     fontSize: Int,
-    fontWeight: FontWeight? = null
-) = TextStyle(color = ColorProvider(color), fontSize = fontSize.sp, fontWeight = fontWeight)
+    fontWeight: FontWeight? = null,
+    textAlign: TextAlign? = null
+) = TextStyle(
+    color = ColorProvider(color),
+    fontSize = fontSize.sp,
+    fontWeight = fontWeight,
+    textAlign = textAlign
+)
+
+private fun widgetKeyMessage(
+    strings: Context,
+    recommendation: CoreIndexRecommendation?,
+    recoveryMinutes: Int?,
+    fallback: String
+): String = when (recommendation) {
+    CoreIndexRecommendation.TAKE_TEN_MINUTE_BREAK ->
+        strings.getString(R.string.widget_action_ten_minute_break)
+    CoreIndexRecommendation.TAKE_QUIET_BREAK -> recoveryMinutes?.let {
+        strings.getString(R.string.widget_action_recovery, it)
+    } ?: strings.getString(R.string.widget_action_quiet_break)
+    CoreIndexRecommendation.BATCH_PHONE_CHECKS ->
+        strings.getString(R.string.widget_action_batch_checks)
+    CoreIndexRecommendation.WIND_DOWN -> strings.getString(R.string.widget_action_wind_down)
+    CoreIndexRecommendation.KEEP_BALANCE -> strings.getString(R.string.widget_action_keep_balance)
+    null -> fallback
+}
+
+private fun lightWidgetAccent(score: Int): Color = when {
+    score >= 80 -> Color(0xFF14804A)
+    score >= 60 -> Color(0xFFA86400)
+    score >= 40 -> Color(0xFFC94F00)
+    else -> Color(0xFFC62828)
+}
+
+private fun darkWidgetAccent(score: Int): Color = when {
+    score >= 80 -> Color(0xFF49E291)
+    score >= 60 -> Color(0xFFFFD54F)
+    score >= 40 -> Color(0xFFFFA05A)
+    else -> Color(0xFFFF6B62)
+}
 
 private fun formatMinutes(context: Context, totalMinutes: Long): String {
     val hours = totalMinutes / 60

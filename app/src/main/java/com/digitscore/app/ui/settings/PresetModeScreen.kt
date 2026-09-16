@@ -605,7 +605,7 @@ fun PresetModeScreen(
                         Text(
                             text = when (selectedIconStyle) {
                                 StatusIconStyle.BIG_NUMBER ->
-                                    "큰 점수와 얇은 전원 원호를 밝은·어두운 시스템 모드에 대비되는 단색으로 표시합니다."
+                                    "큰 점수 크기는 유지하고, 점수 구간에 맞는 고대비 단색으로 숫자와 전원 원호를 표시합니다."
                                 StatusIconStyle.SCORE_PROPORTION ->
                                     "빨간 원호 위를 현재 점수만큼 녹색이 채웁니다. 중앙 막대는 점수 구간색으로 바뀝니다."
                                 StatusIconStyle.SCORE_TIER ->

@@ -34,10 +34,10 @@ object DynamicIconGenerator {
         val tierColor = scoreTierColor(normalizedScore)
 
         if (style == StatusIconStyle.BIG_NUMBER) {
-            // 기존 big_number 저장값은 유지하되, 남는 상·하단 여백에 얇은
-            // 전원 버튼 실루엣을 넣어 단색 상태바에서도 DigitsCore를 식별합니다.
-            val contrastColor = statusIconContrastColor(context.resources.configuration.uiMode)
-            drawCoreNumberFrame(canvas, size, contrastColor)
+            // 숫자 크기는 유지하면서 점수 구간색 하나로 숫자와 전원 실루엣을 묶습니다.
+            // 밝은·어두운 시스템 모드별로 명도를 달리해 배경 대비를 확보합니다.
+            val statusColor = statusIconScoreColor(context, normalizedScore)
+            drawCoreNumberFrame(canvas, size, statusColor)
             drawScoreText(
                 canvas = canvas,
                 size = size,
@@ -46,7 +46,7 @@ object DynamicIconGenerator {
                 centerY = size * 0.59f,
                 maxWidth = size * 0.86f,
                 scaleForDigits = floatArrayOf(0.90f, 0.82f, 0.58f),
-                solidColor = contrastColor
+                solidColor = statusColor
             )
             return bitmap
         }
@@ -216,12 +216,25 @@ object DynamicIconGenerator {
     )
 
     @ColorInt
-    internal fun statusIconContrastColor(uiMode: Int): Int =
-        if (uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES) {
-            Color.WHITE
-        } else {
-            Color.BLACK
-        }
+    internal fun statusIconScoreColor(context: Context, score: Int): Int =
+        statusIconScoreColor(score, context.resources.configuration.uiMode)
+
+    @ColorInt
+    internal fun statusIconScoreColor(score: Int, uiMode: Int): Int {
+        val darkMode = uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+        return Color.parseColor(
+            when {
+                darkMode && score >= 80 -> "#49E291"
+                darkMode && score >= 60 -> "#FFD54F"
+                darkMode && score >= 40 -> "#FFA05A"
+                darkMode -> "#FF6B62"
+                score >= 80 -> "#087A46"
+                score >= 60 -> "#9A6200"
+                score >= 40 -> "#C34A00"
+                else -> "#C62828"
+            }
+        )
+    }
 
     fun createScoreIconCompat(
         context: Context,

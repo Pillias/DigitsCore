@@ -1,6 +1,7 @@
 package com.digitscore.app.widget
 
 import com.digitscore.app.engine.ScoreFlow
+import com.digitscore.app.engine.CoreIndexRecommendation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -15,13 +16,18 @@ class WidgetSnapshotTest {
             managedMinutes = -1,
             unlockCount = -3,
             flow = ScoreFlow.USING,
-            updatedAtMillis = -1
+            updatedAtMillis = -1,
+            continuousUsageMinutes = -8,
+            recommendation = CoreIndexRecommendation.TAKE_QUIET_BREAK,
+            recoveryMinutes = 500
         ).sanitized()
 
         assertEquals(100, sanitized.score)
         assertEquals(0L, sanitized.screenMinutes)
         assertEquals(0L, sanitized.managedMinutes)
         assertEquals(0, sanitized.unlockCount)
+        assertEquals(0L, sanitized.continuousUsageMinutes)
+        assertEquals(180, sanitized.recoveryMinutes)
         assertEquals(0L, sanitized.updatedAtMillis)
     }
 
@@ -32,5 +38,10 @@ class WidgetSnapshotTest {
         assertFalse(first.copy(screenMinutes = 62).hasSameDisplayedValues(first))
         assertFalse(first.copy(unlockCount = 15).hasSameDisplayedValues(first))
         assertFalse(first.copy(flow = ScoreFlow.RECOVERING).hasSameDisplayedValues(first))
+        assertFalse(first.copy(continuousUsageMinutes = 3).hasSameDisplayedValues(first))
+        assertFalse(
+            first.copy(recommendation = CoreIndexRecommendation.TAKE_TEN_MINUTE_BREAK)
+                .hasSameDisplayedValues(first)
+        )
     }
 }

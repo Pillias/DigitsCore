@@ -1,6 +1,7 @@
 package com.digitscore.app.widget
 
 import android.content.Context
+import com.digitscore.app.engine.CoreIndexRecommendation
 import com.digitscore.app.engine.ScoreFlow
 
 /**
@@ -13,13 +14,18 @@ data class WidgetSnapshot(
     val managedMinutes: Long,
     val unlockCount: Int,
     val flow: ScoreFlow,
-    val updatedAtMillis: Long
+    val updatedAtMillis: Long,
+    val continuousUsageMinutes: Long = 0L,
+    val recommendation: CoreIndexRecommendation = CoreIndexRecommendation.KEEP_BALANCE,
+    val recoveryMinutes: Int? = null
 ) {
     fun sanitized(): WidgetSnapshot = copy(
         score = score.coerceIn(1, 100),
         screenMinutes = screenMinutes.coerceAtLeast(0L),
         managedMinutes = managedMinutes.coerceAtLeast(0L),
         unlockCount = unlockCount.coerceAtLeast(0),
+        continuousUsageMinutes = continuousUsageMinutes.coerceAtLeast(0L),
+        recoveryMinutes = recoveryMinutes?.coerceIn(5, 180),
         updatedAtMillis = updatedAtMillis.coerceAtLeast(0L)
     )
 
@@ -29,7 +35,10 @@ data class WidgetSnapshot(
             screenMinutes == other.screenMinutes &&
             managedMinutes == other.managedMinutes &&
             unlockCount == other.unlockCount &&
-            flow == other.flow
+            flow == other.flow &&
+            continuousUsageMinutes == other.continuousUsageMinutes &&
+            recommendation == other.recommendation &&
+            recoveryMinutes == other.recoveryMinutes
 }
 
 object WidgetSnapshotStore {
@@ -40,6 +49,9 @@ object WidgetSnapshotStore {
     private const val KEY_MANAGED_MINUTES = "managed_minutes"
     private const val KEY_UNLOCK_COUNT = "unlock_count"
     private const val KEY_FLOW = "flow"
+    private const val KEY_CONTINUOUS_USAGE_MINUTES = "continuous_usage_minutes"
+    private const val KEY_RECOMMENDATION = "recommendation"
+    private const val KEY_RECOVERY_MINUTES = "recovery_minutes"
     private const val KEY_UPDATED_AT = "updated_at"
 
     fun write(context: Context, snapshot: WidgetSnapshot): Boolean {
@@ -53,6 +65,12 @@ object WidgetSnapshotStore {
             .putLong(KEY_MANAGED_MINUTES, value.managedMinutes)
             .putInt(KEY_UNLOCK_COUNT, value.unlockCount)
             .putString(KEY_FLOW, value.flow.name)
+            .putLong(KEY_CONTINUOUS_USAGE_MINUTES, value.continuousUsageMinutes)
+            .putString(KEY_RECOMMENDATION, value.recommendation.name)
+            .apply {
+                value.recoveryMinutes?.let { putInt(KEY_RECOVERY_MINUTES, it) }
+                    ?: remove(KEY_RECOVERY_MINUTES)
+            }
             .putLong(KEY_UPDATED_AT, value.updatedAtMillis)
             .commit()
     }
@@ -64,12 +82,22 @@ object WidgetSnapshotStore {
         val flow = runCatching {
             ScoreFlow.valueOf(preferences.getString(KEY_FLOW, null).orEmpty())
         }.getOrDefault(ScoreFlow.CALIBRATING)
+        val recommendation = runCatching {
+            CoreIndexRecommendation.valueOf(
+                preferences.getString(KEY_RECOMMENDATION, null).orEmpty()
+            )
+        }.getOrDefault(CoreIndexRecommendation.KEEP_BALANCE)
         return WidgetSnapshot(
             score = preferences.getInt(KEY_SCORE, 80),
             screenMinutes = preferences.getLong(KEY_SCREEN_MINUTES, 0L),
             managedMinutes = preferences.getLong(KEY_MANAGED_MINUTES, 0L),
             unlockCount = preferences.getInt(KEY_UNLOCK_COUNT, 0),
             flow = flow,
+            continuousUsageMinutes = preferences.getLong(KEY_CONTINUOUS_USAGE_MINUTES, 0L),
+            recommendation = recommendation,
+            recoveryMinutes = if (preferences.contains(KEY_RECOVERY_MINUTES)) {
+                preferences.getInt(KEY_RECOVERY_MINUTES, 0)
+            } else null,
             updatedAtMillis = preferences.getLong(KEY_UPDATED_AT, 0L)
         ).sanitized()
     }

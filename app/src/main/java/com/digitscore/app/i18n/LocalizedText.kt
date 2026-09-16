@@ -483,8 +483,8 @@ object UiTranslator {
         "전원 단계형" to "Power Tier",
         "단계 단색형" to "Single-color Tier",
         "숫자 분리형" to "Separated Number",
-        "큰 점수와 얇은 전원 원호를 밝은·어두운 시스템 모드에 대비되는 단색으로 표시합니다." to
-            "Shows the large score and slim power arc in one color contrasting with the light or dark system mode.",
+        "큰 점수 크기는 유지하고, 점수 구간에 맞는 고대비 단색으로 숫자와 전원 원호를 표시합니다." to
+            "Keeps the large score and uses one high-contrast tier color for both the number and power arc.",
         "빨간 원호 위를 현재 점수만큼 녹색이 채웁니다. 중앙 막대는 점수 구간색으로 바뀝니다." to
             "Green fills the red arc in proportion to the current score. The center stem follows the score tier color.",
         "전원 버튼 전체가 점수 구간에 따라 빨강·주황·노랑·초록으로 바뀝니다." to
