@@ -1,0 +1,647 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 15,
+    "identityHash": "cdbcba6776383f92cf9003ce6059e1fc",
+    "entities": [
+      {
+        "tableName": "app_weights",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`packageName` TEXT NOT NULL, `appName` TEXT NOT NULL, `categoryType` TEXT NOT NULL, `customWeight` REAL, `isUserModified` INTEGER NOT NULL, PRIMARY KEY(`packageName`))",
+        "fields": [
+          {
+            "fieldPath": "packageName",
+            "columnName": "packageName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "appName",
+            "columnName": "appName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "categoryType",
+            "columnName": "categoryType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "customWeight",
+            "columnName": "customWeight",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "isUserModified",
+            "columnName": "isUserModified",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "packageName"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "daily_app_usage",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`dateString` TEXT NOT NULL, `packageName` TEXT NOT NULL, `appName` TEXT NOT NULL, `usageMillis` INTEGER NOT NULL, `sessionCount` INTEGER NOT NULL, `shortSessionCount` INTEGER NOT NULL DEFAULT 0, `longestSessionMillis` INTEGER NOT NULL, `lateNightUsageMillis` INTEGER NOT NULL, `categoryLevel` INTEGER NOT NULL, `lastUpdatedTimestamp` INTEGER NOT NULL, PRIMARY KEY(`dateString`, `packageName`))",
+        "fields": [
+          {
+            "fieldPath": "dateString",
+            "columnName": "dateString",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "packageName",
+            "columnName": "packageName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "appName",
+            "columnName": "appName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "usageMillis",
+            "columnName": "usageMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionCount",
+            "columnName": "sessionCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "shortSessionCount",
+            "columnName": "shortSessionCount",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "longestSessionMillis",
+            "columnName": "longestSessionMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lateNightUsageMillis",
+            "columnName": "lateNightUsageMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "categoryLevel",
+            "columnName": "categoryLevel",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUpdatedTimestamp",
+            "columnName": "lastUpdatedTimestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "dateString",
+            "packageName"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_daily_app_usage_packageName",
+            "unique": false,
+            "columnNames": [
+              "packageName"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_daily_app_usage_packageName` ON `${TABLE_NAME}` (`packageName`)"
+          },
+          {
+            "name": "index_daily_app_usage_dateString",
+            "unique": false,
+            "columnNames": [
+              "dateString"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_daily_app_usage_dateString` ON `${TABLE_NAME}` (`dateString`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "daily_usage_coverage",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`dateString` TEXT NOT NULL, `isComplete` INTEGER NOT NULL, `lastUpdatedTimestamp` INTEGER NOT NULL, PRIMARY KEY(`dateString`))",
+        "fields": [
+          {
+            "fieldPath": "dateString",
+            "columnName": "dateString",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isComplete",
+            "columnName": "isComplete",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUpdatedTimestamp",
+            "columnName": "lastUpdatedTimestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "dateString"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "daily_score_history",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`dateString` TEXT NOT NULL, `finalScore` INTEGER NOT NULL, `totalScreenTimeMinutes` INTEGER NOT NULL, `distractingTimeMinutes` INTEGER NOT NULL, `productiveTimeMinutes` INTEGER NOT NULL, `idleMinutes` INTEGER NOT NULL, `unlockCount` INTEGER NOT NULL, `scoreModelVersion` INTEGER NOT NULL, `coreIndexPresetId` TEXT NOT NULL, `lastUpdatedTimestamp` INTEGER NOT NULL, PRIMARY KEY(`dateString`))",
+        "fields": [
+          {
+            "fieldPath": "dateString",
+            "columnName": "dateString",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "finalScore",
+            "columnName": "finalScore",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalScreenTimeMinutes",
+            "columnName": "totalScreenTimeMinutes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "distractingTimeMinutes",
+            "columnName": "distractingTimeMinutes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "productiveTimeMinutes",
+            "columnName": "productiveTimeMinutes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "idleMinutes",
+            "columnName": "idleMinutes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unlockCount",
+            "columnName": "unlockCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scoreModelVersion",
+            "columnName": "scoreModelVersion",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "coreIndexPresetId",
+            "columnName": "coreIndexPresetId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUpdatedTimestamp",
+            "columnName": "lastUpdatedTimestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "dateString"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "user_settings",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `selectedPresetModeId` TEXT NOT NULL, `selectedCoreIndexPresetId` TEXT NOT NULL, `minimumScoreDefenseLine` INTEGER NOT NULL, `targetUnlockCount` INTEGER NOT NULL, `distractingWeightPerMinute` REAL NOT NULL, `productiveBonusPerMinute` REAL NOT NULL, `idleBonusPer10Minutes` REAL NOT NULL, `maxIdleBonus` REAL NOT NULL, `maxProductiveBonus` REAL NOT NULL, `unlockPenaltyPerCount` REAL NOT NULL, `lateNightMultiplier` REAL NOT NULL, `isLogAccelerationEnabled` INTEGER NOT NULL, `logAccelerationThresholdMinutes` REAL NOT NULL, `logAccelerationScaleMinutes` REAL NOT NULL, `isYesterdayPenaltyEnabled` INTEGER NOT NULL, `yesterdayPenaltyTriggerScore` INTEGER NOT NULL, `yesterdayPenaltyRate` REAL NOT NULL, `maxYesterdayPenalty` REAL NOT NULL, `isTrackingEnabled` INTEGER NOT NULL, `isNotificationEnabled` INTEGER NOT NULL, `appHistoryRetentionDays` INTEGER NOT NULL, `hideSensitiveNotificationOnLockScreen` INTEGER NOT NULL, `statusIconStyleId` TEXT NOT NULL, `widgetBackgroundStyleId` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "selectedPresetModeId",
+            "columnName": "selectedPresetModeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "selectedCoreIndexPresetId",
+            "columnName": "selectedCoreIndexPresetId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "minimumScoreDefenseLine",
+            "columnName": "minimumScoreDefenseLine",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetUnlockCount",
+            "columnName": "targetUnlockCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "distractingWeightPerMinute",
+            "columnName": "distractingWeightPerMinute",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "productiveBonusPerMinute",
+            "columnName": "productiveBonusPerMinute",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "idleBonusPer10Minutes",
+            "columnName": "idleBonusPer10Minutes",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxIdleBonus",
+            "columnName": "maxIdleBonus",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxProductiveBonus",
+            "columnName": "maxProductiveBonus",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unlockPenaltyPerCount",
+            "columnName": "unlockPenaltyPerCount",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lateNightMultiplier",
+            "columnName": "lateNightMultiplier",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isLogAccelerationEnabled",
+            "columnName": "isLogAccelerationEnabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "logAccelerationThresholdMinutes",
+            "columnName": "logAccelerationThresholdMinutes",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "logAccelerationScaleMinutes",
+            "columnName": "logAccelerationScaleMinutes",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isYesterdayPenaltyEnabled",
+            "columnName": "isYesterdayPenaltyEnabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "yesterdayPenaltyTriggerScore",
+            "columnName": "yesterdayPenaltyTriggerScore",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "yesterdayPenaltyRate",
+            "columnName": "yesterdayPenaltyRate",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxYesterdayPenalty",
+            "columnName": "maxYesterdayPenalty",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isTrackingEnabled",
+            "columnName": "isTrackingEnabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isNotificationEnabled",
+            "columnName": "isNotificationEnabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "appHistoryRetentionDays",
+            "columnName": "appHistoryRetentionDays",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hideSensitiveNotificationOnLockScreen",
+            "columnName": "hideSensitiveNotificationOnLockScreen",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "statusIconStyleId",
+            "columnName": "statusIconStyleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "widgetBackgroundStyleId",
+            "columnName": "widgetBackgroundStyleId",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "foreground_usage_sessions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`packageName` TEXT NOT NULL, `startTimeMillis` INTEGER NOT NULL, `endTimeMillis` INTEGER NOT NULL, `dateString` TEXT NOT NULL, `appName` TEXT NOT NULL, `categoryLevel` INTEGER NOT NULL, `effectivePackageName` TEXT NOT NULL, `effectiveCategoryLevel` INTEGER NOT NULL, `concurrentAppCount` INTEGER NOT NULL, `sessionStartTimeMillis` INTEGER NOT NULL, `isLateNight` INTEGER NOT NULL, `lastUpdatedTimestamp` INTEGER NOT NULL, PRIMARY KEY(`packageName`, `startTimeMillis`))",
+        "fields": [
+          {
+            "fieldPath": "packageName",
+            "columnName": "packageName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startTimeMillis",
+            "columnName": "startTimeMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endTimeMillis",
+            "columnName": "endTimeMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dateString",
+            "columnName": "dateString",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "appName",
+            "columnName": "appName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "categoryLevel",
+            "columnName": "categoryLevel",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effectivePackageName",
+            "columnName": "effectivePackageName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effectiveCategoryLevel",
+            "columnName": "effectiveCategoryLevel",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "concurrentAppCount",
+            "columnName": "concurrentAppCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionStartTimeMillis",
+            "columnName": "sessionStartTimeMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isLateNight",
+            "columnName": "isLateNight",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUpdatedTimestamp",
+            "columnName": "lastUpdatedTimestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "packageName",
+            "startTimeMillis"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_foreground_usage_sessions_dateString",
+            "unique": false,
+            "columnNames": [
+              "dateString"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_foreground_usage_sessions_dateString` ON `${TABLE_NAME}` (`dateString`)"
+          },
+          {
+            "name": "index_foreground_usage_sessions_endTimeMillis",
+            "unique": false,
+            "columnNames": [
+              "endTimeMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_foreground_usage_sessions_endTimeMillis` ON `${TABLE_NAME}` (`endTimeMillis`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "core_index_samples",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`bucketStartTimestamp` INTEGER NOT NULL, `timestampMillis` INTEGER NOT NULL, `dateString` TEXT NOT NULL, `score` INTEGER NOT NULL, `exactScore` REAL NOT NULL, `rollingLoad` REAL NOT NULL, `acuteLoad` REAL NOT NULL, `presetId` TEXT NOT NULL, PRIMARY KEY(`bucketStartTimestamp`))",
+        "fields": [
+          {
+            "fieldPath": "bucketStartTimestamp",
+            "columnName": "bucketStartTimestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestampMillis",
+            "columnName": "timestampMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dateString",
+            "columnName": "dateString",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "score",
+            "columnName": "score",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exactScore",
+            "columnName": "exactScore",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rollingLoad",
+            "columnName": "rollingLoad",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "acuteLoad",
+            "columnName": "acuteLoad",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "presetId",
+            "columnName": "presetId",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "bucketStartTimestamp"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_core_index_samples_dateString",
+            "unique": false,
+            "columnNames": [
+              "dateString"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_core_index_samples_dateString` ON `${TABLE_NAME}` (`dateString`)"
+          },
+          {
+            "name": "index_core_index_samples_timestampMillis",
+            "unique": false,
+            "columnNames": [
+              "timestampMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_core_index_samples_timestampMillis` ON `${TABLE_NAME}` (`timestampMillis`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "device_interaction_events",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`timestampMillis` INTEGER NOT NULL, `eventType` INTEGER NOT NULL, PRIMARY KEY(`timestampMillis`, `eventType`))",
+        "fields": [
+          {
+            "fieldPath": "timestampMillis",
+            "columnName": "timestampMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eventType",
+            "columnName": "eventType",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "timestampMillis",
+            "eventType"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_device_interaction_events_timestampMillis",
+            "unique": false,
+            "columnNames": [
+              "timestampMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_device_interaction_events_timestampMillis` ON `${TABLE_NAME}` (`timestampMillis`)"
+          }
+        ],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'cdbcba6776383f92cf9003ce6059e1fc')"
+    ]
+  }
+}
