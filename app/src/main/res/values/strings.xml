@@ -7,6 +7,13 @@
     <string name="guidance_notification_title">코어 지수 %1$d · 잠깐 흐름을 확인하세요</string>
     <string name="guidance_notification_recovery">%1$d점 기준선을 지났습니다. 지금 화면을 내려놓으면 약 %2$d분 뒤 회복 흐름이 예상됩니다.</string>
     <string name="guidance_notification_break">%1$d점 기준선을 지났습니다. 다음 확인을 미루고 10분만 쉬어보세요.</string>
+    <string name="rapid_alert_channel_name">DigitsCore 사용 흐름 알림</string>
+    <string name="rapid_alert_channel_description">사용량이나 코어 지수가 설정한 기준보다 빠르게 변할 때 소리 없이 알려줍니다.</string>
+    <string name="rapid_alert_title">사용 흐름이 빨라졌어요 · 코어 지수 %1$d</string>
+    <string name="rapid_alert_score_drop">최근 %1$d분 동안 코어 지수가 %2$d점 내려갔습니다.</string>
+    <string name="rapid_alert_high_usage">최근 %1$d분 중 %2$d분 화면을 사용했습니다.</string>
+    <string name="rapid_alert_continuous">현재 %1$d분 연속 사용 중입니다.</string>
+    <string name="rapid_alert_recovery">화면을 내려놓으면 약 %1$d분 뒤 회복 흐름이 예상됩니다.</string>
     <string name="widget_description">코어 지수와 사용 통계를 홈 화면에서 확인합니다.</string>
     <string name="digitscore_score">코어 지수</string>
     <string name="rolling_24_hours">최근 24시간</string>

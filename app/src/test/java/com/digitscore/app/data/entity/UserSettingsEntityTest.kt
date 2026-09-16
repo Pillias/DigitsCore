@@ -14,5 +14,12 @@ class UserSettingsEntityTest {
         assertTrue(UserSettingsEntity().hideSensitiveNotificationOnLockScreen)
         assertEquals("big_number", UserSettingsEntity().statusIconStyleId)
         assertEquals("dark", UserSettingsEntity().widgetBackgroundStyleId)
+        assertTrue(UserSettingsEntity().isRapidUsageAlertEnabled)
+        assertTrue(UserSettingsEntity().usePresetRapidAlertDefaults)
+        assertEquals(30, UserSettingsEntity().rapidAlertWindowMinutes)
+        assertEquals(5, UserSettingsEntity().rapidAlertScoreDrop)
+        assertEquals(24, UserSettingsEntity().rapidAlertUsageMinutes)
+        assertEquals(35, UserSettingsEntity().rapidAlertContinuousMinutes)
+        assertEquals(90, UserSettingsEntity().rapidAlertCooldownMinutes)
     }
 }

@@ -7,6 +7,13 @@
     <string name="guidance_notification_title">Core Index %1$d · Check your pattern</string>
     <string name="guidance_notification_recovery">You crossed the %1$d-point line. Putting the screen down now may start recovery in about %2$d min.</string>
     <string name="guidance_notification_break">You crossed the %1$d-point line. Delay the next check and take a 10-minute break.</string>
+    <string name="rapid_alert_channel_name">DigitsCore usage-flow alerts</string>
+    <string name="rapid_alert_channel_description">Silently alerts you when usage or the Core Index changes faster than your selected limits.</string>
+    <string name="rapid_alert_title">Usage is accelerating · Core Index %1$d</string>
+    <string name="rapid_alert_score_drop">Your Core Index dropped %2$d points in the last %1$d minutes.</string>
+    <string name="rapid_alert_high_usage">You used the screen for %2$d of the last %1$d minutes.</string>
+    <string name="rapid_alert_continuous">You have been using the screen continuously for %1$d minutes.</string>
+    <string name="rapid_alert_recovery">Putting the screen down may start recovery in about %1$d minutes.</string>
     <string name="widget_description">See your Core Index and usage stats on the Home screen.</string>
     <string name="digitscore_score">Core Index</string>
     <string name="rolling_24_hours">Last 24 hours</string>

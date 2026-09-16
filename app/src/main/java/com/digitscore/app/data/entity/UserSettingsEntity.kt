@@ -3,6 +3,9 @@ package com.digitscore.app.data.entity
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.digitscore.app.model.ScoreRule
+import com.digitscore.app.model.CoreIndexPreset
+import com.digitscore.app.model.RapidUsageAlertConfig
+import com.digitscore.app.model.defaultRapidUsageAlertConfig
 
 /**
  * 사용자 설정 엔티티 (단일 레코드 관리 id=1)
@@ -34,8 +37,29 @@ data class UserSettingsEntity(
     val appHistoryRetentionDays: Int = 365,
     val hideSensitiveNotificationOnLockScreen: Boolean = true,
     val statusIconStyleId: String = "big_number",
-    val widgetBackgroundStyleId: String = "dark"
+    val widgetBackgroundStyleId: String = "dark",
+    val isRapidUsageAlertEnabled: Boolean = true,
+    val usePresetRapidAlertDefaults: Boolean = true,
+    val rapidAlertWindowMinutes: Int = 30,
+    val rapidAlertScoreDrop: Int = 5,
+    val rapidAlertUsageMinutes: Int = 24,
+    val rapidAlertContinuousMinutes: Int = 35,
+    val rapidAlertCooldownMinutes: Int = 90
 )
+
+fun UserSettingsEntity.effectiveRapidUsageAlertConfig(
+    preset: CoreIndexPreset = CoreIndexPreset.fromId(selectedCoreIndexPresetId)
+): RapidUsageAlertConfig = if (usePresetRapidAlertDefaults) {
+    preset.defaultRapidUsageAlertConfig
+} else {
+    RapidUsageAlertConfig(
+        windowMinutes = rapidAlertWindowMinutes,
+        scoreDrop = rapidAlertScoreDrop,
+        usageMinutes = rapidAlertUsageMinutes,
+        continuousMinutes = rapidAlertContinuousMinutes,
+        cooldownMinutes = rapidAlertCooldownMinutes
+    ).sanitized()
+}
 
 fun UserSettingsEntity.applyTo(
     baseRule: ScoreRule,

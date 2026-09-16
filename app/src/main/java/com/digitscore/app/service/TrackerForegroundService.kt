@@ -22,6 +22,9 @@ import com.digitscore.app.data.entity.ForegroundUsageSessionEntity
 import com.digitscore.app.data.entity.CoreIndexSampleEntity
 import com.digitscore.app.data.entity.DeviceInteractionEventEntity
 import com.digitscore.app.data.entity.applyTo
+import com.digitscore.app.data.entity.effectiveRapidUsageAlertConfig
+import com.digitscore.app.engine.RapidUsageAlertDetector
+import com.digitscore.app.engine.RapidUsageObservation
 import com.digitscore.app.engine.ScoreCalculator
 import com.digitscore.app.engine.ScoreDetail
 import com.digitscore.app.engine.RollingScoreCalculator
@@ -30,6 +33,8 @@ import com.digitscore.app.engine.CoreIndexCoach
 import com.digitscore.app.model.AppUsage
 import com.digitscore.app.model.PresetMode
 import com.digitscore.app.model.CoreIndexPreset
+import com.digitscore.app.model.RapidUsageAlertConfig
+import com.digitscore.app.model.defaultRapidUsageAlertConfig
 import com.digitscore.app.notification.ScoreNotificationManager
 import com.digitscore.app.notification.StatusIconStyle
 import com.digitscore.app.receiver.ScreenEventReceiver
@@ -505,6 +510,8 @@ class TrackerForegroundService : Service() {
                 val coreIndexPreset = CoreIndexPreset.fromId(
                     settings?.selectedCoreIndexPresetId ?: CoreIndexPreset.BALANCED.id
                 )
+                val rapidUsageAlertConfig = settings?.effectiveRapidUsageAlertConfig(coreIndexPreset)
+                    ?: coreIndexPreset.defaultRapidUsageAlertConfig
                 val rollingScoreDetail = RollingScoreCalculator.calculate(
                         sessions = recentSessions,
                         nowMillis = now,
@@ -598,9 +605,12 @@ class TrackerForegroundService : Service() {
                     // 단순 notify 갱신 대신 foreground 연결을 다시 확인해 OEM 재시작이나
                     // 일시적인 알림 제거 뒤에도 상태 아이콘이 복원되도록 합니다.
                     startForeground(ScoreNotificationManager.NOTIFICATION_ID, notification)
-                    maybeShowGuidanceNotification(
-                        previousScore = previousSample?.score,
+                    maybeShowRapidUsageNotification(
+                        enabled = settings?.isRapidUsageAlertEnabled != false,
+                        config = rapidUsageAlertConfig,
                         currentScore = rollingScoreDetail.finalScore,
+                        continuousUsageMinutes = rollingScoreDetail.continuousUsageMinutes,
+                        sessions = recentSessions,
                         guidance = guidance,
                         now = now
                     )
@@ -633,25 +643,51 @@ class TrackerForegroundService : Service() {
         }
     }
 
-    private fun maybeShowGuidanceNotification(
-        previousScore: Int?,
+    private suspend fun maybeShowRapidUsageNotification(
+        enabled: Boolean,
+        config: RapidUsageAlertConfig,
         currentScore: Int,
+        continuousUsageMinutes: Long,
+        sessions: List<RollingUsageSession>,
         guidance: com.digitscore.app.engine.CoreIndexGuidance,
         now: Long
     ) {
-        val previous = previousScore ?: return
-        val crossedThreshold = listOf(70, 60, 50).firstOrNull {
-            previous > it && currentScore <= it
-        } ?: return
-        val lastAlertAt = trackingPreferences.getLong("last_guidance_alert_at", 0L)
-        if (now - lastAlertAt < 6 * 60 * 60_000L) return
-        ScoreNotificationManager.showGuidanceNotification(
+        if (!enabled) return
+        val sanitizedConfig = config.sanitized()
+        val windowStart = now - sanitizedConfig.windowMinutes * 60_000L
+        val sampleToleranceMillis = CORE_INDEX_SAMPLE_BUCKET_MILLIS + 2 * 60_000L
+        val baseline = DigitsDatabase.getInstance(applicationContext)
+            .coreIndexSampleDao()
+            .getClosestTo(
+                targetMillis = windowStart,
+                rangeStartMillis = windowStart - sampleToleranceMillis,
+                // 관찰 시간보다 짧은 구간을 점수 하락으로 오인하지 않도록
+                // 목표 시각 이후의 표본은 기준점으로 사용하지 않습니다.
+                rangeEndMillis = windowStart
+            )
+        val windowUsageMillis = sessions.sumOf { session ->
+            (minOf(session.endTimeMillis, now) - maxOf(session.startTimeMillis, windowStart))
+                .coerceAtLeast(0L)
+        }
+        val alert = RapidUsageAlertDetector.evaluate(
+            config = sanitizedConfig,
+            observation = RapidUsageObservation(
+                currentScore = currentScore,
+                baselineScore = baseline?.score,
+                windowUsageMinutes = (windowUsageMillis / 60_000L).toInt(),
+                continuousUsageMinutes = continuousUsageMinutes.toInt()
+            )
+        ) ?: return
+        val lastAlertAt = trackingPreferences.getLong("last_rapid_usage_alert_at", 0L)
+        if (now - lastAlertAt < sanitizedConfig.cooldownMinutes * 60_000L) return
+        ScoreNotificationManager.showRapidUsageNotification(
             context = applicationContext,
             score = currentScore,
-            threshold = crossedThreshold,
+            config = sanitizedConfig,
+            alert = alert,
             recoveryMinutes = guidance.recoveryMinutes
         )
-        trackingPreferences.edit().putLong("last_guidance_alert_at", now).apply()
+        trackingPreferences.edit().putLong("last_rapid_usage_alert_at", now).apply()
     }
 
     private fun updateMeasurementDiagnostics(

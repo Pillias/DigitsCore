@@ -15,16 +15,20 @@ import com.digitscore.app.engine.ScoreGrade
 import com.digitscore.app.engine.CoreIndexCause
 import com.digitscore.app.engine.CoreIndexGuidance
 import com.digitscore.app.engine.CoreIndexRecommendation
+import com.digitscore.app.engine.RapidUsageAlert
+import com.digitscore.app.engine.RapidUsageAlertReason
 import com.digitscore.app.i18n.AppLocale
 import com.digitscore.app.i18n.localizedGrade
 import com.digitscore.app.i18n.localizedGradeDescription
 import com.digitscore.app.ui.MainActivity
 import com.digitscore.app.service.TrackerForegroundService
+import com.digitscore.app.model.RapidUsageAlertConfig
 
 object ScoreNotificationManager {
 
     const val CHANNEL_ID = "digitscore_status_channel"
     const val GUIDANCE_CHANNEL_ID = "digitscore_guidance_channel"
+    const val SOFT_GUIDANCE_CHANNEL_ID = "digitscore_soft_guidance_v2"
     const val NOTIFICATION_ID = 1001
     private const val GUIDANCE_NOTIFICATION_ID = 1002
 
@@ -53,13 +57,26 @@ object ScoreNotificationManager {
                     enableVibration(false)
                 }
             )
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    SOFT_GUIDANCE_CHANNEL_ID,
+                    strings.getString(R.string.rapid_alert_channel_name),
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description = strings.getString(R.string.rapid_alert_channel_description)
+                    setShowBadge(false)
+                    enableVibration(false)
+                    setSound(null, null)
+                }
+            )
         }
     }
 
-    fun showGuidanceNotification(
+    fun showRapidUsageNotification(
         context: Context,
         score: Int,
-        threshold: Int,
+        config: RapidUsageAlertConfig,
+        alert: RapidUsageAlert,
         recoveryMinutes: Int?
     ) {
         val strings = AppLocale.stringsContext(context)
@@ -71,16 +88,33 @@ object ScoreNotificationManager {
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val body = recoveryMinutes?.let {
-            strings.getString(R.string.guidance_notification_recovery, threshold, it)
-        } ?: strings.getString(R.string.guidance_notification_break, threshold)
-        val notification = NotificationCompat.Builder(context, GUIDANCE_CHANNEL_ID)
+        val body = when (alert.reason) {
+            RapidUsageAlertReason.SCORE_DROP -> strings.getString(
+                R.string.rapid_alert_score_drop,
+                config.windowMinutes,
+                alert.scoreDrop
+            )
+            RapidUsageAlertReason.HIGH_USAGE -> strings.getString(
+                R.string.rapid_alert_high_usage,
+                config.windowMinutes,
+                alert.windowUsageMinutes
+            )
+            RapidUsageAlertReason.CONTINUOUS_USE -> strings.getString(
+                R.string.rapid_alert_continuous,
+                alert.continuousUsageMinutes
+            )
+        }
+        val recovery = recoveryMinutes?.let {
+            strings.getString(R.string.rapid_alert_recovery, it)
+        }
+        val expanded = listOfNotNull(body, recovery).joinToString("\n")
+        val notification = NotificationCompat.Builder(context, SOFT_GUIDANCE_CHANNEL_ID)
             .setSmallIcon(DynamicIconGenerator.createScoreIconCompat(context, score, StatusIconStyle.BIG_NUMBER))
             .setColor(DynamicIconGenerator.statusIconScoreColor(context, score))
-            .setContentTitle(strings.getString(R.string.guidance_notification_title, score))
+            .setContentTitle(strings.getString(R.string.rapid_alert_title, score))
             .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(expanded))
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOnlyAlertOnce(true)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)

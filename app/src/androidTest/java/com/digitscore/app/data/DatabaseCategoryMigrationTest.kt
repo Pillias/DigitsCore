@@ -28,7 +28,7 @@ class DatabaseCategoryMigrationTest {
     }
 
     @Test
-    fun migration13To15CanonicalizesThreeTiersAndInitializesSessionFields() {
+    fun migration13To16CanonicalizesThreeTiersAndInitializesSessionFields() {
         helper.createDatabase(databaseName, 13).apply {
             execSQL(
                 "INSERT INTO app_weights(packageName, appName, categoryType, customWeight, isUserModified) " +
@@ -63,10 +63,11 @@ class DatabaseCategoryMigrationTest {
 
         val migrated = helper.runMigrationsAndValidate(
             databaseName,
-            15,
+            16,
             true,
             DigitsDatabase.MIGRATION_13_14,
-            DigitsDatabase.MIGRATION_14_15
+            DigitsDatabase.MIGRATION_14_15,
+            DigitsDatabase.MIGRATION_15_16
         )
 
         migrated.query(

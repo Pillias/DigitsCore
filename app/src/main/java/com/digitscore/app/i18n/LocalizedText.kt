@@ -58,6 +58,10 @@ fun Text(
 
 object UiTranslator {
     private val dynamicEnglishReplacements = listOf(
+        Regex("(.+) 기준 · (\\d+)분 동안 (\\d+)점 하락") to
+            "\$1 baseline · down \$3 pts within \$2 min",
+        Regex("또는 같은 구간에서 화면 (\\d+)분, 연속 사용 (\\d+)분에 도달하면 알려줍니다\\.") to
+            "Also alerts at \$1 min of screen use in the window or \$2 min of continuous use.",
         Regex("완료 (\\d+)/16 · 검증 준비 (\\d+) · 관리자 입력 (\\d+) · 외부 검증 (\\d+)") to
             "Complete \$1/16 · Ready to validate \$2 · Owner action \$3 · External validation \$4",
         Regex("오늘 (\\d+)회 · 1분 미만 (\\d+)회") to
@@ -180,6 +184,11 @@ object UiTranslator {
     )
 
     private val replacements = listOf(
+        "일상 균형" to "Everyday Balance",
+        "집중 유지" to "Sustained Focus",
+        "화면 휴식" to "Screen Rest",
+        "심야 균형" to "Night Balance",
+        "가족 보호" to "Family Guard",
         "지금의 한 가지 제안" to "One suggestion now",
         "오늘의 사용 흐름" to "Today's Usage Pattern",
         "지수가 움직인 이유" to "Why the index moved",
@@ -626,6 +635,20 @@ object UiTranslator {
             "Includes only the app version, device model, Android version, permission state, and measurement performance. It excludes app lists, usage and score history, notification content, accounts, and device identifiers.",
         "리포트 복사" to "Copy Report", "공유" to "Share", "버그 리포트 공유" to "Share Bug Report",
         "버그 리포트를 복사했습니다." to "Bug report copied.",
+        "급격한 사용 증가 알림" to "Rapid Usage Alerts",
+        "게임이나 화면을 방해하지 않는 1단계 알림의 조건을 정합니다." to
+            "Set the conditions for gentle alerts that do not interrupt games or the current screen.",
+        "부드러운 사용 경고" to "Gentle Usage Alert",
+        "소리·진동·팝업 없이 알림창에만 표시합니다." to
+            "Appears only in notifications, without sound, vibration, or a pop-up.",
+        "프리셋 기본값 적용 중" to "Using preset defaults",
+        "사용자 조정값 적용 중" to "Using custom values",
+        "프리셋 기본값 복원" to "Restore Preset Defaults",
+        "관찰 시간" to "Observation Window",
+        "코어 지수 하락" to "Core Index Drop",
+        "관찰 구간 내 화면 사용" to "Screen Use in Window",
+        "한 번에 이어서 사용" to "Continuous Use",
+        "알림 후 쉬는 시간" to "Alert Cooldown",
         "반드시 필요한 것" to "Required for Release", "상품성을 위해 필요한 것" to "Product Readiness",
         "완료" to "Complete", "검증 준비" to "Ready to Validate", "관리자 입력" to "Owner Action", "외부 검증" to "External Validation",
         "기기·사용자·Play Console이 필요한 항목은 코드만으로 완료 처리하지 않습니다. 저장소 docs/RELEASE_READINESS.md에 실행 절차와 증빙 위치를 정리했습니다." to
@@ -667,8 +690,8 @@ object UiTranslator {
         "화면을 쉬었을 때 목표 지수까지의 예상 시간을 표시합니다." to
             "Shows the estimated time to reach the target index while resting from the screen.",
         "부드러운 임계치 알림" to "Gentle Threshold Alerts",
-        "70·60·50 하향 통과 때만 안내하고 6시간 재알림 제한을 적용합니다." to
-            "Notifies only on downward crossings of 70, 60, and 50, with a six-hour cooldown.",
+        "프리셋별 관찰 시간의 점수 하락·화면 사용·연속 사용을 감지하며 사용자가 기준과 재알림 간격을 조정할 수 있습니다." to
+            "Detects score drops, screen use, and continuous use within a preset-specific window; thresholds and cooldown can be customized.",
         "하루·주간 핵심 요약" to "Daily and Weekly Highlights",
         "최근 24시간 사용과 최근 7일/이전 7일 비교를 제공합니다." to
             "Provides last-24-hour usage and a recent-versus-previous seven-day comparison.",

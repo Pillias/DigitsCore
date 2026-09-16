@@ -31,7 +31,7 @@ object ReleaseReadiness {
     val product = listOf(
         ReleaseReadinessItem("P1", "점수 변화 이유 한 문장", "현재 지수 변화의 가장 큰 원인을 대시보드에 표시합니다.", ReadinessStatus.COMPLETE),
         ReleaseReadinessItem("P2", "예상 회복 시간", "화면을 쉬었을 때 목표 지수까지의 예상 시간을 표시합니다.", ReadinessStatus.COMPLETE),
-        ReleaseReadinessItem("P3", "부드러운 임계치 알림", "70·60·50 하향 통과 때만 안내하고 6시간 재알림 제한을 적용합니다.", ReadinessStatus.COMPLETE),
+        ReleaseReadinessItem("P3", "부드러운 임계치 알림", "프리셋별 관찰 시간의 점수 하락·화면 사용·연속 사용을 감지하며 사용자가 기준과 재알림 간격을 조정할 수 있습니다.", ReadinessStatus.COMPLETE),
         ReleaseReadinessItem("P4", "하루·주간 핵심 요약", "최근 24시간 사용과 최근 7일/이전 7일 비교를 제공합니다.", ReadinessStatus.COMPLETE),
         ReleaseReadinessItem("P5", "한 번에 한 가지 제안", "현재 흐름에서 실행할 한 가지 행동만 추천합니다.", ReadinessStatus.COMPLETE),
         ReleaseReadinessItem("P6", "사용자 자신의 과거와 비교", "고정 타인 평균 대신 사용자의 최근 기록을 기준선으로 사용합니다.", ReadinessStatus.COMPLETE)

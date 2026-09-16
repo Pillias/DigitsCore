@@ -21,6 +21,18 @@ interface CoreIndexSampleDao {
     @Query("SELECT * FROM core_index_samples WHERE timestampMillis < :beforeMillis ORDER BY timestampMillis DESC LIMIT 1")
     suspend fun getLatestBefore(beforeMillis: Long): CoreIndexSampleEntity?
 
+    @Query(
+        """SELECT * FROM core_index_samples
+           WHERE timestampMillis BETWEEN :rangeStartMillis AND :rangeEndMillis
+           ORDER BY ABS(timestampMillis - :targetMillis) ASC
+           LIMIT 1"""
+    )
+    suspend fun getClosestTo(
+        targetMillis: Long,
+        rangeStartMillis: Long,
+        rangeEndMillis: Long
+    ): CoreIndexSampleEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(sample: CoreIndexSampleEntity)
 

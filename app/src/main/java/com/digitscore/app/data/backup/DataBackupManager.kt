@@ -26,7 +26,7 @@ import java.util.Locale
 
 object DataBackupManager {
 
-    private const val BACKUP_SCHEMA_VERSION = 8
+    private const val BACKUP_SCHEMA_VERSION = 9
     private const val MAX_BACKUP_BYTES = 20 * 1024 * 1024
     private val DATE_PATTERN = Regex("\\d{4}-\\d{2}-\\d{2}")
     private const val BACKUP_CACHE_MAX_AGE_MILLIS = 24 * 60 * 60 * 1_000L
@@ -110,6 +110,13 @@ object DataBackupManager {
                 put("hideSensitiveNotificationOnLockScreen", settings.hideSensitiveNotificationOnLockScreen)
                 put("statusIconStyleId", settings.statusIconStyleId)
                 put("widgetBackgroundStyleId", settings.widgetBackgroundStyleId)
+                put("isRapidUsageAlertEnabled", settings.isRapidUsageAlertEnabled)
+                put("usePresetRapidAlertDefaults", settings.usePresetRapidAlertDefaults)
+                put("rapidAlertWindowMinutes", settings.rapidAlertWindowMinutes)
+                put("rapidAlertScoreDrop", settings.rapidAlertScoreDrop)
+                put("rapidAlertUsageMinutes", settings.rapidAlertUsageMinutes)
+                put("rapidAlertContinuousMinutes", settings.rapidAlertContinuousMinutes)
+                put("rapidAlertCooldownMinutes", settings.rapidAlertCooldownMinutes)
             }
             rootJson.put("settings", sObj)
         }
@@ -258,6 +265,8 @@ object DataBackupManager {
             // 2. 사용자 설정 복원
             if (rootJson.has("settings")) {
                 val sObj = rootJson.getJSONObject("settings")
+                val rapidAlertWindowMinutes = sObj.optInt("rapidAlertWindowMinutes", 30)
+                    .coerceIn(15, 60)
                 val settings = UserSettingsEntity(
                     id = 1,
                     selectedPresetModeId = sObj.optString("selectedPresetModeId", "balanced"),
@@ -293,7 +302,17 @@ object DataBackupManager {
                         ?: "big_number",
                     widgetBackgroundStyleId = sObj.optString("widgetBackgroundStyleId", "dark")
                         .takeIf { it == "dark" || it == "white" || it == "transparent" }
-                        ?: "dark"
+                        ?: "dark",
+                    isRapidUsageAlertEnabled = sObj.optBoolean("isRapidUsageAlertEnabled", true),
+                    usePresetRapidAlertDefaults = sObj.optBoolean("usePresetRapidAlertDefaults", true),
+                    rapidAlertWindowMinutes = rapidAlertWindowMinutes,
+                    rapidAlertScoreDrop = sObj.optInt("rapidAlertScoreDrop", 5).coerceIn(2, 12),
+                    rapidAlertUsageMinutes = sObj.optInt("rapidAlertUsageMinutes", 24)
+                        .coerceIn(10, rapidAlertWindowMinutes),
+                    rapidAlertContinuousMinutes = sObj.optInt("rapidAlertContinuousMinutes", 35)
+                        .coerceIn(15, 90),
+                    rapidAlertCooldownMinutes = sObj.optInt("rapidAlertCooldownMinutes", 90)
+                        .coerceIn(30, 360)
                 )
                 db.settingsDao().insertOrUpdateSettings(settings)
             }

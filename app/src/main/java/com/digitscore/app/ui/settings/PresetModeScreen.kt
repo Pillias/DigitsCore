@@ -74,8 +74,10 @@ import com.digitscore.app.data.security.DatabaseEncryptionManager
 import com.digitscore.app.data.security.DatabaseSecurityMode
 import com.digitscore.app.data.entity.UserSettingsEntity
 import com.digitscore.app.data.entity.applyTo
+import com.digitscore.app.data.entity.effectiveRapidUsageAlertConfig
 import com.digitscore.app.model.CoreIndexPreset
 import com.digitscore.app.model.PresetMode
+import com.digitscore.app.model.defaultRapidUsageAlertConfig
 import com.digitscore.app.ui.components.SectionHeading
 import com.digitscore.app.ui.components.DetailChevron
 import com.digitscore.app.ui.components.InformationDetailDialog
@@ -136,6 +138,7 @@ fun PresetModeScreen(
     val selectedModeId = settings.selectedPresetModeId
     val selectedPreset = PresetMode.fromId(selectedModeId)
     val selectedCoreIndexPreset = CoreIndexPreset.fromId(settings.selectedCoreIndexPresetId)
+    val rapidAlertConfig = settings.effectiveRapidUsageAlertConfig(selectedCoreIndexPreset)
     var showPrivacyPolicy by remember { mutableStateOf(false) }
     var isPresetMenuExpanded by remember { mutableStateOf(false) }
     var isCoreIndexPresetMenuExpanded by remember { mutableStateOf(false) }
@@ -187,6 +190,34 @@ fun PresetModeScreen(
                 TrackerForegroundService.refreshNotification(context)
             }
         }
+    }
+
+    fun saveRapidAlertSettings(updated: UserSettingsEntity) {
+        scope.launch(Dispatchers.IO) {
+            db.settingsDao().insertOrUpdateSettings(updated)
+            if (updated.isTrackingEnabled) {
+                TrackerForegroundService.refreshNotification(context)
+            }
+        }
+    }
+
+    fun customizeRapidAlert(
+        windowMinutes: Int = rapidAlertConfig.windowMinutes,
+        scoreDrop: Int = rapidAlertConfig.scoreDrop,
+        usageMinutes: Int = rapidAlertConfig.usageMinutes,
+        continuousMinutes: Int = rapidAlertConfig.continuousMinutes,
+        cooldownMinutes: Int = rapidAlertConfig.cooldownMinutes
+    ) {
+        saveRapidAlertSettings(
+            settings.copy(
+                usePresetRapidAlertDefaults = false,
+                rapidAlertWindowMinutes = windowMinutes,
+                rapidAlertScoreDrop = scoreDrop,
+                rapidAlertUsageMinutes = usageMinutes.coerceAtMost(windowMinutes),
+                rapidAlertContinuousMinutes = continuousMinutes,
+                rapidAlertCooldownMinutes = cooldownMinutes
+            )
+        )
     }
 
     val importLauncher = rememberLauncherForActivityResult(
@@ -448,6 +479,144 @@ fun PresetModeScreen(
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
+                    }
+                }
+            }
+
+            item {
+                SectionHeading(
+                    title = "급격한 사용 증가 알림",
+                    subtitle = "게임이나 화면을 방해하지 않는 1단계 알림의 조건을 정합니다."
+                )
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("부드러운 사용 경고", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text(
+                                    "소리·진동·팝업 없이 알림창에만 표시합니다.",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                            androidx.compose.material3.Switch(
+                                checked = settings.isRapidUsageAlertEnabled,
+                                onCheckedChange = { enabled ->
+                                    saveRapidAlertSettings(
+                                        settings.copy(isRapidUsageAlertEnabled = enabled)
+                                    )
+                                }
+                            )
+                        }
+
+                        Text(
+                            "${selectedCoreIndexPreset.title} 기준 · ${rapidAlertConfig.windowMinutes}분 동안 " +
+                                "${rapidAlertConfig.scoreDrop}점 하락",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            "또는 같은 구간에서 화면 ${rapidAlertConfig.usageMinutes}분, " +
+                                "연속 사용 ${rapidAlertConfig.continuousMinutes}분에 도달하면 알려줍니다.",
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        if (settings.usePresetRapidAlertDefaults) {
+                            Text(
+                                "프리셋 기본값 적용 중",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "사용자 조정값 적용 중",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                                OutlinedButton(
+                                    onClick = {
+                                        val defaults = selectedCoreIndexPreset.defaultRapidUsageAlertConfig
+                                        saveRapidAlertSettings(
+                                            settings.copy(
+                                                usePresetRapidAlertDefaults = true,
+                                                rapidAlertWindowMinutes = defaults.windowMinutes,
+                                                rapidAlertScoreDrop = defaults.scoreDrop,
+                                                rapidAlertUsageMinutes = defaults.usageMinutes,
+                                                rapidAlertContinuousMinutes = defaults.continuousMinutes,
+                                                rapidAlertCooldownMinutes = defaults.cooldownMinutes
+                                            )
+                                        )
+                                    }
+                                ) {
+                                    Text("프리셋 기본값 복원")
+                                }
+                            }
+                        }
+
+                        if (settings.isRapidUsageAlertEnabled) {
+                            RapidAlertSlider(
+                                title = "관찰 시간",
+                                value = rapidAlertConfig.windowMinutes,
+                                valueLabel = "${rapidAlertConfig.windowMinutes}분",
+                                range = 15f..60f,
+                                steps = 8,
+                                onValueCommitted = { customizeRapidAlert(windowMinutes = it) }
+                            )
+                            RapidAlertSlider(
+                                title = "코어 지수 하락",
+                                value = rapidAlertConfig.scoreDrop,
+                                valueLabel = "${rapidAlertConfig.scoreDrop}점",
+                                range = 2f..12f,
+                                steps = 9,
+                                onValueCommitted = { customizeRapidAlert(scoreDrop = it) }
+                            )
+                            RapidAlertSlider(
+                                title = "관찰 구간 내 화면 사용",
+                                value = rapidAlertConfig.usageMinutes,
+                                valueLabel = "${rapidAlertConfig.usageMinutes}분",
+                                range = 10f..rapidAlertConfig.windowMinutes.toFloat(),
+                                steps = (rapidAlertConfig.windowMinutes - 11).coerceAtLeast(0),
+                                onValueCommitted = { customizeRapidAlert(usageMinutes = it) }
+                            )
+                            RapidAlertSlider(
+                                title = "한 번에 이어서 사용",
+                                value = rapidAlertConfig.continuousMinutes,
+                                valueLabel = "${rapidAlertConfig.continuousMinutes}분",
+                                range = 15f..90f,
+                                steps = 14,
+                                onValueCommitted = { customizeRapidAlert(continuousMinutes = it) }
+                            )
+                            RapidAlertSlider(
+                                title = "알림 후 쉬는 시간",
+                                value = rapidAlertConfig.cooldownMinutes,
+                                valueLabel = "${rapidAlertConfig.cooldownMinutes}분",
+                                range = 30f..360f,
+                                steps = 10,
+                                onValueCommitted = { customizeRapidAlert(cooldownMinutes = it) }
+                            )
+                        }
                     }
                 }
             }
@@ -1598,6 +1767,42 @@ fun PresetModeScreen(
                 ) { Text("삭제") }
             },
             dismissButton = { OutlinedButton(onClick = { showDeleteHistoryConfirmation = false }) { Text("취소") } }
+        )
+    }
+}
+
+@Composable
+private fun RapidAlertSlider(
+    title: String,
+    value: Int,
+    valueLabel: String,
+    range: ClosedFloatingPointRange<Float>,
+    steps: Int,
+    onValueCommitted: (Int) -> Unit
+) {
+    var draftValue by remember(value, range.start, range.endInclusive) {
+        mutableFloatStateOf(value.toFloat().coerceIn(range.start, range.endInclusive))
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(title, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                valueLabel,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+        Slider(
+            value = draftValue,
+            onValueChange = { draftValue = it },
+            onValueChangeFinished = { onValueCommitted(draftValue.toInt()) },
+            valueRange = range,
+            steps = steps
         )
     }
 }
