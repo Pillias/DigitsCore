@@ -22,6 +22,11 @@ object ScoreRepository {
     private val _currentAppsUsage = MutableStateFlow<List<AppUsage>>(emptyList())
     val currentAppsUsage = _currentAppsUsage.asStateFlow()
 
+    private val _rollingUsageSummary = MutableStateFlow(
+        RollingUsageSummary(emptyList(), 0L, 0L, 0L)
+    )
+    val rollingUsageSummary = _rollingUsageSummary.asStateFlow()
+
     private val _currentUnlockCount = MutableStateFlow(0)
     val currentUnlockCount = _currentUnlockCount.asStateFlow()
 
@@ -42,8 +47,9 @@ object ScoreRepository {
         _rollingScoreDetail.value = detail
     }
 
-    fun updateAppsUsage(usage: List<AppUsage>) {
-        _currentAppsUsage.value = usage
+    fun updateRollingUsageSummary(summary: RollingUsageSummary) {
+        _rollingUsageSummary.value = summary
+        _currentAppsUsage.value = summary.appsUsage
     }
 
     fun updateUnlockCount(count: Int) {

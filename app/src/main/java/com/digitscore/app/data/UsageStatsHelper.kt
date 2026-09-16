@@ -51,7 +51,9 @@ data class DailyAppUsage(
 data class AppUsageInsights(
     val hourlyUsageMillis: List<Long>,
     val sessionDurationsMillis: List<Long>,
-    val dailyUsage: List<DailyAppUsage>
+    val dailyUsage: List<DailyAppUsage>,
+    val windowStartMillis: Long,
+    val windowEndMillis: Long
 )
 
 data class UnlockInsights(
@@ -59,7 +61,9 @@ data class UnlockInsights(
     val hourlyUnlockCounts: List<Int>,
     val averageIntervalMinutes: Int?,
     val notificationCount: Int,
-    val notificationEventsSupported: Boolean
+    val notificationEventsSupported: Boolean,
+    val windowStartMillis: Long,
+    val windowEndMillis: Long
 )
 
 /** 한 번의 실제 앱 진입에 속한 여러 전면 조각을 세션 ID로 묶어 사용시간을 합칩니다. */
@@ -335,12 +339,10 @@ object UsageStatsHelper {
         return resolved.map { it.timestamp }
     }
 
-    /**
-     * 오늘의 시간대·세션은 OS 이벤트로 계산하고, 장기 추세는 앱이 자체 저장한
-     * 최대 365일 일별 집계에서 읽습니다.
-     */
+    /** 최근 24시간 시간대·세션과 최대 365일의 날짜별 장기 추세를 함께 읽습니다. */
     suspend fun getAppUsageInsights(context: Context, packageName: String): AppUsageInsights {
         val now = System.currentTimeMillis()
+        val rollingStart = now - 24 * 60 * 60_000L
         val today = Calendar.getInstance().apply {
             timeInMillis = now
             set(Calendar.HOUR_OF_DAY, 0)
@@ -348,10 +350,9 @@ object UsageStatsHelper {
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }
-        val todayStart = today.timeInMillis
         val database = DigitsDatabase.getInstance(context)
         val appSegments = database.foregroundUsageSessionDao()
-            .getBetween(todayStart, now)
+            .getBetween(rollingStart, now)
             .filter { it.packageName == packageName }
             .map {
                 ForegroundUsageSegment(
@@ -364,7 +365,9 @@ object UsageStatsHelper {
                     sessionStartTimeMillis = it.sessionStartTimeMillis
                 )
             }
-        val sessionDurations = sessionDurationsByPackage(appSegments)[packageName].orEmpty()
+        val sessionDurations = sessionDurationsByPackage(
+            appSegments.filter { it.sessionStartTimeMillis in rollingStart until now }
+        )[packageName].orEmpty()
 
         val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         val cutoff = (today.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -364) }
@@ -378,39 +381,21 @@ object UsageStatsHelper {
             val dayStart = runCatching { dateFormat.parse(dateString)?.time }.getOrNull() ?: return@mapNotNull null
             DailyAppUsage(
                 dayStartMillis = dayStart,
-                usageMillis = if (dateString == todayDate) {
-                    appSegments.sumOf { it.durationMillis }
-                } else {
-                    storedByDate[dateString]?.usageMillis ?: 0L
-                },
-                sessionCount = if (dateString == todayDate) {
-                    sessionDurations.size
-                } else {
-                    storedByDate[dateString]?.sessionCount ?: 0
-                },
-                shortSessionCount = if (dateString == todayDate) {
-                    sessionDurations.count { it < 60_000L }
-                } else {
-                    storedByDate[dateString]?.shortSessionCount ?: 0
-                },
+                usageMillis = storedByDate[dateString]?.usageMillis ?: 0L,
+                sessionCount = storedByDate[dateString]?.sessionCount ?: 0,
+                shortSessionCount = storedByDate[dateString]?.shortSessionCount ?: 0,
                 isToday = dateString == todayDate
             )
         }.takeLast(365)
 
         val hourly = LongArray(24)
         appSegments.forEach { segment ->
-            var cursor = segment.startTimeMillis
+            var cursor = maxOf(segment.startTimeMillis, rollingStart)
             while (cursor < segment.endTimeMillis) {
-                val calendar = Calendar.getInstance().apply { timeInMillis = cursor }
-                val hour = calendar.get(Calendar.HOUR_OF_DAY)
-                val nextHour = (calendar.clone() as Calendar).apply {
-                    set(Calendar.MINUTE, 0)
-                    set(Calendar.SECOND, 0)
-                    set(Calendar.MILLISECOND, 0)
-                    add(Calendar.HOUR_OF_DAY, 1)
-                }.timeInMillis
-                val intervalEnd = minOf(segment.endTimeMillis, nextHour)
-                hourly[hour] += intervalEnd - cursor
+                val bucket = ((cursor - rollingStart) / (60 * 60_000L)).toInt().coerceIn(0, 23)
+                val nextBucket = rollingStart + (bucket + 1L) * 60 * 60_000L
+                val intervalEnd = minOf(segment.endTimeMillis, nextBucket, now)
+                hourly[bucket] += (intervalEnd - cursor).coerceAtLeast(0L)
                 cursor = intervalEnd
             }
         }
@@ -418,17 +403,11 @@ object UsageStatsHelper {
         return AppUsageInsights(
             hourlyUsageMillis = hourly.toList(),
             sessionDurationsMillis = sessionDurations,
-            dailyUsage = daily
+            dailyUsage = daily,
+            windowStartMillis = rollingStart,
+            windowEndMillis = now
         )
     }
-
-    /** 오늘 언락 시간대와 OS UsageEvents가 제공하는 알림 interruption 수를 함께 계산합니다. */
-    suspend fun getTodayUnlockInsights(context: Context): UnlockInsights = getUnlockInsights(
-        context = context,
-        start = getStartOfTodayMillis(),
-        end = System.currentTimeMillis(),
-        rollingBuckets = false
-    )
 
     /** 현재 시각을 끝으로 하는 직전 24시간의 언락·알림 흐름을 24개 시간 버킷으로 계산합니다. */
     suspend fun getRolling24HourUnlockInsights(
@@ -438,16 +417,14 @@ object UsageStatsHelper {
         return getUnlockInsights(
             context = context,
             start = end - 24 * 60 * 60_000L,
-            end = end,
-            rollingBuckets = true
+            end = end
         )
     }
 
     private suspend fun getUnlockInsights(
         context: Context,
         start: Long,
-        end: Long,
-        rollingBuckets: Boolean
+        end: Long
     ): UnlockInsights {
         val events = DigitsDatabase.getInstance(context).deviceInteractionEventDao()
             .getBetween(start, end)
@@ -456,14 +433,9 @@ object UsageStatsHelper {
         )
         val hourly = MutableList(24) { 0 }
         unlockEvents.forEach { timestamp ->
-            val bucket = if (rollingBuckets) {
-                (((timestamp - start) * 24) / (end - start).coerceAtLeast(1L))
-                    .toInt()
-                    .coerceIn(0, 23)
-            } else {
-                Calendar.getInstance().apply { timeInMillis = timestamp }
-                    .get(Calendar.HOUR_OF_DAY)
-            }
+            val bucket = (((timestamp - start) * 24) / (end - start).coerceAtLeast(1L))
+                .toInt()
+                .coerceIn(0, 23)
             hourly[bucket]++
         }
         val averageIntervalMinutes = unlockEvents
@@ -481,7 +453,9 @@ object UsageStatsHelper {
             hourlyUnlockCounts = hourly,
             averageIntervalMinutes = averageIntervalMinutes,
             notificationCount = notificationCount,
-            notificationEventsSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+            notificationEventsSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P,
+            windowStartMillis = start,
+            windowEndMillis = end
         )
     }
 

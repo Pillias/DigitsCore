@@ -58,6 +58,17 @@ fun Text(
 
 object UiTranslator {
     private val dynamicEnglishReplacements = listOf(
+        Regex("(.+) · 24시간 (\\d+)회") to "\$1 · \$2 opens in 24h",
+        Regex("24시간 (\\d+)회 · 1분 미만 (\\d+)회") to
+            "\$1 opens in 24h · \$2 under one minute",
+        Regex("최근 24시간 (\\d+)회 열었고, 그중 1분 미만은 (\\d+)회입니다\\.") to
+            "Opened \$1 times in the last 24 hours; \$2 were under one minute.",
+        Regex("최근 24시간 (\\d+)회 · 1분 미만 (\\d+)회") to
+            "Last 24 hours: \$1 opens · \$2 under one minute",
+        Regex("가장 많이 사용한 구간은 (.+) · (.+)입니다\\.") to
+            "Highest-usage interval: \$1 · \$2.",
+        Regex("가장 잦은 구간은 (.+) · (\\d+)회입니다\\.") to
+            "Most frequent interval: \$1 · \$2 unlocks.",
         Regex("(.+) 기준 · (\\d+)분 동안 (\\d+)점 하락") to
             "\$1 baseline · down \$3 pts within \$2 min",
         Regex("또는 같은 구간에서 화면 (\\d+)분, 연속 사용 (\\d+)분에 도달하면 알려줍니다\\.") to
@@ -411,6 +422,9 @@ object UiTranslator {
         "현재 설정 예상 점수" to "Estimated score with current settings",
         "건강 진단 기준이 아닌 초기 보정용 시나리오입니다. 학업·업무·콘텐츠 품질에 맞게 세부값을 조정하세요." to "This is an initial calibration scenario, not health guidance. Adjust it for your study, work and content context.",
         "오늘의 앱 사용 현황" to "Today's App Usage",
+        "최근 24시간 앱 사용 현황" to "App Usage · Last 24 Hours",
+        "현재 시각 직전 24시간의 시간대·세션·최근 추세입니다." to
+            "Hourly use, sessions, and trends for the 24 hours immediately before now.",
         "앱을 누르면 시간대·세션·최근 추세를 볼 수 있습니다." to
             "Tap an app to view hourly use, sessions, and recent trends.",
         "아직 집계된 앱 사용 기록이 없습니다." to "No app usage has been measured yet.",
@@ -423,10 +437,12 @@ object UiTranslator {
         "기본 시작 점수" to "Starting score",
         "전체 통계 리포트 보기" to "View Full Report",
         "오늘의 화면 사용 시간" to "Today's Screen Time",
+        "최근 24시간 화면 사용" to "Screen Use · Last 24 Hours",
         "카테고리별 시간 분배" to "Time by Category",
         "앱별 사용 시간 (탭하여 설정 변경)" to "Usage by App (tap to edit)",
         "주간/월간 추세 보기" to "View Weekly / Monthly Trends",
         "오늘의 잠금 해제(언락) 통계" to "Today's Unlocks",
+        "최근 24시간 잠금 해제" to "Unlocks · Last 24 Hours",
         "시간대별 언락" to "Unlocks by Hour",
         "알림과 언락 비교" to "Notifications vs Unlocks",
         "언락 관리 가이드" to "Unlock Guidance",
@@ -446,12 +462,20 @@ object UiTranslator {
         "성장 앱" to "Growth Apps",
         "균형/기타" to "Balanced / Other",
         "오늘의 전체 앱 사용 목록" to "All Apps Used Today",
+        "최근 24시간 전체 앱 목록" to "All Apps · Last 24 Hours",
         "균형 등급 변경" to "Change Balance Rating",
         "오늘 총 사용 시간" to "Total Today",
+        "최근 24시간 사용" to "Last 24 Hours",
         "등급은 우측 상단 드롭다운에서 변경할 수 있습니다." to "Change the rating from the dropdown in the top-right corner.",
         "언제 많이 사용했나요?" to "When did you use it most?",
+        "최근 24시간 언제 많이 사용했나요?" to "When did you use it most in the last 24 hours?",
         "한 번에 너무 길게 사용했나요?" to "Were sessions too long?",
         "하루에 몇 번 열었나요?" to "How often did you open it?",
+        "날짜별로 몇 번 열었나요?" to "How often did you open it each day?",
+        "최근 24시간 사용 흐름" to "Usage Flow · Last 24 Hours",
+        "최근 24시간 요약" to "Last 24 Hours Summary",
+        "최근 24시간 사용된 관리 대상 앱이 없습니다. 안정적인 사용 흐름입니다." to
+            "No managed apps were used in the last 24 hours. Your usage pattern is steady.",
         "아직 앱 실행 기록이 없습니다." to "No app-open records yet.",
         "최근 14일 앱 실행 횟수와 1분 미만 실행 그래프" to
             "Chart of app opens and under-one-minute opens over the last 14 days",
@@ -461,6 +485,8 @@ object UiTranslator {
         "최근 세션" to "Recent Sessions",
         "30분 이상은 주황색" to "30+ minutes shown in orange",
         "장기 사용 추세" to "Long-term Usage Trend",
+        "이 장기 그래프만 요일 비교를 위해 달력 날짜 단위로 집계합니다." to
+            "Only this long-term chart uses calendar days for weekday comparisons.",
         "요일별 평균 앱 사용량 그래프" to "Average Usage by Weekday",
         "기록이 더 쌓이면 같은 길이의 이전 기간과 비교할 수 있습니다." to "Once more data is recorded, it can be compared with the preceding period.",
         "최근 사용량 변화가 없습니다." to "There is no recent usage change.",

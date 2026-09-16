@@ -99,6 +99,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -116,6 +117,7 @@ fun DashboardScreen(
     val scoreDetail by viewModel.scoreDetail.collectAsState()
     val rollingScoreDetail by viewModel.rollingScoreDetail.collectAsState()
     val appsUsage by viewModel.appsUsage.collectAsState()
+    val rollingUsageSummary by viewModel.rollingUsageSummary.collectAsState()
     val unlockCount by viewModel.unlockCount.collectAsState()
     val guidance by viewModel.coreIndexGuidance.collectAsState()
     val diagnostics by viewModel.measurementDiagnostics.collectAsState()
@@ -194,10 +196,9 @@ fun DashboardScreen(
             // 2. 주요 3단 통계 카드 (각 카드 클릭 시 해당 세부 항목 팝업)
             item {
                 ScoreStatsRow(
-                    screenTimeMillis = appsUsage.sumOf { it.usageTimeMillis },
+                    screenTimeMillis = rollingUsageSummary.totalScreenTimeMillis,
                     unlockCount = unlockCount,
-                    distractingMillis = appsUsage.filter { it.categoryType.isPenalty }
-                        .sumOf { it.usageTimeMillis },
+                    distractingMillis = rollingUsageSummary.managedTimeMillis,
                     onScreenTimeClick = { showScreenTimeModal = true },
                     onUnlockClick = { showUnlockModal = true },
                     onDistractingClick = { showDistractingModal = true }
@@ -216,8 +217,8 @@ fun DashboardScreen(
             // 3. 실시간 앱 사용 헤더
             item {
                 SectionHeading(
-                    title = "오늘의 앱 사용 현황",
-                    subtitle = "앱을 누르면 시간대·세션·최근 추세를 볼 수 있습니다.",
+                    title = "최근 24시간 앱 사용 현황",
+                    subtitle = "현재 시각 직전 24시간의 시간대·세션·최근 추세입니다.",
                     actionLabel = if (appsUsage.size > 5) "전체 ${appsUsage.size}개" else "전체 보기",
                     onAction = { showAllAppsModal = true }
                 )
@@ -281,7 +282,9 @@ fun DashboardScreen(
     // 2. 화면 사용 시간 세부 통계 다이얼로그
     if (showScreenTimeModal) {
         ScreenTimeDetailDialog(
-            totalScreenMillis = appsUsage.sumOf { it.usageTimeMillis },
+            totalScreenMillis = rollingUsageSummary.totalScreenTimeMillis,
+            managedMillis = rollingUsageSummary.managedTimeMillis,
+            growthMillis = rollingUsageSummary.growthTimeMillis,
             appsUsage = appsUsage,
             onDismiss = { showScreenTimeModal = false },
             onNavigateToStatistics = {
@@ -310,8 +313,7 @@ fun DashboardScreen(
     // 4. 방해 앱 세부 분석 다이얼로그
     if (showDistractingModal) {
         DistractingDetailDialog(
-            distractingMillis = appsUsage.filter { it.categoryType.isPenalty }
-                .sumOf { it.usageTimeMillis },
+            distractingMillis = rollingUsageSummary.managedTimeMillis,
             appsUsage = appsUsage.filter { it.categoryType.isPenalty },
             onDismiss = { showDistractingModal = false },
             onNavigateToAppSettings = {
@@ -440,7 +442,7 @@ private fun GuidanceDetailDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("오늘의 사용 흐름", fontWeight = FontWeight.Bold) },
+        title = { Text("최근 24시간 사용 흐름", fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 InsightCard("지수가 움직인 이유") {
@@ -461,9 +463,9 @@ private fun GuidanceDetailDialog(
                         fontSize = 12.sp
                     )
                 }
-                InsightCard("오늘 요약") {
+                InsightCard("최근 24시간 요약") {
                     Text(
-                        "화면 ${formatMinutesToHoursAndMinutes(guidance.todayUsageMinutes)} · 앱 ${guidance.todayOpenCount}회 실행 · 1분 미만 ${guidance.shortOpenCount}회",
+                        "화면 ${formatMinutesToHoursAndMinutes(guidance.rollingUsageMinutes)} · 앱 ${guidance.rollingOpenCount}회 실행 · 1분 미만 ${guidance.shortOpenCount}회",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -725,7 +727,7 @@ private fun AppUsageItemCard(appUsage: AppUsage, onClick: () -> Unit) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = appUsage.appName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    text = "${appUsage.categoryType.displayName} · 오늘 ${appUsage.sessionCount}회",
+                    text = "${appUsage.categoryType.displayName} · 24시간 ${appUsage.sessionCount}회",
                     fontSize = 11.sp,
                     color = categoryColor
                 )
@@ -831,20 +833,22 @@ private fun BreakdownRow(title: String, value: String) {
 @Composable
 fun ScreenTimeDetailDialog(
     totalScreenMillis: Long,
+    managedMillis: Long,
+    growthMillis: Long,
     appsUsage: List<AppUsage>,
     onDismiss: () -> Unit,
     onNavigateToStatistics: () -> Unit,
     onSelectApp: (AppUsage) -> Unit
 ) {
-    val distractingMillis = appsUsage.filter { it.categoryType.isPenalty }.sumOf { it.usageTimeMillis }
-    val productiveMillis = appsUsage.filter { it.categoryType.isBonus }.sumOf { it.usageTimeMillis }
+    val distractingMillis = managedMillis.coerceAtLeast(0L)
+    val productiveMillis = growthMillis.coerceAtLeast(0L)
     val neutralMillis = (totalScreenMillis - distractingMillis - productiveMillis).coerceAtLeast(0L)
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Column {
-                Text(text = "오늘의 화면 사용 시간", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text(text = "최근 24시간 화면 사용", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Text(
                     text = "총 ${formatInsightDuration(totalScreenMillis)}",
                     fontWeight = FontWeight.ExtraBold,
@@ -914,7 +918,7 @@ fun ScreenTimeDetailDialog(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = app.appName, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                             Text(
-                                text = "${app.categoryType.displayName} · 오늘 ${app.sessionCount}회",
+                                text = "${app.categoryType.displayName} · 24시간 ${app.sessionCount}회",
                                 fontSize = 11.sp,
                                 color = appRatingColor(app.categoryType)
                             )
@@ -957,7 +961,7 @@ fun UnlockDetailDialog(
     var insights by remember { mutableStateOf<UnlockInsights?>(null) }
     LaunchedEffect(unlockCount) {
         insights = withContext(Dispatchers.IO) {
-            UsageStatsHelper.getTodayUnlockInsights(context)
+            UsageStatsHelper.getRolling24HourUnlockInsights(context)
         }
     }
 
@@ -965,7 +969,7 @@ fun UnlockDetailDialog(
         onDismissRequest = onDismiss,
         title = {
             Column {
-                Text(text = "오늘의 잠금 해제(언락) 통계", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text(text = "최근 24시간 잠금 해제", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Text(
                     text = "총 ${unlockCount}회 잠금 해제",
                     fontWeight = FontWeight.ExtraBold,
@@ -1006,10 +1010,10 @@ fun UnlockDetailDialog(
                                     barColor = ScoreYellow,
                                     contentDescription = UiTranslator.translate("24시간 언락 횟수 그래프")
                                 )
-                                HourlyAxisLabels()
+                                RollingHourlyAxisLabels(value.windowStartMillis, value.windowEndMillis)
                                 val peak = busiest.first()
                                 Text(
-                                    "가장 잦은 시간은 ${hourLabel(peak.index)} · ${peak.value}회입니다.",
+                                    "가장 잦은 구간은 ${rollingHourLabel(value.windowStartMillis, peak.index)} · ${peak.value}회입니다.",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
@@ -1145,7 +1149,7 @@ fun DistractingDetailDialog(
                 if (appsUsage.isEmpty()) {
                     item {
                         Text(
-                            text = "오늘 사용된 관리 대상 앱이 없습니다. 안정적인 사용 흐름입니다.",
+                            text = "최근 24시간 사용된 관리 대상 앱이 없습니다. 안정적인 사용 흐름입니다.",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = ScoreGreen,
@@ -1165,7 +1169,7 @@ fun DistractingDetailDialog(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(text = app.appName, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                Text("오늘 ${app.sessionCount}회 · 1분 미만 ${app.shortSessionCount}회", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
+                                Text("24시간 ${app.sessionCount}회 · 1분 미만 ${app.shortSessionCount}회", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
                                 if (app.lateNightUsageMinutes > 0) {
                                     Text(
                                         text = "심야 사용 ${app.lateNightUsageMinutes}분",
@@ -1213,7 +1217,7 @@ fun AllAppsUsageDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(text = "오늘의 전체 앱 사용 목록", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text(text = "최근 24시간 전체 앱 목록", fontWeight = FontWeight.Bold, fontSize = 18.sp)
         },
         text = {
             LazyColumn(
@@ -1233,7 +1237,7 @@ fun AllAppsUsageDialog(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = app.appName, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                             Text(
-                                text = "${app.categoryType.displayName} · 오늘 ${app.sessionCount}회",
+                                text = "${app.categoryType.displayName} · 24시간 ${app.sessionCount}회",
                                 fontSize = 11.sp,
                                 color = appRatingColor(app.categoryType)
                             )
@@ -1344,7 +1348,7 @@ fun AppDetailDialog(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column {
-                                Text(text = "오늘 총 사용 시간", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                                Text(text = "최근 24시간 사용", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
                                 Text(
                                     text = formatInsightDuration(appUsage.usageTimeMillis),
                                     fontSize = 16.sp,
@@ -1410,7 +1414,7 @@ private fun AppTimeOfDayInsight(insights: AppUsageInsights) {
         .filter { it.value >= 10_000L }
         .sortedByDescending { it.value }
         .take(3)
-    InsightCard("언제 많이 사용했나요?") {
+    InsightCard("최근 24시간 언제 많이 사용했나요?") {
         if (busiest.isEmpty()) {
             Text("아직 분석할 시간대 기록이 없습니다.", fontSize = 12.sp)
         } else {
@@ -1419,10 +1423,10 @@ private fun AppTimeOfDayInsight(insights: AppUsageInsights) {
                 barColor = MaterialTheme.colorScheme.primary,
                 contentDescription = UiTranslator.translate("24시간 앱 사용량 그래프")
             )
-            HourlyAxisLabels()
+            RollingHourlyAxisLabels(insights.windowStartMillis, insights.windowEndMillis)
             val peak = busiest.first()
             Text(
-                "가장 많이 사용한 시간은 ${hourLabel(peak.index)} · ${formatInsightDuration(peak.value)}입니다.",
+                "가장 많이 사용한 구간은 ${rollingHourLabel(insights.windowStartMillis, peak.index)} · ${formatInsightDuration(peak.value)}입니다.",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold
             )
@@ -1462,7 +1466,7 @@ private fun AppSessionInsight(insights: AppUsageInsights) {
         )
         if (sessions.isNotEmpty()) {
             Text(
-                "오늘 ${sessions.size}회 열었고, 그중 1분 미만은 ${shortOpens}회입니다.",
+                "최근 24시간 ${sessions.size}회 열었고, 그중 1분 미만은 ${shortOpens}회입니다.",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1478,8 +1482,24 @@ private fun AppSessionInsight(insights: AppUsageInsights) {
 @Composable
 private fun AppOpenTrendInsight(insights: AppUsageInsights) {
     val days = insights.dailyUsage.takeLast(14)
-    val today = days.lastOrNull { it.isToday } ?: days.lastOrNull()
-    InsightCard("하루에 몇 번 열었나요?") {
+    InsightCard("날짜별로 몇 번 열었나요?") {
+        val rollingSessions = insights.sessionDurationsMillis
+        val rollingShortCount = rollingSessions.count { it in 1 until 60_000L }
+        Text(
+            "최근 24시간 ${rollingSessions.size}회 · 1분 미만 ${rollingShortCount}회",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        if (rollingSessions.size >= 5) {
+            val shortRatio = (rollingShortCount * 100f / rollingSessions.size).roundToInt()
+            if (shortRatio >= 60) {
+                Text(
+                    "짧은 확인이 전체 실행의 ${shortRatio}%입니다. 습관적으로 여는 흐름인지 살펴보세요.",
+                    fontSize = 11.sp,
+                    color = ScoreOrange
+                )
+            }
+        }
         if (days.isEmpty()) {
             Text("아직 앱 실행 기록이 없습니다.", fontSize = 12.sp)
             return@InsightCard
@@ -1520,22 +1540,6 @@ private fun AppOpenTrendInsight(insights: AppUsageInsights) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("전체 실행", fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
             Text("주황색 · 1분 미만", fontSize = 10.sp, color = ScoreOrange)
-        }
-        if (today != null) {
-            Text(
-                "오늘 ${today.sessionCount}회 · 1분 미만 ${today.shortSessionCount}회",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            val shortRatio = if (today.sessionCount == 0) 0 else
-                (today.shortSessionCount * 100f / today.sessionCount).roundToInt()
-            if (today.sessionCount >= 5 && shortRatio >= 60) {
-                Text(
-                    "짧은 확인이 전체 실행의 ${shortRatio}%입니다. 습관적으로 여는 흐름인지 살펴보세요.",
-                    fontSize = 11.sp,
-                    color = ScoreOrange
-                )
-            }
         }
     }
 }
@@ -1598,6 +1602,11 @@ private fun AppTrendInsight(insights: AppUsageInsights) {
     val busiestWeekday = weekdayAverages.indices.maxByOrNull { weekdayAverages[it] }
 
     InsightCard("장기 사용 추세") {
+        Text(
+            "이 장기 그래프만 요일 비교를 위해 달력 날짜 단위로 집계합니다.",
+            fontSize = 10.sp,
+            color = MaterialTheme.colorScheme.outline
+        )
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1652,7 +1661,7 @@ private fun AppTrendInsight(insights: AppUsageInsights) {
                 fontWeight = FontWeight.SemiBold
             )
         }
-        val today = insights.dailyUsage.lastOrNull()
+        val today = insights.dailyUsage.lastOrNull { it.isToday }
         if (today != null) {
             Text("오늘 ${formatInsightDuration(today.usageMillis)}", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
         }
@@ -1717,15 +1726,29 @@ private fun CompactBarChart(
 }
 
 @Composable
-private fun HourlyAxisLabels() {
+private fun RollingHourlyAxisLabels(windowStartMillis: Long, windowEndMillis: Long) {
+    val hourFormat = remember { java.text.SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    val edgeFormat = remember { java.text.SimpleDateFormat("MM/dd HH:mm", Locale.getDefault()) }
+    val labels = listOf(0, 12, 24).map { offset ->
+        val timestamp = if (offset == 24) {
+            windowEndMillis
+        } else {
+            windowStartMillis + offset * 60 * 60_000L
+        }
+        (if (offset == 0 || offset == 24) edgeFormat else hourFormat).format(Date(timestamp))
+    }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        listOf("0시", "6시", "12시", "18시", "24시").forEach { label ->
+        labels.forEach { label ->
             Text(label, fontSize = 9.sp, color = MaterialTheme.colorScheme.outline)
         }
     }
 }
 
-private fun hourLabel(hour: Int): String = "%02d:00–%02d:00".format(hour, (hour + 1) % 24)
+private fun rollingHourLabel(windowStartMillis: Long, bucket: Int): String {
+    val format = java.text.SimpleDateFormat("MM/dd HH:mm", Locale.getDefault())
+    val start = windowStartMillis + bucket.coerceIn(0, 23) * 60 * 60_000L
+    return "${format.format(Date(start))}–${format.format(Date(start + 60 * 60_000L))}"
+}
 
 private fun formatInsightDuration(millis: Long): String {
     val safeMillis = millis.coerceAtLeast(0L)

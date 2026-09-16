@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.withTransaction
 import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.data.ScoreRepository
+import com.digitscore.app.data.RollingUsageSummary
 import com.digitscore.app.service.TrackerForegroundService
 import com.digitscore.app.widget.WidgetSnapshotStore
 import com.digitscore.app.widget.ScoreWidget
@@ -46,7 +47,7 @@ object PrivacyDataManager {
             .clear()
             .commit()
         WidgetSnapshotStore.clear(appContext)
-        ScoreRepository.updateAppsUsage(emptyList())
+        ScoreRepository.updateRollingUsageSummary(RollingUsageSummary(emptyList(), 0L, 0L, 0L))
         ScoreRepository.updateUnlockCount(0)
         ScoreRepository.updateScoreDetail(null)
         ScoreRepository.updateRollingScoreDetail(null)

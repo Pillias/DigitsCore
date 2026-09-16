@@ -44,7 +44,7 @@ class CoreIndexCoachTest {
             preset = CoreIndexPreset.BALANCED
         )
 
-        assertEquals(3, guidance.todayOpenCount)
+        assertEquals(3, guidance.rollingOpenCount)
         assertEquals(2, guidance.shortOpenCount)
     }
 
@@ -81,7 +81,7 @@ class CoreIndexCoachTest {
             preset = CoreIndexPreset.BALANCED
         )
 
-        assertEquals(1, guidance.todayOpenCount)
+        assertEquals(1, guidance.rollingOpenCount)
         assertEquals(0, guidance.shortOpenCount)
     }
 

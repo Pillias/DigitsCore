@@ -15,6 +15,7 @@ import com.digitscore.app.data.ScoreRepository
 import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.TodayUsageSnapshot
 import com.digitscore.app.data.MeasurementDiagnostics
+import com.digitscore.app.data.summarizeRollingUsage
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
 import com.digitscore.app.data.entity.DailyAppUsageEntity
 import com.digitscore.app.data.entity.DailyUsageCoverageEntity
@@ -249,7 +250,6 @@ class TrackerForegroundService : Service() {
             lastUsageQueryEndMillis = 0L
             lastScreenOffTimestamp = if (isScreenInteractive()) 0L else System.currentTimeMillis()
             persistScreenState()
-            ScoreRepository.updateUnlockCount(0)
         }
     }
 
@@ -358,14 +358,13 @@ class TrackerForegroundService : Service() {
                 }
                 cachedTodaySnapshot = usageSnapshot
                 lastUsageQueryEndMillis = collectionEnd
-                val appsUsage = usageSnapshot.appsUsage
-                ScoreRepository.updateAppsUsage(appsUsage)
+                val todayAppsUsage = usageSnapshot.appsUsage
 
                 // Android의 원본 UsageEvents 보존 기간과 무관하게 날짜별 앱 집계를 365일 보관합니다.
                 // 전면 앱 증거가 전혀 없는 조회는 권한/제조사 이벤트 누락일 수 있으므로 0분으로 덮지 않습니다.
-                if (usageSnapshot.hasForegroundEvidence || appsUsage.isNotEmpty()) {
-                    val appsByPackage = appsUsage.associateBy { it.packageName }
-                    val dailyRecords = appsUsage.map { app ->
+                if (usageSnapshot.hasForegroundEvidence || todayAppsUsage.isNotEmpty()) {
+                    val appsByPackage = todayAppsUsage.associateBy { it.packageName }
+                    val dailyRecords = todayAppsUsage.map { app ->
                         val sessions = usageSnapshot.sessionSummariesByPackage[app.packageName]
                         DailyAppUsageEntity(
                             dateString = currentDateString,
@@ -444,7 +443,7 @@ class TrackerForegroundService : Service() {
                     todayInteractionEvents
                 ).size
                 todayUnlockCount = finalUnlockCount
-                ScoreRepository.updateUnlockCount(finalUnlockCount)
+                ScoreRepository.updateUnlockCount(rollingUnlockCount)
 
                 // 화면 OFF 이벤트로 실제 휴식 시간을 누적한다. 수면/권한 누락 시간을
                 // 단순히 "자정 이후 경과 시간 - 앱 사용 시간"으로 간주하지 않는다.
@@ -458,14 +457,14 @@ class TrackerForegroundService : Service() {
 
                 // 점수 계산
                 val legacyScoreDetail = ScoreCalculator.calculateScore(
-                    appsUsage = appsUsage,
+                    appsUsage = todayAppsUsage,
                     idleMinutes = realIdleMinutes,
                     unlockCount = finalUnlockCount,
                     rule = effectiveRule
                 )
-                // 일별 요약·위젯의 등급별 시간도 주 앱 이름이 아니라 PiP·분할 화면에
-                // 실제 적용된 등급을 따릅니다. 점수 자체는 아래 최근 24시간 엔진이 계산합니다.
-                val scoreDetail = legacyScoreDetail.copy(
+                // 날짜별 장기 통계의 등급별 시간도 주 앱 이름이 아니라 PiP·분할 화면에
+                // 실제 적용된 등급을 따릅니다. 실시간 표시는 아래 최근 24시간 집계를 사용합니다.
+                val dailyScoreDetail = legacyScoreDetail.copy(
                     distractingTimeMinutes = usageSnapshot.foregroundSegments
                         .filter { it.effectiveCategoryLevel >= 3 }
                         .sumOf { it.durationMillis } / 60_000L,
@@ -473,12 +472,27 @@ class TrackerForegroundService : Service() {
                         .filter { it.effectiveCategoryLevel <= 1 }
                         .sumOf { it.durationMillis } / 60_000L
                 )
-                ScoreRepository.updateScoreDetail(scoreDetail)
 
                 // 새 방식은 자정 경계 대신 최근 24시간의 저장된 상세 세션과
                 // 실제 KEYGUARD_HIDDEN/USER_PRESENT 이벤트를 사용합니다.
-                val recentSessions = db.foregroundUsageSessionDao()
-                    .getSince(now - ROLLING_WINDOW_MILLIS)
+                val rollingWindowStart = now - ROLLING_WINDOW_MILLIS
+                val recentSessionEntities = db.foregroundUsageSessionDao()
+                    .getSince(rollingWindowStart)
+                val rollingUsageSummary = summarizeRollingUsage(
+                    records = recentSessionEntities,
+                    startMillis = rollingWindowStart,
+                    endMillis = now,
+                    appWeightMap = weightMap
+                )
+                val rollingAppsUsage = rollingUsageSummary.appsUsage
+                ScoreRepository.updateRollingUsageSummary(rollingUsageSummary)
+                val displayScoreDetail = legacyScoreDetail.copy(
+                    totalScreenTimeMinutes = rollingUsageSummary.totalScreenTimeMillis / 60_000L,
+                    distractingTimeMinutes = rollingUsageSummary.managedTimeMillis / 60_000L,
+                    productiveTimeMinutes = rollingUsageSummary.growthTimeMillis / 60_000L
+                )
+                ScoreRepository.updateScoreDetail(displayScoreDetail)
+                val recentSessions = recentSessionEntities
                     .map { session ->
                         RollingUsageSession(
                             packageName = session.packageName,
@@ -526,7 +540,7 @@ class TrackerForegroundService : Service() {
                     detail = rollingScoreDetail,
                     previousScore = previousSample?.score,
                     sessions = recentSessions,
-                    apps = appsUsage,
+                    apps = rollingAppsUsage,
                     rollingUnlockTimestamps = UsageStatsHelper.resolvedUnlockTimestamps(
                         rollingInteractionEvents
                     ),
@@ -561,9 +575,9 @@ class TrackerForegroundService : Service() {
                 // launcher에 재전송하여 OEM이 놓친 갱신을 복구합니다.
                 val widgetSnapshot = WidgetSnapshot(
                     score = rollingScoreDetail.finalScore,
-                    screenMinutes = scoreDetail.totalScreenTimeMinutes,
-                    managedMinutes = scoreDetail.distractingTimeMinutes,
-                    unlockCount = finalUnlockCount,
+                    screenMinutes = displayScoreDetail.totalScreenTimeMinutes,
+                    managedMinutes = displayScoreDetail.distractingTimeMinutes,
+                    unlockCount = rollingUnlockCount,
                     flow = rollingScoreDetail.flow,
                     continuousUsageMinutes = rollingScoreDetail.continuousUsageMinutes,
                     recommendation = guidance.recommendation,
@@ -595,8 +609,8 @@ class TrackerForegroundService : Service() {
                 if (settings?.isNotificationEnabled != false) {
                     val notification = ScoreNotificationManager.buildScoreNotification(
                         applicationContext,
-                        scoreDetail,
-                        finalUnlockCount,
+                        displayScoreDetail,
+                        rollingUnlockCount,
                         settings?.hideSensitiveNotificationOnLockScreen ?: true,
                         rollingScoreDetail,
                         StatusIconStyle.fromId(settings?.statusIconStyleId),
@@ -621,9 +635,9 @@ class TrackerForegroundService : Service() {
                     DailyScoreHistoryEntity(
                         dateString = currentDateString,
                         finalScore = rollingScoreDetail.finalScore,
-                        totalScreenTimeMinutes = scoreDetail.totalScreenTimeMinutes,
-                        distractingTimeMinutes = scoreDetail.distractingTimeMinutes,
-                        productiveTimeMinutes = scoreDetail.productiveTimeMinutes,
+                        totalScreenTimeMinutes = dailyScoreDetail.totalScreenTimeMinutes,
+                        distractingTimeMinutes = dailyScoreDetail.distractingTimeMinutes,
+                        productiveTimeMinutes = dailyScoreDetail.productiveTimeMinutes,
                         idleMinutes = realIdleMinutes,
                         unlockCount = finalUnlockCount,
                         scoreModelVersion = 2,
