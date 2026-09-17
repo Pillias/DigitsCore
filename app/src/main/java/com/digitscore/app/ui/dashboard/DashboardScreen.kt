@@ -771,6 +771,12 @@ private fun RollingScoreDetailDialog(
                 Text(rollingStatusText(detail))
                 BreakdownRow(stringResource(R.string.recent_usage), stringResource(R.string.format_minutes, detail?.recentUsageMinutes ?: 0))
                 BreakdownRow(stringResource(R.string.rolling_load), String.format("%.1f", detail?.rollingLoad ?: 0.0))
+                if ((detail?.lateNightCarryoverLoad ?: 0.0) >= 0.05) {
+                    BreakdownRow(
+                        stringResource(R.string.late_night_carryover_load),
+                        String.format("%.1f", detail?.lateNightCarryoverLoad ?: 0.0)
+                    )
+                }
                 BreakdownRow(stringResource(R.string.acute_load), String.format("%.1f", detail?.acuteLoad ?: 0.0))
                 Text(
                     stringResource(R.string.score_method_note),

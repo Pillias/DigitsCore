@@ -23,6 +23,7 @@ data class RollingScoreDetail(
     val exactScore: Double,
     val rollingLoad: Double,
     val acuteLoad: Double,
+    val lateNightCarryoverLoad: Double,
     val calibrationProgress: Float,
     val flow: ScoreFlow,
     val statusText: String,
@@ -93,19 +94,23 @@ object RollingScoreCalculator {
             ((nowMillis - last.endTimeMillis) / 60_000L).coerceAtLeast(0L)
         } else 0L
 
-        val lastLevel = last?.categoryLevel?.let { AppCategoryType.normalizeLevel(it) } ?: 2
-        val acuteFactor = when (lastLevel) {
-            3 -> 1.0
-            2 -> 0.45
-            else -> 0.10
-        }
-        val peakAcute = if (last != null) {
-            val sessionMinutes = (last.endTimeMillis - last.startTimeMillis) / 60_000.0
-            34.0 * (max(sessionMinutes - preset.continuousLoadStartMinutes, 0.0) / 150.0).pow(1.3) *
-                acuteFactor * preset.acuteLoadMultiplier
+        val lateNightCarryoverLoad = merged.asSequence()
+            .filter { it.isLateNight && AppCategoryType.normalizeLevel(it.categoryLevel) >= 3 }
+            .sumOf { peakAcuteLoad(it, preset) * preset.lateNightCarryoverRatio }
+        rollingLoad += lateNightCarryoverLoad
+
+        val peakAcute = last?.let { peakAcuteLoad(it, preset) } ?: 0.0
+        val lastHasLateNightCarryover = last?.let {
+            it.isLateNight && AppCategoryType.normalizeLevel(it.categoryLevel) >= 3
+        } == true
+        val lastCarryoverRatio = if (lastHasLateNightCarryover) {
+            preset.lateNightCarryoverRatio
         } else 0.0
-        val acuteLoad = if (isActive) peakAcute else {
-            peakAcute * 0.5.pow(restMinutes / preset.recoveryHalfLifeMinutes)
+        // 심야 연속 사용의 일부는 최근 24시간에 남는 이월 부하로 분리합니다.
+        // 사용 중 총 급성 부하는 이전과 같지만, 잠을 잔다고 전부 사라지지는 않습니다.
+        val recoverableAcute = peakAcute * (1.0 - lastCarryoverRatio)
+        val acuteLoad = if (isActive) recoverableAcute else {
+            recoverableAcute * 0.5.pow(restMinutes / preset.recoveryHalfLifeMinutes)
         }
 
         val totalLoad = rollingLoad + acuteLoad
@@ -137,6 +142,7 @@ object RollingScoreCalculator {
             exactScore = exactScore,
             rollingLoad = rollingLoad,
             acuteLoad = acuteLoad,
+            lateNightCarryoverLoad = lateNightCarryoverLoad,
             calibrationProgress = calibrationProgress,
             flow = flow,
             statusText = statusText,
@@ -158,6 +164,22 @@ object RollingScoreCalculator {
         val responseOffset = MID_RANGE_RESPONSE_STRENGTH *
             normalized * (1.0 - normalized) * (2.0 * normalized - 1.0)
         return RESPONSIVE_SCORE_MIN + range * (normalized + responseOffset)
+    }
+
+    private fun peakAcuteLoad(
+        session: RollingUsageSession,
+        preset: CoreIndexPreset
+    ): Double {
+        val level = AppCategoryType.normalizeLevel(session.categoryLevel)
+        val acuteFactor = when (level) {
+            3 -> 1.0
+            2 -> 0.45
+            else -> 0.10
+        }
+        val sessionMinutes = (session.endTimeMillis - session.startTimeMillis) / 60_000.0
+        return 34.0 *
+            (max(sessionMinutes - preset.continuousLoadStartMinutes, 0.0) / 150.0).pow(1.3) *
+            acuteFactor * preset.acuteLoadMultiplier
     }
 
     private fun mergeContinuousSessions(sessions: List<RollingUsageSession>): List<RollingUsageSession> {

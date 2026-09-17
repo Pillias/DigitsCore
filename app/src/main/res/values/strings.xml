@@ -28,8 +28,9 @@
     <string name="recent_usage">최근 24시간 사용</string>
     <string name="continuous_usage">현재 연속 사용</string>
     <string name="rolling_load">24시간 누적 부하</string>
+    <string name="late_night_carryover_load">그중 심야 이월 부하</string>
     <string name="acute_load">연속 사용 가속 부하</string>
-    <string name="score_method_note">화면을 끄고 쉬면 연속 사용 부하가 줄어 코어 지수가 회복됩니다. 화면이 꺼진 동안의 백그라운드 재생은 사용시간에 포함하지 않습니다.</string>
+    <string name="score_method_note">화면을 끄고 쉬면 회복 가능한 연속 사용 부하는 줄어듭니다. 심야 연속 사용의 이월 부하는 최근 24시간 동안 남으며, 화면이 꺼진 동안의 백그라운드 재생은 사용시간에 포함하지 않습니다.</string>
     <string name="view_statistics">전체 통계 보기</string>
     <string name="close">닫기</string>
     <string name="language">언어</string>

@@ -28,8 +28,9 @@
     <string name="recent_usage">Usage in last 24 hours</string>
     <string name="continuous_usage">Current continuous use</string>
     <string name="rolling_load">24-hour rolling load</string>
+    <string name="late_night_carryover_load">Night carryover included</string>
     <string name="acute_load">Continuous-use load</string>
-    <string name="score_method_note">Putting the screen down reduces continuous-use load and lets the Core Index recover. Background playback while the screen is off is excluded from usage time.</string>
+    <string name="score_method_note">Putting the screen down reduces the recoverable continuous-use load. Carryover from sustained late-night use remains in the rolling 24-hour window. Background playback while the screen is off is excluded from usage time.</string>
     <string name="view_statistics">View all statistics</string>
     <string name="close">Close</string>
     <string name="language">Language</string>

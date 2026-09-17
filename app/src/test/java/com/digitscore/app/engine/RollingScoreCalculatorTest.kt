@@ -68,6 +68,29 @@ class RollingScoreCalculatorTest {
     }
 
     @Test
+    fun lateNightContinuousUseKeepsCarryoverLoadAfterSleep() {
+        val restMinutes = listOf(0L, 120L, 180L, 360L, 480L)
+        val scores = restMinutes.map { rest ->
+            RollingScoreCalculator.calculate(
+                listOf(
+                    session(
+                        minutes = 300L,
+                        level = 3,
+                        end = now - rest * 60_000L,
+                        isLateNight = true
+                    )
+                ),
+                now,
+                calibrationUsageMillis = 60 * 60_000L
+            )
+        }
+
+        assertEquals(listOf(20, 29, 33, 38, 39), scores.map { it.finalScore })
+        assertTrue(scores.last().lateNightCarryoverLoad > 0.0)
+        assertTrue(scores.last().finalScore < 50)
+    }
+
+    @Test
     fun productiveUsageDoesNotCreateBonusAboveItsLowLoadScore() {
         val result = RollingScoreCalculator.calculate(
             listOf(session(minutes = 120, level = 1, end = now)),
@@ -150,10 +173,16 @@ class RollingScoreCalculatorTest {
         return sessions
     }
 
-    private fun session(minutes: Long, level: Int, end: Long) = RollingUsageSession(
+    private fun session(
+        minutes: Long,
+        level: Int,
+        end: Long,
+        isLateNight: Boolean = false
+    ) = RollingUsageSession(
         packageName = "test.app",
         startTimeMillis = end - minutes * 60_000L,
         endTimeMillis = end,
-        categoryLevel = level
+        categoryLevel = level,
+        isLateNight = isLateNight
     )
 }

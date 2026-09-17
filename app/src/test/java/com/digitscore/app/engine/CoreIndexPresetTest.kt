@@ -1,6 +1,7 @@
 package com.digitscore.app.engine
 
 import com.digitscore.app.model.CoreIndexPreset
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -46,6 +47,15 @@ class CoreIndexPresetTest {
         val night = score(sessions, CoreIndexPreset.NIGHT_BALANCE)
 
         assertTrue("balanced=$balanced night=$night", night < balanced)
+    }
+
+    @Test
+    fun everyPresetKeepsPartOfLateNightContinuousLoadAcrossSleep() {
+        assertEquals(0.20, CoreIndexPreset.BALANCED.lateNightCarryoverRatio, 0.001)
+        assertEquals(0.20, CoreIndexPreset.FOCUS.lateNightCarryoverRatio, 0.001)
+        assertEquals(0.25, CoreIndexPreset.SCREEN_REST.lateNightCarryoverRatio, 0.001)
+        assertEquals(0.35, CoreIndexPreset.NIGHT_BALANCE.lateNightCarryoverRatio, 0.001)
+        assertEquals(0.35, CoreIndexPreset.FAMILY.lateNightCarryoverRatio, 0.001)
     }
 
     private fun score(
