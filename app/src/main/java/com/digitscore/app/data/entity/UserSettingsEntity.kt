@@ -6,6 +6,7 @@ import com.digitscore.app.model.ScoreRule
 import com.digitscore.app.model.CoreIndexPreset
 import com.digitscore.app.model.RapidUsageAlertConfig
 import com.digitscore.app.model.defaultRapidUsageAlertConfig
+import com.digitscore.app.model.defaultScoringConfig
 
 /**
  * 사용자 설정 엔티티 (단일 레코드 관리 id=1)

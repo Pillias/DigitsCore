@@ -26,7 +26,6 @@ import com.digitscore.app.data.entity.applyTo
 import com.digitscore.app.data.entity.effectiveRapidUsageAlertConfig
 import com.digitscore.app.data.entity.effectiveScoringConfig
 import com.digitscore.app.model.defaultScoringConfig
-import java.util.Calendar
 import com.digitscore.app.engine.RapidUsageAlertDetector
 import com.digitscore.app.engine.RapidUsageObservation
 import com.digitscore.app.engine.ScoreCalculator
