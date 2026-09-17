@@ -24,14 +24,47 @@ class RollingScoreCalculatorTest {
     }
 
     @Test
-    fun threeHoursRestAfterGamingRecoversNear70ButNotTo100() {
+    fun threeHoursRestAfterGamingRecoversGraduallyWithoutErasingTheLoad() {
         val gameEnd = now - 180 * 60_000L
         val result = RollingScoreCalculator.calculate(
             listOf(session(minutes = 180, level = 3, end = gameEnd)),
             now
         )
-        assertTrue("score=${result.finalScore}", result.finalScore in 68..78)
+        assertTrue("score=${result.finalScore}", result.finalScore in 60..65)
         assertEquals(ScoreFlow.RECOVERING, result.flow)
+    }
+
+    @Test
+    fun heavyUseRecoveryDoesNotJumpDuringTheFirstHoursOfSleep() {
+        val heavyUseMinutes = 300L
+        val afterTwoHours = RollingScoreCalculator.calculate(
+            listOf(session(minutes = heavyUseMinutes, level = 3, end = now - 120 * 60_000L)),
+            now
+        )
+        val afterEightHours = RollingScoreCalculator.calculate(
+            listOf(session(minutes = heavyUseMinutes, level = 3, end = now - 480 * 60_000L)),
+            now
+        )
+
+        assertTrue("two-hour score=${afterTwoHours.finalScore}", afterTwoHours.finalScore in 35..40)
+        assertTrue("eight-hour score=${afterEightHours.finalScore}", afterEightHours.finalScore in 50..55)
+        assertTrue(afterEightHours.finalScore > afterTwoHours.finalScore)
+    }
+
+    @Test
+    fun balancedRecoverySimulationMatchesTheDocumentedCurve() {
+        val restMinutes = listOf(0L, 120L, 180L, 360L, 480L)
+
+        fun curve(usageMinutes: Long): List<Int> = restMinutes.map { rest ->
+            RollingScoreCalculator.calculate(
+                listOf(session(minutes = usageMinutes, level = 3, end = now - rest * 60_000L)),
+                now,
+                calibrationUsageMillis = 60 * 60_000L
+            ).finalScore
+        }
+
+        assertEquals(listOf(42, 56, 62, 72, 74), curve(180L))
+        assertEquals(listOf(22, 37, 43, 52, 53), curve(300L))
     }
 
     @Test
