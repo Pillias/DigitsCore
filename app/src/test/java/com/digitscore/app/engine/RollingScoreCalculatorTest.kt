@@ -173,6 +173,70 @@ class RollingScoreCalculatorTest {
         return sessions
     }
 
+    @Test
+    fun sleepRecoveryFreezesLoadAndPreventsMassiveScoreJump() {
+        val cal = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 23)
+            set(java.util.Calendar.MINUTE, 30)
+            set(java.util.Calendar.SECOND, 0)
+        }
+        val sleepStart = cal.timeInMillis
+        val wakeUp = sleepStart + 480 * 60_000L
+
+        val beforeSleep = RollingScoreCalculator.calculate(
+            listOf(session(minutes = 180, level = 3, end = sleepStart)),
+            sleepStart,
+            calibrationUsageMillis = 60 * 60_000L
+        )
+        val afterSleep = RollingScoreCalculator.calculate(
+            listOf(session(minutes = 180, level = 3, end = sleepStart)),
+            wakeUp,
+            calibrationUsageMillis = 60 * 60_000L
+        )
+
+        assertTrue("before=${beforeSleep.finalScore}, after=${afterSleep.finalScore}",
+            afterSleep.finalScore - beforeSleep.finalScore <= 12)
+        assertTrue(afterSleep.acuteLoad > 0.0)
+    }
+
+    @Test
+    fun daytimeRestAllowsNormalHealthyRecovery() {
+        val cal = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 12)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+        }
+        val restStart = cal.timeInMillis
+        val restEnd = restStart + 180 * 60_000L
+
+        val atEnd = RollingScoreCalculator.calculate(
+            listOf(session(minutes = 120, level = 3, end = restStart)),
+            restStart,
+            calibrationUsageMillis = 60 * 60_000L
+        )
+        val afterDayRest = RollingScoreCalculator.calculate(
+            listOf(session(minutes = 120, level = 3, end = restStart)),
+            restEnd,
+            calibrationUsageMillis = 60 * 60_000L
+        )
+
+        assertTrue(afterDayRest.finalScore > atEnd.finalScore)
+    }
+
+    @Test
+    fun tieredLateNightMultipliersApplyDifferentiatedLoad() {
+        val cal1 = java.util.Calendar.getInstance().apply { set(java.util.Calendar.HOUR_OF_DAY, 23); set(java.util.Calendar.MINUTE, 30) }
+        val cal2 = java.util.Calendar.getInstance().apply { set(java.util.Calendar.HOUR_OF_DAY, 2); set(java.util.Calendar.MINUTE, 30) }
+
+        val tier1Sess = session(minutes = 60, level = 3, end = cal1.timeInMillis)
+        val tier2Sess = session(minutes = 60, level = 3, end = cal2.timeInMillis)
+
+        val tier1Score = RollingScoreCalculator.calculate(listOf(tier1Sess), cal1.timeInMillis, calibrationUsageMillis = 60 * 60_000L)
+        val tier2Score = RollingScoreCalculator.calculate(listOf(tier2Sess), cal2.timeInMillis, calibrationUsageMillis = 60 * 60_000L)
+
+        assertTrue("tier1=${tier1Score.finalScore}, tier2=${tier2Score.finalScore}", tier2Score.finalScore < tier1Score.finalScore)
+    }
+
     private fun session(
         minutes: Long,
         level: Int,

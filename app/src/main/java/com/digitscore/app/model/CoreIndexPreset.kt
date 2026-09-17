@@ -33,7 +33,10 @@ enum class CoreIndexPreset(
     val overallSensitivity: PresetSensitivity,
     val continuousSensitivity: PresetSensitivity,
     val lateNightSensitivity: PresetSensitivity,
-    val unlockSensitivity: PresetSensitivity
+    val unlockSensitivity: PresetSensitivity,
+    val lateNightTier1Multiplier: Double = lateNightMultiplier,
+    val lateNightTier2Multiplier: Double = lateNightMultiplier * 1.5,
+    val sleepRecoveryHalfLifeMinutes: Double = 3600.0
 ) {
     BALANCED(
         id = "balanced",
@@ -53,7 +56,10 @@ enum class CoreIndexPreset(
         overallSensitivity = PresetSensitivity.STANDARD,
         continuousSensitivity = PresetSensitivity.STANDARD,
         lateNightSensitivity = PresetSensitivity.STANDARD,
-        unlockSensitivity = PresetSensitivity.STANDARD
+        unlockSensitivity = PresetSensitivity.STANDARD,
+        lateNightTier1Multiplier = 1.4,
+        lateNightTier2Multiplier = 2.0,
+        sleepRecoveryHalfLifeMinutes = 3600.0
     ),
     FOCUS(
         id = "focus",
@@ -73,7 +79,10 @@ enum class CoreIndexPreset(
         overallSensitivity = PresetSensitivity.RELAXED,
         continuousSensitivity = PresetSensitivity.SENSITIVE,
         lateNightSensitivity = PresetSensitivity.STANDARD,
-        unlockSensitivity = PresetSensitivity.SENSITIVE
+        unlockSensitivity = PresetSensitivity.SENSITIVE,
+        lateNightTier1Multiplier = 1.5,
+        lateNightTier2Multiplier = 2.2,
+        sleepRecoveryHalfLifeMinutes = 3600.0
     ),
     SCREEN_REST(
         id = "screen_rest",
@@ -93,7 +102,10 @@ enum class CoreIndexPreset(
         overallSensitivity = PresetSensitivity.SENSITIVE,
         continuousSensitivity = PresetSensitivity.SENSITIVE,
         lateNightSensitivity = PresetSensitivity.SENSITIVE,
-        unlockSensitivity = PresetSensitivity.RELAXED
+        unlockSensitivity = PresetSensitivity.RELAXED,
+        lateNightTier1Multiplier = 1.6,
+        lateNightTier2Multiplier = 2.4,
+        sleepRecoveryHalfLifeMinutes = 3600.0
     ),
     NIGHT_BALANCE(
         id = "night_balance",
@@ -113,7 +125,10 @@ enum class CoreIndexPreset(
         overallSensitivity = PresetSensitivity.STANDARD,
         continuousSensitivity = PresetSensitivity.STANDARD,
         lateNightSensitivity = PresetSensitivity.SENSITIVE,
-        unlockSensitivity = PresetSensitivity.STANDARD
+        unlockSensitivity = PresetSensitivity.STANDARD,
+        lateNightTier1Multiplier = 1.75,
+        lateNightTier2Multiplier = 2.6,
+        sleepRecoveryHalfLifeMinutes = 4800.0
     ),
     FAMILY(
         id = "family",
@@ -133,7 +148,10 @@ enum class CoreIndexPreset(
         overallSensitivity = PresetSensitivity.SENSITIVE,
         continuousSensitivity = PresetSensitivity.SENSITIVE,
         lateNightSensitivity = PresetSensitivity.SENSITIVE,
-        unlockSensitivity = PresetSensitivity.SENSITIVE
+        unlockSensitivity = PresetSensitivity.SENSITIVE,
+        lateNightTier1Multiplier = 1.8,
+        lateNightTier2Multiplier = 2.8,
+        sleepRecoveryHalfLifeMinutes = 4800.0
     );
 
     val title: String
@@ -155,3 +173,23 @@ enum class CoreIndexPreset(
         fun fromId(id: String): CoreIndexPreset = entries.firstOrNull { it.id == id } ?: BALANCED
     }
 }
+
+val CoreIndexPreset.defaultScoringConfig: CoreIndexScoringConfig
+    get() = CoreIndexScoringConfig(
+        continuousLoadStartMinutes = continuousLoadStartMinutes,
+        sessionJoinGapMillis = 90_000L,
+        lateNightTier1StartHour = 23,
+        lateNightTier1EndHour = 1,
+        lateNightTier1Multiplier = lateNightTier1Multiplier,
+        lateNightTier2StartHour = 1,
+        lateNightTier2EndHour = 5,
+        lateNightTier2Multiplier = lateNightTier2Multiplier,
+        isSleepFreezeEnabled = true,
+        sleepDetectionThresholdMinutes = 150L,
+        sleepRecoveryHalfLifeMinutes = sleepRecoveryHalfLifeMinutes,
+        unlockThreshold = unlockThreshold,
+        recoveryHalfLifeMinutes = recoveryHalfLifeMinutes,
+        chronicCarryoverThresholdMinutes = 60.0,
+        chronicCarryoverRatio = lateNightCarryoverRatio
+    )
+

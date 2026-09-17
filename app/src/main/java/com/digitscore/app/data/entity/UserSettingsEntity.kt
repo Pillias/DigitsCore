@@ -44,7 +44,18 @@ data class UserSettingsEntity(
     val rapidAlertScoreDrop: Int = 5,
     val rapidAlertUsageMinutes: Int = 24,
     val rapidAlertContinuousMinutes: Int = 35,
-    val rapidAlertCooldownMinutes: Int = 90
+    val rapidAlertCooldownMinutes: Int = 90,
+    val usePresetScoringDefaults: Boolean = true,
+    val customContinuousStartMinutes: Int = 30,
+    val customLateNightTier1StartHour: Int = 23,
+    val customLateNightTier1EndHour: Int = 1,
+    val customLateNightTier1Multiplier: Float = 1.4f,
+    val customLateNightTier2StartHour: Int = 1,
+    val customLateNightTier2EndHour: Int = 5,
+    val customLateNightTier2Multiplier: Float = 2.0f,
+    val customIsSleepFreezeEnabled: Boolean = true,
+    val customSleepThresholdMinutes: Int = 150,
+    val customTargetUnlockCount: Int = 20
 )
 
 fun UserSettingsEntity.effectiveRapidUsageAlertConfig(
@@ -58,6 +69,27 @@ fun UserSettingsEntity.effectiveRapidUsageAlertConfig(
         usageMinutes = rapidAlertUsageMinutes,
         continuousMinutes = rapidAlertContinuousMinutes,
         cooldownMinutes = rapidAlertCooldownMinutes
+    ).sanitized()
+}
+
+fun UserSettingsEntity.effectiveScoringConfig(
+    preset: CoreIndexPreset = CoreIndexPreset.fromId(selectedCoreIndexPresetId)
+): com.digitscore.app.model.CoreIndexScoringConfig = if (usePresetScoringDefaults) {
+    preset.defaultScoringConfig
+} else {
+    com.digitscore.app.model.CoreIndexScoringConfig(
+        continuousLoadStartMinutes = customContinuousStartMinutes.toDouble(),
+        lateNightTier1StartHour = customLateNightTier1StartHour,
+        lateNightTier1EndHour = customLateNightTier1EndHour,
+        lateNightTier1Multiplier = customLateNightTier1Multiplier.toDouble(),
+        lateNightTier2StartHour = customLateNightTier2StartHour,
+        lateNightTier2EndHour = customLateNightTier2EndHour,
+        lateNightTier2Multiplier = customLateNightTier2Multiplier.toDouble(),
+        isSleepFreezeEnabled = customIsSleepFreezeEnabled,
+        sleepDetectionThresholdMinutes = customSleepThresholdMinutes.toLong(),
+        sleepRecoveryHalfLifeMinutes = preset.sleepRecoveryHalfLifeMinutes,
+        unlockThreshold = customTargetUnlockCount,
+        recoveryHalfLifeMinutes = preset.recoveryHalfLifeMinutes
     ).sanitized()
 }
 

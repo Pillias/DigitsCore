@@ -24,6 +24,9 @@ import com.digitscore.app.data.entity.CoreIndexSampleEntity
 import com.digitscore.app.data.entity.DeviceInteractionEventEntity
 import com.digitscore.app.data.entity.applyTo
 import com.digitscore.app.data.entity.effectiveRapidUsageAlertConfig
+import com.digitscore.app.data.entity.effectiveScoringConfig
+import com.digitscore.app.model.defaultScoringConfig
+import java.util.Calendar
 import com.digitscore.app.engine.RapidUsageAlertDetector
 import com.digitscore.app.engine.RapidUsageObservation
 import com.digitscore.app.engine.ScoreCalculator
@@ -393,10 +396,9 @@ class TrackerForegroundService : Service() {
                         getAppHistoryCutoffDateString(365)
                     )
 
-                    // 상세 전면 세션은 30일만 암호화 보관하고, 그 이후에는 일별 집계만 남깁니다.
-                    val lateNightEnd = UsageStatsHelper.getStartOfTodayMillis() + 5 * 60 * 60 * 1_000L
                     val sessionRecords = usageSnapshot.foregroundSegments.mapNotNull { segment ->
                         val app = appsByPackage[segment.packageName] ?: return@mapNotNull null
+                        val segHour = Calendar.getInstance().apply { timeInMillis = segment.startTimeMillis }.get(Calendar.HOUR_OF_DAY)
                         ForegroundUsageSessionEntity(
                             packageName = segment.packageName,
                             startTimeMillis = segment.startTimeMillis,
@@ -408,7 +410,7 @@ class TrackerForegroundService : Service() {
                             effectiveCategoryLevel = segment.effectiveCategoryLevel,
                             concurrentAppCount = segment.concurrentAppCount,
                             sessionStartTimeMillis = segment.sessionStartTimeMillis,
-                            isLateNight = segment.startTimeMillis < lateNightEnd,
+                            isLateNight = segHour >= 23 || segHour < 5,
                             lastUpdatedTimestamp = now
                         )
                     }
@@ -526,12 +528,15 @@ class TrackerForegroundService : Service() {
                 )
                 val rapidUsageAlertConfig = settings?.effectiveRapidUsageAlertConfig(coreIndexPreset)
                     ?: coreIndexPreset.defaultRapidUsageAlertConfig
+                val scoringConfig = settings?.effectiveScoringConfig(coreIndexPreset)
+                    ?: coreIndexPreset.defaultScoringConfig
                 val rollingScoreDetail = RollingScoreCalculator.calculate(
                         sessions = recentSessions,
                         nowMillis = now,
                         rollingUnlockCount = rollingUnlockCount,
                         calibrationUsageMillis = recordedUsageMillis,
-                        preset = coreIndexPreset
+                        preset = coreIndexPreset,
+                        config = scoringConfig
                     )
                 ScoreRepository.updateRollingScoreDetail(rollingScoreDetail)
 

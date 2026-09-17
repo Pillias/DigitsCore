@@ -117,6 +117,17 @@ object DataBackupManager {
                 put("rapidAlertUsageMinutes", settings.rapidAlertUsageMinutes)
                 put("rapidAlertContinuousMinutes", settings.rapidAlertContinuousMinutes)
                 put("rapidAlertCooldownMinutes", settings.rapidAlertCooldownMinutes)
+                put("usePresetScoringDefaults", settings.usePresetScoringDefaults)
+                put("customContinuousStartMinutes", settings.customContinuousStartMinutes)
+                put("customLateNightTier1StartHour", settings.customLateNightTier1StartHour)
+                put("customLateNightTier1EndHour", settings.customLateNightTier1EndHour)
+                put("customLateNightTier1Multiplier", settings.customLateNightTier1Multiplier.toDouble())
+                put("customLateNightTier2StartHour", settings.customLateNightTier2StartHour)
+                put("customLateNightTier2EndHour", settings.customLateNightTier2EndHour)
+                put("customLateNightTier2Multiplier", settings.customLateNightTier2Multiplier.toDouble())
+                put("customIsSleepFreezeEnabled", settings.customIsSleepFreezeEnabled)
+                put("customSleepThresholdMinutes", settings.customSleepThresholdMinutes)
+                put("customTargetUnlockCount", settings.customTargetUnlockCount)
             }
             rootJson.put("settings", sObj)
         }
@@ -312,7 +323,27 @@ object DataBackupManager {
                     rapidAlertContinuousMinutes = sObj.optInt("rapidAlertContinuousMinutes", 35)
                         .coerceIn(15, 90),
                     rapidAlertCooldownMinutes = sObj.optInt("rapidAlertCooldownMinutes", 90)
-                        .coerceIn(30, 360)
+                        .coerceIn(30, 360),
+                    usePresetScoringDefaults = sObj.optBoolean("usePresetScoringDefaults", true),
+                    customContinuousStartMinutes = sObj.optInt("customContinuousStartMinutes", 30)
+                        .coerceIn(15, 90),
+                    customLateNightTier1StartHour = sObj.optInt("customLateNightTier1StartHour", 23)
+                        .coerceIn(20, 23),
+                    customLateNightTier1EndHour = sObj.optInt("customLateNightTier1EndHour", 1)
+                        .coerceIn(0, 2),
+                    customLateNightTier1Multiplier = sObj.optDouble("customLateNightTier1Multiplier", 1.4)
+                        .toFloat().coerceIn(1.0f, 3.0f),
+                    customLateNightTier2StartHour = sObj.optInt("customLateNightTier2StartHour", 1)
+                        .coerceIn(0, 2),
+                    customLateNightTier2EndHour = sObj.optInt("customLateNightTier2EndHour", 5)
+                        .coerceIn(4, 7),
+                    customLateNightTier2Multiplier = sObj.optDouble("customLateNightTier2Multiplier", 2.0)
+                        .toFloat().coerceIn(1.2f, 4.0f),
+                    customIsSleepFreezeEnabled = sObj.optBoolean("customIsSleepFreezeEnabled", true),
+                    customSleepThresholdMinutes = sObj.optInt("customSleepThresholdMinutes", 150)
+                        .coerceIn(90, 300),
+                    customTargetUnlockCount = sObj.optInt("customTargetUnlockCount", 20)
+                        .coerceIn(5, 100)
                 )
                 db.settingsDao().insertOrUpdateSettings(settings)
             }

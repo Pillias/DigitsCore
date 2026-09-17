@@ -32,6 +32,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import com.digitscore.app.i18n.Text
+import com.digitscore.app.data.entity.effectiveScoringConfig
+import com.digitscore.app.model.defaultScoringConfig
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -139,6 +141,7 @@ fun PresetModeScreen(
     val selectedPreset = PresetMode.fromId(selectedModeId)
     val selectedCoreIndexPreset = CoreIndexPreset.fromId(settings.selectedCoreIndexPresetId)
     val rapidAlertConfig = settings.effectiveRapidUsageAlertConfig(selectedCoreIndexPreset)
+    val scoringConfig = settings.effectiveScoringConfig(selectedCoreIndexPreset)
     var showPrivacyPolicy by remember { mutableStateOf(false) }
     var isPresetMenuExpanded by remember { mutableStateOf(false) }
     var isCoreIndexPresetMenuExpanded by remember { mutableStateOf(false) }
@@ -216,6 +219,37 @@ fun PresetModeScreen(
                 rapidAlertUsageMinutes = usageMinutes.coerceAtMost(windowMinutes),
                 rapidAlertContinuousMinutes = continuousMinutes,
                 rapidAlertCooldownMinutes = cooldownMinutes
+            )
+        )
+    }
+
+    fun saveScoringSettings(updated: UserSettingsEntity) {
+        scope.launch(Dispatchers.IO) {
+            db.settingsDao().insertOrUpdateSettings(updated)
+            if (updated.isTrackingEnabled) {
+                TrackerForegroundService.refreshNotification(context)
+            }
+        }
+    }
+
+    fun customizeScoring(
+        useDefaults: Boolean = false,
+        continuousStartMinutes: Int = scoringConfig.continuousLoadStartMinutes.toInt(),
+        lateNightTier1Multiplier: Float = scoringConfig.lateNightTier1Multiplier.toFloat(),
+        lateNightTier2Multiplier: Float = scoringConfig.lateNightTier2Multiplier.toFloat(),
+        isSleepFreezeEnabled: Boolean = scoringConfig.isSleepFreezeEnabled,
+        sleepThresholdMinutes: Int = scoringConfig.sleepDetectionThresholdMinutes.toInt(),
+        targetUnlockCount: Int = scoringConfig.unlockThreshold
+    ) {
+        saveScoringSettings(
+            settings.copy(
+                usePresetScoringDefaults = useDefaults,
+                customContinuousStartMinutes = continuousStartMinutes,
+                customLateNightTier1Multiplier = lateNightTier1Multiplier,
+                customLateNightTier2Multiplier = lateNightTier2Multiplier,
+                customIsSleepFreezeEnabled = isSleepFreezeEnabled,
+                customSleepThresholdMinutes = sleepThresholdMinutes,
+                customTargetUnlockCount = targetUnlockCount
             )
         )
     }
@@ -479,6 +513,159 @@ fun PresetModeScreen(
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
+                    }
+                }
+            }
+
+            item {
+                SectionHeading(
+                    title = "코어 지수 세부 계산 조정",
+                    subtitle = "연속 사용 가속, 심야 차등 가중치, 수면 중 회복 여부를 직접 조정합니다."
+                )
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("프리셋 기본값 사용", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text(
+                                    if (settings.usePresetScoringDefaults) "${selectedCoreIndexPreset.title} 최적값 자동 적용 중"
+                                    else "사용자 직접 조정 모드 활성화됨",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                            androidx.compose.material3.Switch(
+                                checked = settings.usePresetScoringDefaults,
+                                onCheckedChange = { useDefaults ->
+                                    if (useDefaults) {
+                                        val def = selectedCoreIndexPreset.defaultScoringConfig
+                                        saveScoringSettings(
+                                            settings.copy(
+                                                usePresetScoringDefaults = true,
+                                                customContinuousStartMinutes = def.continuousLoadStartMinutes.toInt(),
+                                                customLateNightTier1Multiplier = def.lateNightTier1Multiplier.toFloat(),
+                                                customLateNightTier2Multiplier = def.lateNightTier2Multiplier.toFloat(),
+                                                customIsSleepFreezeEnabled = def.isSleepFreezeEnabled,
+                                                customSleepThresholdMinutes = def.sleepDetectionThresholdMinutes.toInt(),
+                                                customTargetUnlockCount = def.unlockThreshold
+                                            )
+                                        )
+                                    } else {
+                                        customizeScoring(useDefaults = false)
+                                    }
+                                }
+                            )
+                        }
+
+                        if (!settings.usePresetScoringDefaults) {
+                            // 1. 연속 사용 가속 시작 시간
+                            RapidAlertSlider(
+                                title = "연속 사용 가속 시작 시간",
+                                value = scoringConfig.continuousLoadStartMinutes.toInt(),
+                                valueLabel = "${scoringConfig.continuousLoadStartMinutes.toInt()}분부터",
+                                range = 15f..60f,
+                                steps = 8,
+                                onValueCommitted = { customizeScoring(continuousStartMinutes = it) }
+                            )
+
+                            // 2. 심야 1단계 (23~01시) 가중치
+                            RapidAlertSlider(
+                                title = "심야 1단계 (23~01시) 가중치",
+                                value = (scoringConfig.lateNightTier1Multiplier * 10).toInt(),
+                                valueLabel = String.format(java.util.Locale.US, "%.1f배", scoringConfig.lateNightTier1Multiplier),
+                                range = 10f..25f,
+                                steps = 14,
+                                onValueCommitted = { customizeScoring(lateNightTier1Multiplier = it / 10f) }
+                            )
+
+                            // 3. 심야 2단계 (01~05시) 가중치
+                            RapidAlertSlider(
+                                title = "심야 2단계 (01~05시) 가중치",
+                                value = (scoringConfig.lateNightTier2Multiplier * 10).toInt(),
+                                valueLabel = String.format(java.util.Locale.US, "%.1f배", scoringConfig.lateNightTier2Multiplier),
+                                range = 15f..35f,
+                                steps = 19,
+                                onValueCommitted = { customizeScoring(lateNightTier2Multiplier = it / 10f) }
+                            )
+
+                            // 4. 수면 회복 동결 스위치
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("수면 중 피로 회복 동결", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                    Text(
+                                        "수면 중 피로 부하 회복을 억제하여 기상 시 점수 급반등을 방지합니다.",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                                androidx.compose.material3.Switch(
+                                    checked = scoringConfig.isSleepFreezeEnabled,
+                                    onCheckedChange = { freeze ->
+                                        customizeScoring(isSleepFreezeEnabled = freeze)
+                                    }
+                                )
+                            }
+
+                            // 5. 수면 판정 최소 시간
+                            if (scoringConfig.isSleepFreezeEnabled) {
+                                RapidAlertSlider(
+                                    title = "수면 판정 화면 미사용 시간",
+                                    value = scoringConfig.sleepDetectionThresholdMinutes.toInt(),
+                                    valueLabel = "${scoringConfig.sleepDetectionThresholdMinutes.toInt()}분 (${scoringConfig.sleepDetectionThresholdMinutes / 60}시간 반)",
+                                    range = 120f..240f,
+                                    steps = 3,
+                                    onValueCommitted = { customizeScoring(sleepThresholdMinutes = it) }
+                                )
+                            }
+
+                            // 6. 일일 목표 언락 횟수
+                            RapidAlertSlider(
+                                title = "일일 목표 언락 횟수",
+                                value = scoringConfig.unlockThreshold,
+                                valueLabel = "${scoringConfig.unlockThreshold}회 초과 시 감점",
+                                range = 10f..50f,
+                                steps = 7,
+                                onValueCommitted = { customizeScoring(targetUnlockCount = it) }
+                            )
+
+                            OutlinedButton(
+                                onClick = {
+                                    val def = selectedCoreIndexPreset.defaultScoringConfig
+                                    saveScoringSettings(
+                                        settings.copy(
+                                            usePresetScoringDefaults = true,
+                                            customContinuousStartMinutes = def.continuousLoadStartMinutes.toInt(),
+                                            customLateNightTier1Multiplier = def.lateNightTier1Multiplier.toFloat(),
+                                            customLateNightTier2Multiplier = def.lateNightTier2Multiplier.toFloat(),
+                                            customIsSleepFreezeEnabled = def.isSleepFreezeEnabled,
+                                            customSleepThresholdMinutes = def.sleepDetectionThresholdMinutes.toInt(),
+                                            customTargetUnlockCount = def.unlockThreshold
+                                        )
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("${selectedCoreIndexPreset.title} 기본값으로 복원")
+                            }
+                        }
                     }
                 }
             }

@@ -39,7 +39,7 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
         CoreIndexSampleEntity::class,
         DeviceInteractionEventEntity::class
     ],
-    version = 16,
+    version = 17,
     exportSchema = true
 )
 abstract class DigitsDatabase : RoomDatabase() {
@@ -437,6 +437,22 @@ abstract class DigitsDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE user_settings ADD COLUMN usePresetScoringDefaults INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE user_settings ADD COLUMN customContinuousStartMinutes INTEGER NOT NULL DEFAULT 30")
+                db.execSQL("ALTER TABLE user_settings ADD COLUMN customLateNightTier1StartHour INTEGER NOT NULL DEFAULT 23")
+                db.execSQL("ALTER TABLE user_settings ADD COLUMN customLateNightTier1EndHour INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE user_settings ADD COLUMN customLateNightTier1Multiplier REAL NOT NULL DEFAULT 1.4")
+                db.execSQL("ALTER TABLE user_settings ADD COLUMN customLateNightTier2StartHour INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE user_settings ADD COLUMN customLateNightTier2EndHour INTEGER NOT NULL DEFAULT 5")
+                db.execSQL("ALTER TABLE user_settings ADD COLUMN customLateNightTier2Multiplier REAL NOT NULL DEFAULT 2.0")
+                db.execSQL("ALTER TABLE user_settings ADD COLUMN customIsSleepFreezeEnabled INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE user_settings ADD COLUMN customSleepThresholdMinutes INTEGER NOT NULL DEFAULT 150")
+                db.execSQL("ALTER TABLE user_settings ADD COLUMN customTargetUnlockCount INTEGER NOT NULL DEFAULT 20")
+            }
+        }
+
         @Volatile
         private var INSTANCE: DigitsDatabase? = null
 
@@ -466,7 +482,8 @@ abstract class DigitsDatabase : RoomDatabase() {
                         MIGRATION_12_13,
                         MIGRATION_13_14,
                         MIGRATION_14_15,
-                        MIGRATION_15_16
+                        MIGRATION_15_16,
+                        MIGRATION_16_17
                     )
                     .fallbackToDestructiveMigrationOnDowngrade()
                 if (passphrase != null) {

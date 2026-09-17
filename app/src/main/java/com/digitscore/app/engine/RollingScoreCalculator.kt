@@ -1,7 +1,10 @@
 package com.digitscore.app.engine
 
 import com.digitscore.app.model.CoreIndexPreset
+import com.digitscore.app.model.CoreIndexScoringConfig
+import com.digitscore.app.model.defaultScoringConfig
 import com.digitscore.app.model.AppCategoryType
+import java.util.Calendar
 import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -39,7 +42,6 @@ data class RollingScoreDetail(
  */
 object RollingScoreCalculator {
     private const val WINDOW_MILLIS = 24 * 60 * 60 * 1_000L
-    private const val SESSION_JOIN_GAP_MILLIS = 90_000L
     private const val ACTIVE_GRACE_MILLIS = 90_000L
     private const val CALIBRATION_USAGE_MILLIS = 60 * 60 * 1_000L
     private const val RESPONSIVE_SCORE_MIN = 50.0
@@ -57,7 +59,8 @@ object RollingScoreCalculator {
         nowMillis: Long,
         rollingUnlockCount: Int = 0,
         calibrationUsageMillis: Long? = null,
-        preset: CoreIndexPreset = CoreIndexPreset.BALANCED
+        preset: CoreIndexPreset = CoreIndexPreset.BALANCED,
+        config: CoreIndexScoringConfig = preset.defaultScoringConfig
     ): RollingScoreDetail {
         val windowStart = nowMillis - WINDOW_MILLIS
         val clipped = sessions.asSequence()
@@ -74,16 +77,18 @@ object RollingScoreCalculator {
             .sortedBy { it.startTimeMillis }
             .toList()
 
-        val merged = mergeContinuousSessions(clipped)
+        val merged = mergeContinuousSessions(clipped, config.sessionJoinGapMillis)
         val usageMillis = clipped.sumOf { it.endTimeMillis - it.startTimeMillis }
         var rollingLoad = clipped.sumOf { session ->
             val minutes = (session.endTimeMillis - session.startTimeMillis) / 60_000.0
             val perMinute = 0.040 * preset.baseLoadMultiplier +
                 (extraLoadPerMinute[session.categoryLevel] ?: 0.020) * preset.categoryLoadMultiplier
-            minutes * perMinute *
-                if (session.isLateNight && session.categoryLevel >= 3) preset.lateNightMultiplier else 1.0
+            val lateMultiplier = if (session.categoryLevel >= 2) {
+                getLateNightMultiplier(session, config)
+            } else 1.0
+            minutes * perMinute * lateMultiplier
         }
-        rollingLoad += max(0, rollingUnlockCount - preset.unlockThreshold) * preset.unlockLoadPerExcess
+        rollingLoad += max(0, rollingUnlockCount - config.unlockThreshold) * preset.unlockLoadPerExcess
 
         val last = merged.lastOrNull()
         val isActive = last != null && nowMillis - last.endTimeMillis <= ACTIVE_GRACE_MILLIS
@@ -95,22 +100,41 @@ object RollingScoreCalculator {
         } else 0L
 
         val lateNightCarryoverLoad = merged.asSequence()
-            .filter { it.isLateNight && AppCategoryType.normalizeLevel(it.categoryLevel) >= 3 }
-            .sumOf { peakAcuteLoad(it, preset) * preset.lateNightCarryoverRatio }
+            .filter { AppCategoryType.normalizeLevel(it.categoryLevel) >= 3 }
+            .sumOf { session ->
+                val peak = peakAcuteLoad(session, preset, config.continuousLoadStartMinutes)
+                val lateMult = getLateNightMultiplier(session, config)
+                val durationMin = (session.endTimeMillis - session.startTimeMillis) / 60_000.0
+                when {
+                    lateMult >= config.lateNightTier2Multiplier -> peak * (config.chronicCarryoverRatio * 1.5).coerceAtMost(0.40)
+                    lateMult > 1.0 -> peak * config.chronicCarryoverRatio
+                    durationMin >= config.chronicCarryoverThresholdMinutes -> peak * config.chronicCarryoverRatio
+                    else -> 0.0
+                }
+            }
         rollingLoad += lateNightCarryoverLoad
 
-        val peakAcute = last?.let { peakAcuteLoad(it, preset) } ?: 0.0
-        val lastHasLateNightCarryover = last?.let {
-            it.isLateNight && AppCategoryType.normalizeLevel(it.categoryLevel) >= 3
-        } == true
-        val lastCarryoverRatio = if (lastHasLateNightCarryover) {
-            preset.lateNightCarryoverRatio
-        } else 0.0
-        // 심야 연속 사용의 일부는 최근 24시간에 남는 이월 부하로 분리합니다.
+        val peakAcute = last?.let { peakAcuteLoad(it, preset, config.continuousLoadStartMinutes) } ?: 0.0
+        val lastIsImmersion = last != null && AppCategoryType.normalizeLevel(last.categoryLevel) >= 3
+        val lastLateMult = last?.let { getLateNightMultiplier(it, config) } ?: 1.0
+        val lastDurationMin = last?.let { (it.endTimeMillis - it.startTimeMillis) / 60_000.0 } ?: 0.0
+        val lastCarryoverRatio = when {
+            !lastIsImmersion -> 0.0
+            lastLateMult >= config.lateNightTier2Multiplier -> (config.chronicCarryoverRatio * 1.5).coerceAtMost(0.40)
+            lastLateMult > 1.0 -> config.chronicCarryoverRatio
+            lastDurationMin >= config.chronicCarryoverThresholdMinutes -> config.chronicCarryoverRatio
+            else -> 0.0
+        }
+        // 심야 연속 사용 및 60분 이상 고강도 세션의 일부는 최근 24시간에 남는 이월 부하로 분리합니다.
         // 사용 중 총 급성 부하는 이전과 같지만, 잠을 잔다고 전부 사라지지는 않습니다.
         val recoverableAcute = peakAcute * (1.0 - lastCarryoverRatio)
-        val acuteLoad = if (isActive) recoverableAcute else {
-            recoverableAcute * 0.5.pow(restMinutes / preset.recoveryHalfLifeMinutes)
+        val acuteLoad = if (isActive || last == null) recoverableAcute else {
+            val halfLife = if (isSleepRest(last.endTimeMillis, restMinutes, config)) {
+                config.sleepRecoveryHalfLifeMinutes
+            } else {
+                config.recoveryHalfLifeMinutes
+            }
+            recoverableAcute * 0.5.pow(restMinutes / halfLife)
         }
 
         val totalLoad = rollingLoad + acuteLoad
@@ -153,6 +177,57 @@ object RollingScoreCalculator {
     }
 
     /**
+     * 세션의 시작/종료 시각을 바탕으로 심야 1단계(23~01시) / 2단계(01~05시) 배율을 산출합니다.
+     */
+    internal fun getLateNightMultiplier(
+        session: RollingUsageSession,
+        config: CoreIndexScoringConfig
+    ): Double {
+        val midMillis = (session.startTimeMillis + session.endTimeMillis) / 2
+        val hour = getHourOfDay(midMillis)
+
+        // Tier 2: 01:00 ~ 05:00
+        val inTier2 = if (config.lateNightTier2StartHour <= config.lateNightTier2EndHour) {
+            hour in config.lateNightTier2StartHour until config.lateNightTier2EndHour
+        } else {
+            hour >= config.lateNightTier2StartHour || hour < config.lateNightTier2EndHour
+        }
+        if (inTier2) return config.lateNightTier2Multiplier
+
+        // Tier 1: 23:00 ~ 01:00
+        val inTier1 = if (config.lateNightTier1StartHour <= config.lateNightTier1EndHour) {
+            hour in config.lateNightTier1StartHour until config.lateNightTier1EndHour
+        } else {
+            hour >= config.lateNightTier1StartHour || hour < config.lateNightTier1EndHour
+        }
+        if (inTier1) return config.lateNightTier1Multiplier
+
+        if (session.isLateNight) return config.lateNightTier1Multiplier
+        return 1.0
+    }
+
+    /**
+     * 연속 휴식 시간이 수면 구간인지 감지합니다.
+     * 취침/새벽 시간대(21시~06시)에 화면이 꺼져 기준 시간(기본 150분) 이상 지속된 경우 수면으로 판단합니다.
+     */
+    internal fun isSleepRest(
+        lastSessionEndTimeMillis: Long,
+        restMinutes: Long,
+        config: CoreIndexScoringConfig
+    ): Boolean {
+        if (!config.isSleepFreezeEnabled) return false
+        if (restMinutes < config.sleepDetectionThresholdMinutes) return false
+        val endHour = getHourOfDay(lastSessionEndTimeMillis)
+        return endHour >= 21 || endHour < 6
+    }
+
+    internal fun getHourOfDay(epochMillis: Long): Int {
+        val cal = Calendar.getInstance()
+        cal.timeInMillis = epochMillis
+        return cal.get(Calendar.HOUR_OF_DAY)
+    }
+
+    /**
      * 50·70·90점은 그대로 두고 사용자가 가장 자주 보는 중앙 구간의 변화만 확대합니다.
      * 끝점 부근은 완만하게 이어져 0~40점과 90~100점이 갑자기 흔해지지 않습니다.
      */
@@ -168,7 +243,8 @@ object RollingScoreCalculator {
 
     private fun peakAcuteLoad(
         session: RollingUsageSession,
-        preset: CoreIndexPreset
+        preset: CoreIndexPreset,
+        startMinutes: Double = preset.continuousLoadStartMinutes
     ): Double {
         val level = AppCategoryType.normalizeLevel(session.categoryLevel)
         val acuteFactor = when (level) {
@@ -178,23 +254,26 @@ object RollingScoreCalculator {
         }
         val sessionMinutes = (session.endTimeMillis - session.startTimeMillis) / 60_000.0
         return 34.0 *
-            (max(sessionMinutes - preset.continuousLoadStartMinutes, 0.0) / 150.0).pow(1.3) *
+            (max(sessionMinutes - startMinutes, 0.0) / 150.0).pow(1.3) *
             acuteFactor * preset.acuteLoadMultiplier
     }
 
-    private fun mergeContinuousSessions(sessions: List<RollingUsageSession>): List<RollingUsageSession> {
+    private fun mergeContinuousSessions(
+        sessions: List<RollingUsageSession>,
+        joinGapMillis: Long = 90_000L
+    ): List<RollingUsageSession> {
         val result = mutableListOf<RollingUsageSession>()
         sessions.forEach { session ->
             val previous = result.lastOrNull()
             if (previous != null &&
-                session.startTimeMillis - previous.endTimeMillis <= SESSION_JOIN_GAP_MILLIS
+                session.startTimeMillis - previous.endTimeMillis <= joinGapMillis
             ) {
                 result[result.lastIndex] = previous.copy(
                     packageName = session.packageName,
                     endTimeMillis = max(previous.endTimeMillis, session.endTimeMillis),
                     categoryLevel = session.categoryLevel,
                     effectivePackageName = session.effectivePackageName,
-                    isLateNight = session.isLateNight
+                    isLateNight = session.isLateNight || previous.isLateNight
                 )
             } else {
                 result += session
