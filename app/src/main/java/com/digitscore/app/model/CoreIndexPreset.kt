@@ -36,7 +36,7 @@ enum class CoreIndexPreset(
     val unlockSensitivity: PresetSensitivity,
     val lateNightTier1Multiplier: Double = lateNightMultiplier,
     val lateNightTier2Multiplier: Double = lateNightMultiplier * 1.5,
-    val sleepRecoveryHalfLifeMinutes: Double = 3600.0
+    val sleepRecoveryMaxEquivalentMinutes: Long = 90L
 ) {
     BALANCED(
         id = "balanced",
@@ -59,7 +59,7 @@ enum class CoreIndexPreset(
         unlockSensitivity = PresetSensitivity.STANDARD,
         lateNightTier1Multiplier = 1.25,
         lateNightTier2Multiplier = 2.0,
-        sleepRecoveryHalfLifeMinutes = 3600.0
+        sleepRecoveryMaxEquivalentMinutes = 90L
     ),
     FOCUS(
         id = "focus",
@@ -82,7 +82,7 @@ enum class CoreIndexPreset(
         unlockSensitivity = PresetSensitivity.SENSITIVE,
         lateNightTier1Multiplier = 1.25,
         lateNightTier2Multiplier = 2.0,
-        sleepRecoveryHalfLifeMinutes = 3600.0
+        sleepRecoveryMaxEquivalentMinutes = 90L
     ),
     SCREEN_REST(
         id = "screen_rest",
@@ -105,7 +105,7 @@ enum class CoreIndexPreset(
         unlockSensitivity = PresetSensitivity.RELAXED,
         lateNightTier1Multiplier = 1.35,
         lateNightTier2Multiplier = 2.2,
-        sleepRecoveryHalfLifeMinutes = 3600.0
+        sleepRecoveryMaxEquivalentMinutes = 90L
     ),
     NIGHT_BALANCE(
         id = "night_balance",
@@ -128,7 +128,7 @@ enum class CoreIndexPreset(
         unlockSensitivity = PresetSensitivity.STANDARD,
         lateNightTier1Multiplier = 1.75,
         lateNightTier2Multiplier = 2.5,
-        sleepRecoveryHalfLifeMinutes = 4800.0
+        sleepRecoveryMaxEquivalentMinutes = 75L
     ),
     FAMILY(
         id = "family",
@@ -151,7 +151,7 @@ enum class CoreIndexPreset(
         unlockSensitivity = PresetSensitivity.SENSITIVE,
         lateNightTier1Multiplier = 1.75,
         lateNightTier2Multiplier = 2.5,
-        sleepRecoveryHalfLifeMinutes = 4800.0
+        sleepRecoveryMaxEquivalentMinutes = 75L
     );
 
     val title: String
@@ -177,7 +177,7 @@ enum class CoreIndexPreset(
 val CoreIndexPreset.defaultScoringConfig: CoreIndexScoringConfig
     get() = CoreIndexScoringConfig(
         continuousLoadStartMinutes = continuousLoadStartMinutes,
-        sessionJoinGapMillis = 90_000L,
+        sessionJoinGapMillis = 300_000L,
         lateNightTier1StartHour = 23,
         lateNightTier1EndHour = 1,
         lateNightTier1Multiplier = lateNightTier1Multiplier,
@@ -186,10 +186,9 @@ val CoreIndexPreset.defaultScoringConfig: CoreIndexScoringConfig
         lateNightTier2Multiplier = lateNightTier2Multiplier,
         isSleepFreezeEnabled = true,
         sleepDetectionThresholdMinutes = 150L,
-        sleepRecoveryHalfLifeMinutes = sleepRecoveryHalfLifeMinutes,
+        sleepRecoveryMaxEquivalentMinutes = sleepRecoveryMaxEquivalentMinutes,
         unlockThreshold = unlockThreshold,
         recoveryHalfLifeMinutes = recoveryHalfLifeMinutes,
         chronicCarryoverThresholdMinutes = 60.0,
         chronicCarryoverRatio = lateNightCarryoverRatio
     )
-

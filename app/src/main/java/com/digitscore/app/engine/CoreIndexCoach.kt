@@ -3,6 +3,8 @@ package com.digitscore.app.engine
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
 import com.digitscore.app.model.AppUsage
 import com.digitscore.app.model.CoreIndexPreset
+import com.digitscore.app.model.CoreIndexScoringConfig
+import com.digitscore.app.model.defaultScoringConfig
 import kotlin.math.roundToInt
 
 enum class CoreIndexCause {
@@ -49,7 +51,8 @@ object CoreIndexCoach {
         rollingUnlockTimestamps: List<Long>,
         histories: List<DailyScoreHistoryEntity>,
         nowMillis: Long,
-        preset: CoreIndexPreset
+        preset: CoreIndexPreset,
+        scoringConfig: CoreIndexScoringConfig = preset.defaultScoringConfig
     ): CoreIndexGuidance {
         val appNames = apps.associate { it.packageName to it.appName }
         val recentStart = nowMillis - 2 * 60 * 60_000L
@@ -88,8 +91,10 @@ object CoreIndexCoach {
                     sessions = sessions,
                     nowMillis = future,
                     rollingUnlockCount = futureUnlocks,
+                    rollingUnlockTimestamps = rollingUnlockTimestamps,
                     calibrationUsageMillis = 60 * 60_000L,
-                    preset = preset
+                    preset = preset,
+                    config = scoringConfig
                 ).finalScore >= target
             }
         } else null

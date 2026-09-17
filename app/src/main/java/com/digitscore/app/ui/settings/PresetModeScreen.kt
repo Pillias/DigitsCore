@@ -602,16 +602,16 @@ fun PresetModeScreen(
                                 onValueCommitted = { customizeScoring(lateNightTier2Multiplier = it / 10f) }
                             )
 
-                            // 4. 수면 회복 동결 스위치
+                            // 4. 수면 회복 제한 스위치
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text("수면 중 피로 회복 동결", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                    Text("수면 중 회복 제한", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                                     Text(
-                                        "수면 중 피로 부하 회복을 억제하여 기상 시 점수 급반등을 방지합니다.",
+                                        "늦고 짧은 수면은 거의 회복으로 계산하지 않고, 기상 후 화면을 쉬는 시간부터 정상 회복합니다.",
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.outline
                                     )

@@ -778,6 +778,22 @@ private fun RollingScoreDetailDialog(
                     )
                 }
                 BreakdownRow(stringResource(R.string.acute_load), String.format("%.1f", detail?.acuteLoad ?: 0.0))
+                if ((detail?.sleepRestMinutes ?: 0L) > 0L) {
+                    BreakdownRow(
+                        stringResource(R.string.sleep_rest_time),
+                        stringResource(R.string.format_minutes, detail?.sleepRestMinutes ?: 0L)
+                    )
+                    if ((detail?.postWakeRestMinutes ?: 0L) > 0L) {
+                        BreakdownRow(
+                            stringResource(R.string.post_wake_rest_time),
+                            stringResource(R.string.format_minutes, detail?.postWakeRestMinutes ?: 0L)
+                        )
+                    }
+                    BreakdownRow(
+                        stringResource(R.string.effective_recovery_time),
+                        stringResource(R.string.format_minutes, detail?.effectiveRecoveryMinutes ?: 0L)
+                    )
+                }
                 Text(
                     stringResource(R.string.score_method_note),
                     fontSize = 12.sp,

@@ -30,7 +30,10 @@
     <string name="rolling_load">24-hour rolling load</string>
     <string name="late_night_carryover_load">Night carryover included</string>
     <string name="acute_load">Continuous-use load</string>
-    <string name="score_method_note">Putting the screen down reduces the recoverable continuous-use load. Carryover from sustained late-night use remains in the rolling 24-hour window. Background playback while the screen is off is excluded from usage time.</string>
+    <string name="score_method_note">Recovery during sleep is limited by bedtime and sleep length. Normal recovery resumes from the first morning unlock while the screen stays off. Screen-off background playback is excluded.</string>
+    <string name="sleep_rest_time">Sleep interval</string>
+    <string name="post_wake_rest_time">Screen-off rest after waking</string>
+    <string name="effective_recovery_time">Recovery equivalent</string>
     <string name="view_statistics">View all statistics</string>
     <string name="close">Close</string>
     <string name="language">Language</string>

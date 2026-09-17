@@ -32,7 +32,11 @@ data class RollingScoreDetail(
     val statusText: String,
     val recentUsageMinutes: Long,
     val continuousUsageMinutes: Long,
-    val restMinutes: Long
+    val restMinutes: Long,
+    val sleepRestMinutes: Long = 0L,
+    val postWakeRestMinutes: Long = 0L,
+    val effectiveRecoveryMinutes: Long = 0L,
+    val estimatedWakeTimeMillis: Long? = null
 )
 
 /**
@@ -48,6 +52,29 @@ object RollingScoreCalculator {
     private const val RESPONSIVE_SCORE_MAX = 90.0
     private const val MID_RANGE_RESPONSE_STRENGTH = 0.8
 
+    private data class ContinuousUsageBlock(
+        val startTimeMillis: Long,
+        val endTimeMillis: Long,
+        val activeDurationMillis: Long,
+        val categoryDurationMillis: Map<Int, Long>,
+        val lateNightTier1Millis: Long,
+        val lateNightTier2Millis: Long
+    ) {
+        val maxCategoryLevel: Int
+            get() = categoryDurationMillis.filterValues { it > 0L }.keys.maxOrNull() ?: 2
+        val lateNightMillis: Long
+            get() = lateNightTier1Millis + lateNightTier2Millis
+    }
+
+    internal data class RestRecoveryBreakdown(
+        val elapsedMinutes: Long,
+        val sleepMinutes: Long,
+        val postWakeMinutes: Long,
+        val effectiveMinutes: Double,
+        val estimatedWakeTimeMillis: Long?,
+        val isSleepRest: Boolean
+    )
+
     private val extraLoadPerMinute = mapOf(
         1 to 0.0,
         2 to 0.020,
@@ -58,6 +85,7 @@ object RollingScoreCalculator {
         sessions: List<RollingUsageSession>,
         nowMillis: Long,
         rollingUnlockCount: Int = 0,
+        rollingUnlockTimestamps: List<Long> = emptyList(),
         calibrationUsageMillis: Long? = null,
         preset: CoreIndexPreset = CoreIndexPreset.BALANCED,
         config: CoreIndexScoringConfig = preset.defaultScoringConfig
@@ -77,7 +105,7 @@ object RollingScoreCalculator {
             .sortedBy { it.startTimeMillis }
             .toList()
 
-        val merged = mergeContinuousSessions(clipped, config.sessionJoinGapMillis)
+        val blocks = buildContinuousBlocks(clipped, config)
         val usageMillis = clipped.sumOf { it.endTimeMillis - it.startTimeMillis }
         var rollingLoad = clipped.sumOf { session ->
             val minutes = (session.endTimeMillis - session.startTimeMillis) / 60_000.0
@@ -90,49 +118,36 @@ object RollingScoreCalculator {
         }
         rollingLoad += max(0, rollingUnlockCount - config.unlockThreshold) * preset.unlockLoadPerExcess
 
-        val last = merged.lastOrNull()
+        val last = blocks.lastOrNull()
         val isActive = last != null && nowMillis - last.endTimeMillis <= ACTIVE_GRACE_MILLIS
         val continuousMinutes = if (isActive) {
-            ((last!!.endTimeMillis - last.startTimeMillis) / 60_000L).coerceAtLeast(0L)
+            (last!!.activeDurationMillis / 60_000L).coerceAtLeast(0L)
         } else 0L
         val restMinutes = if (!isActive && last != null) {
             ((nowMillis - last.endTimeMillis) / 60_000L).coerceAtLeast(0L)
         } else 0L
 
-        val lateNightCarryoverLoad = merged.asSequence()
-            .filter { it.isLateNight && AppCategoryType.normalizeLevel(it.categoryLevel) >= 3 }
-            .sumOf { session ->
-                val peak = peakAcuteLoad(session, preset, config.continuousLoadStartMinutes)
-                val lateMult = getLateNightMultiplier(session, config)
-                val ratio = if (lateMult >= config.lateNightTier2Multiplier) {
-                    (config.chronicCarryoverRatio * 1.5).coerceAtMost(0.40)
-                } else {
-                    config.chronicCarryoverRatio
-                }
-                peak * ratio
-            }
+        val blockLoads = blocks.mapIndexed { index, block ->
+            val peak = peakAcuteLoad(block, preset, config.continuousLoadStartMinutes)
+            val carryoverRatio = carryoverRatio(block, config)
+            val carryover = peak * carryoverRatio
+            val recoverable = peak - carryover
+            val effectiveRecovery = effectiveRecoveryAfterBlock(
+                blockIndex = index,
+                blocks = blocks,
+                nowMillis = nowMillis,
+                unlockTimestamps = rollingUnlockTimestamps,
+                config = config
+            )
+            val acute = recoverable * 0.5.pow(effectiveRecovery / config.recoveryHalfLifeMinutes)
+            carryover to acute
+        }
+        val lateNightCarryoverLoad = blockLoads.sumOf { it.first }
         rollingLoad += lateNightCarryoverLoad
-
-        val peakAcute = last?.let { peakAcuteLoad(it, preset, config.continuousLoadStartMinutes) } ?: 0.0
-        val lastIsImmersion = last != null && AppCategoryType.normalizeLevel(last.categoryLevel) >= 3
-        val lastIsLateNight = last != null && last.isLateNight
-        val lastLateMult = last?.let { getLateNightMultiplier(it, config) } ?: 1.0
-        val lastCarryoverRatio = when {
-            !lastIsImmersion || !lastIsLateNight -> 0.0
-            lastLateMult >= config.lateNightTier2Multiplier -> (config.chronicCarryoverRatio * 1.5).coerceAtMost(0.40)
-            else -> config.chronicCarryoverRatio
-        }
-        // 심야 연속 사용의 일부는 최근 24시간에 남는 이월 부하로 분리합니다.
-        // 사용 중 총 급성 부하는 이전과 같지만, 잠을 잔다고 전부 사라지지는 않습니다.
-        val recoverableAcute = peakAcute * (1.0 - lastCarryoverRatio)
-        val acuteLoad = if (isActive || last == null) recoverableAcute else {
-            val halfLife = if (isSleepRest(last, restMinutes, config)) {
-                config.sleepRecoveryHalfLifeMinutes
-            } else {
-                config.recoveryHalfLifeMinutes
-            }
-            recoverableAcute * 0.5.pow(restMinutes / halfLife)
-        }
+        val acuteLoad = blockLoads.sumOf { it.second }
+        val currentRest = if (!isActive && last != null) {
+            analyzeRestGap(last.endTimeMillis, nowMillis, rollingUnlockTimestamps, config)
+        } else null
 
         val totalLoad = rollingLoad + acuteLoad
         val rawScore = 100.0 / (1.0 + (totalLoad / 45.0).pow(1.43))
@@ -169,7 +184,11 @@ object RollingScoreCalculator {
             statusText = statusText,
             recentUsageMinutes = usageMillis / 60_000L,
             continuousUsageMinutes = continuousMinutes,
-            restMinutes = restMinutes
+            restMinutes = restMinutes,
+            sleepRestMinutes = currentRest?.sleepMinutes ?: 0L,
+            postWakeRestMinutes = currentRest?.postWakeMinutes ?: 0L,
+            effectiveRecoveryMinutes = currentRest?.effectiveMinutes?.roundToInt()?.toLong() ?: 0L,
+            estimatedWakeTimeMillis = currentRest?.estimatedWakeTimeMillis
         )
     }
 
@@ -180,19 +199,15 @@ object RollingScoreCalculator {
         session: RollingUsageSession,
         config: CoreIndexScoringConfig
     ): Double {
-        if (!session.isLateNight) return 1.0
-        val midMillis = (session.startTimeMillis + session.endTimeMillis) / 2
-        val hour = getHourOfDay(midMillis)
-
-        // Tier 2: 01:00 ~ 05:00
-        val inTier2 = if (config.lateNightTier2StartHour <= config.lateNightTier2EndHour) {
-            hour in config.lateNightTier2StartHour until config.lateNightTier2EndHour
-        } else {
-            hour >= config.lateNightTier2StartHour || hour < config.lateNightTier2EndHour
-        }
-        if (inTier2) return config.lateNightTier2Multiplier
-
-        return config.lateNightTier1Multiplier
+        val duration = (session.endTimeMillis - session.startTimeMillis).coerceAtLeast(0L)
+        if (duration == 0L) return 1.0
+        val late = lateNightDurations(session.startTimeMillis, session.endTimeMillis, config)
+        val normalMillis = (duration - late.first - late.second).coerceAtLeast(0L)
+        return (
+            normalMillis +
+                late.first * config.lateNightTier1Multiplier +
+                late.second * config.lateNightTier2Multiplier
+            ) / duration.toDouble()
     }
 
     /**
@@ -206,9 +221,8 @@ object RollingScoreCalculator {
     ): Boolean {
         if (!config.isSleepFreezeEnabled || lastSession == null) return false
         if (restMinutes < config.sleepDetectionThresholdMinutes) return false
-        if (lastSession.isLateNight) return true
         val endHour = getHourOfDay(lastSession.endTimeMillis)
-        return endHour >= 21 || endHour < 6
+        return endHour >= 21 || endHour < config.wakeWindowStartHour
     }
 
     internal fun getHourOfDay(epochMillis: Long): Int {
@@ -232,45 +246,194 @@ object RollingScoreCalculator {
     }
 
     private fun peakAcuteLoad(
-        session: RollingUsageSession,
+        block: ContinuousUsageBlock,
         preset: CoreIndexPreset,
         startMinutes: Double = preset.continuousLoadStartMinutes
     ): Double {
-        val level = AppCategoryType.normalizeLevel(session.categoryLevel)
-        val acuteFactor = when (level) {
-            3 -> 1.0
-            2 -> 0.45
-            else -> 0.10
-        }
-        val sessionMinutes = (session.endTimeMillis - session.startTimeMillis) / 60_000.0
+        val weightedAcuteFactor = block.categoryDurationMillis.entries.sumOf { (level, duration) ->
+            val factor = when (AppCategoryType.normalizeLevel(level)) {
+                3 -> 1.0
+                2 -> 0.45
+                else -> 0.10
+            }
+            duration * factor
+        } / block.activeDurationMillis.coerceAtLeast(1L).toDouble()
+        val activeMinutes = block.activeDurationMillis / 60_000.0
         return 34.0 *
-            (max(sessionMinutes - startMinutes, 0.0) / 150.0).pow(1.3) *
-            acuteFactor * preset.acuteLoadMultiplier
+            (max(activeMinutes - startMinutes, 0.0) / 150.0).pow(1.3) *
+            weightedAcuteFactor * preset.acuteLoadMultiplier
     }
 
-    private fun mergeContinuousSessions(
+    private fun carryoverRatio(
+        block: ContinuousUsageBlock,
+        config: CoreIndexScoringConfig
+    ): Double {
+        val activeMinutes = block.activeDurationMillis / 60_000.0
+        if (block.maxCategoryLevel < 3 ||
+            activeMinutes < config.chronicCarryoverThresholdMinutes ||
+            block.lateNightMillis <= 0L
+        ) return 0.0
+
+        val lateFraction = (block.lateNightMillis / block.activeDurationMillis.toDouble())
+            .coerceIn(0.0, 1.0)
+        val severity = if (block.lateNightTier2Millis > 0L) 1.5 else 1.0
+        return (config.chronicCarryoverRatio * severity * lateFraction).coerceIn(0.0, 0.40)
+    }
+
+    private fun effectiveRecoveryAfterBlock(
+        blockIndex: Int,
+        blocks: List<ContinuousUsageBlock>,
+        nowMillis: Long,
+        unlockTimestamps: List<Long>,
+        config: CoreIndexScoringConfig
+    ): Double {
+        var cursor = blocks[blockIndex].endTimeMillis
+        var effectiveMinutes = 0.0
+        for (index in (blockIndex + 1) until blocks.size) {
+            val next = blocks[index]
+            if (next.startTimeMillis > cursor) {
+                effectiveMinutes += analyzeRestGap(cursor, next.startTimeMillis, unlockTimestamps, config)
+                    .effectiveMinutes
+            }
+            cursor = max(cursor, next.endTimeMillis)
+        }
+        if (nowMillis > cursor) {
+            effectiveMinutes += analyzeRestGap(cursor, nowMillis, unlockTimestamps, config)
+                .effectiveMinutes
+        }
+        return effectiveMinutes
+    }
+
+    internal fun analyzeRestGap(
+        startMillis: Long,
+        endMillis: Long,
+        unlockTimestamps: List<Long>,
+        config: CoreIndexScoringConfig
+    ): RestRecoveryBreakdown {
+        val elapsedMinutes = ((endMillis - startMillis).coerceAtLeast(0L) / 60_000L)
+        val startHour = getHourOfDay(startMillis)
+        val sleepRest = config.isSleepFreezeEnabled &&
+            elapsedMinutes >= config.sleepDetectionThresholdMinutes &&
+            (startHour >= 21 || startHour < config.wakeWindowStartHour)
+        if (!sleepRest) {
+            return RestRecoveryBreakdown(
+                elapsedMinutes = elapsedMinutes,
+                sleepMinutes = 0L,
+                postWakeMinutes = 0L,
+                effectiveMinutes = elapsedMinutes.toDouble(),
+                estimatedWakeTimeMillis = null,
+                isSleepRest = false
+            )
+        }
+
+        val earliestWake = startMillis + config.sleepDetectionThresholdMinutes * 60_000L
+        val wakeTime = unlockTimestamps.asSequence()
+            .filter { it in earliestWake..endMillis }
+            .sorted()
+            .firstOrNull { timestamp ->
+                getHourOfDay(timestamp) in config.wakeWindowStartHour until config.wakeWindowEndHour
+            }
+        val sleepEnd = wakeTime ?: endMillis
+        val sleepMinutes = ((sleepEnd - startMillis).coerceAtLeast(0L) / 60_000L)
+        val postWakeMinutes = wakeTime?.let {
+            ((endMillis - it).coerceAtLeast(0L) / 60_000L)
+        } ?: 0L
+        val interruptions = unlockTimestamps.count { timestamp ->
+            timestamp > startMillis && timestamp < sleepEnd && timestamp != wakeTime
+        }
+        val continuityFactor = 0.85.pow(interruptions.toDouble()).coerceAtLeast(0.40)
+        val eligibleSleepMinutes = (sleepMinutes - config.sleepRecoveryDelayMinutes).coerceAtLeast(0L)
+        val effectiveSleepMinutes = (eligibleSleepMinutes *
+            sleepTimingEfficiency(startMillis) * continuityFactor)
+            .coerceAtMost(config.sleepRecoveryMaxEquivalentMinutes.toDouble())
+        return RestRecoveryBreakdown(
+            elapsedMinutes = elapsedMinutes,
+            sleepMinutes = sleepMinutes,
+            postWakeMinutes = postWakeMinutes,
+            effectiveMinutes = effectiveSleepMinutes + postWakeMinutes,
+            estimatedWakeTimeMillis = wakeTime,
+            isSleepRest = true
+        )
+    }
+
+    private fun sleepTimingEfficiency(startMillis: Long): Double {
+        val calendar = Calendar.getInstance().apply { timeInMillis = startMillis }
+        val minuteOfDay = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
+        return when {
+            minuteOfDay >= 21 * 60 || minuteOfDay < 30 -> 1.0
+            minuteOfDay < 90 -> 0.60
+            minuteOfDay < 150 -> 0.25
+            minuteOfDay < 240 -> 0.08
+            else -> 0.03
+        }
+    }
+
+    private fun buildContinuousBlocks(
         sessions: List<RollingUsageSession>,
-        joinGapMillis: Long = 90_000L
-    ): List<RollingUsageSession> {
-        val result = mutableListOf<RollingUsageSession>()
+        config: CoreIndexScoringConfig
+    ): List<ContinuousUsageBlock> {
+        val result = mutableListOf<ContinuousUsageBlock>()
         sessions.forEach { session ->
+            val duration = (session.endTimeMillis - session.startTimeMillis).coerceAtLeast(0L)
+            if (duration == 0L) return@forEach
+            val level = AppCategoryType.normalizeLevel(session.categoryLevel)
+            val late = lateNightDurations(session.startTimeMillis, session.endTimeMillis, config)
             val previous = result.lastOrNull()
             if (previous != null &&
-                session.startTimeMillis - previous.endTimeMillis <= joinGapMillis
+                session.startTimeMillis - previous.endTimeMillis <= config.sessionJoinGapMillis
             ) {
                 result[result.lastIndex] = previous.copy(
-                    packageName = session.packageName,
                     endTimeMillis = max(previous.endTimeMillis, session.endTimeMillis),
-                    categoryLevel = session.categoryLevel,
-                    effectivePackageName = session.effectivePackageName,
-                    isLateNight = session.isLateNight || previous.isLateNight
+                    activeDurationMillis = previous.activeDurationMillis + duration,
+                    categoryDurationMillis = previous.categoryDurationMillis.toMutableMap().apply {
+                        this[level] = (this[level] ?: 0L) + duration
+                    },
+                    lateNightTier1Millis = previous.lateNightTier1Millis + late.first,
+                    lateNightTier2Millis = previous.lateNightTier2Millis + late.second
                 )
             } else {
-                result += session
+                result += ContinuousUsageBlock(
+                    startTimeMillis = session.startTimeMillis,
+                    endTimeMillis = session.endTimeMillis,
+                    activeDurationMillis = duration,
+                    categoryDurationMillis = mapOf(level to duration),
+                    lateNightTier1Millis = late.first,
+                    lateNightTier2Millis = late.second
+                )
             }
         }
         return result
     }
+
+    private fun lateNightDurations(
+        startMillis: Long,
+        endMillis: Long,
+        config: CoreIndexScoringConfig
+    ): Pair<Long, Long> {
+        var cursor = startMillis
+        var tier1Millis = 0L
+        var tier2Millis = 0L
+        while (cursor < endMillis) {
+            val next = minOf(endMillis, ((cursor / 60_000L) + 1L) * 60_000L)
+            val duration = next - cursor
+            val hour = getHourOfDay(cursor)
+            when {
+                isHourInRange(hour, config.lateNightTier2StartHour, config.lateNightTier2EndHour) ->
+                    tier2Millis += duration
+                isHourInRange(hour, config.lateNightTier1StartHour, config.lateNightTier1EndHour) ->
+                    tier1Millis += duration
+            }
+            cursor = next
+        }
+        return tier1Millis to tier2Millis
+    }
+
+    private fun isHourInRange(hour: Int, startHour: Int, endHour: Int): Boolean =
+        if (startHour <= endHour) {
+            hour in startHour until endHour
+        } else {
+            hour >= startHour || hour < endHour
+        }
 
     private fun formatLoad(load: Double): String = String.format(java.util.Locale.US, "%.1f", load)
 }

@@ -87,7 +87,7 @@ fun UserSettingsEntity.effectiveScoringConfig(
         lateNightTier2Multiplier = customLateNightTier2Multiplier.toDouble(),
         isSleepFreezeEnabled = customIsSleepFreezeEnabled,
         sleepDetectionThresholdMinutes = customSleepThresholdMinutes.toLong(),
-        sleepRecoveryHalfLifeMinutes = preset.sleepRecoveryHalfLifeMinutes,
+        sleepRecoveryMaxEquivalentMinutes = preset.sleepRecoveryMaxEquivalentMinutes,
         unlockThreshold = customTargetUnlockCount,
         recoveryHalfLifeMinutes = preset.recoveryHalfLifeMinutes
     ).sanitized()

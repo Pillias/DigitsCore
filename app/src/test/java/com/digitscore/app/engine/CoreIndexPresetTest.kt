@@ -41,10 +41,34 @@ class CoreIndexPresetTest {
 
     @Test
     fun nightBalanceOnlyAddsMeaningfulPressureToLateNightManagedUse() {
-        val sessions = listOf(session(minutes = 90, level = 3, isLateNight = true))
+        val lateNow = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 3)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val sessions = listOf(
+            RollingUsageSession(
+                packageName = "test.app",
+                startTimeMillis = lateNow - 90 * 60_000L,
+                endTimeMillis = lateNow,
+                categoryLevel = 3,
+                isLateNight = true
+            )
+        )
 
-        val balanced = score(sessions, CoreIndexPreset.BALANCED)
-        val night = score(sessions, CoreIndexPreset.NIGHT_BALANCE)
+        val balanced = RollingScoreCalculator.calculate(
+            sessions,
+            lateNow,
+            calibrationUsageMillis = calibrated,
+            preset = CoreIndexPreset.BALANCED
+        ).finalScore
+        val night = RollingScoreCalculator.calculate(
+            sessions,
+            lateNow,
+            calibrationUsageMillis = calibrated,
+            preset = CoreIndexPreset.NIGHT_BALANCE
+        ).finalScore
 
         assertTrue("balanced=$balanced night=$night", night < balanced)
     }

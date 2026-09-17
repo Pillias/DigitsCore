@@ -437,9 +437,10 @@ class TrackerForegroundService : Service() {
                     now - ROLLING_WINDOW_MILLIS,
                     now
                 )
-                val rollingUnlockCount = UsageStatsHelper.resolvedUnlockTimestamps(
+                val rollingUnlockTimestamps = UsageStatsHelper.resolvedUnlockTimestamps(
                     rollingInteractionEvents
-                ).size
+                )
+                val rollingUnlockCount = rollingUnlockTimestamps.size
                 val todayInteractionEvents = interactionDao.getBetween(todayStart, now)
                 val finalUnlockCount = UsageStatsHelper.resolvedUnlockTimestamps(
                     todayInteractionEvents
@@ -534,6 +535,7 @@ class TrackerForegroundService : Service() {
                         sessions = recentSessions,
                         nowMillis = now,
                         rollingUnlockCount = rollingUnlockCount,
+                        rollingUnlockTimestamps = rollingUnlockTimestamps,
                         calibrationUsageMillis = recordedUsageMillis,
                         preset = coreIndexPreset,
                         config = scoringConfig
@@ -546,12 +548,11 @@ class TrackerForegroundService : Service() {
                     previousScore = previousSample?.score,
                     sessions = recentSessions,
                     apps = rollingAppsUsage,
-                    rollingUnlockTimestamps = UsageStatsHelper.resolvedUnlockTimestamps(
-                        rollingInteractionEvents
-                    ),
+                    rollingUnlockTimestamps = rollingUnlockTimestamps,
                     histories = db.scoreDao().getRecentCoreIndexHistories(14),
                     nowMillis = now,
-                    preset = coreIndexPreset
+                    preset = coreIndexPreset,
+                    scoringConfig = scoringConfig
                 )
                 ScoreRepository.updateCoreIndexGuidance(guidance)
 
@@ -645,7 +646,7 @@ class TrackerForegroundService : Service() {
                         productiveTimeMinutes = dailyScoreDetail.productiveTimeMinutes,
                         idleMinutes = realIdleMinutes,
                         unlockCount = finalUnlockCount,
-                        scoreModelVersion = 2,
+                        scoreModelVersion = 3,
                         coreIndexPresetId = coreIndexPreset.id
                     )
                 )
