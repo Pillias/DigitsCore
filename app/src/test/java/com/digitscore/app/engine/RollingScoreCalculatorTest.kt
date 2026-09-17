@@ -5,7 +5,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RollingScoreCalculatorTest {
-    private val now = 2_000_000_000L
+    private val now: Long = java.util.Calendar.getInstance().apply {
+        set(java.util.Calendar.HOUR_OF_DAY, 14)
+        set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0)
+        set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis
 
     @Test
     fun startsAt80WhileThereIsNoMeasuredForegroundUsage() {
@@ -81,7 +86,10 @@ class RollingScoreCalculatorTest {
                     )
                 ),
                 now,
-                calibrationUsageMillis = 60 * 60_000L
+                calibrationUsageMillis = 60 * 60_000L,
+                config = com.digitscore.app.model.CoreIndexPreset.BALANCED.defaultScoringConfig.copy(
+                    isSleepFreezeEnabled = false
+                )
             )
         }
 

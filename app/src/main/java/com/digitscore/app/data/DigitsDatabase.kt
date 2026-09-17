@@ -437,7 +437,7 @@ abstract class DigitsDatabase : RoomDatabase() {
             }
         }
 
-        private val MIGRATION_16_17 = object : Migration(16, 17) {
+        internal val MIGRATION_16_17 = object : Migration(16, 17) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE user_settings ADD COLUMN usePresetScoringDefaults INTEGER NOT NULL DEFAULT 1")
                 db.execSQL("ALTER TABLE user_settings ADD COLUMN customContinuousStartMinutes INTEGER NOT NULL DEFAULT 30")

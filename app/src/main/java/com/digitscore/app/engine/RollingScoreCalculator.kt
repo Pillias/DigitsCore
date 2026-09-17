@@ -100,36 +100,33 @@ object RollingScoreCalculator {
         } else 0L
 
         val lateNightCarryoverLoad = merged.asSequence()
-            .filter { AppCategoryType.normalizeLevel(it.categoryLevel) >= 3 }
+            .filter { it.isLateNight && AppCategoryType.normalizeLevel(it.categoryLevel) >= 3 }
             .sumOf { session ->
                 val peak = peakAcuteLoad(session, preset, config.continuousLoadStartMinutes)
                 val lateMult = getLateNightMultiplier(session, config)
-                val durationMin = (session.endTimeMillis - session.startTimeMillis) / 60_000.0
-                when {
-                    lateMult >= config.lateNightTier2Multiplier -> peak * (config.chronicCarryoverRatio * 1.5).coerceAtMost(0.40)
-                    lateMult > 1.0 -> peak * config.chronicCarryoverRatio
-                    durationMin >= config.chronicCarryoverThresholdMinutes -> peak * config.chronicCarryoverRatio
-                    else -> 0.0
+                val ratio = if (lateMult >= config.lateNightTier2Multiplier) {
+                    (config.chronicCarryoverRatio * 1.5).coerceAtMost(0.40)
+                } else {
+                    config.chronicCarryoverRatio
                 }
+                peak * ratio
             }
         rollingLoad += lateNightCarryoverLoad
 
         val peakAcute = last?.let { peakAcuteLoad(it, preset, config.continuousLoadStartMinutes) } ?: 0.0
         val lastIsImmersion = last != null && AppCategoryType.normalizeLevel(last.categoryLevel) >= 3
+        val lastIsLateNight = last != null && last.isLateNight
         val lastLateMult = last?.let { getLateNightMultiplier(it, config) } ?: 1.0
-        val lastDurationMin = last?.let { (it.endTimeMillis - it.startTimeMillis) / 60_000.0 } ?: 0.0
         val lastCarryoverRatio = when {
-            !lastIsImmersion -> 0.0
+            !lastIsImmersion || !lastIsLateNight -> 0.0
             lastLateMult >= config.lateNightTier2Multiplier -> (config.chronicCarryoverRatio * 1.5).coerceAtMost(0.40)
-            lastLateMult > 1.0 -> config.chronicCarryoverRatio
-            lastDurationMin >= config.chronicCarryoverThresholdMinutes -> config.chronicCarryoverRatio
-            else -> 0.0
+            else -> config.chronicCarryoverRatio
         }
-        // 심야 연속 사용 및 60분 이상 고강도 세션의 일부는 최근 24시간에 남는 이월 부하로 분리합니다.
+        // 심야 연속 사용의 일부는 최근 24시간에 남는 이월 부하로 분리합니다.
         // 사용 중 총 급성 부하는 이전과 같지만, 잠을 잔다고 전부 사라지지는 않습니다.
         val recoverableAcute = peakAcute * (1.0 - lastCarryoverRatio)
         val acuteLoad = if (isActive || last == null) recoverableAcute else {
-            val halfLife = if (isSleepRest(last.endTimeMillis, restMinutes, config)) {
+            val halfLife = if (isSleepRest(last, restMinutes, config)) {
                 config.sleepRecoveryHalfLifeMinutes
             } else {
                 config.recoveryHalfLifeMinutes
@@ -183,6 +180,7 @@ object RollingScoreCalculator {
         session: RollingUsageSession,
         config: CoreIndexScoringConfig
     ): Double {
+        if (!session.isLateNight) return 1.0
         val midMillis = (session.startTimeMillis + session.endTimeMillis) / 2
         val hour = getHourOfDay(midMillis)
 
@@ -194,16 +192,7 @@ object RollingScoreCalculator {
         }
         if (inTier2) return config.lateNightTier2Multiplier
 
-        // Tier 1: 23:00 ~ 01:00
-        val inTier1 = if (config.lateNightTier1StartHour <= config.lateNightTier1EndHour) {
-            hour in config.lateNightTier1StartHour until config.lateNightTier1EndHour
-        } else {
-            hour >= config.lateNightTier1StartHour || hour < config.lateNightTier1EndHour
-        }
-        if (inTier1) return config.lateNightTier1Multiplier
-
-        if (session.isLateNight) return config.lateNightTier1Multiplier
-        return 1.0
+        return config.lateNightTier1Multiplier
     }
 
     /**
@@ -211,13 +200,14 @@ object RollingScoreCalculator {
      * 취침/새벽 시간대(21시~06시)에 화면이 꺼져 기준 시간(기본 150분) 이상 지속된 경우 수면으로 판단합니다.
      */
     internal fun isSleepRest(
-        lastSessionEndTimeMillis: Long,
+        lastSession: RollingUsageSession?,
         restMinutes: Long,
         config: CoreIndexScoringConfig
     ): Boolean {
-        if (!config.isSleepFreezeEnabled) return false
+        if (!config.isSleepFreezeEnabled || lastSession == null) return false
         if (restMinutes < config.sleepDetectionThresholdMinutes) return false
-        val endHour = getHourOfDay(lastSessionEndTimeMillis)
+        if (lastSession.isLateNight) return true
+        val endHour = getHourOfDay(lastSession.endTimeMillis)
         return endHour >= 21 || endHour < 6
     }
 

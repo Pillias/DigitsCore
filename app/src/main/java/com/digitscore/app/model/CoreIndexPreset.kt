@@ -57,7 +57,7 @@ enum class CoreIndexPreset(
         continuousSensitivity = PresetSensitivity.STANDARD,
         lateNightSensitivity = PresetSensitivity.STANDARD,
         unlockSensitivity = PresetSensitivity.STANDARD,
-        lateNightTier1Multiplier = 1.4,
+        lateNightTier1Multiplier = 1.25,
         lateNightTier2Multiplier = 2.0,
         sleepRecoveryHalfLifeMinutes = 3600.0
     ),
@@ -80,8 +80,8 @@ enum class CoreIndexPreset(
         continuousSensitivity = PresetSensitivity.SENSITIVE,
         lateNightSensitivity = PresetSensitivity.STANDARD,
         unlockSensitivity = PresetSensitivity.SENSITIVE,
-        lateNightTier1Multiplier = 1.5,
-        lateNightTier2Multiplier = 2.2,
+        lateNightTier1Multiplier = 1.25,
+        lateNightTier2Multiplier = 2.0,
         sleepRecoveryHalfLifeMinutes = 3600.0
     ),
     SCREEN_REST(
@@ -103,8 +103,8 @@ enum class CoreIndexPreset(
         continuousSensitivity = PresetSensitivity.SENSITIVE,
         lateNightSensitivity = PresetSensitivity.SENSITIVE,
         unlockSensitivity = PresetSensitivity.RELAXED,
-        lateNightTier1Multiplier = 1.6,
-        lateNightTier2Multiplier = 2.4,
+        lateNightTier1Multiplier = 1.35,
+        lateNightTier2Multiplier = 2.2,
         sleepRecoveryHalfLifeMinutes = 3600.0
     ),
     NIGHT_BALANCE(
@@ -127,7 +127,7 @@ enum class CoreIndexPreset(
         lateNightSensitivity = PresetSensitivity.SENSITIVE,
         unlockSensitivity = PresetSensitivity.STANDARD,
         lateNightTier1Multiplier = 1.75,
-        lateNightTier2Multiplier = 2.6,
+        lateNightTier2Multiplier = 2.5,
         sleepRecoveryHalfLifeMinutes = 4800.0
     ),
     FAMILY(
@@ -149,8 +149,8 @@ enum class CoreIndexPreset(
         continuousSensitivity = PresetSensitivity.SENSITIVE,
         lateNightSensitivity = PresetSensitivity.SENSITIVE,
         unlockSensitivity = PresetSensitivity.SENSITIVE,
-        lateNightTier1Multiplier = 1.8,
-        lateNightTier2Multiplier = 2.8,
+        lateNightTier1Multiplier = 1.75,
+        lateNightTier2Multiplier = 2.5,
         sleepRecoveryHalfLifeMinutes = 4800.0
     );
 
