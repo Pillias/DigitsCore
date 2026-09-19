@@ -52,6 +52,22 @@ class RollingScoreCalculatorTest {
     }
 
     @Test
+    fun repeatedUnlocksAcrossShortSessionsConfirmWake() {
+        val nightEnd = timeAt(3, 0)
+        val first = timeAt(7, 0)
+        val second = timeAt(7, 20)
+        val result = RollingScoreCalculator.calculate(
+            listOf(session(180, 3, nightEnd), rawSession(first, first + 60_000L, 1, "check"),
+                rawSession(second, second + 60_000L, 1, "check")),
+            second + 121 * 60_000L,
+            rollingUnlockTimestamps = listOf(first, second),
+            calibrationUsageMillis = 3_600_000L
+        )
+        assertEquals(120L, result.postWakeRestMinutes)
+        assertEquals(120L, result.effectiveRecoveryMinutes)
+    }
+
+    @Test
     fun threeHoursOfImmersionManagementUsageFallsNear40() {
         val result = RollingScoreCalculator.calculate(
             listOf(session(minutes = 180, level = 3, end = now)),

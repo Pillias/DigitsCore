@@ -129,6 +129,7 @@ object RollingScoreCalculator {
 
         // Evaluate each idle interval once; suffix sums avoid rescanning every later interval.
         var awakeUntil = Long.MIN_VALUE
+        var firstMorningUnlock: Long? = null
         val restGaps = blocks.mapIndexed { index, block ->
             val end = blocks.getOrNull(index + 1)?.startTimeMillis ?: nowMillis
             val previous = blocks.getOrNull(index - 1)
@@ -137,7 +138,18 @@ object RollingScoreCalculator {
                 (getHourOfDay(previous.endTimeMillis) >= 21 || getHourOfDay(previous.endTimeMillis) < config.wakeWindowEndHour)
             val sustainedWake = followsNightRest && block.activeDurationMillis >= 10 * 60_000L &&
                 getHourOfDay(block.startTimeMillis) in config.wakeWindowStartHour until config.wakeWindowEndHour
-            if (sustainedWake) awakeUntil = Calendar.getInstance().apply {
+            val morning = getHourOfDay(block.startTimeMillis) in config.wakeWindowStartHour until config.wakeWindowEndHour
+            if (!morning) firstMorningUnlock = null
+            val unlockAtStart = rollingUnlockTimestamps.firstOrNull {
+                kotlin.math.abs(it - block.startTimeMillis) <= ACTIVE_GRACE_MILLIS
+            }
+            if (morning && followsNightRest && firstMorningUnlock == null) {
+                firstMorningUnlock = unlockAtStart
+            }
+            val repeatedWake = morning && unlockAtStart != null && firstMorningUnlock?.let {
+                unlockAtStart - it >= 10 * 60_000L
+            } == true
+            if (sustainedWake || repeatedWake) awakeUntil = Calendar.getInstance().apply {
                 timeInMillis = block.endTimeMillis
                 set(Calendar.HOUR_OF_DAY, 21)
                 set(Calendar.MINUTE, 0)
