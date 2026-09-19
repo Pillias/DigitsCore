@@ -11,6 +11,33 @@ import org.junit.Test
 
 class CoreIndexCoachTest {
     @Test
+    fun daytimeGuidanceDoesNotSuggestBedtimeBecauseOfLastNight() {
+        val now = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 14)
+        }.timeInMillis
+        val sessions = listOf(RollingUsageSession("game", now - 12 * 60 * 60_000L,
+            now - 11 * 60 * 60_000L, 3, isLateNight = true))
+        val detail = RollingScoreCalculator.calculate(sessions, now, calibrationUsageMillis = 3_600_000L)
+        val guidance = CoreIndexCoach.create(detail, detail.finalScore, sessions,
+            emptyList(), emptyList(), emptyList(), now, CoreIndexPreset.BALANCED)
+        assertTrue(guidance.recommendation != CoreIndexRecommendation.WIND_DOWN)
+    }
+
+    @Test
+    fun guidanceUsesCustomUnlockThreshold() {
+        val now = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 14)
+        }.timeInMillis
+        val detail = RollingScoreCalculator.calculate(emptyList(), now, calibrationUsageMillis = 3_600_000L)
+        val guidance = CoreIndexCoach.create(detail, detail.finalScore, emptyList(),
+            emptyList(), (1..25).map { now - it * 60_000L }, emptyList(), now,
+            CoreIndexPreset.BALANCED,
+            scoringConfig = com.digitscore.app.model.CoreIndexScoringConfig(unlockThreshold = 50))
+        assertTrue(guidance.cause != CoreIndexCause.FREQUENT_UNLOCKS)
+        assertTrue(guidance.recommendation != CoreIndexRecommendation.BATCH_PHONE_CHECKS)
+    }
+
+    @Test
     fun repeatedShortSessions_areCountedAsAppOpens() {
         val now = 10 * 60_000L
         val sessions = listOf(

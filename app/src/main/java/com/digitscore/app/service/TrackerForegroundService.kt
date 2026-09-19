@@ -645,7 +645,7 @@ class TrackerForegroundService : Service() {
                         productiveTimeMinutes = dailyScoreDetail.productiveTimeMinutes,
                         idleMinutes = realIdleMinutes,
                         unlockCount = finalUnlockCount,
-                        scoreModelVersion = 3,
+                        scoreModelVersion = 4,
                         coreIndexPresetId = coreIndexPreset.id
                     )
                 )

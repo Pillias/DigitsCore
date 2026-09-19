@@ -428,6 +428,12 @@ private fun MeasurementStatusCard(diagnostics: MeasurementDiagnostics, onClick: 
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (diagnostics.updatedAtMillis > 0L) {
+                    Text(stringResource(R.string.measurement_last_update,
+                        java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
+                            .format(java.util.Date(diagnostics.updatedAtMillis))),
+                        style = MaterialTheme.typography.bodySmall)
+                }
             }
             DetailChevron()
         }

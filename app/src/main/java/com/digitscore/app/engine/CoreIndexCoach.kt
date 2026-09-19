@@ -64,22 +64,27 @@ object CoreIndexCoach {
             }
         val leading = recentByPackage.maxByOrNull { it.value }
         val leadingLevel = sessions.lastOrNull { it.effectivePackageName == leading?.key }?.categoryLevel ?: 2
-        val lateNightManaged = sessions.any { it.isLateNight && it.categoryLevel >= 3 }
+        val hour = RollingScoreCalculator.getHourOfDay(nowMillis)
+        val lateNightManaged = (hour >= scoringConfig.lateNightTier1StartHour ||
+            hour < scoringConfig.lateNightTier2EndHour) && sessions.any {
+            it.endTimeMillis > nowMillis - 30 * 60_000L && it.categoryLevel >= 3 &&
+                RollingScoreCalculator.getLateNightMultiplier(it, scoringConfig) > 1.0
+        }
 
         val cause = when {
             detail.flow == ScoreFlow.CALIBRATING -> CoreIndexCause.CALIBRATING
-            detail.continuousUsageMinutes >= 20 -> CoreIndexCause.CONTINUOUS_USE
+            detail.continuousUsageMinutes >= scoringConfig.continuousLoadStartMinutes -> CoreIndexCause.CONTINUOUS_USE
             leading != null && leadingLevel >= 3 && leading.value >= 10 * 60_000L -> CoreIndexCause.MANAGED_APP_USE
-            rollingUnlockTimestamps.size > preset.unlockThreshold -> CoreIndexCause.FREQUENT_UNLOCKS
+            rollingUnlockTimestamps.size > scoringConfig.unlockThreshold -> CoreIndexCause.FREQUENT_UNLOCKS
             detail.flow == ScoreFlow.RECOVERING -> CoreIndexCause.RECOVERING
             else -> CoreIndexCause.STEADY
         }
         val recommendation = when {
             detail.flow == ScoreFlow.CALIBRATING -> CoreIndexRecommendation.KEEP_BALANCE
             lateNightManaged -> CoreIndexRecommendation.WIND_DOWN
-            detail.continuousUsageMinutes >= 30 -> CoreIndexRecommendation.TAKE_TEN_MINUTE_BREAK
+            detail.continuousUsageMinutes >= scoringConfig.continuousLoadStartMinutes -> CoreIndexRecommendation.TAKE_TEN_MINUTE_BREAK
             detail.finalScore <= 60 -> CoreIndexRecommendation.TAKE_QUIET_BREAK
-            rollingUnlockTimestamps.size > preset.unlockThreshold -> CoreIndexRecommendation.BATCH_PHONE_CHECKS
+            rollingUnlockTimestamps.size > scoringConfig.unlockThreshold -> CoreIndexRecommendation.BATCH_PHONE_CHECKS
             else -> CoreIndexRecommendation.KEEP_BALANCE
         }
         val target = (detail.finalScore + 3).coerceAtMost(90)
@@ -99,7 +104,10 @@ object CoreIndexCoach {
             }
         } else null
 
-        val validDays = histories.filter { it.scoreModelVersion >= 2 }.sortedBy { it.dateString }
+        val latestModel = histories.maxByOrNull { it.dateString }?.scoreModelVersion
+        val validDays = histories.filter {
+            it.scoreModelVersion >= 2 && it.scoreModelVersion == latestModel && it.coreIndexPresetId == preset.id
+        }.sortedBy { it.dateString }
         val recent = validDays.takeLast(7).map { it.finalScore }
         val previous = validDays.dropLast(recent.size).takeLast(7).map { it.finalScore }
         return CoreIndexGuidance(

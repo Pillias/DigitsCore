@@ -1161,7 +1161,9 @@ internal fun sevenDayMovingAverages(ranges: List<DailyCoreRange>): List<Float?> 
     ranges.mapNotNull { candidate ->
         val date = runCatching { LocalDate.parse(candidate.history.dateString) }.getOrNull()
             ?: return@mapNotNull null
-        candidate.lastScore.takeIf { !date.isBefore(startDate) && !date.isAfter(currentDate) }
+        candidate.lastScore.takeIf { !date.isBefore(startDate) && !date.isAfter(currentDate) &&
+            candidate.history.scoreModelVersion == current.history.scoreModelVersion &&
+            candidate.history.coreIndexPresetId == current.history.coreIndexPresetId }
     }.takeIf { it.isNotEmpty() }?.average()?.toFloat()
 }
 
@@ -1233,6 +1235,12 @@ private fun FourWeekMarketChartCard(
                             append(range.history.dateString)
                             append(" · 시작 ${range.startScore} · 마지막 ${range.lastScore}")
                             append(" · 최저 ${range.low} · 최고 ${range.high}")
+                            append("\n")
+                            append(UiTranslator.translate("일별 마지막 지수 7일 평균"))
+                            append(": ")
+                            append(selectedIndex?.let { movingAverages.getOrNull(it) }?.let {
+                                String.format(Locale.getDefault(), "%.1f", it)
+                            } ?: "—")
                             append("\n화면 ${formatMinutesToHoursAndMinutes(range.history.totalScreenTimeMinutes)}")
                             append(" · 관리 ${formatMinutesToHoursAndMinutes(range.history.distractingTimeMinutes)}")
                             append(" · 언락 ${range.history.unlockCount}회")
@@ -1279,6 +1287,11 @@ private fun FourWeekMarketChartCard(
                     listOf(50, 70, 90).forEach { score ->
                         val y = scoreY(score.toFloat())
                         drawLine(axisColor.copy(alpha = 0.22f), Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
+                        drawContext.canvas.nativeCanvas.drawText(score.toString(), 2.dp.toPx(), y - 3.dp.toPx(),
+                            android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                                color = axisColor.toArgb()
+                                textSize = 10.sp.toPx()
+                            })
                     }
                     listOf(0, 7, 14, 21, 27).forEach { day ->
                         val x = plotInset + plotWidth * day / lastDayOffset.toFloat()
@@ -1338,6 +1351,14 @@ private fun FourWeekMarketChartCard(
                     val movingPath = Path()
                     var pathStarted = false
                     movingAverages.forEachIndexed { index, value ->
+                        val prior = ranges.getOrNull(index - 1)?.history
+                        if (prior != null && (prior.scoreModelVersion != ranges[index].history.scoreModelVersion ||
+                            prior.coreIndexPresetId != ranges[index].history.coreIndexPresetId)) {
+                            pathStarted = false
+                            val x = xFor(index)
+                            drawLine(axisColor, Offset(x, 0f), Offset(x, scoreBottom),
+                                pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(6f, 6f)))
+                        }
                         if (value != null) {
                             val x = xFor(index)
                             val y = scoreY(value)
@@ -1377,15 +1398,20 @@ private fun FourWeekMarketChartCard(
                 }
                 ChartLegendGrid(
                     listOf(
-                        ScoreGreen to "회복",
-                        ScoreRed to "하락/관리",
-                        lineColor to "7일 평균",
+                        ScoreGreen to "첫 기록 대비 상승",
+                        ScoreRed to "첫 기록 대비 하락",
+                        lineColor to "일별 마지막 지수 7일 평균",
                         Color(0xFF26A69A) to "화면"
                     )
                 )
                 Text(
                     "범위봉은 하루의 시작·마지막·최저·최고 코어 지수를, 아래 막대는 기록된 모든 날짜의 화면 사용을 표시합니다.",
                     modifier = Modifier.padding(top = 8.dp),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "점선은 계산 방식 또는 프리셋 변경일입니다. 평균선은 같은 기준의 기록만 사용하며, 누락일은 제외합니다. 아래 빨간 막대는 관리 앱 사용시간입니다.",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

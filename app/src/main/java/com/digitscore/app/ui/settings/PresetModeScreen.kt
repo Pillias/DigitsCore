@@ -611,7 +611,7 @@ fun PresetModeScreen(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text("수면 중 회복 제한", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                                     Text(
-                                        "늦고 짧은 수면은 거의 회복으로 계산하지 않고, 기상 후 화면을 쉬는 시간부터 정상 회복합니다.",
+                                        "야간 휴식의 회복을 제한합니다. 아침의 반복 잠금 해제나 지속 사용으로 기상을 추정합니다.",
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.outline
                                     )
@@ -629,7 +629,7 @@ fun PresetModeScreen(
                                 RapidAlertSlider(
                                     title = "수면 판정 화면 미사용 시간",
                                     value = scoringConfig.sleepDetectionThresholdMinutes.toInt(),
-                                    valueLabel = "${scoringConfig.sleepDetectionThresholdMinutes.toInt()}분 (${scoringConfig.sleepDetectionThresholdMinutes / 60}시간 반)",
+                                    valueLabel = "${scoringConfig.sleepDetectionThresholdMinutes.toInt()}분",
                                     range = 120f..240f,
                                     steps = 3,
                                     onValueCommitted = { customizeScoring(sleepThresholdMinutes = it) }
@@ -638,7 +638,7 @@ fun PresetModeScreen(
 
                             // 6. 일일 목표 언락 횟수
                             RapidAlertSlider(
-                                title = "일일 목표 언락 횟수",
+                                title = "최근 24시간 언락 기준",
                                 value = scoringConfig.unlockThreshold,
                                 valueLabel = "${scoringConfig.unlockThreshold}회 초과 시 감점",
                                 range = 10f..50f,

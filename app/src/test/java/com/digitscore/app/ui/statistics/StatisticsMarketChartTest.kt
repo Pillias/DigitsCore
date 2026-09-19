@@ -9,6 +9,15 @@ import org.junit.Test
 
 class StatisticsMarketChartTest {
     @Test
+    fun `moving average does not mix scoring models`() {
+        val ranges = buildDailyCoreRanges(listOf(
+            history("2026-09-10", 90),
+            history("2026-09-11", 40).copy(scoreModelVersion = 4)
+        ), emptyList())
+        assertEquals(40f, sevenDayMovingAverages(ranges).last() ?: -1f, 0.001f)
+    }
+
+    @Test
     fun `daily range uses intraday open close low and high`() {
         val histories = listOf(history("2026-09-10", 66), history("2026-09-11", 75))
         val samples = listOf(

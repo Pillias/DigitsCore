@@ -58,6 +58,9 @@ fun Text(
 
 object UiTranslator {
     private val dynamicEnglishReplacements = listOf(
+        Regex("(\\d+)분부터") to "From \$1 min",
+        Regex("(\\d+)회 초과 시 감점") to "Load above \$1 unlocks",
+        Regex("(.+) 기본값으로 복원") to "Restore \$1 defaults",
         Regex("(.+) · 24시간 (\\d+)회") to "\$1 · \$2 opens in 24h",
         Regex("24시간 (\\d+)회 · 1분 미만 (\\d+)회") to
             "\$1 opens in 24h · \$2 under one minute",
@@ -231,6 +234,20 @@ object UiTranslator {
         "사용 균형 통계 & 리포트" to "Usage Balance & Reports",
         "4주 사용 요약" to "4-Week Usage Summary",
         "코어 지수" to "Core Index",
+        "코어 지수 세부 계산 조정" to "Core Index calculation settings",
+        "연속 사용 가속, 심야 차등 가중치, 수면 중 회복 여부를 직접 조정합니다." to "Adjust continuous-use acceleration, night weights and overnight recovery.",
+        "프리셋 기본값 사용" to "Use preset defaults",
+        "연속 사용 가속 시작 시간" to "Continuous-use acceleration starts",
+        "심야 1단계 (23~01시) 가중치" to "Night weight (23:00–01:00)",
+        "심야 2단계 (01~05시) 가중치" to "Late-night weight (01:00–05:00)",
+        "수면 중 회복 제한" to "Limit overnight recovery",
+        "야간 휴식의 회복을 제한합니다. 아침의 반복 잠금 해제나 지속 사용으로 기상을 추정합니다." to "Limits overnight recovery. Repeated morning unlocks or sustained use provide evidence of waking.",
+        "수면 판정 화면 미사용 시간" to "Minimum rest before estimating wake-up",
+        "최근 24시간 언락 기준" to "Unlock threshold in the last 24 hours",
+        "첫 기록 대비 상승" to "Up from first reading",
+        "첫 기록 대비 하락" to "Down from first reading",
+        "일별 마지막 지수 7일 평균" to "7-day average of daily last readings",
+        "점선은 계산 방식 또는 프리셋 변경일입니다. 평균선은 같은 기준의 기록만 사용하며, 누락일은 제외합니다. 아래 빨간 막대는 관리 앱 사용시간입니다." to "Dashed lines mark model or preset changes. Averages use matching settings and exclude missing days. Red lower bars show managed-app time.",
         "7일 평균" to "7-Day Average",
         "하락/관리" to "Decline / Managed",
         "차트를 누르거나 드래그해 시점별 기록을 확인하세요. 화면을 끄고 쉰 구간은 다음 회복값까지 선으로 이어지며 사용량은 0으로 표시됩니다." to

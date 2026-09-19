@@ -51,7 +51,7 @@ object CoreIndexHistoryRepair {
             database.scoreDao().insertOrUpdateScoreHistory(
                 history.copy(
                     finalScore = repaired.finalScore,
-                    scoreModelVersion = 3,
+                    scoreModelVersion = 4,
                     coreIndexPresetId = CoreIndexPreset.BALANCED.id,
                     lastUpdatedTimestamp = System.currentTimeMillis()
                 )

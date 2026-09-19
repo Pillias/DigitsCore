@@ -263,7 +263,7 @@ object DataBackupManager {
                         productiveTimeMinutes = hObj.getLong("productiveTimeMinutes").coerceIn(0L, 1_440L),
                         idleMinutes = hObj.getLong("idleMinutes").coerceIn(0L, 1_440L),
                         unlockCount = hObj.getInt("unlockCount").coerceIn(0, 10_000),
-                        scoreModelVersion = hObj.optInt("scoreModelVersion", 1).coerceIn(1, 3),
+                        scoreModelVersion = hObj.optInt("scoreModelVersion", 1).coerceIn(1, 4),
                         coreIndexPresetId = CoreIndexPreset.fromId(
                             hObj.optString("coreIndexPresetId", CoreIndexPreset.BALANCED.id)
                         ).id,

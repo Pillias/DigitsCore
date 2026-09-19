@@ -1,5 +1,6 @@
 <resources>
     <string name="app_name">DigitsCore</string>
+    <string name="measurement_last_update">마지막 수집 %1$s · 포착률은 전체 시간 정확도가 아닙니다</string>
     <string name="notification_channel_name">DigitsCore 실시간 점수</string>
     <string name="notification_channel_description">스마트폰 사용 흐름에 따른 코어 지수를 상태바에 표시합니다.</string>
     <string name="guidance_channel_name">DigitsCore 균형 알림</string>
@@ -30,9 +31,9 @@
     <string name="rolling_load">24시간 누적 부하</string>
     <string name="late_night_carryover_load">그중 심야 이월 부하</string>
     <string name="acute_load">연속 사용 가속 부하</string>
-    <string name="score_method_note">수면 중 회복은 취침 시각과 수면 길이에 따라 제한됩니다. 아침 첫 잠금 해제 뒤 화면을 내려놓은 시간부터 정상 회복하며, 화면 OFF 백그라운드 재생은 사용시간에서 제외합니다.</string>
-    <string name="sleep_rest_time">수면 구간</string>
-    <string name="post_wake_rest_time">기상 후 화면 휴식</string>
+    <string name="score_method_note">야간 휴식은 처음부터 제한된 속도로 회복합니다. 반복 잠금 해제나 지속 사용으로 기상을 추정한 뒤 정상 회복합니다. 실제 수면 측정값은 아니며, 화면 OFF 백그라운드 재생은 제외합니다.</string>
+    <string name="sleep_rest_time">야간 휴식 (수면 추정)</string>
+    <string name="post_wake_rest_time">기상 추정 후 화면 휴식</string>
     <string name="effective_recovery_time">회복 환산</string>
     <string name="view_statistics">전체 통계 보기</string>
     <string name="close">닫기</string>

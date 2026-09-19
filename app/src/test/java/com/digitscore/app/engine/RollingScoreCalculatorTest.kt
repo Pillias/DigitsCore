@@ -23,6 +23,35 @@ class RollingScoreCalculatorTest {
     }
 
     @Test
+    fun nightRestRecoveryNeverReversesAtDetectionThreshold() {
+        val start = timeAt(3, 0)
+        val values = (0L..300L).map { minute ->
+            RollingScoreCalculator.analyzeRestGap(start, start + minute * 60_000L,
+                emptyList(), CoreIndexScoringConfig()).effectiveMinutes
+        }
+        assertTrue(values.zipWithNext().all { (a, b) -> b >= a })
+    }
+
+    @Test
+    fun sleepingAfterFiveDoesNotBypassRecoveryLimit() {
+        val values = listOf(timeAt(4, 59), timeAt(5, 0)).map { start ->
+            RollingScoreCalculator.analyzeRestGap(start, start + 180 * 60_000L,
+                emptyList(), CoreIndexScoringConfig()).effectiveMinutes
+        }
+        assertEquals(values[0], values[1], 0.001)
+        assertTrue(values.all { it < 5 })
+    }
+
+    @Test
+    fun oneMorningUnlockDoesNotConfirmWake() {
+        val start = timeAt(3, 0)
+        val result = RollingScoreCalculator.analyzeRestGap(start, timeAt(9, 0),
+            listOf(timeAt(7, 0)), CoreIndexScoringConfig())
+        assertEquals(null, result.estimatedWakeTimeMillis)
+        assertEquals(0L, result.postWakeMinutes)
+    }
+
+    @Test
     fun threeHoursOfImmersionManagementUsageFallsNear40() {
         val result = RollingScoreCalculator.calculate(
             listOf(session(minutes = 180, level = 3, end = now)),
@@ -240,13 +269,13 @@ class RollingScoreCalculatorTest {
         val atWake = RollingScoreCalculator.analyzeRestGap(
             startMillis = sleepStart,
             endMillis = wake,
-            unlockTimestamps = listOf(wake),
+            unlockTimestamps = listOf(wake - 10 * 60_000L, wake),
             config = CoreIndexScoringConfig()
         )
         val afterWake = RollingScoreCalculator.analyzeRestGap(
             startMillis = sleepStart,
             endMillis = twoHoursAfterWake,
-            unlockTimestamps = listOf(wake),
+            unlockTimestamps = listOf(wake - 10 * 60_000L, wake),
             config = CoreIndexScoringConfig()
         )
 
@@ -261,7 +290,7 @@ class RollingScoreCalculatorTest {
     fun screenOffTimeAfterObservedWakeSessionRecoversNormally() {
         val lateUseEnd = timeAt(hour = 23, minute = 30) - 24 * 60 * 60_000L
         val wakeStart = timeAt(hour = 7, minute = 30)
-        val wakeEnd = wakeStart + 60_000L
+        val wakeEnd = wakeStart + 10 * 60_000L
         val sessions = listOf(
             session(minutes = 180, level = 3, end = lateUseEnd),
             rawSession(wakeStart, wakeEnd, 1, "wake.check")

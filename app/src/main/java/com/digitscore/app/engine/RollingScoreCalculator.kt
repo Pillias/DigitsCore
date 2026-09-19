@@ -127,18 +127,46 @@ object RollingScoreCalculator {
             ((nowMillis - last.endTimeMillis) / 60_000L).coerceAtLeast(0L)
         } else 0L
 
+        // Evaluate each idle interval once; suffix sums avoid rescanning every later interval.
+        var awakeUntil = Long.MIN_VALUE
+        val restGaps = blocks.mapIndexed { index, block ->
+            val end = blocks.getOrNull(index + 1)?.startTimeMillis ?: nowMillis
+            val previous = blocks.getOrNull(index - 1)
+            val followsNightRest = previous != null &&
+                block.startTimeMillis - previous.endTimeMillis >= config.sleepDetectionThresholdMinutes * 60_000L &&
+                (getHourOfDay(previous.endTimeMillis) >= 21 || getHourOfDay(previous.endTimeMillis) < config.wakeWindowEndHour)
+            val sustainedWake = followsNightRest && block.activeDurationMillis >= 10 * 60_000L &&
+                getHourOfDay(block.startTimeMillis) in config.wakeWindowStartHour until config.wakeWindowEndHour
+            if (sustainedWake) awakeUntil = Calendar.getInstance().apply {
+                timeInMillis = block.endTimeMillis
+                set(Calendar.HOUR_OF_DAY, 21)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            val gap = analyzeRestGap(block.endTimeMillis, end, rollingUnlockTimestamps, config,
+                block.endTimeMillis < awakeUntil)
+            gap.estimatedWakeTimeMillis?.let { wake ->
+                awakeUntil = Calendar.getInstance().apply {
+                    timeInMillis = wake
+                    set(Calendar.HOUR_OF_DAY, 21)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }.timeInMillis
+            }
+            gap
+        }
+        val recoverySuffix = DoubleArray(blocks.size + 1)
+        for (index in blocks.indices.reversed()) {
+            recoverySuffix[index] = recoverySuffix[index + 1] + restGaps[index].effectiveMinutes
+        }
         val blockLoads = blocks.mapIndexed { index, block ->
             val peak = peakAcuteLoad(block, preset, config.continuousLoadStartMinutes)
             val carryoverRatio = carryoverRatio(block, config)
             val carryover = peak * carryoverRatio
             val recoverable = peak - carryover
-            val effectiveRecovery = effectiveRecoveryAfterBlock(
-                blockIndex = index,
-                blocks = blocks,
-                nowMillis = nowMillis,
-                unlockTimestamps = rollingUnlockTimestamps,
-                config = config
-            )
+            val effectiveRecovery = recoverySuffix[index]
             val acute = recoverable * 0.5.pow(effectiveRecovery / config.recoveryHalfLifeMinutes)
             carryover to acute
         }
@@ -146,7 +174,7 @@ object RollingScoreCalculator {
         rollingLoad += lateNightCarryoverLoad
         val acuteLoad = blockLoads.sumOf { it.second }
         val currentRest = if (!isActive && last != null) {
-            analyzeRestGap(last.endTimeMillis, nowMillis, rollingUnlockTimestamps, config)
+            restGaps.lastOrNull()
         } else null
 
         val totalLoad = rollingLoad + acuteLoad
@@ -280,46 +308,23 @@ object RollingScoreCalculator {
         return (config.chronicCarryoverRatio * severity * lateFraction).coerceIn(0.0, 0.40)
     }
 
-    private fun effectiveRecoveryAfterBlock(
-        blockIndex: Int,
-        blocks: List<ContinuousUsageBlock>,
-        nowMillis: Long,
-        unlockTimestamps: List<Long>,
-        config: CoreIndexScoringConfig
-    ): Double {
-        var cursor = blocks[blockIndex].endTimeMillis
-        var effectiveMinutes = 0.0
-        for (index in (blockIndex + 1) until blocks.size) {
-            val next = blocks[index]
-            if (next.startTimeMillis > cursor) {
-                effectiveMinutes += analyzeRestGap(cursor, next.startTimeMillis, unlockTimestamps, config)
-                    .effectiveMinutes
-            }
-            cursor = max(cursor, next.endTimeMillis)
-        }
-        if (nowMillis > cursor) {
-            effectiveMinutes += analyzeRestGap(cursor, nowMillis, unlockTimestamps, config)
-                .effectiveMinutes
-        }
-        return effectiveMinutes
-    }
-
     internal fun analyzeRestGap(
         startMillis: Long,
         endMillis: Long,
         unlockTimestamps: List<Long>,
-        config: CoreIndexScoringConfig
+        config: CoreIndexScoringConfig,
+        awakeConfirmed: Boolean = false
     ): RestRecoveryBreakdown {
         val elapsedMinutes = ((endMillis - startMillis).coerceAtLeast(0L) / 60_000L)
         val startHour = getHourOfDay(startMillis)
-        val sleepRest = config.isSleepFreezeEnabled &&
-            elapsedMinutes >= config.sleepDetectionThresholdMinutes &&
-            (startHour >= 21 || startHour < config.wakeWindowStartHour)
+        // Night recovery is restricted from the first minute, not retroactively at 150 min.
+        val sleepRest = config.isSleepFreezeEnabled && !awakeConfirmed &&
+            (startHour >= 21 || startHour < config.wakeWindowEndHour)
         if (!sleepRest) {
             return RestRecoveryBreakdown(
                 elapsedMinutes = elapsedMinutes,
                 sleepMinutes = 0L,
-                postWakeMinutes = 0L,
+                postWakeMinutes = if (awakeConfirmed) elapsedMinutes else 0L,
                 effectiveMinutes = elapsedMinutes.toDouble(),
                 estimatedWakeTimeMillis = null,
                 isSleepRest = false
@@ -327,24 +332,25 @@ object RollingScoreCalculator {
         }
 
         val earliestWake = startMillis + config.sleepDetectionThresholdMinutes * 60_000L
-        val wakeTime = unlockTimestamps.asSequence()
+        val morningUnlocks = unlockTimestamps.asSequence()
             .filter { it in earliestWake..endMillis }
             .sorted()
-            .firstOrNull { timestamp ->
+            .filter { timestamp ->
                 getHourOfDay(timestamp) in config.wakeWindowStartHour until config.wakeWindowEndHour
-            }
+            }.distinct().toList()
+        // A single alarm/check is not enough evidence of waking. Confirm on the second
+        // actual unlock at least ten minutes later; never backdate recovery.
+        val wakeTime = morningUnlocks.firstOrNull()?.let { first ->
+            morningUnlocks.firstOrNull { it - first >= 10 * 60_000L }
+        }
         val sleepEnd = wakeTime ?: endMillis
         val sleepMinutes = ((sleepEnd - startMillis).coerceAtLeast(0L) / 60_000L)
         val postWakeMinutes = wakeTime?.let {
             ((endMillis - it).coerceAtLeast(0L) / 60_000L)
         } ?: 0L
-        val interruptions = unlockTimestamps.count { timestamp ->
-            timestamp > startMillis && timestamp < sleepEnd && timestamp != wakeTime
-        }
-        val continuityFactor = 0.85.pow(interruptions.toDouble()).coerceAtLeast(0.40)
         val eligibleSleepMinutes = (sleepMinutes - config.sleepRecoveryDelayMinutes).coerceAtLeast(0L)
         val effectiveSleepMinutes = (eligibleSleepMinutes *
-            sleepTimingEfficiency(startMillis) * continuityFactor)
+            sleepTimingEfficiency(startMillis))
             .coerceAtMost(config.sleepRecoveryMaxEquivalentMinutes.toDouble())
         return RestRecoveryBreakdown(
             elapsedMinutes = elapsedMinutes,

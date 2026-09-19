@@ -1,5 +1,6 @@
 <resources>
     <string name="app_name">DigitsCore</string>
+    <string name="measurement_last_update">Last collected %1$s · Coverage is not overall time accuracy</string>
     <string name="notification_channel_name">DigitsCore live index</string>
     <string name="notification_channel_description">Shows your live Core Index based on your phone-use pattern.</string>
     <string name="guidance_channel_name">DigitsCore balance guidance</string>
@@ -30,9 +31,9 @@
     <string name="rolling_load">24-hour rolling load</string>
     <string name="late_night_carryover_load">Night carryover included</string>
     <string name="acute_load">Continuous-use load</string>
-    <string name="score_method_note">Recovery during sleep is limited by bedtime and sleep length. Normal recovery resumes from the first morning unlock while the screen stays off. Screen-off background playback is excluded.</string>
-    <string name="sleep_rest_time">Sleep interval</string>
-    <string name="post_wake_rest_time">Screen-off rest after waking</string>
+    <string name="score_method_note">Overnight recovery is limited from the start. Normal recovery resumes after repeated unlocks or sustained use suggest waking. This is not a sleep measurement. Screen-off background playback is excluded.</string>
+    <string name="sleep_rest_time">Overnight rest (estimated sleep)</string>
+    <string name="post_wake_rest_time">Rest after estimated waking</string>
     <string name="effective_recovery_time">Recovery equivalent</string>
     <string name="view_statistics">View all statistics</string>
     <string name="close">Close</string>
