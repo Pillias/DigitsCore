@@ -454,7 +454,7 @@ fun PresetModeScreen(
                             }
                         ) {
                             OutlinedTextField(
-                                value = selectedCoreIndexPreset.title,
+                                value = UiTranslator.translate(selectedCoreIndexPreset.title),
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("현재 프리셋") },
@@ -833,7 +833,7 @@ fun PresetModeScreen(
                             onExpandedChange = { isPresetMenuExpanded = !isPresetMenuExpanded }
                         ) {
                             OutlinedTextField(
-                                value = selectedPreset.title,
+                                value = UiTranslator.translate(selectedPreset.title),
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("현재 프리셋") },
@@ -907,12 +907,12 @@ fun PresetModeScreen(
                             }
                         ) {
                             OutlinedTextField(
-                                value = when (selectedIconStyle) {
+                                value = UiTranslator.translate(when (selectedIconStyle) {
                                     StatusIconStyle.BIG_NUMBER -> "코어 숫자형 (권장)"
                                     StatusIconStyle.SCORE_PROPORTION -> "점수 비율형"
                                     StatusIconStyle.SCORE_TIER -> "전원 단계형"
                                     StatusIconStyle.NUMBER_FOCUS -> "숫자 분리형"
-                                },
+                                }),
                                 onValueChange = {},
                                 readOnly = true,
                                 trailingIcon = {
@@ -991,11 +991,11 @@ fun PresetModeScreen(
                             }
                         ) {
                             OutlinedTextField(
-                                value = when (selectedWidgetBackground) {
+                                value = UiTranslator.translate(when (selectedWidgetBackground) {
                                     WidgetBackgroundStyle.DARK -> "어두운 배경"
                                     WidgetBackgroundStyle.WHITE -> "흰색 배경"
                                     WidgetBackgroundStyle.TRANSPARENT -> "투명 배경"
-                                },
+                                }),
                                 onValueChange = {},
                                 readOnly = true,
                                 trailingIcon = {

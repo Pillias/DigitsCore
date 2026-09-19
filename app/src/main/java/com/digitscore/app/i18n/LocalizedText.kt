@@ -655,6 +655,14 @@ object UiTranslator {
     ).filter { it.first.length >= 4 }.sortedByDescending { it.first.length }
 
     private val exactReplacements = mapOf(
+        "시간별 · 24H" to "Hourly · 24H",
+        "일별 · 4W" to "Daily · 4W",
+        "주별 · 4W" to "Weekly · 4W",
+        "주별 흐름 · 월요일 기준" to "Weekly trends · Monday start",
+        "일별 마지막 지수 · 날짜를 눌러 상세 보기" to "Daily closing index · Tap a date for details",
+        "좌우로 스크롤하고 날짜를 누르면 하루 중 상세 흐름을 확인할 수 있습니다." to "Scroll horizontally and tap a date to explore its intraday trend.",
+        "이전 기록" to "Previous day",
+        "다음 기록" to "Next day",
         "뒤로가기" to "Back", "통계 리포트" to "Statistics", "앱 가중치 설정" to "App Ratings",
         "최근 24시간" to "Last 24 Hours", "최근 4주" to "Last 4 Weeks",
         "모드 설정" to "Settings", "현재 프리셋" to "Current Preset", "기본값 초기화" to "Reset Defaults",

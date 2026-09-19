@@ -3,6 +3,8 @@ package com.digitscore.app.ui.statistics
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -223,7 +225,7 @@ fun StatisticsScreen(
                         onClick = { selectedTabIndex = 0 },
                         text = {
                             Text(
-                                "최근 24시간",
+                                "시간별 · 24H",
                                 fontWeight = if (selectedTabIndex == 0) FontWeight.Bold else FontWeight.Normal,
                                 color = if (selectedTabIndex == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
                             )
@@ -234,11 +236,16 @@ fun StatisticsScreen(
                         onClick = { selectedTabIndex = 1 },
                         text = {
                             Text(
-                                "최근 4주",
+                                "일별 · 4W",
                                 fontWeight = if (selectedTabIndex == 1) FontWeight.Bold else FontWeight.Normal,
                                 color = if (selectedTabIndex == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
                             )
                         }
+                    )
+                    Tab(
+                        selected = selectedTabIndex == 2,
+                        onClick = { selectedTabIndex = 2 },
+                        text = { Text("주별 · 4W") }
                     )
                 }
             }
@@ -276,6 +283,13 @@ fun StatisticsScreen(
                         windowEndMillis = rollingWindowEndMillis,
                         onDetailRequested = { selectedDetail = it }
                     )
+                }
+            } else if (selectedTabIndex == 2) {
+                item {
+                    WeeklyMarketSummary(histories, fourWeekSamples) { selectedDay = it }
+                }
+                item {
+                    FourWeekPatternCard(histories = histories, onClick = { selectedDetail = it })
                 }
             } else {
                 item {
@@ -366,6 +380,12 @@ fun StatisticsScreen(
         IntradayCoreIndexDialog(
             history = history,
             samples = selectedDaySamples,
+            onPrevious = {
+                selectedDay = coreIndexHistories.lastOrNull { it.dateString < history.dateString } ?: history
+            },
+            onNext = {
+                selectedDay = coreIndexHistories.firstOrNull { it.dateString > history.dateString } ?: history
+            },
             onDismiss = { selectedDay = null }
         )
     }
@@ -1184,6 +1204,10 @@ private fun FourWeekMarketChartCard(
         mutableStateOf<Int?>(ranges.lastIndex.takeIf { it >= 0 })
     }
     val selected = selectedIndex?.let(ranges::getOrNull)
+    val chartScroll = rememberScrollState()
+    LaunchedEffect(chartScroll.maxValue) {
+        if (chartScroll.maxValue > 0) chartScroll.scrollTo(chartScroll.maxValue)
+    }
     val current = ranges.lastOrNull()?.lastScore
     val allScores = ranges.flatMap { listOf(it.low, it.high) }
     val today = LocalDate.now()
@@ -1254,9 +1278,10 @@ private fun FourWeekMarketChartCard(
                     )
                     Spacer(Modifier.height(8.dp))
                 }
+                Column(Modifier.horizontalScroll(chartScroll)) {
                 Canvas(
                     Modifier
-                        .fillMaxWidth()
+                        .width(1000.dp)
                         .height(270.dp)
                         .pointerInput(ranges) {
                             detectTapGestures { tap ->
@@ -1265,12 +1290,6 @@ private fun FourWeekMarketChartCard(
                                     onDaySelected(ranges[index].history)
                                 }
                             }
-                        }
-                        .pointerInput(ranges) {
-                            detectHorizontalDragGestures(
-                                onDragStart = { selectedIndex = nearestIndex(it.x, size.width) },
-                                onHorizontalDrag = { event, _ -> selectedIndex = nearestIndex(event.position.x, size.width) }
-                            )
                         }
                 ) {
                     val scoreBottom = 190.dp.toPx()
@@ -1386,8 +1405,8 @@ private fun FourWeekMarketChartCard(
                         drawCircle(lineColor, 3.dp.toPx(), Offset(x, scoreY(ranges[index].lastScore.toFloat())))
                     }
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    listOf(0L, 7L, 14L, 21L, 27L).forEach { offset ->
+                Row(Modifier.width(1000.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    (0L..27L).forEach { offset ->
                         val date = firstDate.plusDays(offset)
                         Text(
                             "${date.monthValue}/${date.dayOfMonth}",
@@ -1395,6 +1414,7 @@ private fun FourWeekMarketChartCard(
                             color = axisColor
                         )
                     }
+                }
                 }
                 ChartLegendGrid(
                     listOf(
@@ -1416,7 +1436,7 @@ private fun FourWeekMarketChartCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    "날짜를 누르면 하루 중 5분 단위 변화를 확인할 수 있습니다.",
+                    "좌우로 스크롤하고 날짜를 누르면 하루 중 상세 흐름을 확인할 수 있습니다.",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.outline
                 )
@@ -1426,9 +1446,58 @@ private fun FourWeekMarketChartCard(
 }
 
 @Composable
+private fun WeeklyMarketSummary(
+    histories: List<DailyScoreHistoryEntity>,
+    samples: List<CoreIndexSampleEntity>,
+    onDaySelected: (DailyScoreHistoryEntity) -> Unit
+) {
+    val ranges = remember(histories, samples) { buildDailyCoreRanges(coreIndexHistories(histories), samples) }
+    val weeks = ranges.groupBy {
+        LocalDate.parse(it.history.dateString).with(java.time.DayOfWeek.MONDAY)
+    }.toSortedMap()
+    val lineColor = MaterialTheme.colorScheme.primary
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("주별 흐름 · 월요일 기준", fontWeight = FontWeight.Bold)
+        if (weeks.isEmpty()) Text("기록 준비 중")
+        weeks.forEach { (monday, days) ->
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text("$monday – ${monday.plusDays(6)}", fontWeight = FontWeight.Bold)
+                    Text("${days.first().startScore} → ${days.last().lastScore}", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Canvas(Modifier.fillMaxWidth().height(100.dp)) {
+                        val path = Path()
+                        days.forEachIndexed { index, day ->
+                            val x = size.width * (LocalDate.parse(day.history.dateString).dayOfWeek.value - 1) / 6f
+                            val y = size.height * (1f - day.lastScore / 100f)
+                            if (index == 0 || java.time.temporal.ChronoUnit.DAYS.between(
+                                    LocalDate.parse(days[index - 1].history.dateString), LocalDate.parse(day.history.dateString)) != 1L ||
+                                days[index - 1].history.scoreModelVersion != day.history.scoreModelVersion ||
+                                days[index - 1].history.coreIndexPresetId != day.history.coreIndexPresetId) path.moveTo(x, y)
+                            else path.lineTo(x, y)
+                            drawCircle(lineColor, 4.dp.toPx(), Offset(x, y))
+                        }
+                        drawPath(path, lineColor, style = Stroke(2.dp.toPx()))
+                    }
+                    Text("일별 마지막 지수 · 날짜를 눌러 상세 보기", fontSize = 12.sp)
+                    Row(Modifier.horizontalScroll(rememberScrollState())) {
+                        days.forEach { day ->
+                            TextButton(onClick = { onDaySelected(day.history) }) {
+                                Text(day.history.dateString.substring(5))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun IntradayCoreIndexDialog(
     history: DailyScoreHistoryEntity,
     samples: List<CoreIndexSampleEntity>,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val axisColor = MaterialTheme.colorScheme.outline
@@ -1444,6 +1513,10 @@ private fun IntradayCoreIndexDialog(
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    TextButton(onClick = onPrevious) { Text("이전 기록") }
+                    TextButton(onClick = onNext) { Text("다음 기록") }
+                }
                 if (samples.isEmpty()) {
                     Text(
                         "이 날짜에는 하루 중 변화 기록이 없습니다. 세부 변화는 화면을 사용하는 동안 5분 단위로 저장됩니다.",
