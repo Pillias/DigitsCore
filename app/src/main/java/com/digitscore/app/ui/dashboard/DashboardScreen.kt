@@ -132,7 +132,7 @@ fun DashboardScreen(
     var showGuidanceModal by remember { mutableStateOf(false) }
     var showDiagnosticsModal by remember { mutableStateOf(false) }
 
-    val currentScore = rollingScoreDetail?.finalScore ?: 80
+    val currentScore = rollingScoreDetail?.finalScore ?: 75
     val grade = ScoreGrade.fromScore(currentScore)
 
     Scaffold(
@@ -193,6 +193,7 @@ fun DashboardScreen(
                 )
             }
 
+            item { HabitReviewCard(currentScore, appsUsage) }
             // 2. 주요 3단 통계 카드 (각 카드 클릭 시 해당 세부 항목 팝업)
             item {
                 ScoreStatsRow(
@@ -577,7 +578,7 @@ private fun ScoreGaugeCard(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "${stringResource(R.string.digitscore_score)} · ${stringResource(R.string.rolling_24_hours)}",
+                        text = "${stringResource(R.string.digitscore_score)} · ${stringResource(R.string.cumulative_index_label)}",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -604,7 +605,7 @@ private fun ScoreGaugeSummary(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
-            text = "${stringResource(R.string.digitscore_score)} · ${stringResource(R.string.rolling_24_hours)}",
+            text = "${stringResource(R.string.digitscore_score)} · ${stringResource(R.string.cumulative_index_label)}",
             style = MaterialTheme.typography.titleMedium
         )
         ScoreStatusChip(rollingStatusText(rollingScore))
@@ -825,12 +826,12 @@ private fun rollingStatusText(detail: RollingScoreDetail?): String {
         ScoreFlow.USING -> stringResource(
             R.string.score_using,
             detail.continuousUsageMinutes,
-            String.format(Locale.US, "%.1f", detail.rollingLoad + detail.acuteLoad)
+            String.format(Locale.US, "%.1f", detail.rollingLoad)
         )
         ScoreFlow.RECOVERING -> stringResource(R.string.score_recovering, detail.restMinutes)
         ScoreFlow.STEADY -> stringResource(
             R.string.score_steady,
-            String.format(Locale.US, "%.1f", detail.rollingLoad + detail.acuteLoad)
+            String.format(Locale.US, "%.1f", detail.rollingLoad)
         )
     }
 }

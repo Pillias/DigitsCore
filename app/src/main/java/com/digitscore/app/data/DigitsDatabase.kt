@@ -37,9 +37,10 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
         UserSettingsEntity::class,
         ForegroundUsageSessionEntity::class,
         CoreIndexSampleEntity::class,
-        DeviceInteractionEventEntity::class
+        DeviceInteractionEventEntity::class,
+        com.digitscore.app.data.entity.CumulativeScoreStateEntity::class
     ],
-    version = 17,
+    version = 18,
     exportSchema = true
 )
 abstract class DigitsDatabase : RoomDatabase() {
@@ -50,6 +51,7 @@ abstract class DigitsDatabase : RoomDatabase() {
     abstract fun foregroundUsageSessionDao(): ForegroundUsageSessionDao
     abstract fun coreIndexSampleDao(): CoreIndexSampleDao
     abstract fun deviceInteractionEventDao(): DeviceInteractionEventDao
+    abstract fun cumulativeScoreStateDao(): com.digitscore.app.data.dao.CumulativeScoreStateDao
 
     companion object {
         private const val DATABASE_NAME = "digitscore_database"
@@ -453,6 +455,16 @@ abstract class DigitsDatabase : RoomDatabase() {
             }
         }
 
+        internal val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS cumulative_score_state (id INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(id))")
+                db.execSQL("ALTER TABLE core_index_samples ADD COLUMN scoreModelVersion INTEGER NOT NULL DEFAULT 4")
+                db.execSQL("UPDATE user_settings SET selectedCoreIndexPresetId = 'balanced', usePresetScoringDefaults = 1")
+                db.execSQL("UPDATE app_weights SET categoryType = 'NEUTRAL' WHERE categoryType IN ('PRODUCTIVE', 'MILDLY_PRODUCTIVE')")
+                db.execSQL("UPDATE app_weights SET categoryType = 'NEUTRAL' WHERE isUserModified = 0 AND packageName = 'com.alibaba.aliexpresshd'")
+            }
+        }
+
         @Volatile
         private var INSTANCE: DigitsDatabase? = null
 
@@ -483,7 +495,8 @@ abstract class DigitsDatabase : RoomDatabase() {
                         MIGRATION_13_14,
                         MIGRATION_14_15,
                         MIGRATION_15_16,
-                        MIGRATION_16_17
+                        MIGRATION_16_17,
+                        MIGRATION_17_18
                     )
                     .fallbackToDestructiveMigrationOnDowngrade()
                 if (passphrase != null) {
@@ -572,7 +585,7 @@ abstract class DigitsDatabase : RoomDatabase() {
                 AppWeightEntity("com.instagram.android", "Instagram", AppCategoryType.DISTRACTING),
                 AppWeightEntity("com.facebook.katana", "Facebook", AppCategoryType.DISTRACTING),
                 AppWeightEntity("com.twitter.android", "X (Twitter)", AppCategoryType.DISTRACTING),
-                AppWeightEntity("com.alibaba.aliexpresshd", "AliExpress", AppCategoryType.DISTRACTING),
+                AppWeightEntity("com.alibaba.aliexpresshd", "AliExpress", AppCategoryType.NEUTRAL),
                 AppWeightEntity("com.zhiliaoapp.musically", "TikTok", AppCategoryType.DISTRACTING),
                 AppWeightEntity("com.google.android.youtube", "YouTube", AppCategoryType.DISTRACTING),
                 AppWeightEntity("com.netflix.mediaclient", "Netflix", AppCategoryType.DISTRACTING),

@@ -18,5 +18,6 @@ data class CoreIndexSampleEntity(
     val exactScore: Double,
     val rollingLoad: Double,
     val acuteLoad: Double,
-    val presetId: String
+    val presetId: String,
+    @androidx.room.ColumnInfo(defaultValue = "4") val scoreModelVersion: Int = 4
 )

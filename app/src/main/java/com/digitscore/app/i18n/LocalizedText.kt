@@ -655,6 +655,7 @@ object UiTranslator {
     ).filter { it.first.length >= 4 }.sortedByDescending { it.first.length }
 
     private val exactReplacements = mapOf(
+        "다른 프리셋은 준비 중입니다. 점수는 누적되며 이전 기록을 다시 계산하지 않습니다." to "Other presets are coming later. Your score accumulates without recalculating past records.",
         "시간별 · 24H" to "Hourly · 24H",
         "일별 · 4W" to "Daily · 4W",
         "주별 · 4W" to "Weekly · 4W",

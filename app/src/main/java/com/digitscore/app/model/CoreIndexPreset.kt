@@ -42,8 +42,8 @@ enum class CoreIndexPreset(
         id = "balanced",
         koreanTitle = "일상 균형",
         englishTitle = "Everyday Balance",
-        koreanDescription = "일반적인 사용 흐름을 약 70점 중심으로 살펴보는 기본 모드",
-        englishDescription = "The default profile centered around a Core Index near 70 for typical use",
+        koreanDescription = "일반·관리 앱 사용과 활동 중 휴식을 누적해 약 75점을 중심으로 살펴보는 기본 모드",
+        englishDescription = "A cumulative profile centered near 75 for typical use, balancing general/managed use and awake rest",
         baseLoadMultiplier = 1.0,
         categoryLoadMultiplier = 1.0,
         acuteLoadMultiplier = 1.0,
@@ -161,7 +161,10 @@ enum class CoreIndexPreset(
         get() = if (Locale.getDefault().language == "en") englishDescription else koreanDescription
 
     val sensitivitySummary: String
-        get() = if (Locale.getDefault().language == "en") {
+        get() = if (this == BALANCED) {
+            if (Locale.getDefault().language == "en") "Cumulative · 30-minute acceleration · Sleep holds recovery"
+            else "누적 점수 · 30분부터 가속 · 수면 중 회복 보류"
+        } else if (Locale.getDefault().language == "en") {
             "Overall ${overallSensitivity.label} · Continuous ${continuousSensitivity.label} · " +
                 "Night ${lateNightSensitivity.label} · Unlocks ${unlockSensitivity.label}"
         } else {

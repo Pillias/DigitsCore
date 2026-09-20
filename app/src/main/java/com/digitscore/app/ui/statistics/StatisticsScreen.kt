@@ -696,7 +696,11 @@ private fun RollingMarketChartCard(
                         )
                         val linePath = Path().apply {
                             moveTo(points.first().x, points.first().y)
-                            points.drop(1).forEach { lineTo(it.x, it.y) }
+                            points.drop(1).forEachIndexed { index, point ->
+                                if (visible[index].scoreModelVersion == visible[index + 1].scoreModelVersion)
+                                    lineTo(point.x, point.y)
+                                else moveTo(point.x, point.y)
+                            }
                         }
                         drawPath(
                             linePath,
@@ -1556,7 +1560,11 @@ private fun IntradayCoreIndexDialog(
                         if (points.size > 1) {
                             val path = Path().apply {
                                 moveTo(points.first().x, points.first().y)
-                                points.drop(1).forEach { lineTo(it.x, it.y) }
+                                points.drop(1).forEachIndexed { index, point ->
+                                    if (samples[index].scoreModelVersion == samples[index + 1].scoreModelVersion)
+                                        lineTo(point.x, point.y)
+                                    else moveTo(point.x, point.y)
+                                }
                             }
                             drawPath(
                                 path = path,

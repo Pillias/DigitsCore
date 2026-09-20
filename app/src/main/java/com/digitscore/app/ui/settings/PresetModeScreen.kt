@@ -139,7 +139,7 @@ fun PresetModeScreen(
     val settings = userSettings ?: UserSettingsEntity()
     val selectedModeId = settings.selectedPresetModeId
     val selectedPreset = PresetMode.fromId(selectedModeId)
-    val selectedCoreIndexPreset = CoreIndexPreset.fromId(settings.selectedCoreIndexPresetId)
+    val selectedCoreIndexPreset = CoreIndexPreset.BALANCED
     val rapidAlertConfig = settings.effectiveRapidUsageAlertConfig(selectedCoreIndexPreset)
     val scoringConfig = settings.effectiveScoringConfig(selectedCoreIndexPreset)
     var showPrivacyPolicy by remember { mutableStateOf(false) }
@@ -469,7 +469,7 @@ fun PresetModeScreen(
                                 expanded = isCoreIndexPresetMenuExpanded,
                                 onDismissRequest = { isCoreIndexPresetMenuExpanded = false }
                             ) {
-                                CoreIndexPreset.entries.forEach { preset ->
+                                listOf(CoreIndexPreset.BALANCED).forEach { preset ->
                                     DropdownMenuItem(
                                         text = {
                                             Column {
@@ -509,7 +509,7 @@ fun PresetModeScreen(
                             color = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            "프리셋 변경 즉시 최근 24시간 기록을 새 기준으로 다시 계산합니다.",
+                            "다른 프리셋은 준비 중입니다. 점수는 누적되며 이전 기록을 다시 계산하지 않습니다.",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
@@ -517,6 +517,7 @@ fun PresetModeScreen(
                 }
             }
 
+            if (false) { // Legacy v4 controls retained only for backup compatibility, not live tuning.
             item {
                 SectionHeading(
                     title = "코어 지수 세부 계산 조정",
@@ -670,6 +671,7 @@ fun PresetModeScreen(
                 }
             }
 
+            }
             item {
                 SectionHeading(
                     title = "급격한 사용 증가 알림",

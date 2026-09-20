@@ -158,13 +158,11 @@ object UsageStatsHelper {
     internal fun defaultCategoryForApplicationCategory(applicationCategory: Int): AppCategoryType =
         when (applicationCategory) {
             ApplicationInfo.CATEGORY_GAME,
-            ApplicationInfo.CATEGORY_AUDIO,
             ApplicationInfo.CATEGORY_VIDEO -> AppCategoryType.DISTRACTING
 
-            ApplicationInfo.CATEGORY_SOCIAL,
-            ApplicationInfo.CATEGORY_NEWS -> AppCategoryType.DISTRACTING
+            ApplicationInfo.CATEGORY_SOCIAL -> AppCategoryType.DISTRACTING
 
-            ApplicationInfo.CATEGORY_PRODUCTIVITY -> AppCategoryType.PRODUCTIVE
+            ApplicationInfo.CATEGORY_PRODUCTIVITY -> AppCategoryType.NEUTRAL
             else -> AppCategoryType.NEUTRAL
         }
 
@@ -196,8 +194,8 @@ object UsageStatsHelper {
     ): AppCategoryType {
         val normalizedPackage = packageName.lowercase()
         return when {
-            EDUCATION_PACKAGE_PREFIXES.any(normalizedPackage::startsWith) -> AppCategoryType.PRODUCTIVE
-            SHOPPING_PACKAGE_PREFIXES.any(normalizedPackage::startsWith) -> AppCategoryType.DISTRACTING
+            EDUCATION_PACKAGE_PREFIXES.any(normalizedPackage::startsWith) -> AppCategoryType.NEUTRAL
+            SHOPPING_PACKAGE_PREFIXES.any(normalizedPackage::startsWith) -> AppCategoryType.NEUTRAL
             else -> defaultCategoryForApplicationCategory(applicationCategory)
         }
     }

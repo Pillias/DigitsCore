@@ -16,40 +16,40 @@ enum class AppCategoryType(
 ) {
     PRODUCTIVE(
         level = 1,
-        koreanName = "성장",
-        englishName = "Growth",
+        koreanName = "일반",
+        englishName = "General",
         koreanDescription = "학습과 성장에 직접 도움이 되는 앱 · 가장 낮은 사용 부하",
         englishDescription = "Directly supports learning and growth · Lowest usage load",
         scoreMultiplier = 0.5f
     ),
     MILDLY_PRODUCTIVE(
         level = 1,
-        koreanName = "성장",
-        englishName = "Growth",
+        koreanName = "일반",
+        englishName = "General",
         koreanDescription = "학습과 생산성을 지원하는 앱 · 가장 낮은 사용 부하",
         englishDescription = "Supports learning and productivity · Lowest usage load",
         scoreMultiplier = 0.25f
     ),
     NEUTRAL(
         level = 2,
-        koreanName = "균형",
-        englishName = "Balanced",
+        koreanName = "일반",
+        englishName = "General",
         koreanDescription = "일반적인 사용 앱 · 기본 사용 부하",
         englishDescription = "An app for general use · Standard usage load",
         scoreMultiplier = 0.0f
     ),
     MILDLY_DISTRACTING(
         level = 3,
-        koreanName = "몰입 관리",
-        englishName = "Immersion Management",
+        koreanName = "관리",
+        englishName = "Managed",
         koreanDescription = "사용 흐름이 길어지지 않도록 관리할 앱 · 가장 높은 사용 부하",
         englishDescription = "An app whose usage flow needs managing · Highest usage load",
         scoreMultiplier = -0.5f
     ),
     DISTRACTING(
         level = 3,
-        koreanName = "몰입 관리",
-        englishName = "Immersion Management",
+        koreanName = "관리",
+        englishName = "Managed",
         koreanDescription = "장시간 사용을 특히 관리할 앱 · 가장 높은 사용 부하",
         englishDescription = "An app whose long sessions need managing · Highest usage load",
         scoreMultiplier = -1.0f
@@ -61,13 +61,13 @@ enum class AppCategoryType(
     val description: String get() = if (java.util.Locale.getDefault().language == "en") englishDescription else koreanDescription
     val canonical: AppCategoryType
         get() = when (this) {
-            PRODUCTIVE, MILDLY_PRODUCTIVE -> PRODUCTIVE
+            PRODUCTIVE, MILDLY_PRODUCTIVE -> NEUTRAL
             NEUTRAL -> NEUTRAL
             MILDLY_DISTRACTING, DISTRACTING -> DISTRACTING
         }
 
     companion object {
-        val orderedEntries: List<AppCategoryType> = listOf(PRODUCTIVE, NEUTRAL, DISTRACTING)
+        val orderedEntries: List<AppCategoryType> = listOf(NEUTRAL, DISTRACTING)
 
         /** DB v13 이하와 백업 v6 이하에 저장된 5단계 숫자를 새 3단계로 변환합니다. */
         fun fromLegacyLevel(level: Int): Int = when (level) {

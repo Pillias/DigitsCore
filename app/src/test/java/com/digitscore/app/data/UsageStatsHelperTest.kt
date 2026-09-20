@@ -9,16 +9,15 @@ import org.junit.Test
 
 class UsageStatsHelperTest {
     @Test
-    fun appRatingsExposeOnlyThreeCanonicalChoices() {
+    fun appRatingsExposeGeneralAndManagedChoices() {
         assertEquals(
             listOf(
-                AppCategoryType.PRODUCTIVE,
                 AppCategoryType.NEUTRAL,
                 AppCategoryType.DISTRACTING
             ),
             AppCategoryType.orderedEntries
         )
-        assertEquals(AppCategoryType.PRODUCTIVE, AppCategoryType.MILDLY_PRODUCTIVE.canonical)
+        assertEquals(AppCategoryType.NEUTRAL, AppCategoryType.MILDLY_PRODUCTIVE.canonical)
         assertEquals(AppCategoryType.DISTRACTING, AppCategoryType.MILDLY_DISTRACTING.canonical)
     }
 
@@ -99,13 +98,13 @@ class UsageStatsHelperTest {
     }
 
     @Test
-    fun gameAudioAndVideoApps_defaultToImmersionManagement() {
+    fun gamesAndVideoAreManagedButAudioIsGeneral() {
         assertEquals(
             AppCategoryType.DISTRACTING,
             UsageStatsHelper.defaultCategoryForApplicationCategory(ApplicationInfo.CATEGORY_GAME)
         )
         assertEquals(
-            AppCategoryType.DISTRACTING,
+            AppCategoryType.NEUTRAL,
             UsageStatsHelper.defaultCategoryForApplicationCategory(ApplicationInfo.CATEGORY_AUDIO)
         )
         assertEquals(
@@ -115,24 +114,24 @@ class UsageStatsHelperTest {
     }
 
     @Test
-    fun productivityApps_defaultToGrowth() {
+    fun productivityApps_defaultToGeneral() {
         assertEquals(
-            AppCategoryType.PRODUCTIVE,
+            AppCategoryType.NEUTRAL,
             UsageStatsHelper.defaultCategoryForApplicationCategory(ApplicationInfo.CATEGORY_PRODUCTIVITY)
         )
     }
 
     @Test
-    fun shoppingPackages_defaultToImmersionManagement() {
+    fun shoppingPackages_defaultToGeneral() {
         assertEquals(
-            AppCategoryType.DISTRACTING,
+            AppCategoryType.NEUTRAL,
             UsageStatsHelper.defaultCategoryForPackage(
                 "com.alibaba.aliexpresshd",
                 ApplicationInfo.CATEGORY_UNDEFINED
             )
         )
         assertEquals(
-            AppCategoryType.DISTRACTING,
+            AppCategoryType.NEUTRAL,
             UsageStatsHelper.defaultCategoryForPackage(
                 "com.shopee.my",
                 ApplicationInfo.CATEGORY_UNDEFINED
@@ -141,16 +140,16 @@ class UsageStatsHelperTest {
     }
 
     @Test
-    fun educationPackages_defaultToLevelOne() {
+    fun educationPackages_defaultToGeneral() {
         assertEquals(
-            AppCategoryType.PRODUCTIVE,
+            AppCategoryType.NEUTRAL,
             UsageStatsHelper.defaultCategoryForPackage(
                 "com.duolingo",
                 ApplicationInfo.CATEGORY_UNDEFINED
             )
         )
         assertEquals(
-            AppCategoryType.PRODUCTIVE,
+            AppCategoryType.NEUTRAL,
             UsageStatsHelper.defaultCategoryForPackage(
                 "org.khanacademy.android",
                 ApplicationInfo.CATEGORY_UNDEFINED

@@ -26,7 +26,7 @@ import java.util.Locale
 
 object DataBackupManager {
 
-    private const val BACKUP_SCHEMA_VERSION = 9
+    private const val BACKUP_SCHEMA_VERSION = 10
     private const val MAX_BACKUP_BYTES = 20 * 1024 * 1024
     private val DATE_PATTERN = Regex("\\d{4}-\\d{2}-\\d{2}")
     private const val BACKUP_CACHE_MAX_AGE_MILLIS = 24 * 60 * 60 * 1_000L
@@ -62,6 +62,9 @@ object DataBackupManager {
 
         val rootJson = JSONObject()
         rootJson.put("version", BACKUP_SCHEMA_VERSION)
+        db.cumulativeScoreStateDao().get()?.let {
+            rootJson.put("cumulativeScoreState", JSONObject(it.payload))
+        }
         rootJson.put("exportDate", SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()))
 
         // 1. 점수 히스토리
@@ -204,6 +207,7 @@ object DataBackupManager {
                 put("rollingLoad", sample.rollingLoad)
                 put("acuteLoad", sample.acuteLoad)
                 put("presetId", sample.presetId)
+                put("scoreModelVersion", sample.scoreModelVersion)
             })
         }
         rootJson.put("coreIndexSamples", samplesArray)
@@ -246,6 +250,22 @@ object DataBackupManager {
             }
 
             db.withTransaction {
+            // An older backup cannot reconstruct momentum/burden from a displayed score.
+            // Leave an existing checkpoint intact; on a new install the engine migrates once.
+            rootJson.optJSONObject("cumulativeScoreState")?.let { json ->
+                val restored = com.digitscore.app.data.CumulativeRecord.decode(json.toString())
+                val now = System.currentTimeMillis()
+                require(restored.checkpoint.timestamp <= now + 60_000L) { "Future score checkpoint" }
+                val current = db.cumulativeScoreStateDao().get()?.let {
+                    com.digitscore.app.data.CumulativeRecord.decode(it.payload)
+                }
+                if (current == null || restored.checkpoint.timestamp > current.checkpoint.timestamp) {
+                    // Offline time between export and import is unknown, not a recovery interval.
+                    db.cumulativeScoreStateDao().put(com.digitscore.app.data.entity.CumulativeScoreStateEntity(
+                        payload = restored.copy(checkpoint = restored.checkpoint.copy(
+                            timestamp = now - now % 60_000L)).encode()))
+                }
+            }
 
             // 1. 점수 히스토리 복원
             if (rootJson.has("scoreHistories")) {
@@ -263,7 +283,7 @@ object DataBackupManager {
                         productiveTimeMinutes = hObj.getLong("productiveTimeMinutes").coerceIn(0L, 1_440L),
                         idleMinutes = hObj.getLong("idleMinutes").coerceIn(0L, 1_440L),
                         unlockCount = hObj.getInt("unlockCount").coerceIn(0, 10_000),
-                        scoreModelVersion = hObj.optInt("scoreModelVersion", 1).coerceIn(1, 4),
+                        scoreModelVersion = hObj.optInt("scoreModelVersion", 1).coerceIn(1, 5),
                         coreIndexPresetId = CoreIndexPreset.fromId(
                             hObj.optString("coreIndexPresetId", CoreIndexPreset.BALANCED.id)
                         ).id,
@@ -491,6 +511,7 @@ object DataBackupManager {
                                     .coerceIn(1.0, 100.0),
                                 rollingLoad = obj.optDouble("rollingLoad", 0.0).coerceAtLeast(0.0),
                                 acuteLoad = obj.optDouble("acuteLoad", 0.0).coerceAtLeast(0.0),
+                                scoreModelVersion = obj.optInt("scoreModelVersion", 4).coerceIn(1, 5),
                                 presetId = CoreIndexPreset.fromId(
                                     obj.optString("presetId", CoreIndexPreset.BALANCED.id)
                                 ).id

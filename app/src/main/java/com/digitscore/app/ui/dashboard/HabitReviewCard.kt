@@ -1,0 +1,121 @@
+package com.digitscore.app.ui.dashboard
+
+import android.Manifest
+import android.content.Context
+import android.hardware.Sensor
+import android.hardware.SensorManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import com.digitscore.app.data.*
+import com.digitscore.app.data.entity.AppWeightEntity
+import com.digitscore.app.model.AppCategoryType
+import com.digitscore.app.model.AppUsage
+import com.digitscore.app.service.TrackerForegroundService
+import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.util.Locale
+
+/** Optional in-app briefing; no overlay, notification sound, or mandatory time entry. */
+@Composable
+fun HabitReviewCard(score: Int, apps: List<AppUsage>) {
+    val context = LocalContext.current
+    val db = remember { DigitsDatabase.getInstance(context) }
+    val scope = rememberCoroutineScope()
+    val english = Locale.getDefault().language == "en"
+    var morning by remember { mutableStateOf(false) }
+    var suggestion by remember { mutableStateOf<AppUsage?>(null) }
+    var revision by remember { mutableIntStateOf(0) }
+    val prefs = remember { context.getSharedPreferences("habit_sensor_settings", Context.MODE_PRIVATE) }
+    var steps by remember { mutableStateOf(prefs.getBoolean("steps_enabled", false)) }
+    val hasStepSensor = remember {
+        (context.getSystemService(Context.SENSOR_SERVICE) as SensorManager)
+            .getDefaultSensor(Sensor.TYPE_STEP_COUNTER) != null
+    }
+    fun setSteps(enabled: Boolean) {
+        prefs.edit().putBoolean("steps_enabled", enabled).apply()
+        steps = enabled
+        TrackerForegroundService.refreshNotification(context)
+    }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { setSteps(it) }
+    LaunchedEffect(score, apps.map { it.packageName }, revision) {
+        val record = db.cumulativeScoreStateDao().get()?.let { CumulativeRecord.decode(it.payload) }
+            ?: return@LaunchedEffect
+        val zone = ZoneId.systemDefault()
+        val now = java.time.ZonedDateTime.now(zone)
+        val handledDate = Instant.ofEpochMilli(record.briefingHandledAt).atZone(zone).toLocalDate()
+        morning = now.hour in 4..12 && handledDate != now.toLocalDate()
+        val since = LocalDate.now(zone).minusDays(6).toString()
+        suggestion = null
+        for (app in apps.filter { it.categoryType.canonical == AppCategoryType.NEUTRAL }) {
+            if ((record.suggestionSnoozes[app.packageName] ?: 0) > System.currentTimeMillis()) continue
+            val days = db.dailyAppUsageDao().getForPackageSince(app.packageName, since)
+            if (days.count { it.usageMillis >= 90 * 60_000L } >= 3) {
+                suggestion = app
+                break
+            }
+        }
+    }
+    if (morning) {
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(if (english) "Morning check-in · Core Index $score" else "아침 브리핑 · 코어 지수 $score")
+                Text(if (english) "Ready to start your day? Awake breaks can restore your index; estimated sleep holds recovery. No time entry needed."
+                    else "이제 활동을 시작하나요? 활동 중 휴식은 회복에 반영하고, 수면으로 추정한 휴식은 회복을 보류합니다. 시간을 입력할 필요는 없습니다.")
+                Row {
+                    TextButton(onClick = { scope.launch {
+                        CumulativeScoreStore.confirmActivity(db, System.currentTimeMillis(), true)
+                        revision++; TrackerForegroundService.refreshNotification(context)
+                    } }) { Text(if (english) "Start my day" else "활동 시작") }
+                    TextButton(onClick = { scope.launch {
+                        CumulativeScoreStore.confirmActivity(db, System.currentTimeMillis(), false)
+                        revision++; TrackerForegroundService.refreshNotification(context)
+                    } }) { Text(if (english) "Still resting" else "아직 쉬는 중") }
+                }
+                if (hasStepSensor) {
+                    Text(if (english) "Optional: 50 steps within 15 minutes can support waking detection. No location or raw movement history is saved."
+                        else "선택: 15분 안에 50걸음을 기상 보조 근거로 사용합니다. 위치나 원시 움직임 기록은 저장하지 않습니다.")
+                    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (english) "Use step evidence" else "걸음 보조 판단")
+                        Switch(checked = steps, onCheckedChange = { enabled ->
+                            if (enabled && Build.VERSION.SDK_INT >= 29) permission.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                            else setSteps(enabled)
+                        })
+                    }
+                }
+            }
+        }
+    }
+    suggestion?.let { app ->
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(if (english) "Manage ${app.appName}?" else "${app.appName}을 관리 앱으로 바꿀까요?")
+                Text(if (english) "Used for at least 90 minutes on 3 days this week. Changes apply to future scoring only."
+                    else "최근 7일 중 3일 이상 90분 넘게 사용했습니다. 변경 후 사용부터 점수에 반영합니다.")
+                Row {
+                    TextButton(onClick = { scope.launch {
+                        val old = db.appDao().getAppWeight(app.packageName)
+                        db.appDao().insertOrUpdateAppWeight((old ?: AppWeightEntity(app.packageName, app.appName,
+                            AppCategoryType.NEUTRAL)).copy(categoryType = AppCategoryType.DISTRACTING, isUserModified = true))
+                        CumulativeScoreStore.snoozeSuggestion(db, app.packageName, Long.MAX_VALUE)
+                        revision++; TrackerForegroundService.refreshNotification(context)
+                    } }) { Text(if (english) "Manage" else "관리로 변경") }
+                    TextButton(onClick = { scope.launch {
+                        CumulativeScoreStore.snoozeSuggestion(db, app.packageName, Long.MAX_VALUE); revision++
+                    } }) { Text(if (english) "Keep general" else "일반 유지") }
+                    TextButton(onClick = { scope.launch {
+                        CumulativeScoreStore.snoozeSuggestion(db, app.packageName, System.currentTimeMillis() + 7 * 86_400_000L); revision++
+                    } }) { Text(if (english) "Later" else "나중에") }
+                }
+            }
+        }
+    }
+}

@@ -81,6 +81,14 @@ class TrackerForegroundService : Service() {
     private var cachedTodaySnapshot: TodayUsageSnapshot? = null
     private var lastUsageQueryEndMillis: Long = 0L
     private var interactionBootstrapDone = false
+    private val wakeSteps by lazy { WakeStepEvidence(this) { timestamp ->
+        serviceScope.launch(Dispatchers.IO) {
+            com.digitscore.app.data.CumulativeScoreStore.confirmActivity(
+                DigitsDatabase.getInstance(applicationContext), timestamp, awake = true, acknowledge = false)
+            recalculateAndNotify()
+        }
+    } }
+    private var cumulativeCoverageStart = System.currentTimeMillis()
     private var lastAppWeightSignature: Int? = null
 
     private val trackingPreferences by lazy {
@@ -140,7 +148,9 @@ class TrackerForegroundService : Service() {
 
         // 초기 알림 띄우기
         val initialDetail = ScoreCalculator.calculateScore(emptyList(), 0, 0)
-        val initialRollingDetail = RollingScoreCalculator.calculate(emptyList(), System.currentTimeMillis())
+        val initialRollingDetail = com.digitscore.app.data.CumulativeScoreStore.detail(
+            com.digitscore.app.data.CumulativeRecord(com.digitscore.app.engine.CumulativeCheckpoint(
+                System.currentTimeMillis(), com.digitscore.app.engine.CumulativeScoreState())))
         val notification = ScoreNotificationManager.buildScoreNotification(
             this,
             initialDetail,
@@ -151,6 +161,7 @@ class TrackerForegroundService : Service() {
 
         registerScreenReceiver()
         restoreScreenState()
+        if (lastScreenOffTimestamp > 0L) cumulativeCoverageStart = lastScreenOffTimestamp
         restoreTodayHistory()
         startPeriodicTracking()
     }
@@ -303,6 +314,7 @@ class TrackerForegroundService : Service() {
 
                 val db = DigitsDatabase.getInstance(applicationContext)
                 val settings = db.settingsDao().getSettings()
+                withContext(Dispatchers.Main) { wakeSteps.refresh() }
                 if (settings?.isTrackingEnabled == false) {
                     stopSelf()
                     return@withLock
@@ -523,22 +535,15 @@ class TrackerForegroundService : Service() {
                 if (!wasCalibrated && recordedUsageMillis >= 60 * 60 * 1_000L) {
                     trackingPreferences.edit().putBoolean("rolling_score_calibrated", true).apply()
                 }
-                val coreIndexPreset = CoreIndexPreset.fromId(
-                    settings?.selectedCoreIndexPresetId ?: CoreIndexPreset.BALANCED.id
-                )
+                val coreIndexPreset = CoreIndexPreset.BALANCED
                 val rapidUsageAlertConfig = settings?.effectiveRapidUsageAlertConfig(coreIndexPreset)
                     ?: coreIndexPreset.defaultRapidUsageAlertConfig
                 val scoringConfig = settings?.effectiveScoringConfig(coreIndexPreset)
                     ?: coreIndexPreset.defaultScoringConfig
-                val rollingScoreDetail = RollingScoreCalculator.calculate(
-                        sessions = recentSessions,
-                        nowMillis = now,
-                        rollingUnlockCount = rollingUnlockCount,
-                        rollingUnlockTimestamps = rollingUnlockTimestamps,
-                        calibrationUsageMillis = recordedUsageMillis,
-                        preset = coreIndexPreset,
-                        config = scoringConfig
-                    )
+                val (cumulativeRecord, cumulativeDetail) = com.digitscore.app.data.CumulativeScoreStore.update(
+                    db, now, cumulativeCoverageStart)
+                val rollingScoreDetail = cumulativeDetail.copy(
+                    recentUsageMinutes = rollingUsageSummary.totalScreenTimeMillis / 60_000L)
                 ScoreRepository.updateRollingScoreDetail(rollingScoreDetail)
 
                 val previousSample = db.coreIndexSampleDao().getLatestBefore(now)
@@ -551,7 +556,8 @@ class TrackerForegroundService : Service() {
                     histories = db.scoreDao().getRecentCoreIndexHistories(14),
                     nowMillis = now,
                     preset = coreIndexPreset,
-                    scoringConfig = scoringConfig
+                    scoringConfig = scoringConfig,
+                    cumulativeState = cumulativeRecord.checkpoint.state
                 )
                 ScoreRepository.updateCoreIndexGuidance(guidance)
 
@@ -567,7 +573,8 @@ class TrackerForegroundService : Service() {
                         exactScore = rollingScoreDetail.exactScore,
                         rollingLoad = rollingScoreDetail.rollingLoad,
                         acuteLoad = rollingScoreDetail.acuteLoad,
-                        presetId = coreIndexPreset.id
+                        presetId = coreIndexPreset.id,
+                        scoreModelVersion = 5
                     )
                 )
                 if (now - lastSamplePrunedAt >= SAMPLE_PRUNE_INTERVAL_MILLIS) {
@@ -645,7 +652,7 @@ class TrackerForegroundService : Service() {
                         productiveTimeMinutes = dailyScoreDetail.productiveTimeMinutes,
                         idleMinutes = realIdleMinutes,
                         unlockCount = finalUnlockCount,
-                        scoreModelVersion = 4,
+                        scoreModelVersion = 5,
                         coreIndexPresetId = coreIndexPreset.id
                     )
                 )
@@ -784,6 +791,7 @@ class TrackerForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        wakeSteps.stop()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } else {

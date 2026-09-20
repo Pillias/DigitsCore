@@ -52,7 +52,8 @@ object CoreIndexCoach {
         histories: List<DailyScoreHistoryEntity>,
         nowMillis: Long,
         preset: CoreIndexPreset,
-        scoringConfig: CoreIndexScoringConfig = preset.defaultScoringConfig
+        scoringConfig: CoreIndexScoringConfig = preset.defaultScoringConfig,
+        cumulativeState: CumulativeScoreState? = null
     ): CoreIndexGuidance {
         val appNames = apps.associate { it.packageName to it.appName }
         val recentStart = nowMillis - 2 * 60 * 60_000L
@@ -88,7 +89,10 @@ object CoreIndexCoach {
             else -> CoreIndexRecommendation.KEEP_BALANCE
         }
         val target = (detail.finalScore + 3).coerceAtMost(90)
-        val recovery = if (target > detail.finalScore && detail.flow != ScoreFlow.CALIBRATING) {
+        val recovery = if (cumulativeState != null) {
+            if (target > detail.finalScore) com.digitscore.app.data.CumulativeScoreStore.awakeRecoveryMinutes(cumulativeState, target)
+            else null
+        } else if (target > detail.finalScore && detail.flow != ScoreFlow.CALIBRATING) {
             (5..180 step 5).firstOrNull { minutes ->
                 val future = nowMillis + minutes * 60_000L
                 val futureUnlocks = rollingUnlockTimestamps.count { it >= future - 24 * 60 * 60_000L }
