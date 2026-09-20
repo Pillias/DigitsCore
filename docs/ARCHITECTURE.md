@@ -10,7 +10,7 @@ UsageStatsHelper — 최초 상태 복원 + 커서 이후 증분 이벤트 재�
 TrackerForegroundService — 화면 켜짐 중 주기 갱신 및 경계 처리
         ├─ Room + SQLCipher — 상세 30일 / 일별 집계 365일 / 상호작용 25시간
         ├─ ScoreRepository(StateFlow) — 현재 프로세스의 화면 상태
-        ├─ RollingScoreCalculator — 최근 24시간 코어 지수
+        ├─ CumulativeScoreStore → CumulativeTimeline → CumulativeScoreEngine — 누적 상태·증분 점수
         ├─ CoreIndexCoach — 변화 원인·회복 예상·한 가지 제안
         ├─ ScoreNotificationManager — 상태바 알림
         └─ ScoreWidget(Glance) — 반응형 홈 위젯
@@ -27,7 +27,10 @@ TrackerForegroundService — 화면 켜짐 중 주기 갱신 및 경계 처리
 
 ### 점수
 
-- `RollingScoreCalculator`: 메인 코어 지수. 최근 24시간 누적 부하, 앱 전환을 잇는 연속 사용 가속, 취침 시각·수면 길이·아침 첫 실제 언락에 따른 회복, 언락과 심야 가중치를 처리합니다.
+- `CumulativeScoreEngine`: 누적 점수의 순수 전이 함수. 일반/관리 사용 가속, 활동 중 회복, 수면 동결을 처리합니다.
+- `CumulativeScoreStore`: 암호화 DB에 상태와 처리 커서를 함께 확정합니다. 설정 버전과 이전 점수를 보존하며, UI/예측 계산은 커서를 전진시키지 않습니다.
+- `RestPhasePolicy`, `WakeStepEvidence`: 예상 야간 휴식과 선택적 하드웨어 걸음 근거. 실제 수면 측정이 아니며 확인 결과를 소급 적용하지 않습니다.
+- `RollingScoreCalculator`: 이전 모델 기록의 호환·검증용이며 현재 서비스의 점수를 계산하지 않습니다.
 - `ScoreCalculator`: 기존 자정 기준 계산. 저장 데이터와 기존 설정 호환을 위해 내부에만 남아 있으며 UI에는 노출하지 않습니다.
 - `ScoreRepository`: 서비스가 계산한 최근 24시간 점수·앱별 사용·화면/관리 시간·언락을 Compose 화면·알림·위젯에 전달하는 프로세스 내 `StateFlow` 저장소입니다.
 - `CoreIndexCoach`: 현재와 직전 표본, 최근 24시간 세션, 14일 기록을 비교해 변화 원인 한 문장, 3점 회복 예상, 24시간 요약과 한 가지 제안을 만듭니다.
@@ -38,7 +41,9 @@ TrackerForegroundService — 화면 켜짐 중 주기 갱신 및 경계 처리
 
 ### 저장
 
-Room 데이터베이스 버전은 v16입니다.
+Room 데이터베이스 버전은 v18입니다.
+
+- `cumulative_score_state`: 설정 버전, 내부 점수, 가속 잔여, 회복 부담, 커서, 기상 확인 및 제안 선택. 상세 기록 보관 기간과 독립적으로 유지되며 전체 기록 삭제 시 삭제
 
 - `foreground_usage_sessions`: 앱별 상세 시작·종료 구간, 실제 앱 진입 세션 시작 시각과 분할 화면·PiP의 유효 점수 등급/동시 표시 앱 수, 30일
 - `core_index_samples`: 화면 ON 상태에서 갱신한 5분 단위 코어 지수·부하·프리셋 표본, 30일

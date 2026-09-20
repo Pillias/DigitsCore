@@ -465,8 +465,10 @@ private fun GuidanceDetailDialog(
                 InsightCard("회복 예상") {
                     Text(
                         guidance.recoveryMinutes?.let {
-                            "지금 화면을 쉬면 약 ${it}분 뒤 ${guidance.recoveryTargetScore}점에 도달할 것으로 예상됩니다."
-                        } ?: "3시간 안의 뚜렷한 회복보다 최근 24시간 누적 사용을 먼저 줄이는 편이 좋습니다.",
+                            if (Locale.getDefault().language == "en") "About $it minutes of awake rest may reach ${guidance.recoveryTargetScore}. Sleep is excluded."
+                            else "깨어 있는 상태로 약 ${it}분 쉬면 ${guidance.recoveryTargetScore}점으로 예상됩니다. 수면은 제외한 추정입니다."
+                        } ?: if (Locale.getDefault().language == "en") "Recovery depends on accumulated use and awake rest; a near-term target is not available."
+                            else "회복 속도는 누적 사용과 활동 중 휴식에 따라 달라집니다. 가까운 회복 시점은 아직 예측하기 어렵습니다.",
                         fontSize = 12.sp
                     )
                 }
@@ -900,26 +902,21 @@ fun ScreenTimeDetailDialog(
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(text = "카테고리별 시간 분배", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.outline)
                             CompactBarChart(
-                                values = listOf(distractingMillis.toFloat(), productiveMillis.toFloat(), neutralMillis.toFloat()),
+                                values = listOf(distractingMillis.toFloat(), (productiveMillis + neutralMillis).toFloat()),
                                 barColor = MaterialTheme.colorScheme.primary,
                                 contentDescription = UiTranslator.translate("방해 생산성 중립 앱 사용시간 비교 그래프")
                             )
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
                                 Text("관리", fontSize = 10.sp, color = ScoreRed)
-                                Text("성장", fontSize = 10.sp, color = ScoreGreen)
-                                Text("균형", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
+                                Text(if (Locale.getDefault().language == "en") "General" else "일반", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
                             }
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text(text = "관리 앱", fontSize = 12.sp)
                                 Text(text = formatInsightDuration(distractingMillis), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ScoreRed)
                             }
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(text = "성장 앱", fontSize = 12.sp)
-                                Text(text = formatInsightDuration(productiveMillis), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ScoreGreen)
-                            }
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(text = "균형/기타", fontSize = 12.sp)
-                                Text(text = formatInsightDuration(neutralMillis), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.outline)
+                                Text(text = if (Locale.getDefault().language == "en") "General apps" else "일반 앱", fontSize = 12.sp)
+                                Text(text = formatInsightDuration(neutralMillis + productiveMillis), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.outline)
                             }
                         }
                     }

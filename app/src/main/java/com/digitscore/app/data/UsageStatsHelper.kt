@@ -206,13 +206,17 @@ object UsageStatsHelper {
         savedEntity: AppWeightEntity?
     ): AppCategoryType {
         // 사용자가 직접 지정한 분류를 최우선으로 존중합니다.
-        savedEntity?.let { return it.categoryType.canonical }
+        savedEntity?.takeIf { it.isUserModified }?.let { return it.categoryType.canonical }
         val applicationCategory = try {
             pm.getApplicationInfo(packageName, 0).category
         } catch (_: Exception) {
             ApplicationInfo.CATEGORY_UNDEFINED
         }
-        return defaultCategoryForPackage(packageName, applicationCategory)
+        val recommended = defaultCategoryForPackage(packageName, applicationCategory)
+        if (applicationCategory != ApplicationInfo.CATEGORY_UNDEFINED ||
+            EDUCATION_PACKAGE_PREFIXES.any(packageName::startsWith) ||
+            SHOPPING_PACKAGE_PREFIXES.any(packageName::startsWith)) return recommended
+        return savedEntity?.categoryType?.canonical ?: recommended
     }
 
     internal fun shouldIncludeUsagePackage(packageName: String, usageTimeMillis: Long): Boolean =

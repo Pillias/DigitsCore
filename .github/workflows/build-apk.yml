@@ -42,6 +42,13 @@ jobs:
       - name: Test and Build Debug APK
         run: gradle :app:testDebugUnitTest :app:assembleDebug --stacktrace --no-daemon
 
+      - name: Report generated database schema
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo BEGIN_ROOM_SCHEMA
+          cat app/schemas/com.digitscore.app.data.DigitsDatabase/18.json
+          echo END_ROOM_SCHEMA
+
       - name: Prepare Named APK
         if: github.event_name == 'workflow_dispatch' && inputs.upload_apk
         run: |

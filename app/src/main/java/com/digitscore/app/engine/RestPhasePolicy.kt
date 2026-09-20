@@ -10,7 +10,8 @@ data class RestWindow(val bedtimeMinute: Int = 23 * 60, val wakeMinute: Int = 7 
  */
 object RestPhasePolicy {
     fun learn(uses: List<CumulativeUse>, zone: ZoneId): RestWindow {
-        val sorted = uses.sortedBy { it.start }
+        // A brief night check is not a new bedtime or a confirmed waking event.
+        val sorted = uses.filter { it.end - it.start > 60_000L }.sortedBy { it.start }
         val windows = mutableListOf<Pair<Int, Int>>()
         var previousEnd: Long? = null
         for (use in sorted) {

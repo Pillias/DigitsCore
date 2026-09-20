@@ -48,7 +48,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="User-started on-device foreground app and unlock tracking for the rolling 24-hour Core Index" />
+                android:value="User-started on-device foreground app and unlock tracking for the cumulative Core Index; optional hardware step evidence supports waking estimates" />
         </service>
 
         <receiver

@@ -27,7 +27,7 @@ class WidgetSnapshotTest {
         assertEquals(0L, sanitized.managedMinutes)
         assertEquals(0, sanitized.unlockCount)
         assertEquals(0L, sanitized.continuousUsageMinutes)
-        assertEquals(180, sanitized.recoveryMinutes)
+        assertEquals(500, sanitized.recoveryMinutes)
         assertEquals(0L, sanitized.updatedAtMillis)
     }
 

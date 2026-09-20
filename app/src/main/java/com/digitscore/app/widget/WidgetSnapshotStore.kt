@@ -25,7 +25,7 @@ data class WidgetSnapshot(
         managedMinutes = managedMinutes.coerceAtLeast(0L),
         unlockCount = unlockCount.coerceAtLeast(0),
         continuousUsageMinutes = continuousUsageMinutes.coerceAtLeast(0L),
-        recoveryMinutes = recoveryMinutes?.coerceIn(5, 180),
+        recoveryMinutes = recoveryMinutes?.coerceIn(1, 720),
         updatedAtMillis = updatedAtMillis.coerceAtLeast(0L)
     )
 
