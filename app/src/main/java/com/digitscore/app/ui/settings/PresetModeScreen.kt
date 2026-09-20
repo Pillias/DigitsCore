@@ -430,6 +430,7 @@ fun PresetModeScreen(
                 }
             }
 
+            item { com.digitscore.app.ui.dashboard.WakeEvidenceSettings() }
             item {
                 SectionHeading(
                     title = "코어 지수 프리셋",

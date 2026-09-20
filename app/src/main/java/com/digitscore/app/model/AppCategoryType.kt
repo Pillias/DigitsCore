@@ -58,7 +58,10 @@ enum class AppCategoryType(
     val isPenalty: Boolean get() = scoreMultiplier < 0f
     val isBonus: Boolean get() = scoreMultiplier > 0f
     val displayName: String get() = if (java.util.Locale.getDefault().language == "en") englishName else koreanName
-    val description: String get() = if (java.util.Locale.getDefault().language == "en") englishDescription else koreanDescription
+    val description: String get() = if (canonical == NEUTRAL) {
+        if (java.util.Locale.getDefault().language == "en") "General use · No bonus for time spent"
+        else "일반 사용 · 사용시간 자체에 가점 없음"
+    } else if (java.util.Locale.getDefault().language == "en") englishDescription else koreanDescription
     val canonical: AppCategoryType
         get() = when (this) {
             PRODUCTIVE, MILDLY_PRODUCTIVE -> NEUTRAL

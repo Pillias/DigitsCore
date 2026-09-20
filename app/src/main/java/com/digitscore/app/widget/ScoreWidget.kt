@@ -64,7 +64,7 @@ class ScoreWidget : GlanceAppWidget() {
             ?: ScoreRepository.currentUnlockCount.value
         val score = persistedSnapshot?.score
             ?: rollingScoreDetail?.finalScore
-            ?: 80
+            ?: 75
         val grade = ScoreGrade.fromScore(score)
         val screenMinutes = persistedSnapshot?.screenMinutes
             ?: scoreDetail?.totalScreenTimeMinutes

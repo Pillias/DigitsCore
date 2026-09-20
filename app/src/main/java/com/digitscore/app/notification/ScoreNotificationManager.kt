@@ -151,7 +151,7 @@ object ScoreNotificationManager {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val score = rollingScoreDetail?.finalScore ?: 80
+        val score = rollingScoreDetail?.finalScore ?: 75
         val grade = ScoreGrade.fromScore(score)
 
         val title = strings.getString(R.string.notification_title, score, strings.localizedGrade(grade))

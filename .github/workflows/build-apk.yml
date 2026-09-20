@@ -7,6 +7,11 @@ on:
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
+    inputs:
+      upload_apk:
+        description: 'Store a temporary debug APK artifact (uses Actions storage)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -38,12 +43,12 @@ jobs:
         run: gradle :app:testDebugUnitTest :app:assembleDebug --stacktrace --no-daemon
 
       - name: Prepare Named APK
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' && inputs.upload_apk
         run: |
           cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/DigitsCore-v1.0.${{ github.run_number }}-debug.apk
 
       - name: Upload APK Artifact
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' && inputs.upload_apk
         uses: actions/upload-artifact@v4
         with:
           name: DigitsCore-v1.0.${{ github.run_number }}-debug

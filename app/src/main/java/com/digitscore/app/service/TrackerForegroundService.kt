@@ -88,7 +88,7 @@ class TrackerForegroundService : Service() {
             recalculateAndNotify()
         }
     } }
-    private var cumulativeCoverageStart = System.currentTimeMillis()
+    private var cumulativeCoverageStart = UsageStatsHelper.getStartOfTodayMillis()
     private var lastAppWeightSignature: Int? = null
 
     private val trackingPreferences by lazy {
@@ -115,6 +115,8 @@ class TrackerForegroundService : Service() {
         }
 
         fun stop(context: Context) {
+            context.getSharedPreferences("tracking_state", Context.MODE_PRIVATE).edit()
+                .putBoolean("cumulative_tracking_paused", true).apply()
             val intent = Intent(context, TrackerForegroundService::class.java)
             context.stopService(intent)
         }
@@ -161,7 +163,11 @@ class TrackerForegroundService : Service() {
 
         registerScreenReceiver()
         restoreScreenState()
-        if (lastScreenOffTimestamp > 0L) cumulativeCoverageStart = lastScreenOffTimestamp
+        if (lastScreenOffTimestamp > 0L) cumulativeCoverageStart = minOf(cumulativeCoverageStart, lastScreenOffTimestamp)
+        if (trackingPreferences.getBoolean("cumulative_tracking_paused", false)) {
+            cumulativeCoverageStart = System.currentTimeMillis()
+            trackingPreferences.edit().putBoolean("cumulative_tracking_paused", false).apply()
+        }
         restoreTodayHistory()
         startPeriodicTracking()
     }
@@ -309,6 +315,7 @@ class TrackerForegroundService : Service() {
             recalcMutex.withLock {
                 val cycleCpuStartedAt = Process.getElapsedCpuTime()
                 if (!UsageStatsHelper.hasUsageStatsPermission(applicationContext)) {
+                    cumulativeCoverageStart = System.currentTimeMillis()
                     return@launch
                 }
 
@@ -774,6 +781,7 @@ class TrackerForegroundService : Service() {
             return START_STICKY
         }
         if (intent?.action == ACTION_STOP_TRACKING) {
+            trackingPreferences.edit().putBoolean("cumulative_tracking_paused", true).apply()
             serviceScope.launch(Dispatchers.IO) {
                 val dao = DigitsDatabase.getInstance(applicationContext).settingsDao()
                 val settings = dao.getSettings()

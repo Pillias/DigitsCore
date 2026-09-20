@@ -24,6 +24,35 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
 
+@Composable
+fun WakeEvidenceSettings() {
+    val context = LocalContext.current
+    val english = Locale.getDefault().language == "en"
+    val prefs = remember { context.getSharedPreferences("habit_sensor_settings", Context.MODE_PRIVATE) }
+    var enabled by remember { mutableStateOf(prefs.getBoolean("steps_enabled", false)) }
+    val available = remember { (context.getSystemService(Context.SENSOR_SERVICE) as SensorManager)
+        .getDefaultSensor(Sensor.TYPE_STEP_COUNTER) != null }
+    fun save(value: Boolean) {
+        enabled = value
+        prefs.edit().putBoolean("steps_enabled", value).apply()
+        TrackerForegroundService.refreshNotification(context)
+    }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { save(it) }
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(if (english) "Wake detection · Optional steps" else "기상 판단 · 걸음 보조 (선택)")
+            Text(if (!available) {
+                if (english) "No step counter available. Usage-pattern detection still works." else "걸음 센서가 없습니다. 사용 패턴 기준 판단은 계속 동작합니다."
+            } else if (english) "50 steps within 15 minutes can support morning waking detection. No location or step history is stored."
+            else "아침에 15분 내 50걸음을 기상 보조 근거로 사용합니다. 위치나 걸음 이력은 저장하지 않습니다.")
+            Switch(enabled = available, checked = enabled, onCheckedChange = { value ->
+                if (value && Build.VERSION.SDK_INT >= 29) permission.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                else save(value)
+            })
+        }
+    }
+}
+
 /** Optional in-app briefing; no overlay, notification sound, or mandatory time entry. */
 @Composable
 fun HabitReviewCard(score: Int, apps: List<AppUsage>) {

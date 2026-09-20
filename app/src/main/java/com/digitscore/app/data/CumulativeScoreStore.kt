@@ -40,7 +40,7 @@ data class CumulativeRecord(
             val q = obj.getDouble("momentum")
             val r = obj.getDouble("rest")
             val b = obj.getDouble("burden")
-            require(s.isFinite() && s in 1.0..100.0)
+            require(s.isFinite() && s in 0.0..100.0)
             require(listOf(q, r, b).all { it.isFinite() && it >= 0.0 })
             return CumulativeRecord(CumulativeCheckpoint(timestamp, CumulativeScoreState(s, q, r, b)),
                 obj.getInt("version"), obj.getLong("startedAt"), obj.optLong("wake"),
@@ -54,6 +54,7 @@ data class CumulativeRecord(
 
 /** The service is the sole advancing writer. UI/notification/forecast never advances this cursor. */
 object CumulativeScoreStore {
+    private var windowCache: Triple<DigitsDatabase, String, RestWindow>? = null
     suspend fun update(
         db: DigitsDatabase,
         nowMillis: Long,
@@ -74,13 +75,17 @@ object CumulativeScoreStore {
             it - Math.floorMod(it, CumulativeTimeline.MINUTE) + CumulativeTimeline.MINUTE
         }).coerceAtMost(maxOf(settledEnd, record.checkpoint.timestamp))
         val start = record.checkpoint.copy(timestamp = processStart)
-        val entities = db.foregroundUsageSessionDao().getSince(minOf(processStart - 24 * 3_600_000L,
-            nowMillis - 8 * 24 * 3_600_000L))
-        val uses = entities.map {
+        fun asUse(it: com.digitscore.app.data.entity.ForegroundUsageSessionEntity) =
             CumulativeUse(it.startTimeMillis, it.endTimeMillis, it.effectiveCategoryLevel >= 3,
                 "${it.packageName}:${it.sessionStartTimeMillis}", it.sessionStartTimeMillis)
+        val dayKey = "${java.time.Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDate()}:$zone"
+        val cached = windowCache
+        val window = if (cached?.first === db && cached.second == dayKey) cached.third else {
+            RestPhasePolicy.learn(db.foregroundUsageSessionDao().getSince(nowMillis - 8 * 24 * 3_600_000L)
+                .map(::asUse), zone).also { windowCache = Triple(db, dayKey, it) }
         }
-        val window = RestPhasePolicy.learn(uses, zone)
+        // Incremental scoring query: only cursor look-behind, not a fresh full-day/full-week score replay.
+        val uses = db.foregroundUsageSessionDao().getSince(processStart - 5 * 60_000L).map(::asUse)
         val next = CumulativeTimeline.advance(start, settledEnd, uses, { timestamp ->
             RestPhasePolicy.activityAt(timestamp, window, zone, record.wakeConfirmedAt, record.restingConfirmedUntil)
         })

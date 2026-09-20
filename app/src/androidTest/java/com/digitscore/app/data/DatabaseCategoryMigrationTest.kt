@@ -28,6 +28,29 @@ class DatabaseCategoryMigrationTest {
     }
 
     @Test
+    fun migration17To18PreservesScoreHistoryAndAddsEncryptedCheckpointTable() {
+        helper.createDatabase(databaseName, 17).apply {
+            execSQL("INSERT INTO app_weights(packageName, appName, categoryType, customWeight, isUserModified) VALUES ('study.app','Study','PRODUCTIVE',NULL,1)")
+            execSQL("INSERT INTO app_weights(packageName, appName, categoryType, customWeight, isUserModified) VALUES ('manual.app','Manual','DISTRACTING',NULL,1)")
+            execSQL("INSERT INTO core_index_samples(bucketStartTimestamp,timestampMillis,dateString,score,exactScore,rollingLoad,acuteLoad,presetId) VALUES (1000,1000,'2026-09-20',75,75.0,10.0,2.0,'balanced')")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(databaseName, 18, true, DigitsDatabase.MIGRATION_17_18)
+        db.query("SELECT score, scoreModelVersion FROM core_index_samples").use {
+            assertEquals(true, it.moveToFirst())
+            assertEquals(75, it.getInt(0)); assertEquals(4, it.getInt(1))
+        }
+        db.query("SELECT categoryType FROM app_weights WHERE packageName='manual.app'").use {
+            it.moveToFirst(); assertEquals("DISTRACTING", it.getString(0))
+        }
+        db.execSQL("INSERT INTO cumulative_score_state(id,payload) VALUES (1,'{}')")
+        db.query("SELECT count(*) FROM cumulative_score_state").use {
+            it.moveToFirst(); assertEquals(1, it.getInt(0))
+        }
+        db.close()
+    }
+
+    @Test
     fun migration13To16CanonicalizesThreeTiersAndInitializesSessionFields() {
         helper.createDatabase(databaseName, 13).apply {
             execSQL(

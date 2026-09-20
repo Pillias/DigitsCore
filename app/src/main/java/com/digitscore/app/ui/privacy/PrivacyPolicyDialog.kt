@@ -49,6 +49,12 @@ fun PrivacyPolicyDialog(onDismiss: () -> Unit) {
                     body = stringResource(R.string.privacy_choice_body)
                 )
                 PrivacySection(
+                    title = if (java.util.Locale.getDefault().language == "en") "Optional step evidence" else "선택적 걸음 보조 판단",
+                    body = if (java.util.Locale.getDefault().language == "en")
+                        "With your permission, the hardware step counter supports waking detection. Raw samples stay in memory only; location and step history are not stored or transmitted. Disable this in settings or revoke Physical activity permission. Cumulative score and waking confirmations are stored locally until you delete usage history."
+                    else "선택 동의하면 하드웨어 걸음 센서를 기상 보조 판단에 사용합니다. 원시 값은 메모리에서만 비교하고 위치·걸음 이력은 저장하거나 전송하지 않습니다. 설정 또는 신체 활동 권한에서 끌 수 있습니다. 누적 점수와 기상 확인은 기기 내부에 보관하며 전체 기록 삭제 시 함께 삭제합니다."
+                )
+                PrivacySection(
                     title = stringResource(R.string.privacy_contact_title),
                     body = stringResource(R.string.privacy_contact_body)
                 )

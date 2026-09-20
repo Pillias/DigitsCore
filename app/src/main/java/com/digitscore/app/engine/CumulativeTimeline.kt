@@ -30,16 +30,26 @@ object CumulativeTimeline {
             groups.last().add(use)
             groupEnd = maxOf(groupEnd, use.end)
         }
-        // Count union duration: PiP cannot turn a 40-second check into an 80-second session.
-        val substantial = groups.filter { group ->
+        val longOpenIds = sorted.groupBy { it.openingId }.filterValues { parts ->
             var lastEnd = Long.MIN_VALUE
             var duration = 0L
-            for (use in group) {
+            for (use in parts) {
                 duration += (use.end - maxOf(use.start, lastEnd)).coerceAtLeast(0L)
                 lastEnd = maxOf(lastEnd, use.end)
             }
             duration > MINUTE
-        }.flatten()
+        }.keys
+        // Brief bursts lose their exemption only going forward, never by reclassifying
+        // an already-settled short check when more opens arrive several minutes later.
+        val substantial = groups.flatMap { group ->
+            var lastEnd = Long.MIN_VALUE
+            var duration = 0L
+            group.filter { use ->
+                duration += (use.end - maxOf(use.start, lastEnd)).coerceAtLeast(0L)
+                lastEnd = maxOf(lastEnd, use.end)
+                use.openingId in longOpenIds || duration > MINUTE
+            }
+        }
         val openings = sorted.groupBy { it.openingId }.values.map { group -> group.minOf { it.openedAt } }
             .sorted()
         var time = checkpoint.timestamp
