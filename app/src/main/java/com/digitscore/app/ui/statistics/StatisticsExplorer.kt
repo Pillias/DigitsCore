@@ -461,7 +461,7 @@ private fun ExplorerChart(
     val appRows = hours.filter { it.packageName == app.pkg }.map { it.copy(packageName = "") }
     val series = remember(appRows, start, end, daily) { explorerBuckets(start, end, daily, appRows, emptyList(), emptyList()) }
     Dialog(onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Scaffold(topBar = { TopAppBar(title = { Text(app.name) }, navigationIcon = { IconButton(onClick = onDismiss) { Icon(Icons.AutoMirrored.Filled.ArrowBack, label("뒤로", "Back")) } }) }) { padding ->
+        Scaffold(modifier = Modifier.testTag("app-detail"), topBar = { TopAppBar(title = { Text(app.name) }, navigationIcon = { IconButton(onClick = onDismiss) { Icon(Icons.AutoMirrored.Filled.ArrowBack, label("뒤로", "Back")) } }) }) { padding ->
             ResponsiveContent(Modifier.padding(padding)) {
                 LazyColumn(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                     item { Text("${dateLabel(start)} – ${dateLabel(end)}", color = MaterialTheme.colorScheme.onSurfaceVariant) }

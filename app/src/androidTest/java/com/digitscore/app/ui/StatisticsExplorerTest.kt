@@ -79,8 +79,8 @@ class StatisticsExplorerTest {
             compose.onNodeWithText("Score impact").performClick()
             compose.onNodeWithTag("statistics-list").performScrollToNode(hasText("YouTube"))
             compose.onNodeWithText("YouTube").performClick()
-            compose.onNodeWithText("Recorded score loss").assertExists()
-            compose.onNodeWithContentDescription("Back").performClick()
+            compose.onNode(hasText("Recorded score loss") and hasAnyAncestor(hasTestTag("app-detail"))).assertExists()
+            compose.onNode(hasContentDescription("Back") and hasAnyAncestor(hasTestTag("app-detail"))).performClick()
             compose.runOnIdle { dark.value=true }
             compose.onNodeWithTag("statistics-list").performScrollToIndex(0)
             compose.waitForIdle(); screenshot("dark-large")
