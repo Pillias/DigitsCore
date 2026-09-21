@@ -56,4 +56,15 @@ class CumulativeTimelineTest {
             assertEquals(CumulativeActivity.SLEEP, RestPhasePolicy.activityAt(night, RestWindow(), zone))
         }
     }
+
+    @Test fun sleepingAfterMorningGamingIsProtectedButWalkingCanOverride() {
+        val zone = ZoneId.of("Asia/Kuching")
+        fun time(hour: Int) = ZonedDateTime.of(2026, 9, 20, hour, 0, 0, 0, zone).toInstant().toEpochMilli()
+        val anchor = RestPhasePolicy.lateSleepAnchor(listOf(CumulativeUse(time(3), time(7), true, "game")), zone)!!
+        assertEquals(time(7), anchor)
+        assertEquals(CumulativeActivity.SLEEP, RestPhasePolicy.activityAt(time(10), RestWindow(), zone, lateSleepAnchorAt = anchor))
+        assertEquals(CumulativeActivity.AWAKE_REST, RestPhasePolicy.activityAt(time(10), RestWindow(), zone,
+            wakeConfirmedAt = time(9), lateSleepAnchorAt = anchor))
+        assertNull(RestPhasePolicy.lateSleepAnchor(listOf(CumulativeUse(time(7), time(11), true, "day")), zone))
+    }
 }

@@ -14,7 +14,8 @@ data class CumulativeRecord(
     val wakeConfirmedAt: Long = 0L,
     val restingConfirmedUntil: Long = 0L,
     val briefingHandledAt: Long = 0L,
-    val suggestionSnoozes: Map<String, Long> = emptyMap()
+    val suggestionSnoozes: Map<String, Long> = emptyMap(),
+    val lateSleepAnchorAt: Long = 0L
 ) {
     fun encode(): String = JSONObject().apply {
         put("version", configVersion)
@@ -28,6 +29,7 @@ data class CumulativeRecord(
         put("restingUntil", restingConfirmedUntil)
         put("briefing", briefingHandledAt)
         put("suggestions", JSONObject(suggestionSnoozes))
+        put("lateSleepAnchor", lateSleepAnchorAt)
     }.toString()
 
     companion object {
@@ -47,7 +49,7 @@ data class CumulativeRecord(
                 obj.optLong("restingUntil"), obj.optLong("briefing"),
                 obj.optJSONObject("suggestions")?.let { map ->
                     map.keys().asSequence().associateWith { map.getLong(it) }
-                } ?: emptyMap())
+                } ?: emptyMap(), obj.optLong("lateSleepAnchor"))
         }
     }
 }
@@ -86,13 +88,14 @@ object CumulativeScoreStore {
         }
         // Incremental scoring query: only cursor look-behind, not a fresh full-day/full-week score replay.
         val uses = db.foregroundUsageSessionDao().getSince(processStart - 5 * 60_000L).map(::asUse)
+        val lateSleepAnchor = maxOf(record.lateSleepAnchorAt, RestPhasePolicy.lateSleepAnchor(uses, zone) ?: 0L)
         val next = CumulativeTimeline.advance(start, settledEnd, uses, { timestamp ->
-            RestPhasePolicy.activityAt(timestamp, window, zone, record.wakeConfirmedAt, record.restingConfirmedUntil)
+            RestPhasePolicy.activityAt(timestamp, window, zone, record.wakeConfirmedAt, record.restingConfirmedUntil, lateSleepAnchor)
         })
-        val updated = record.copy(checkpoint = next)
+        val updated = record.copy(checkpoint = next, lateSleepAnchorAt = lateSleepAnchor)
         dao.put(CumulativeScoreStateEntity(payload = updated.encode()))
         updated to detail(updated, RestPhasePolicy.activityAt(next.timestamp, window, zone,
-            record.wakeConfirmedAt, record.restingConfirmedUntil) == CumulativeActivity.SLEEP)
+            record.wakeConfirmedAt, record.restingConfirmedUntil, lateSleepAnchor) == CumulativeActivity.SLEEP)
     }
 
     fun detail(record: CumulativeRecord, sleeping: Boolean = false): RollingScoreDetail {

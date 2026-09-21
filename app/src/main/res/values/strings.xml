@@ -68,7 +68,7 @@
     <string name="notification_cause_unlocks">최근 24시간 %1$d회 잠금 해제했고, 짧은 앱 확인도 %2$d회 있었습니다.</string>
     <string name="notification_cause_recovering">화면을 쉬는 동안 연속 사용 부하가 줄고 있습니다.</string>
     <string name="notification_cause_steady">최근 사용 흐름에 큰 변화가 없습니다.</string>
-    <string name="notification_recovery_forecast">화면을 내려놓으면 약 %1$d분 뒤 %2$d점이 예상됩니다.</string>
+    <string name="notification_recovery_forecast">수면을 제외하고 약 %1$d분 화면을 쉬면 %2$d점으로 예상됩니다.</string>
     <string name="tracking_stop">추적 중지</string>
     <string name="tracking_active">DigitsCore 측정 중</string>
     <string name="unlock_for_details">잠금 해제 후 상세 정보를 확인할 수 있습니다.</string>
@@ -91,7 +91,7 @@
     <string name="widget_action_keep_balance">지금의 균형을 유지해보세요</string>
     <string name="widget_action_ten_minute_break">지금 10분간 화면을 쉬어보세요</string>
     <string name="widget_action_quiet_break">화면 없는 휴식을 시작해보세요</string>
-    <string name="widget_action_recovery">약 %1$d분 쉬면 회복 흐름이 예상돼요</string>
+    <string name="widget_action_recovery">활동 중 휴식 약 %1$d분 후 회복 목표 예상</string>
     <string name="widget_action_batch_checks">다음 확인을 조금 늦춰보세요</string>
     <string name="widget_action_wind_down">심야 사용을 마무리할 시간이에요</string>
     <string name="widget_accessibility">코어 지수 %1$d, %2$s, 화면 %3$s, 언락 %4$d회</string>

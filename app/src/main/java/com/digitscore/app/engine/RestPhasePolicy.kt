@@ -34,7 +34,8 @@ object RestPhasePolicy {
 
     fun activityAt(
         timestamp: Long, window: RestWindow, zone: ZoneId,
-        wakeConfirmedAt: Long = 0L, restingConfirmedUntil: Long = 0L
+        wakeConfirmedAt: Long = 0L, restingConfirmedUntil: Long = 0L,
+        lateSleepAnchorAt: Long = 0L
     ): CumulativeActivity {
         if (timestamp < restingConfirmedUntil) return CumulativeActivity.SLEEP
         val local = Instant.ofEpochMilli(timestamp).atZone(zone)
@@ -45,9 +46,21 @@ object RestPhasePolicy {
         val confirmedToday = wakeConfirmedAt > 0 && timestamp >= wakeConfirmedAt &&
             Instant.ofEpochMilli(wakeConfirmedAt).atZone(zone).toLocalDate() == local.toLocalDate()
         // Confirmation only overrides the morning part; a morning tap does not disable tonight's sleep.
-        return if (inWindow && !(confirmedToday && minute < 18 * 60)) CumulativeActivity.SLEEP
+        val lateSleepProtection = lateSleepAnchorAt > 0 && timestamp >= lateSleepAnchorAt &&
+            timestamp < lateSleepAnchorAt + 5 * 3_600_000L
+        return if ((inWindow || lateSleepProtection) && !(confirmedToday && minute < 18 * 60)) CumulativeActivity.SLEEP
         else CumulativeActivity.AWAKE_REST
     }
+
+    /** Protect the first five hours after substantial late-night use even if sleep begins
+     * after the usual wake time. Explicit waking evidence overrides this soft fallback.
+     */
+    fun lateSleepAnchor(uses: List<CumulativeUse>, zone: ZoneId): Long? = uses.filter { use ->
+        val end = Instant.ofEpochMilli(use.end).atZone(zone)
+        val midnight = end.toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
+        val six = end.toLocalDate().atTime(6, 0).atZone(zone).toInstant().toEpochMilli()
+        end.hour < 10 && minOf(use.end, six) - maxOf(use.start, midnight) >= 30 * 60_000L
+    }.maxOfOrNull { it.end }
 
     private fun minute(timestamp: Long, zone: ZoneId): Int =
         Instant.ofEpochMilli(timestamp).atZone(zone).let { it.hour * 60 + it.minute }

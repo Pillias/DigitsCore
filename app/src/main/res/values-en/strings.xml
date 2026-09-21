@@ -68,7 +68,7 @@
     <string name="notification_cause_unlocks">You unlocked %1$d times in 24 hours, with %2$d short app checks.</string>
     <string name="notification_cause_recovering">Continuous-use load is easing while the screen is down.</string>
     <string name="notification_cause_steady">There is no major change in your recent usage pattern.</string>
-    <string name="notification_recovery_forecast">About %1$d minutes off-screen may bring the index to %2$d.</string>
+    <string name="notification_recovery_forecast">About %1$d minutes of awake rest may bring the index to %2$d; sleep is excluded.</string>
     <string name="tracking_stop">Stop tracking</string>
     <string name="tracking_active">DigitsCore tracking active</string>
     <string name="unlock_for_details">Unlock your device to see details.</string>
@@ -91,7 +91,7 @@
     <string name="widget_action_keep_balance">Keep your current balance</string>
     <string name="widget_action_ten_minute_break">Take a 10-minute screen break now</string>
     <string name="widget_action_quiet_break">Start a screen-free break</string>
-    <string name="widget_action_recovery">About %1$d min off-screen may start recovery</string>
+    <string name="widget_action_recovery">Recovery target: about %1$d min of awake rest</string>
     <string name="widget_action_batch_checks">Delay your next phone check</string>
     <string name="widget_action_wind_down">It is time to wind down night use</string>
     <string name="widget_accessibility">Core Index %1$d, %2$s, screen %3$s, %4$d unlocks</string>

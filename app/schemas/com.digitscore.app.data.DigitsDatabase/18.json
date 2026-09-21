@@ -1,8 +1,8 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 17,
-    "identityHash": "f926793d5714045f8549ae620da3006c",
+    "version": 18,
+    "identityHash": "3591b3f7a070e47810e7fa0a16d61681",
     "entities": [
       {
         "tableName": "app_weights",
@@ -251,7 +251,7 @@
       },
       {
         "tableName": "user_settings",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `selectedPresetModeId` TEXT NOT NULL, `selectedCoreIndexPresetId` TEXT NOT NULL, `minimumScoreDefenseLine` INTEGER NOT NULL, `targetUnlockCount` INTEGER NOT NULL, `distractingWeightPerMinute` REAL NOT NULL, `productiveBonusPerMinute` REAL NOT NULL, `idleBonusPer10Minutes` REAL NOT NULL, `maxIdleBonus` REAL NOT NULL, `maxProductiveBonus` REAL NOT NULL, `unlockPenaltyPerCount` REAL NOT NULL, `lateNightMultiplier` REAL NOT NULL, `isLogAccelerationEnabled` INTEGER NOT NULL, `logAccelerationThresholdMinutes` REAL NOT NULL, `logAccelerationScaleMinutes` REAL NOT NULL, `isYesterdayPenaltyEnabled` INTEGER NOT NULL, `yesterdayPenaltyTriggerScore` INTEGER NOT NULL, `yesterdayPenaltyRate` REAL NOT NULL, `maxYesterdayPenalty` REAL NOT NULL, `isTrackingEnabled` INTEGER NOT NULL, `isNotificationEnabled` INTEGER NOT NULL, `appHistoryRetentionDays` INTEGER NOT NULL, `hideSensitiveNotificationOnLockScreen` INTEGER NOT NULL, `statusIconStyleId` TEXT NOT NULL, `widgetBackgroundStyleId` TEXT NOT NULL, `isRapidUsageAlertEnabled` INTEGER NOT NULL, `usePresetRapidAlertDefaults` INTEGER NOT NULL, `rapidAlertWindowMinutes` INTEGER NOT NULL, `rapidAlertScoreDrop` INTEGER NOT NULL, `rapidAlertUsageMinutes` INTEGER NOT NULL, `rapidAlertContinuousMinutes` INTEGER NOT NULL, `rapidAlertCooldownMinutes` INTEGER NOT NULL, `usePresetScoringDefaults` INTEGER NOT NULL DEFAULT 1, `customContinuousStartMinutes` INTEGER NOT NULL DEFAULT 30, `customLateNightTier1StartHour` INTEGER NOT NULL DEFAULT 23, `customLateNightTier1EndHour` INTEGER NOT NULL DEFAULT 1, `customLateNightTier1Multiplier` REAL NOT NULL DEFAULT 1.4, `customLateNightTier2StartHour` INTEGER NOT NULL DEFAULT 1, `customLateNightTier2EndHour` INTEGER NOT NULL DEFAULT 5, `customLateNightTier2Multiplier` REAL NOT NULL DEFAULT 2.0, `customIsSleepFreezeEnabled` INTEGER NOT NULL DEFAULT 1, `customSleepThresholdMinutes` INTEGER NOT NULL DEFAULT 150, `customTargetUnlockCount` INTEGER NOT NULL DEFAULT 20, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `selectedPresetModeId` TEXT NOT NULL, `selectedCoreIndexPresetId` TEXT NOT NULL, `minimumScoreDefenseLine` INTEGER NOT NULL, `targetUnlockCount` INTEGER NOT NULL, `distractingWeightPerMinute` REAL NOT NULL, `productiveBonusPerMinute` REAL NOT NULL, `idleBonusPer10Minutes` REAL NOT NULL, `maxIdleBonus` REAL NOT NULL, `maxProductiveBonus` REAL NOT NULL, `unlockPenaltyPerCount` REAL NOT NULL, `lateNightMultiplier` REAL NOT NULL, `isLogAccelerationEnabled` INTEGER NOT NULL, `logAccelerationThresholdMinutes` REAL NOT NULL, `logAccelerationScaleMinutes` REAL NOT NULL, `isYesterdayPenaltyEnabled` INTEGER NOT NULL, `yesterdayPenaltyTriggerScore` INTEGER NOT NULL, `yesterdayPenaltyRate` REAL NOT NULL, `maxYesterdayPenalty` REAL NOT NULL, `isTrackingEnabled` INTEGER NOT NULL, `isNotificationEnabled` INTEGER NOT NULL, `appHistoryRetentionDays` INTEGER NOT NULL, `hideSensitiveNotificationOnLockScreen` INTEGER NOT NULL, `statusIconStyleId` TEXT NOT NULL, `widgetBackgroundStyleId` TEXT NOT NULL, `isRapidUsageAlertEnabled` INTEGER NOT NULL, `usePresetRapidAlertDefaults` INTEGER NOT NULL, `rapidAlertWindowMinutes` INTEGER NOT NULL, `rapidAlertScoreDrop` INTEGER NOT NULL, `rapidAlertUsageMinutes` INTEGER NOT NULL, `rapidAlertContinuousMinutes` INTEGER NOT NULL, `rapidAlertCooldownMinutes` INTEGER NOT NULL, `usePresetScoringDefaults` INTEGER NOT NULL, `customContinuousStartMinutes` INTEGER NOT NULL, `customLateNightTier1StartHour` INTEGER NOT NULL, `customLateNightTier1EndHour` INTEGER NOT NULL, `customLateNightTier1Multiplier` REAL NOT NULL, `customLateNightTier2StartHour` INTEGER NOT NULL, `customLateNightTier2EndHour` INTEGER NOT NULL, `customLateNightTier2Multiplier` REAL NOT NULL, `customIsSleepFreezeEnabled` INTEGER NOT NULL, `customSleepThresholdMinutes` INTEGER NOT NULL, `customTargetUnlockCount` INTEGER NOT NULL, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -449,78 +449,67 @@
             "fieldPath": "usePresetScoringDefaults",
             "columnName": "usePresetScoringDefaults",
             "affinity": "INTEGER",
-            "notNull": true,
-            "defaultValue": "1"
+            "notNull": true
           },
           {
             "fieldPath": "customContinuousStartMinutes",
             "columnName": "customContinuousStartMinutes",
             "affinity": "INTEGER",
-            "notNull": true,
-            "defaultValue": "30"
+            "notNull": true
           },
           {
             "fieldPath": "customLateNightTier1StartHour",
             "columnName": "customLateNightTier1StartHour",
             "affinity": "INTEGER",
-            "notNull": true,
-            "defaultValue": "23"
+            "notNull": true
           },
           {
             "fieldPath": "customLateNightTier1EndHour",
             "columnName": "customLateNightTier1EndHour",
             "affinity": "INTEGER",
-            "notNull": true,
-            "defaultValue": "1"
+            "notNull": true
           },
           {
             "fieldPath": "customLateNightTier1Multiplier",
             "columnName": "customLateNightTier1Multiplier",
             "affinity": "REAL",
-            "notNull": true,
-            "defaultValue": "1.4"
+            "notNull": true
           },
           {
             "fieldPath": "customLateNightTier2StartHour",
             "columnName": "customLateNightTier2StartHour",
             "affinity": "INTEGER",
-            "notNull": true,
-            "defaultValue": "1"
+            "notNull": true
           },
           {
             "fieldPath": "customLateNightTier2EndHour",
             "columnName": "customLateNightTier2EndHour",
             "affinity": "INTEGER",
-            "notNull": true,
-            "defaultValue": "5"
+            "notNull": true
           },
           {
             "fieldPath": "customLateNightTier2Multiplier",
             "columnName": "customLateNightTier2Multiplier",
             "affinity": "REAL",
-            "notNull": true,
-            "defaultValue": "2.0"
+            "notNull": true
           },
           {
             "fieldPath": "customIsSleepFreezeEnabled",
             "columnName": "customIsSleepFreezeEnabled",
             "affinity": "INTEGER",
-            "notNull": true,
-            "defaultValue": "1"
+            "notNull": true
           },
           {
             "fieldPath": "customSleepThresholdMinutes",
             "columnName": "customSleepThresholdMinutes",
             "affinity": "INTEGER",
-            "notNull": true,
-            "defaultValue": "150"
+            "notNull": true
           },
           {
             "fieldPath": "customTargetUnlockCount",
             "columnName": "customTargetUnlockCount",
             "affinity": "INTEGER",
-            "notNull": true,
-            "defaultValue": "20"
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -640,7 +629,7 @@
       },
       {
         "tableName": "core_index_samples",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`bucketStartTimestamp` INTEGER NOT NULL, `timestampMillis` INTEGER NOT NULL, `dateString` TEXT NOT NULL, `score` INTEGER NOT NULL, `exactScore` REAL NOT NULL, `rollingLoad` REAL NOT NULL, `acuteLoad` REAL NOT NULL, `presetId` TEXT NOT NULL, PRIMARY KEY(`bucketStartTimestamp`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`bucketStartTimestamp` INTEGER NOT NULL, `timestampMillis` INTEGER NOT NULL, `dateString` TEXT NOT NULL, `score` INTEGER NOT NULL, `exactScore` REAL NOT NULL, `rollingLoad` REAL NOT NULL, `acuteLoad` REAL NOT NULL, `presetId` TEXT NOT NULL, `scoreModelVersion` INTEGER NOT NULL DEFAULT 4, PRIMARY KEY(`bucketStartTimestamp`))",
         "fields": [
           {
             "fieldPath": "bucketStartTimestamp",
@@ -689,6 +678,13 @@
             "columnName": "presetId",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "scoreModelVersion",
+            "columnName": "scoreModelVersion",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "4"
           }
         ],
         "primaryKey": {
@@ -755,12 +751,38 @@
           }
         ],
         "foreignKeys": []
+      },
+      {
+        "tableName": "cumulative_score_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `payload` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payload",
+            "columnName": "payload",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
       }
     ],
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f926793d5714045f8549ae620da3006c')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3591b3f7a070e47810e7fa0a16d61681')"
     ]
   }
 }

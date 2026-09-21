@@ -138,7 +138,11 @@ fun HabitReviewCard(score: Int, apps: List<AppUsage>) {
                         revision++; TrackerForegroundService.refreshNotification(context)
                     } }) { Text(if (english) "Manage" else "관리로 변경") }
                     TextButton(onClick = { scope.launch {
+                        val old = db.appDao().getAppWeight(app.packageName)
+                        db.appDao().insertOrUpdateAppWeight((old ?: AppWeightEntity(app.packageName, app.appName,
+                            AppCategoryType.NEUTRAL)).copy(categoryType = AppCategoryType.NEUTRAL, isUserModified = true))
                         CumulativeScoreStore.snoozeSuggestion(db, app.packageName, Long.MAX_VALUE); revision++
+                        TrackerForegroundService.refreshNotification(context)
                     } }) { Text(if (english) "Keep general" else "일반 유지") }
                     TextButton(onClick = { scope.launch {
                         CumulativeScoreStore.snoozeSuggestion(db, app.packageName, System.currentTimeMillis() + 7 * 86_400_000L); revision++
