@@ -153,8 +153,8 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
     val latest = readings.lastOrNull()
     val currentModel = latest?.model ?: 5
     val comparable = readings.filter { it.model == currentModel }
-    val displayed = selectedSample?.exactScore ?: selected?.score?.last
-        ?: if (offsetDays == 0 && selectedDay == null && currentModel == 5) liveScore?.exactScore ?: latest?.last else latest?.last
+    val displayed = if (selected != null) selectedSample?.exactScore ?: selected.score?.last
+        else if (offsetDays == 0 && selectedDay == null && currentModel == 5) liveScore?.exactScore ?: latest?.last else latest?.last
     val change = if (selected == null && comparable.isNotEmpty() && displayed != null)
         displayed - comparable.first().first else null
     val coverage = visibleImpacts.filter { it.packageName.isEmpty() }
@@ -171,7 +171,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                     Column(Modifier.padding(horizontal = 22.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(if (selected != null) label("선택한 기록", "Selected reading") else label("코어 지수", "Core Index"), color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text(displayed?.roundToInt()?.toString() ?: "—", fontSize = 48.sp, fontWeight = FontWeight.ExtraBold)
+                            Text(displayed?.roundToInt()?.toString() ?: "—", modifier = Modifier.testTag("statistics-score"), fontSize = 48.sp, fontWeight = FontWeight.ExtraBold)
                             change?.let { Text("${if (it >= 0) "+" else ""}${points(it)}", color = if (it >= 0) ScoreGreen else ScoreRed,
                                 fontSize = 20.sp, modifier = Modifier.padding(bottom = 8.dp)) }
                         }
@@ -180,7 +180,8 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                             else change?.let { label("${dateLabel(comparable.first().firstAt)} 첫 기록 대비", "Since first reading at ${dateLabel(comparable.first().firstAt)}") }
                                 ?: label("기록이 쌓이면 변화가 표시됩니다", "Change appears as readings accumulate"),
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (currentModel != 5) Text(label("이전 점수 방식의 기록", "Previous scoring model"), color = MaterialTheme.colorScheme.outline)
+                        if ((selectedSample?.scoreModelVersion ?: selected?.score?.model ?: currentModel) != 5)
+                            Text(label("이전 점수 방식의 기록", "Previous scoring model"), color = MaterialTheme.colorScheme.outline)
                     }
                 }
                 item {

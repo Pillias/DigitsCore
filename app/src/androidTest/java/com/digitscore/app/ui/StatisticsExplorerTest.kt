@@ -77,6 +77,13 @@ class StatisticsExplorerTest {
                 }
             }
             screenshot("light")
+            // This fixture has no reading in the current hour. Selecting it must
+            // show missing data, never substitute the latest score from another hour.
+            compose.onNodeWithTag("statistics-list").performScrollToNode(hasText("Previous reading"))
+            compose.onNodeWithText("Previous reading").performClick()
+            compose.onNodeWithText("Next reading").performClick()
+            compose.onNodeWithTag("statistics-list").performScrollToIndex(0)
+            compose.onNodeWithTag("statistics-score").assertTextEquals("—")
             compose.onNodeWithTag("statistics-list").performScrollToNode(hasText("1w"))
             compose.onNodeWithText("1w").performClick()
             compose.onNodeWithTag("statistics-list").performScrollToIndex(0)
