@@ -240,9 +240,10 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(label("기간 요약", "Period summary"), fontWeight = FontWeight.Bold)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            val countsKnown = apps.isNotEmpty() || buckets.any { it.opens != null }
                             SmallMetric(label("화면", "Screen"), buckets.mapNotNull { it.usage }.takeIf { it.isNotEmpty() }?.sum()?.let(::minutes) ?: "—")
-                            SmallMetric(label("앱 오픈", "App opens"), apps.sumOf { it.opens }.toString())
-                            SmallMetric(label("1분 이하", "≤1 min"), apps.sumOf { it.shortOpens }.toString())
+                            SmallMetric(label("앱 오픈", "App opens"), if (countsKnown) apps.sumOf { it.opens }.toString() else "—")
+                            SmallMetric(label("1분 이하", "≤1 min"), if (countsKnown) apps.sumOf { it.shortOpens }.toString() else "—")
                         }
                         val top = apps.maxByOrNull { it.usage }
                         Text(if (top != null && top.usage > 0) label("${top.name}을 가장 오래 사용했습니다 · ${minutes(top.usage)}", "Most time spent in ${top.name} · ${minutes(top.usage)}")
@@ -424,7 +425,10 @@ private fun ExplorerChart(
                     }
                     selection?.let { time -> drawLine(muted, Offset(x(time), 0f), Offset(x(time), size.height - 20.dp.toPx()), 1.dp.toPx()) }
                     val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = foreground.toArgb(); textSize = 10.sp.toPx() }
-                    val labelStep = maxOf(1, buckets.size / 8)
+                    // Keep dates readable in the visible viewport, even while scrolling
+                    // hundreds of hourly candles. Eight labels for the entire canvas
+                    // would leave most scrolled windows without any time labels.
+                    val labelStep = maxOf(1, kotlin.math.ceil(56.dp.toPx() / (size.width / buckets.size.coerceAtLeast(1))).toInt())
                     buckets.forEachIndexed { index, b -> if (index % labelStep == 0) {
                         drawContext.canvas.nativeCanvas.drawText(dateLabel(b.start, if (line) "HH:mm" else if (b.end - b.start <= STAT_HOUR) "dd HH'h'" else "MM/dd"),
                             x(b.start).coerceAtMost(size.width - 35.dp.toPx()), size.height - 4.dp.toPx(), paint)
