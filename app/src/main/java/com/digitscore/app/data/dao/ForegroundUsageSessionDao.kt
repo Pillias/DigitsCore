@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ForegroundUsageSessionDao {
+    @Query("SELECT * FROM foreground_usage_sessions WHERE endTimeMillis > :start AND startTimeMillis < :end ORDER BY startTimeMillis")
+    fun observeBetween(start: Long, end: Long): Flow<List<ForegroundUsageSessionEntity>>
+
     @Query("SELECT * FROM foreground_usage_sessions WHERE endTimeMillis > :startMillis ORDER BY startTimeMillis ASC")
     fun observeSince(startMillis: Long): Flow<List<ForegroundUsageSessionEntity>>
 

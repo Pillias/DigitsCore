@@ -52,6 +52,11 @@ object DataBackupManager {
      */
     suspend fun exportToJson(context: Context): String = withContext(Dispatchers.IO) {
         val db = DigitsDatabase.getInstance(context)
+        // The checkpoint and attribution archive must describe the same scoring cursor.
+        db.withTransaction { exportDatabase(db) }
+    }
+
+    internal suspend fun exportDatabase(db: DigitsDatabase): String {
         val histories = db.scoreDao().getAllScoreHistories().firstOrNull() ?: emptyList()
         val settings = db.settingsDao().getSettings()
         val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
@@ -213,7 +218,7 @@ object DataBackupManager {
         rootJson.put("coreIndexSamples", samplesArray)
         rootJson.put("hourlyStatistics", StatisticsBackup.export(db))
 
-        rootJson.toString().also {
+        return rootJson.toString().also {
             require(it.toByteArray(Charsets.UTF_8).size <= MAX_BACKUP_BYTES - 1024) { "Backup file is too large" }
         }
     }

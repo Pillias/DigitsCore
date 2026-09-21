@@ -587,6 +587,8 @@ class TrackerForegroundService : Service() {
                     db.foregroundUsageSessionDao().pruneBefore(now - DETAIL_RETENTION_MILLIS)
                     interactionDao.pruneBefore(now - INTERACTION_RETENTION_MILLIS)
                     db.coreIndexSampleDao().pruneBefore(now - DETAIL_RETENTION_MILLIS)
+                    db.scoreDao().pruneBefore(java.time.Instant.ofEpochMilli(now)
+                        .atZone(java.time.ZoneId.systemDefault()).toLocalDate().minusDays(364).toString())
                     lastSamplePrunedAt = now
                 }
 

@@ -1,6 +1,7 @@
 package com.digitscore.app.ui.statistics
 
 import androidx.compose.foundation.*
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -78,6 +79,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
     var allApps by remember { mutableStateOf(false) }
     var zoom by remember { mutableFloatStateOf(1f) }
     var showHelp by remember { mutableStateOf(false) }
+    BackHandler(enabled = selectedDay != null && selectedApp == null) { selectedDay = null; selectedTime = null }
     val liveScore by ScoreRepository.rollingScoreDetail.collectAsState()
     LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(60_000) } }
 
@@ -93,18 +95,18 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
     val usage by remember(queryStart, queryEnd) { dao.observeUsage(queryStart, queryEnd) }.collectAsState(emptyList())
     val hourlyScores by remember(queryStart, queryEnd) { dao.observeScores(queryStart, queryEnd) }.collectAsState(emptyList())
     val impacts by remember(queryStart, queryEnd) { dao.observeImpacts(queryStart, queryEnd) }.collectAsState(emptyList())
-    val samples by remember(queryStart, isDay) {
-        if (isDay) db.coreIndexSampleDao().observeSince(queryStart) else flowOf(emptyList())
+    val samples by remember(queryStart, queryEnd, isDay) {
+        if (isDay) db.coreIndexSampleDao().observeBetween(queryStart, queryEnd) else flowOf(emptyList())
     }.collectAsState(emptyList())
-    val sessions by remember(queryStart, isDay) {
-        if (isDay) db.foregroundUsageSessionDao().observeSince(queryStart) else flowOf(emptyList())
+    val sessions by remember(queryStart, queryEnd, isDay) {
+        if (isDay) db.foregroundUsageSessionDao().observeBetween(queryStart, queryEnd + 120_000) else flowOf(emptyList())
     }.collectAsState(emptyList())
     val dailyApps by remember(start, end) {
         db.dailyAppUsageDao().observeRange(dateLabel(start, "yyyy-MM-dd"), dateLabel(end - 1, "yyyy-MM-dd"))
     }.collectAsState(emptyList())
     val histories by db.scoreDao().getAllScoreHistories().collectAsState(emptyList())
     val rawAvailable = isDay && start >= now - 30L * 24 * STAT_HOUR
-    val exactInteractions = isDay && start >= now - 47L * STAT_HOUR
+    val exactInteractions = isDay && start >= now - 24L * STAT_HOUR
     val events by remember(start, end, exactInteractions) {
         if (exactInteractions) db.deviceInteractionEventDao().observeBetween(start - 15_000, end) else flowOf(emptyList())
     }.collectAsState(emptyList())
@@ -120,8 +122,13 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
             interactions.forEach { (hour, row) ->
                 val key = hour to ""
                 combined[key] = (combined[key] ?: UsageHourEntity(hour, "", "")).copy(
-                    unlocks = if (exactInteractions && row.unlocks != null) unlockCounts[hour] ?: 0 else row.unlocks,
-                    notifications = if (exactInteractions && row.notifications != null) notificationCounts[hour] ?: 0 else row.notifications)
+                    unlocks = if (exactInteractions) unlockCounts[hour] ?: 0 else row.unlocks,
+                    notifications = if (exactInteractions) notificationCounts[hour] ?: 0 else row.notifications)
+            }
+            if (exactInteractions) (unlockCounts.keys + notificationCounts.keys).forEach { hour ->
+                val key = hour to ""
+                combined[key] = (combined[key] ?: UsageHourEntity(hour, "", "")).copy(
+                    unlocks = unlockCounts[hour] ?: 0, notifications = notificationCounts[hour] ?: 0)
             }
             combined.values.toList()
         }
@@ -136,7 +143,9 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
         explorerApps(visibleUsage, visibleImpacts, dailyApps, !isDay)
     }
     val selected = selectedTime?.let { t -> buckets.firstOrNull { t >= it.start && t < it.end } }
-    val selectedSample = if (isDay && selectedTime != null) visibleSamples.minByOrNull { abs(it.timestampMillis - selectedTime!!) } else null
+    val selectedSample = if (isDay && selectedTime != null && selected != null)
+        visibleSamples.filter { it.timestampMillis >= selected.start && it.timestampMillis < selected.end }
+            .minByOrNull { abs(it.timestampMillis - selectedTime!!) } else null
     val readings = if (isDay && visibleSamples.isNotEmpty()) visibleSamples.map {
         ScoreHourEntity(statisticHour(it.timestampMillis), it.scoreModelVersion, it.timestampMillis, it.timestampMillis,
             it.exactScore, it.exactScore, it.exactScore, it.exactScore)
@@ -145,8 +154,9 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
     val currentModel = latest?.model ?: 5
     val comparable = readings.filter { it.model == currentModel }
     val displayed = selectedSample?.exactScore ?: selected?.score?.last
-        ?: if (offsetDays == 0 && selectedDay == null) liveScore?.exactScore ?: latest?.last else latest?.last
-    val change = if (selected == null && comparable.size >= 2) comparable.last().last - comparable.first().first else null
+        ?: if (offsetDays == 0 && selectedDay == null && currentModel == 5) liveScore?.exactScore ?: latest?.last else latest?.last
+    val change = if (selected == null && comparable.isNotEmpty() && displayed != null)
+        displayed - comparable.first().first else null
     val coverage = visibleImpacts.filter { it.packageName.isEmpty() }
 
     Scaffold(topBar = {
@@ -427,8 +437,12 @@ private fun ExplorerChart(
                     drawContext.canvas.nativeCanvas.drawText(value.roundToInt().toString(), 4.dp.toPx(), dp.dp.toPx(), paint)
                 }
                 if (detailed) {
-                    drawContext.canvas.nativeCanvas.drawText(label("시간", "time"), 2.dp.toPx(), 224.dp.toPx(), paint)
-                    drawContext.canvas.nativeCanvas.drawText(label("횟수", "count"), 2.dp.toPx(), 292.dp.toPx(), paint)
+                    val maxMinutes = ((buckets.maxOfOrNull { it.usage ?: 0 } ?: 0) / 60_000).coerceAtLeast(1)
+                    val maxCount = (buckets.maxOfOrNull { if (unlocks) it.unlocks ?: 0 else it.opens ?: 0 } ?: 0).coerceAtLeast(1)
+                    drawContext.canvas.nativeCanvas.drawText(label("${maxMinutes}분", "${maxMinutes}m"), 2.dp.toPx(), 216.dp.toPx(), paint)
+                    drawContext.canvas.nativeCanvas.drawText("0", 4.dp.toPx(), 258.dp.toPx(), paint)
+                    drawContext.canvas.nativeCanvas.drawText(maxCount.toString(), 4.dp.toPx(), 284.dp.toPx(), paint)
+                    drawContext.canvas.nativeCanvas.drawText("0", 4.dp.toPx(), 326.dp.toPx(), paint)
                 }
             }
         }
