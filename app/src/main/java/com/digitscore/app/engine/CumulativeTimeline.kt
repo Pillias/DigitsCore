@@ -1,8 +1,15 @@
 package com.digitscore.app.engine
 
 /** A closed, immutable scoring interval. Overlapping visible apps are collapsed by max tier. */
-data class CumulativeUse(val start: Long, val end: Long, val managed: Boolean, val openingId: String, val openedAt: Long = start)
+data class CumulativeUse(
+    val start: Long, val end: Long, val managed: Boolean, val openingId: String,
+    val openedAt: Long = start, val packageName: String = "", val effectivePackageName: String = packageName
+)
 data class CumulativeCheckpoint(val timestamp: Long, val state: CumulativeScoreState)
+data class ScoreMovement(
+    val start: Long, val end: Long, val before: Double, val after: Double,
+    val packageName: String, val opening: Boolean = false
+)
 
 /**
  * Deterministic minute clock, independent of poll frequency. Process only settled minutes;
@@ -18,7 +25,8 @@ object CumulativeTimeline {
         throughMillis: Long,
         uses: List<CumulativeUse>,
         restActivity: (Long) -> CumulativeActivity,
-        config: CumulativeScoreConfig = CumulativeScoreConfig.CURRENT
+        config: CumulativeScoreConfig = CumulativeScoreConfig.CURRENT,
+        onMovement: (ScoreMovement) -> Unit = {}
     ): CumulativeCheckpoint {
         val end = throughMillis - Math.floorMod(throughMillis, MINUTE)
         if (end <= checkpoint.timestamp) return checkpoint
@@ -50,13 +58,13 @@ object CumulativeTimeline {
                 use.openingId in longOpenIds || duration > MINUTE
             }
         }
-        val openings = sorted.groupBy { it.openingId }.values.map { group -> group.minOf { it.openedAt } }
-            .sorted()
+        val openings = sorted.groupBy { it.openingId }.values.map { group -> group.minBy { it.openedAt } }
+            .sortedBy { it.openedAt }
         var time = checkpoint.timestamp
         var state = checkpoint.state
         var useIndex = 0
         var openIndex = 0
-        while (openIndex < openings.size && openings[openIndex] < time) openIndex++
+        while (openIndex < openings.size && openings[openIndex].openedAt < time) openIndex++
         while (time < end) {
             val next = minOf(end, time + MINUTE)
             while (useIndex < substantial.size && substantial[useIndex].end <= time) useIndex++
@@ -69,18 +77,26 @@ object CumulativeTimeline {
             }
             val boundaries = (listOf(time, next) + active.flatMap {
                 listOf(it.start.coerceIn(time, next), it.end.coerceIn(time, next))
-            } + openings.subList(openIndex, openings.size).takeWhile { it < next })
+            } + openings.subList(openIndex, openings.size).takeWhile { it.openedAt < next }.map { it.openedAt })
                 .distinct().sorted()
             for ((a, b) in boundaries.zipWithNext()) {
-                var count = 0
-                while (openIndex < openings.size && openings[openIndex] <= a) { count++; openIndex++ }
+                while (openIndex < openings.size && openings[openIndex].openedAt <= a) {
+                    val opening = openings[openIndex++]
+                    val before = config.displayed(state.signal)
+                    state = CumulativeScoreEngine.advance(state, CumulativeActivity.UNKNOWN, 0.0, 1, config)
+                    onMovement(ScoreMovement(a, a, before, config.displayed(state.signal), opening.packageName, true))
+                }
                 val visible = active.filter { it.start < b && it.end > a }
                 val activity = when {
                     visible.any { it.managed } -> CumulativeActivity.MANAGED_USE
                     visible.isNotEmpty() -> CumulativeActivity.NORMAL_USE
                     else -> restActivity(a)
                 }
-                state = CumulativeScoreEngine.advance(state, activity, (b - a) / 60_000.0, count, config)
+                val before = config.displayed(state.signal)
+                state = CumulativeScoreEngine.advance(state, activity, (b - a) / 60_000.0, 0, config)
+                // One visible owner gets the duration cost, even in PiP/split screen.
+                val owner = visible.firstOrNull { it.managed } ?: visible.firstOrNull()
+                onMovement(ScoreMovement(a, b, before, config.displayed(state.signal), owner?.effectivePackageName ?: ""))
             }
             time = next
         }

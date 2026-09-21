@@ -40,6 +40,10 @@ object PrivacyDataManager {
             db.foregroundUsageSessionDao().deleteAll()
             db.coreIndexSampleDao().deleteAll()
             db.cumulativeScoreStateDao().deleteAll()
+            db.statisticsDao().deleteUsage()
+            db.statisticsDao().deleteScores()
+            db.statisticsDao().deleteImpacts()
+            db.statisticsDao().deleteState()
             db.deviceInteractionEventDao().deleteAll()
             db.scoreDao().deleteAllScoreHistories()
         }

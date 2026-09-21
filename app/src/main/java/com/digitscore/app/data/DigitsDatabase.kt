@@ -38,9 +38,13 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
         ForegroundUsageSessionEntity::class,
         CoreIndexSampleEntity::class,
         DeviceInteractionEventEntity::class,
-        com.digitscore.app.data.entity.CumulativeScoreStateEntity::class
+        com.digitscore.app.data.entity.CumulativeScoreStateEntity::class,
+        com.digitscore.app.data.entity.UsageHourEntity::class,
+        com.digitscore.app.data.entity.ScoreHourEntity::class,
+        com.digitscore.app.data.entity.ScoreImpactHourEntity::class,
+        com.digitscore.app.data.entity.StatisticsStateEntity::class
     ],
-    version = 18,
+    version = 19,
     exportSchema = true
 )
 abstract class DigitsDatabase : RoomDatabase() {
@@ -52,6 +56,7 @@ abstract class DigitsDatabase : RoomDatabase() {
     abstract fun coreIndexSampleDao(): CoreIndexSampleDao
     abstract fun deviceInteractionEventDao(): DeviceInteractionEventDao
     abstract fun cumulativeScoreStateDao(): com.digitscore.app.data.dao.CumulativeScoreStateDao
+    abstract fun statisticsDao(): com.digitscore.app.data.dao.StatisticsDao
 
     companion object {
         private const val DATABASE_NAME = "digitscore_database"
@@ -465,6 +470,15 @@ abstract class DigitsDatabase : RoomDatabase() {
             }
         }
 
+        internal val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS usage_hourly (hour INTEGER NOT NULL, packageName TEXT NOT NULL, appName TEXT NOT NULL, usageMillis INTEGER NOT NULL, managedMillis INTEGER NOT NULL, opens INTEGER NOT NULL, shortOpens INTEGER NOT NULL, unlocks INTEGER, notifications INTEGER, PRIMARY KEY(hour, packageName))")
+                db.execSQL("CREATE TABLE IF NOT EXISTS score_hourly (hour INTEGER NOT NULL, model INTEGER NOT NULL, firstAt INTEGER NOT NULL, lastAt INTEGER NOT NULL, first REAL NOT NULL, last REAL NOT NULL, low REAL NOT NULL, high REAL NOT NULL, PRIMARY KEY(hour, model))")
+                db.execSQL("CREATE TABLE IF NOT EXISTS score_impact_hourly (hour INTEGER NOT NULL, packageName TEXT NOT NULL, loss REAL NOT NULL, recovery REAL NOT NULL, observedMillis INTEGER NOT NULL, firstAt INTEGER NOT NULL, lastAt INTEGER NOT NULL, PRIMARY KEY(hour, packageName))")
+                db.execSQL("CREATE TABLE IF NOT EXISTS statistics_state (id INTEGER NOT NULL, processedUntil INTEGER NOT NULL, interactionCoverageStart INTEGER NOT NULL, PRIMARY KEY(id))")
+            }
+        }
+
         @Volatile
         private var INSTANCE: DigitsDatabase? = null
 
@@ -496,7 +510,8 @@ abstract class DigitsDatabase : RoomDatabase() {
                         MIGRATION_14_15,
                         MIGRATION_15_16,
                         MIGRATION_16_17,
-                        MIGRATION_17_18
+                        MIGRATION_17_18,
+                        MIGRATION_18_19
                     )
                     .fallbackToDestructiveMigrationOnDowngrade()
                 if (passphrase != null) {

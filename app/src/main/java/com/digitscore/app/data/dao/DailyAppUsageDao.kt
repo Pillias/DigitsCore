@@ -10,6 +10,8 @@ import com.digitscore.app.data.entity.DailyUsageCoverageEntity
 
 @Dao
 interface DailyAppUsageDao {
+    @Query("SELECT * FROM daily_app_usage WHERE dateString >= :start AND dateString <= :end ORDER BY dateString")
+    fun observeRange(start: String, end: String): kotlinx.coroutines.flow.Flow<List<DailyAppUsageEntity>>
     @Query(
         """SELECT * FROM daily_app_usage
            WHERE packageName = :packageName AND dateString >= :startDateString

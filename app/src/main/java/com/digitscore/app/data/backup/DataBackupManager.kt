@@ -26,8 +26,8 @@ import java.util.Locale
 
 object DataBackupManager {
 
-    private const val BACKUP_SCHEMA_VERSION = 10
-    private const val MAX_BACKUP_BYTES = 20 * 1024 * 1024
+    private const val BACKUP_SCHEMA_VERSION = 11
+    private const val MAX_BACKUP_BYTES = 64 * 1024 * 1024
     private val DATE_PATTERN = Regex("\\d{4}-\\d{2}-\\d{2}")
     private const val BACKUP_CACHE_MAX_AGE_MILLIS = 24 * 60 * 60 * 1_000L
 
@@ -211,8 +211,9 @@ object DataBackupManager {
             })
         }
         rootJson.put("coreIndexSamples", samplesArray)
+        rootJson.put("hourlyStatistics", StatisticsBackup.export(db))
 
-        rootJson.toString(2)
+        rootJson.toString()
     }
 
     suspend fun exportEncrypted(context: Context, password: CharArray): ByteArray = withContext(Dispatchers.IO) {
@@ -250,6 +251,9 @@ object DataBackupManager {
             }
 
             db.withTransaction {
+            rootJson.optJSONObject("hourlyStatistics")?.let {
+                StatisticsBackup.restore(db, it, System.currentTimeMillis())
+            }
             // An older backup cannot reconstruct momentum/burden from a displayed score.
             // Leave an existing checkpoint intact; on a new install the engine migrates once.
             rootJson.optJSONObject("cumulativeScoreState")?.let { json ->

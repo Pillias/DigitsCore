@@ -102,7 +102,7 @@ class TrackerForegroundService : Service() {
         private const val DETAIL_RETENTION_MILLIS = 30L * 24 * 60 * 60 * 1_000L
         private const val CORE_INDEX_SAMPLE_BUCKET_MILLIS = 5 * 60_000L
         private const val SAMPLE_PRUNE_INTERVAL_MILLIS = 6 * 60 * 60_000L
-        private const val INTERACTION_RETENTION_MILLIS = 25 * 60 * 60_000L
+        private const val INTERACTION_RETENTION_MILLIS = 48 * 60 * 60_000L
         private const val USAGE_EVENT_SETTLE_DELAY_MILLIS = 2_000L
 
         fun start(context: Context) {
@@ -433,7 +433,6 @@ class TrackerForegroundService : Service() {
                         )
                     }
                     db.foregroundUsageSessionDao().replaceDay(currentDateString, sessionRecords)
-                    db.foregroundUsageSessionDao().pruneBefore(now - DETAIL_RETENTION_MILLIS)
                 }
 
                 // 최근 24시간 최초 복원은 프로세스당 한 번만 하고, 이후에는 위의 증분 조회에서 나온
@@ -450,7 +449,6 @@ class TrackerForegroundService : Service() {
                     interactionBootstrapDone = true
                 }
                 interactionDao.insertAll(usageSnapshot.interactionEvents)
-                interactionDao.pruneBefore(now - INTERACTION_RETENTION_MILLIS)
                 val rollingInteractionEvents = interactionDao.getBetween(
                     now - ROLLING_WINDOW_MILLIS,
                     now
@@ -584,7 +582,10 @@ class TrackerForegroundService : Service() {
                         scoreModelVersion = 5
                     )
                 )
+                com.digitscore.app.data.StatisticsStore.refresh(db, now)
                 if (now - lastSamplePrunedAt >= SAMPLE_PRUNE_INTERVAL_MILLIS) {
+                    db.foregroundUsageSessionDao().pruneBefore(now - DETAIL_RETENTION_MILLIS)
+                    interactionDao.pruneBefore(now - INTERACTION_RETENTION_MILLIS)
                     db.coreIndexSampleDao().pruneBefore(now - DETAIL_RETENTION_MILLIS)
                     lastSamplePrunedAt = now
                 }

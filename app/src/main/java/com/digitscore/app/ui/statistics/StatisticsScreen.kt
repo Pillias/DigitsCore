@@ -101,7 +101,7 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatisticsScreen(
+internal fun PreviousStatisticsScreen(
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current

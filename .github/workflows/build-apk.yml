@@ -46,7 +46,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         run: |
           echo BEGIN_ROOM_SCHEMA
-          cat app/schemas/com.digitscore.app.data.DigitsDatabase/18.json
+          cat app/schemas/com.digitscore.app.data.DigitsDatabase/19.json
           echo END_ROOM_SCHEMA
 
       - name: Prepare Named APK

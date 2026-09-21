@@ -79,7 +79,8 @@ object CumulativeScoreStore {
         val start = record.checkpoint.copy(timestamp = processStart)
         fun asUse(it: com.digitscore.app.data.entity.ForegroundUsageSessionEntity) =
             CumulativeUse(it.startTimeMillis, it.endTimeMillis, it.effectiveCategoryLevel >= 3,
-                "${it.packageName}:${it.sessionStartTimeMillis}", it.sessionStartTimeMillis)
+                "${it.packageName}:${it.sessionStartTimeMillis}", it.sessionStartTimeMillis,
+                it.packageName, it.effectivePackageName)
         val dayKey = "${java.time.Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDate()}:$zone"
         val cached = windowCache
         val window = if (cached?.first === db && cached.second == dayKey) cached.third else {
@@ -89,9 +90,12 @@ object CumulativeScoreStore {
         // Incremental scoring query: only cursor look-behind, not a fresh full-day/full-week score replay.
         val uses = db.foregroundUsageSessionDao().getSince(processStart - 5 * 60_000L).map(::asUse)
         val lateSleepAnchor = maxOf(record.lateSleepAnchorAt, RestPhasePolicy.lateSleepAnchor(uses, zone) ?: 0L)
+        val movements = mutableListOf<ScoreMovement>()
         val next = CumulativeTimeline.advance(start, settledEnd, uses, { timestamp ->
             RestPhasePolicy.activityAt(timestamp, window, zone, record.wakeConfirmedAt, record.restingConfirmedUntil, lateSleepAnchor)
-        })
+        }, onMovement = { movements.add(it) })
+        // Attribution and cursor commit together: re-polling/restarting cannot charge twice.
+        StatisticsStore.recordMovements(db, movements)
         val updated = record.copy(checkpoint = next, lateSleepAnchorAt = lateSleepAnchor)
         dao.put(CumulativeScoreStateEntity(payload = updated.encode()))
         updated to detail(updated, RestPhasePolicy.activityAt(next.timestamp, window, zone,

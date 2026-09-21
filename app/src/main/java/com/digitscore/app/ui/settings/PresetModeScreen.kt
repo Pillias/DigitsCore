@@ -98,7 +98,7 @@ import androidx.glance.appwidget.updateAll
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 
-private const val MAX_IMPORT_BYTES = 20 * 1024 * 1024
+private const val MAX_IMPORT_BYTES = 64 * 1024 * 1024
 // 기존 일일 점수 설정은 DB/백업 호환을 위해 유지하되 새 코어 지수 UI에서는 숨깁니다.
 private const val SHOW_LEGACY_SCORE_SETTINGS = false
 
