@@ -1,6 +1,8 @@
 package com.digitscore.app.ui
 
 import android.graphics.Bitmap
+import android.content.ContentValues
+import android.provider.MediaStore
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.*
@@ -15,7 +17,6 @@ import com.digitscore.app.ui.theme.DigitsCoreTheme
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
-import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 import java.util.Locale
@@ -63,7 +64,15 @@ class StatisticsExplorerTest {
             compose.waitForIdle()
             fun screenshot(name: String) {
                 instrumentation.uiAutomation.takeScreenshot().also { image ->
-                    File(context.filesDir, "statistics-$name.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG,100,it) }
+                    // AGP removes the test app after the suite; keep synthetic screenshots
+                    // in the disposable emulator's media collection for visual QA.
+                    val values = ContentValues().apply {
+                        put(MediaStore.Images.Media.DISPLAY_NAME, "statistics-$name.png")
+                        put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                        put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/DigitsCoreTests")
+                    }
+                    val uri = checkNotNull(context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values))
+                    checkNotNull(context.contentResolver.openOutputStream(uri)).use { image.compress(Bitmap.CompressFormat.PNG,100,it) }
                     image.recycle()
                 }
             }
