@@ -61,6 +61,9 @@ class StatisticsExplorerTest {
                 }
             }
             compose.waitUntil(15_000) { compose.onAllNodesWithText("Core Index").fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(15_000) {
+                compose.onAllNodes(hasTestTag("statistics-score") and hasText("72")).fetchSemanticsNodes().isNotEmpty()
+            }
             compose.waitForIdle()
             fun screenshot(name: String) {
                 instrumentation.uiAutomation.takeScreenshot().also { image ->
