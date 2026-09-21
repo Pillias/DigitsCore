@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -72,6 +73,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.data.CoreIndexHistoryRepair
+import com.digitscore.app.data.ScoreRepository
 import com.digitscore.app.data.UnlockInsights
 import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
@@ -104,6 +106,7 @@ fun StatisticsScreen(
 ) {
     val context = LocalContext.current
     val db = remember { DigitsDatabase.getInstance(context) }
+    val liveScore by ScoreRepository.rollingScoreDetail.collectAsState()
     var selectedTabIndex by remember { mutableIntStateOf(0) } // 0: 최근 24시간, 1: 최근 4주
     var selectedDetail by remember { mutableStateOf<StatisticsDetail?>(null) }
     var selectedDay by remember { mutableStateOf<DailyScoreHistoryEntity?>(null) }
@@ -177,6 +180,9 @@ fun StatisticsScreen(
     }
     val coreIndexHistories = remember(histories) {
         coreIndexHistories(histories)
+    }
+    val comparableHistories = remember(coreIndexHistories) {
+        currentModelScoreHistories(coreIndexHistories)
     }
 
     Scaffold(
@@ -252,6 +258,14 @@ fun StatisticsScreen(
 
             if (selectedTabIndex == 0) {
                 item {
+                    StatisticsTakeawayCard(
+                        samples = rollingSamples,
+                        sessions = rollingSessions,
+                        windowStartMillis = rollingWindowStartMillis,
+                        windowEndMillis = rollingWindowEndMillis
+                    )
+                }
+                item {
                     RollingMarketChartCard(
                         samples = rollingSamples,
                         sessions = rollingSessions,
@@ -260,6 +274,7 @@ fun StatisticsScreen(
                         windowEndMillis = rollingWindowEndMillis,
                         onClick = {
                             val visible = rollingSamples.filter {
+                                it.scoreModelVersion == CURRENT_SCORE_MODEL_VERSION &&
                                 it.timestampMillis in rollingWindowStartMillis..rollingWindowEndMillis
                             }
                             selectedDetail = StatisticsDetail(
@@ -270,7 +285,7 @@ fun StatisticsScreen(
                                 } else {
                                     "최저 ${visible.minOf { it.score }}점, 최고 ${visible.maxOf { it.score }}점이며 ${visible.size}개 구간을 표시합니다."
                                 },
-                                supportingText = "화면을 끄고 쉬는 동안 연속 사용 부하가 줄어 코어 지수가 회복됩니다. 차트는 다음 사용 시 계산된 회복값까지 흐름을 이어 표시합니다."
+                                supportingText = "점수는 누적 상태입니다. 예상 수면 구간에서는 회복하지 않고, 깨어서 쉬는 구간에 회복합니다. 기록이 없는 구간은 다음 표본과 선으로 연결합니다."
                             )
                         }
                     )
@@ -293,34 +308,27 @@ fun StatisticsScreen(
                 }
             } else {
                 item {
+                    FourWeekTakeawayCard(histories)
+                }
+                item {
                     FourWeekMarketChartCard(
                         histories = histories,
                         samples = fourWeekSamples,
+                        liveScore = liveScore?.finalScore,
                         onDaySelected = { selectedDay = it },
                         onClick = {
-                            val latest = coreIndexHistories.lastOrNull()?.finalScore
-                            val high = coreIndexHistories.maxOfOrNull { it.finalScore }
-                            val low = coreIndexHistories.minOfOrNull { it.finalScore }
-                            val presetChanges = coreIndexPresetChanges(coreIndexHistories)
+                            val latest = liveScore?.finalScore ?: comparableHistories.lastOrNull()?.finalScore
+                            val high = comparableHistories.maxOfOrNull { it.finalScore }
+                            val low = comparableHistories.minOfOrNull { it.finalScore }
                             selectedDetail = StatisticsDetail(
                                 title = "일별 코어 지수 추세",
                                 value = latest?.let { "현재 ${it}점" } ?: "기록 준비 중",
                                 description = if (latest == null) {
                                     "이 기간에 계산된 코어 지수가 아직 없습니다."
                                 } else {
-                                    "4주 차트에 표시된 코어 지수 범위는 최저 ${low}점에서 최고 ${high}점입니다."
+                                    "현재 계산 방식으로 기록된 날짜의 마지막 코어 지수 범위는 최저 ${low ?: "—"}점에서 최고 ${high ?: "—"}점입니다."
                                 },
-                                supportingText = buildString {
-                                    append("현재 지수는 최근 24시간 사용 흐름으로 계산하며, 4주 차트는 날짜별 변화를 보여줍니다.")
-                                    if (presetChanges.isNotEmpty()) {
-                                        append("\n프리셋 변경: ")
-                                        append(
-                                            presetChanges.joinToString(" · ") { change ->
-                                                "${change.dateString} ${CoreIndexPreset.fromId(change.presetId).title}"
-                                            }
-                                        )
-                                    }
-                                }
+                                supportingText = "현재 지수는 누적 점수입니다. 4주 차트에는 날짜별 마지막 기록과 하루 중 범위를 표시합니다. 이전 계산 방식의 점수는 회색으로 구분하고 현재 범위에는 넣지 않습니다."
                             )
                         }
                     )
@@ -393,6 +401,96 @@ fun StatisticsScreen(
 
 private const val ROLLING_24_HOURS_MILLIS = 24 * 60 * 60_000L
 private const val FOUR_WEEK_DAYS = 28
+private const val CURRENT_SCORE_MODEL_VERSION = 5
+
+internal fun currentModelWindowSamples(
+    samples: List<CoreIndexSampleEntity>, startMillis: Long, endMillis: Long
+): List<CoreIndexSampleEntity> = samples.filter {
+    it.scoreModelVersion == CURRENT_SCORE_MODEL_VERSION && it.timestampMillis in startMillis..endMillis
+}.sortedBy { it.timestampMillis }
+
+internal fun currentModelScoreHistories(
+    histories: List<DailyScoreHistoryEntity>
+): List<DailyScoreHistoryEntity> = histories.filter {
+    it.scoreModelVersion == CURRENT_SCORE_MODEL_VERSION
+}
+
+@Composable
+private fun StatisticsTakeawayCard(
+    samples: List<CoreIndexSampleEntity>,
+    sessions: List<ForegroundUsageSessionEntity>,
+    windowStartMillis: Long,
+    windowEndMillis: Long
+) {
+    val english = Locale.getDefault().language == "en"
+    val visible = remember(samples, windowStartMillis, windowEndMillis) {
+        currentModelWindowSamples(samples, windowStartMillis, windowEndMillis)
+    }
+    val usage = remember(sessions, windowStartMillis, windowEndMillis) {
+        summarizeRollingUsage(sessions, windowStartMillis, windowEndMillis)
+    }
+    val scoreDelta = visible.takeIf { it.size >= 2 }?.let { it.last().score - it.first().score }
+    val headline = when {
+        visible.isEmpty() -> if (english) "Score readings will appear after tracking starts." else "측정을 시작하면 점수 흐름이 나타납니다."
+        scoreDelta == null -> if (english) "The first reading is available. More history will show the trend." else "첫 점수가 기록됐습니다. 다음 기록부터 변화가 보입니다."
+        scoreDelta > 0 -> if (english) "Core Index rose $scoreDelta points during recorded hours." else "기록된 구간에서 코어 지수가 ${scoreDelta}점 올랐습니다."
+        scoreDelta < 0 -> if (english) "Core Index fell ${-scoreDelta} points during recorded hours." else "기록된 구간에서 코어 지수가 ${-scoreDelta}점 내려갔습니다."
+        else -> if (english) "Core Index is unchanged across recorded hours." else "기록된 구간에서 코어 지수는 그대로입니다."
+    }
+    val managedMinutes = usage.managedMillis / 60_000L
+    val supporting = if (english) {
+        "Last 24h: ${usage.totalMillis / 60_000L} min on screen · $managedMinutes min managed${usage.topAppName?.let { " · Most used: $it" } ?: ""}"
+    } else {
+        "최근 24시간 화면 ${formatMinutesToHoursAndMinutes(usage.totalMillis / 60_000L)} · 관리 ${formatMinutesToHoursAndMinutes(managedMinutes)}${usage.topAppName?.let { " · 최다 사용 $it" } ?: ""}"
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+    ) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(if (english) "At a glance" else "한눈에 보기", fontSize = 12.sp,
+                fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text(headline, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text(supporting, fontSize = 12.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
+        }
+    }
+}
+
+@Composable
+private fun FourWeekTakeawayCard(histories: List<DailyScoreHistoryEntity>) {
+    val english = Locale.getDefault().language == "en"
+    val today = LocalDate.now()
+    val recent = historiesInCalendarRange(histories, 7, today)
+    val previous = historiesInCalendarRange(histories, 7, today.minusDays(7))
+    val recentAverage = recent.takeIf { it.isNotEmpty() }?.let { it.sumOf { day -> day.totalScreenTimeMinutes } / it.size }
+    val previousAverage = previous.takeIf { it.isNotEmpty() }?.let { it.sumOf { day -> day.totalScreenTimeMinutes } / it.size }
+    val headline = if (recentAverage != null && previousAverage != null) {
+        val delta = recentAverage - previousAverage
+        when {
+            delta > 0 -> if (english) "Daily screen time rose $delta min vs the previous week." else "하루 화면시간이 이전 주보다 평균 ${delta}분 늘었습니다."
+            delta < 0 -> if (english) "Daily screen time fell ${-delta} min vs the previous week." else "하루 화면시간이 이전 주보다 평균 ${-delta}분 줄었습니다."
+            else -> if (english) "Daily screen time is similar to the previous week." else "하루 화면시간은 이전 주와 비슷합니다."
+        }
+    } else if (english) "Week-to-week comparison appears as records accumulate."
+    else "기록이 쌓이면 지난주와 이번 주를 비교합니다."
+    val coverage = if (english) "Recorded days: ${recent.size}/7 recent · ${previous.size}/7 previous · today is partial"
+        else "기록된 날: 최근 7일 ${recent.size}일 · 이전 7일 ${previous.size}일 · 오늘은 진행 중"
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+    ) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(if (english) "Four-week takeaway" else "4주 핵심 변화", fontSize = 12.sp,
+                fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text(headline, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text(coverage, fontSize = 12.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
+        }
+    }
+}
 
 internal data class RollingUsageSummary(
     val totalMillis: Long,
@@ -477,6 +575,7 @@ private fun MarketIndexHeader(
     rangeLabel: String,
     onClick: () -> Unit
 ) {
+    val english = Locale.getDefault().language == "en"
     val changeColor = when {
         change == null || change == 0 -> MaterialTheme.colorScheme.outline
         change > 0 -> ScoreGreen
@@ -518,7 +617,8 @@ private fun MarketIndexHeader(
         Column(horizontalAlignment = Alignment.End) {
             DetailChevron(tint = MaterialTheme.colorScheme.primary)
             Text(
-                "$rangeLabel 최저 ${low ?: "—"} · 최고 ${high ?: "—"}",
+                if (english) "$rangeLabel · low ${low ?: "—"} · high ${high ?: "—"}"
+                else "$rangeLabel 최저 ${low ?: "—"} · 최고 ${high ?: "—"}",
                 modifier = Modifier.padding(top = 10.dp),
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.outline
@@ -551,8 +651,7 @@ private fun RollingMarketChartCard(
     onClick: () -> Unit
 ) {
     val visible = remember(samples, windowStartMillis, windowEndMillis) {
-        samples.filter { it.timestampMillis in windowStartMillis..windowEndMillis }
-            .sortedBy { it.timestampMillis }
+        currentModelWindowSamples(samples, windowStartMillis, windowEndMillis)
     }
     val summary = remember(sessions, windowStartMillis, windowEndMillis) {
         summarizeRollingUsage(sessions, windowStartMillis, windowEndMillis)
@@ -586,13 +685,13 @@ private fun RollingMarketChartCard(
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             MarketIndexHeader(
-                title = "현재 코어 지수 · 24H",
+                title = if (Locale.getDefault().language == "en") "Latest reading" else "마지막 기록",
                 current = current,
                 change = change,
-                changeLabel = "24시간 내 첫 기록 대비",
+                changeLabel = if (Locale.getDefault().language == "en") "vs first recorded point" else "첫 기록 대비",
                 low = visible.minOfOrNull { it.score },
                 high = visible.maxOfOrNull { it.score },
-                rangeLabel = "24H 범위",
+                rangeLabel = if (Locale.getDefault().language == "en") "24h readings" else "24시간 기록",
                 onClick = onClick
             )
             Spacer(Modifier.height(12.dp))
@@ -680,20 +779,26 @@ private fun RollingMarketChartCard(
                         )
                     }
                     if (points.size > 1) {
-                        val fillPath = Path().apply {
-                            moveTo(points.first().x, scoreBottom)
-                            points.forEach { lineTo(it.x, it.y) }
-                            lineTo(points.last().x, scoreBottom)
-                            close()
+                        // The filled area follows the same model boundaries as the trend line.
+                        val segments = mutableListOf<MutableList<Offset>>()
+                        visible.indices.forEach { index ->
+                            if (segments.isEmpty() || visible[index - 1].scoreModelVersion != visible[index].scoreModelVersion) {
+                                segments.add(mutableListOf())
+                            }
+                            segments.last().add(points[index])
                         }
-                        drawPath(
-                            fillPath,
-                            brush = Brush.verticalGradient(
+                        segments.filter { it.size > 1 }.forEach { segment ->
+                            val fillPath = Path().apply {
+                                moveTo(segment.first().x, scoreBottom)
+                                segment.forEach { lineTo(it.x, it.y) }
+                                lineTo(segment.last().x, scoreBottom)
+                                close()
+                            }
+                            drawPath(fillPath, brush = Brush.verticalGradient(
                                 colors = listOf(lineColor.copy(alpha = 0.18f), Color.Transparent),
-                                startY = 0f,
-                                endY = scoreBottom
-                            )
-                        )
+                                startY = 0f, endY = scoreBottom
+                            ))
+                        }
                         val linePath = Path().apply {
                             moveTo(points.first().x, points.first().y)
                             points.drop(1).forEachIndexed { index, point ->
@@ -763,7 +868,9 @@ private fun RollingMarketChartCard(
                 )
             }
             Text(
-                "차트를 누르거나 드래그해 시점별 기록을 확인하세요. 화면을 끄고 쉰 구간은 다음 회복값까지 선으로 이어지며 사용량은 0으로 표시됩니다.",
+                if (Locale.getDefault().language == "en")
+                    "Tap or drag for a reading. Unrecorded intervals join the next point; they do not imply recovery. Sleep pauses score recovery."
+                else "차트를 누르거나 드래그해 시점별 기록을 확인하세요. 기록이 없는 구간은 다음 점과 연결하며 회복을 뜻하지 않습니다. 수면 중에는 회복이 멈춥니다.",
                 modifier = Modifier.padding(top = 8.dp),
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.outline
@@ -1155,7 +1262,9 @@ internal fun buildDailyCoreRanges(
 ): List<DailyCoreRange> {
     val samplesByDate = samples.groupBy { it.dateString }
     return histories.sortedBy { it.dateString }.map { history ->
-        val daySamples = samplesByDate[history.dateString].orEmpty().sortedBy { it.timestampMillis }
+        val daySamples = samplesByDate[history.dateString].orEmpty()
+            .filter { it.scoreModelVersion == history.scoreModelVersion }
+            .sortedBy { it.timestampMillis }
         if (daySamples.isEmpty()) {
             DailyCoreRange(
                 history = history,
@@ -1195,12 +1304,14 @@ internal fun sevenDayMovingAverages(ranges: List<DailyCoreRange>): List<Float?> 
 private fun FourWeekMarketChartCard(
     histories: List<DailyScoreHistoryEntity>,
     samples: List<CoreIndexSampleEntity>,
+    liveScore: Int?,
     onDaySelected: (DailyScoreHistoryEntity) -> Unit,
     onClick: () -> Unit
 ) {
     val scoreHistories = remember(histories) { coreIndexHistories(histories) }
     val ranges = remember(scoreHistories, samples) { buildDailyCoreRanges(scoreHistories, samples) }
     val movingAverages = remember(ranges) { sevenDayMovingAverages(ranges) }
+    val comparableRanges = remember(ranges) { ranges.filter { it.history.scoreModelVersion == CURRENT_SCORE_MODEL_VERSION } }
     val axisColor = MaterialTheme.colorScheme.outline
     val lineColor = MaterialTheme.colorScheme.primary
     val surfaceColor = MaterialTheme.colorScheme.surface
@@ -1212,8 +1323,8 @@ private fun FourWeekMarketChartCard(
     LaunchedEffect(chartScroll.maxValue) {
         if (chartScroll.maxValue > 0) chartScroll.scrollTo(chartScroll.maxValue)
     }
-    val current = ranges.lastOrNull()?.lastScore
-    val allScores = ranges.flatMap { listOf(it.low, it.high) }
+    val current = liveScore ?: comparableRanges.lastOrNull()?.lastScore
+    val allScores = comparableRanges.flatMap { listOf(it.low, it.high) }
     val today = LocalDate.now()
     val firstDate = today.minusDays((FOUR_WEEK_DAYS - 1).toLong())
     val lastDayOffset = (FOUR_WEEK_DAYS - 1).toLong()
@@ -1239,12 +1350,12 @@ private fun FourWeekMarketChartCard(
     ) {
         Column(Modifier.fillMaxWidth().padding(20.dp)) {
             MarketIndexHeader(
-                title = "현재 코어 지수 · 4W",
+                title = if (Locale.getDefault().language == "en") "Current Core Index" else "현재 코어 지수",
                 current = current,
                 change = null,
                 low = allScores.minOrNull(),
                 high = allScores.maxOrNull(),
-                rangeLabel = "4주 범위",
+                rangeLabel = if (Locale.getDefault().language == "en") "Current model · 4 weeks" else "현재 방식 · 4주",
                 onClick = onClick
             )
             Spacer(Modifier.height(12.dp))
@@ -1261,17 +1372,24 @@ private fun FourWeekMarketChartCard(
                     Text(
                         buildString {
                             append(range.history.dateString)
-                            append(" · 시작 ${range.startScore} · 마지막 ${range.lastScore}")
-                            append(" · 최저 ${range.low} · 최고 ${range.high}")
-                            append("\n")
-                            append(UiTranslator.translate("일별 마지막 지수 7일 평균"))
-                            append(": ")
-                            append(selectedIndex?.let { movingAverages.getOrNull(it) }?.let {
-                                String.format(Locale.getDefault(), "%.1f", it)
-                            } ?: "—")
-                            append("\n화면 ${formatMinutesToHoursAndMinutes(range.history.totalScreenTimeMinutes)}")
-                            append(" · 관리 ${formatMinutesToHoursAndMinutes(range.history.distractingTimeMinutes)}")
-                            append(" · 언락 ${range.history.unlockCount}회")
+                            val english = Locale.getDefault().language == "en"
+                            if (range.history.scoreModelVersion != CURRENT_SCORE_MODEL_VERSION)
+                                append(if (english) " · Previous model" else " · 이전 점수 방식")
+                            if (english) {
+                                append(" · open ${range.startScore} · close ${range.lastScore}")
+                                append(" · low ${range.low} · high ${range.high}")
+                                append("\n7-day last-reading trend: ")
+                            } else {
+                                append(" · 시작 ${range.startScore} · 마지막 ${range.lastScore}")
+                                append(" · 최저 ${range.low} · 최고 ${range.high}")
+                                append("\n일별 마지막 지수 7일 평균: ")
+                            }
+                            append(if (range.history.scoreModelVersion == CURRENT_SCORE_MODEL_VERSION)
+                                selectedIndex?.let { movingAverages.getOrNull(it) }?.let {
+                                    String.format(Locale.getDefault(), "%.1f", it)
+                                } ?: "—" else "—")
+                            if (english) append("\nScreen ${range.history.totalScreenTimeMinutes} min · Managed ${range.history.distractingTimeMinutes} min · ${range.history.unlockCount} unlocks")
+                            else append("\n화면 ${formatMinutesToHoursAndMinutes(range.history.totalScreenTimeMinutes)} · 관리 ${formatMinutesToHoursAndMinutes(range.history.distractingTimeMinutes)} · 언락 ${range.history.unlockCount}회")
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1350,7 +1468,8 @@ private fun FourWeekMarketChartCard(
                     ranges.forEachIndexed { index, range ->
                         val x = xFor(index)
                         if (range.hasIntradaySamples) {
-                            val candleColor = if (range.lastScore >= range.startScore) ScoreGreen else ScoreRed
+                            val candleColor = if (range.history.scoreModelVersion != CURRENT_SCORE_MODEL_VERSION) axisColor
+                                else if (range.lastScore >= range.startScore) ScoreGreen else ScoreRed
                             drawLine(
                                 candleColor,
                                 Offset(x, scoreY(range.high.toFloat())),
@@ -1382,7 +1501,7 @@ private fun FourWeekMarketChartCard(
                             drawLine(axisColor, Offset(x, 0f), Offset(x, scoreBottom),
                                 pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(6f, 6f)))
                         }
-                        if (value != null) {
+                        if (value != null && ranges[index].history.scoreModelVersion == CURRENT_SCORE_MODEL_VERSION) {
                             val x = xFor(index)
                             val y = scoreY(value)
                             if (!pathStarted) {
@@ -1406,7 +1525,8 @@ private fun FourWeekMarketChartCard(
                             1.dp.toPx()
                         )
                         drawCircle(surfaceColor, 5.dp.toPx(), Offset(x, scoreY(ranges[index].lastScore.toFloat())))
-                        drawCircle(lineColor, 3.dp.toPx(), Offset(x, scoreY(ranges[index].lastScore.toFloat())))
+                        drawCircle(if (ranges[index].history.scoreModelVersion == CURRENT_SCORE_MODEL_VERSION) lineColor else axisColor,
+                            3.dp.toPx(), Offset(x, scoreY(ranges[index].lastScore.toFloat())))
                     }
                 }
                 Row(Modifier.width(1000.dp), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -1425,6 +1545,7 @@ private fun FourWeekMarketChartCard(
                         ScoreGreen to "첫 기록 대비 상승",
                         ScoreRed to "첫 기록 대비 하락",
                         lineColor to "일별 마지막 지수 7일 평균",
+                        axisColor to (if (Locale.getDefault().language == "en") "Previous model" else "이전 점수 방식"),
                         Color(0xFF26A69A) to "화면"
                     )
                 )
@@ -1435,7 +1556,9 @@ private fun FourWeekMarketChartCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    "점선은 계산 방식 또는 프리셋 변경일입니다. 평균선은 같은 기준의 기록만 사용하며, 누락일은 제외합니다. 아래 빨간 막대는 관리 앱 사용시간입니다.",
+                    if (Locale.getDefault().language == "en")
+                        "Previous-model scores are gray and excluded from the current range and 7-day trend. Missing days stay blank; lower red bars show managed-app time."
+                    else "이전 점수 방식은 회색으로 표시하며 현재 범위와 7일 추세에서 제외합니다. 기록이 없는 날짜는 비워 두고, 아래 빨간 막대는 관리 앱 시간입니다.",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1460,29 +1583,39 @@ private fun WeeklyMarketSummary(
         LocalDate.parse(it.history.dateString).with(java.time.DayOfWeek.MONDAY)
     }.toSortedMap()
     val lineColor = MaterialTheme.colorScheme.primary
+    val historicColor = MaterialTheme.colorScheme.outline
+    val english = Locale.getDefault().language == "en"
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("주별 흐름 · 월요일 기준", fontWeight = FontWeight.Bold)
         if (weeks.isEmpty()) Text("기록 준비 중")
         weeks.forEach { (monday, days) ->
+            val currentDays = days.filter { it.history.scoreModelVersion == CURRENT_SCORE_MODEL_VERSION }
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
                     Text("$monday – ${monday.plusDays(6)}", fontWeight = FontWeight.Bold)
-                    Text("${days.first().startScore} → ${days.last().lastScore}", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Text(currentDays.takeIf { it.isNotEmpty() }?.let { "${it.first().startScore} → ${it.last().lastScore}" }
+                        ?: if (english) "Previous score model" else "이전 점수 방식",
+                        fontSize = 24.sp, fontWeight = FontWeight.Bold)
                     Canvas(Modifier.fillMaxWidth().height(100.dp)) {
-                        val path = Path()
                         days.forEachIndexed { index, day ->
                             val x = size.width * (LocalDate.parse(day.history.dateString).dayOfWeek.value - 1) / 6f
                             val y = size.height * (1f - day.lastScore / 100f)
-                            if (index == 0 || java.time.temporal.ChronoUnit.DAYS.between(
-                                    LocalDate.parse(days[index - 1].history.dateString), LocalDate.parse(day.history.dateString)) != 1L ||
-                                days[index - 1].history.scoreModelVersion != day.history.scoreModelVersion ||
-                                days[index - 1].history.coreIndexPresetId != day.history.coreIndexPresetId) path.moveTo(x, y)
-                            else path.lineTo(x, y)
-                            drawCircle(lineColor, 4.dp.toPx(), Offset(x, y))
+                            val color = if (day.history.scoreModelVersion == CURRENT_SCORE_MODEL_VERSION) lineColor else historicColor
+                            if (index > 0) {
+                                val prior = days[index - 1]
+                                if (java.time.temporal.ChronoUnit.DAYS.between(
+                                        LocalDate.parse(prior.history.dateString), LocalDate.parse(day.history.dateString)) == 1L &&
+                                    prior.history.scoreModelVersion == day.history.scoreModelVersion) {
+                                    val priorX = size.width * (LocalDate.parse(prior.history.dateString).dayOfWeek.value - 1) / 6f
+                                    val priorY = size.height * (1f - prior.lastScore / 100f)
+                                    drawLine(color, Offset(priorX, priorY), Offset(x, y), 2.dp.toPx())
+                                }
+                            }
+                            drawCircle(color, 4.dp.toPx(), Offset(x, y))
                         }
-                        drawPath(path, lineColor, style = Stroke(2.dp.toPx()))
                     }
-                    Text("일별 마지막 지수 · 날짜를 눌러 상세 보기", fontSize = 12.sp)
+                    Text(if (english) "Daily last reading · gray is the previous model · tap a date"
+                        else "일별 마지막 기록 · 회색은 이전 방식 · 날짜를 눌러 상세 보기", fontSize = 12.sp)
                     Row(Modifier.horizontalScroll(rememberScrollState())) {
                         days.forEach { day ->
                             TextButton(onClick = { onDaySelected(day.history) }) {
@@ -1504,36 +1637,78 @@ private fun IntradayCoreIndexDialog(
     onNext: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val english = Locale.getDefault().language == "en"
     val axisColor = MaterialTheme.colorScheme.outline
     val lineColor = MaterialTheme.colorScheme.primary
-    val minimum = samples.minOfOrNull { it.score }
-    val maximum = samples.maxOfOrNull { it.score }
-    val latest = samples.lastOrNull()?.score
+    val visible = remember(history.dateString, history.scoreModelVersion, samples) {
+        samples.filter { it.scoreModelVersion == history.scoreModelVersion }.sortedBy { it.timestampMillis }
+    }
+    val minimum = visible.minOfOrNull { it.score }
+    val maximum = visible.maxOfOrNull { it.score }
+    val latest = visible.lastOrNull()?.score
+    var selectedIndex by remember(history.dateString, visible) {
+        mutableStateOf<Int?>(visible.lastIndex.takeIf { it >= 0 })
+    }
+    val selectedSample = selectedIndex?.let(visible::getOrNull)
+    val timeFormatter = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text("${history.dateString} · 하루 코어 지수", fontWeight = FontWeight.Bold)
+            Text("${history.dateString} · ${if (english) "Daily Core Index" else "하루 코어 지수"}", fontWeight = FontWeight.Bold)
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     TextButton(onClick = onPrevious) { Text("이전 기록") }
                     TextButton(onClick = onNext) { Text("다음 기록") }
                 }
-                if (samples.isEmpty()) {
+                Text(
+                    if (english) "Screen ${history.totalScreenTimeMinutes} min · Managed ${history.distractingTimeMinutes} min · ${history.unlockCount} unlocks"
+                    else "화면 ${formatMinutesToHoursAndMinutes(history.totalScreenTimeMinutes)} · 관리 ${formatMinutesToHoursAndMinutes(history.distractingTimeMinutes)} · 언락 ${history.unlockCount}회",
+                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (visible.isEmpty()) {
                     Text(
-                        "이 날짜에는 하루 중 변화 기록이 없습니다. 세부 변화는 화면을 사용하는 동안 5분 단위로 저장됩니다.",
+                        if (english) "No matching intraday score readings remain for this date. Usage totals are still available above."
+                        else "이 날짜의 점수 계산 방식과 일치하는 하루 중 표본이 없습니다. 사용량 집계는 위에서 볼 수 있습니다.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
                     Text(
-                        "최저 ${minimum}점 · 최고 ${maximum}점 · 마지막 ${latest}점",
+                        if (english) "Low $minimum · High $maximum · Last $latest"
+                        else "최저 ${minimum}점 · 최고 ${maximum}점 · 마지막 ${latest}점",
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
+                    selectedSample?.let { sample ->
+                        Text(
+                            if (english) "${timeFormatter.format(java.util.Date(sample.timestampMillis))} · ${sample.score} points"
+                            else "${timeFormatter.format(java.util.Date(sample.timestampMillis))} · ${sample.score}점",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                     Canvas(
                         modifier = Modifier.fillMaxWidth().height(210.dp)
+                            .pointerInput(visible) {
+                                detectTapGestures { position ->
+                                    val minute = 1440f * (position.x / size.width).coerceIn(0f, 1f)
+                                    selectedIndex = visible.indices.minByOrNull { index ->
+                                        val calendar = Calendar.getInstance().apply { timeInMillis = visible[index].timestampMillis }
+                                        kotlin.math.abs(calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE) - minute)
+                                    }
+                                }
+                            }
+                            .pointerInput(visible) {
+                                detectHorizontalDragGestures { change, _ ->
+                                    val minute = 1440f * (change.position.x / size.width).coerceIn(0f, 1f)
+                                    selectedIndex = visible.indices.minByOrNull { index ->
+                                        val calendar = Calendar.getInstance().apply { timeInMillis = visible[index].timestampMillis }
+                                        kotlin.math.abs(calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE) - minute)
+                                    }
+                                }
+                            }
                     ) {
                         val graphHeight = size.height - 24.dp.toPx()
                         listOf(40, 70, 100).forEach { score ->
@@ -1546,7 +1721,7 @@ private fun IntradayCoreIndexDialog(
                             )
                         }
 
-                        val points = samples.map { sample ->
+                        val points = visible.map { sample ->
                             val calendar = Calendar.getInstance().apply {
                                 timeInMillis = sample.timestampMillis
                             }
@@ -1560,10 +1735,8 @@ private fun IntradayCoreIndexDialog(
                         if (points.size > 1) {
                             val path = Path().apply {
                                 moveTo(points.first().x, points.first().y)
-                                points.drop(1).forEachIndexed { index, point ->
-                                    if (samples[index].scoreModelVersion == samples[index + 1].scoreModelVersion)
-                                        lineTo(point.x, point.y)
-                                    else moveTo(point.x, point.y)
+                                points.drop(1).forEach { point ->
+                                    lineTo(point.x, point.y)
                                 }
                             }
                             drawPath(
@@ -1575,6 +1748,12 @@ private fun IntradayCoreIndexDialog(
                         points.forEach { point ->
                             drawCircle(lineColor, radius = 2.5.dp.toPx(), center = point)
                         }
+                        selectedIndex?.let { index ->
+                            points.getOrNull(index)?.let { point ->
+                                drawLine(axisColor, Offset(point.x, 0f), Offset(point.x, graphHeight), 1.dp.toPx())
+                                drawCircle(lineColor, radius = 5.dp.toPx(), center = point)
+                            }
+                        }
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1585,12 +1764,15 @@ private fun IntradayCoreIndexDialog(
                         Text("24:00", fontSize = 11.sp, color = axisColor)
                     }
                     Text(
-                        "화면을 사용하는 동안 5분 단위의 최신 값을 저장합니다. 화면을 끄고 쉬면 지수가 회복되고, 다음 사용 시 계산된 값까지 선으로 이어집니다.",
+                        if (english) "Tap or drag for a reading. Gaps join recorded points; sleep pauses score recovery."
+                        else "차트를 누르거나 드래그해 시점별 점수를 확인하세요. 기록이 없는 구간은 다음 점과 연결하며 수면 중에는 회복하지 않습니다.",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.outline
                     )
                     Text(
-                        "프리셋: ${CoreIndexPreset.fromId(samples.last().presetId).title}",
+                        if (history.scoreModelVersion == CURRENT_SCORE_MODEL_VERSION) {
+                            if (english) "Cumulative scoring" else "누적 점수 방식"
+                        } else if (english) "Previous scoring model" else "이전 점수 방식",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.primary
                     )

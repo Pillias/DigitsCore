@@ -39,6 +39,26 @@ class StatisticsMarketChartTest {
     }
 
     @Test
+    fun `new score model ignores old readings on the transition day`() {
+        val day = "2026-09-21"
+        val history = history(day, 74).copy(scoreModelVersion = 5)
+        val readings = listOf(
+            sample(day, 1L, 29).copy(scoreModelVersion = 4),
+            sample(day, 2L, 74).copy(scoreModelVersion = 5),
+            sample(day, 3L, 77).copy(scoreModelVersion = 5)
+        )
+
+        val range = buildDailyCoreRanges(listOf(history), readings).single()
+
+        assertEquals(74, range.startScore)
+        assertEquals(77, range.lastScore)
+        assertEquals(74, range.low)
+        assertEquals(77, range.high)
+        assertEquals(listOf(74, 77), currentModelWindowSamples(readings, 0L, 3L).map { it.score })
+        assertEquals(listOf(history), currentModelScoreHistories(listOf(history, history.copy(scoreModelVersion = 4))))
+    }
+
+    @Test
     fun `moving average uses the trailing seven calendar days without fake zeroes`() {
         val ranges = buildDailyCoreRanges(
             listOf(
@@ -75,6 +95,7 @@ class StatisticsMarketChartTest {
         exactScore = score.toDouble(),
         rollingLoad = 0.0,
         acuteLoad = 0.0,
-        presetId = "balanced"
+        presetId = "balanced",
+        scoreModelVersion = 2
     )
 }
