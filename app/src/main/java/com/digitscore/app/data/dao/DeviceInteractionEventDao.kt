@@ -8,6 +8,9 @@ import com.digitscore.app.data.entity.DeviceInteractionEventEntity
 
 @Dao
 interface DeviceInteractionEventDao {
+    @Query("SELECT * FROM device_interaction_events WHERE timestampMillis >= :start AND timestampMillis < :end ORDER BY timestampMillis")
+    fun observeBetween(start: Long, end: Long): kotlinx.coroutines.flow.Flow<List<DeviceInteractionEventEntity>>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(events: List<DeviceInteractionEventEntity>)
 

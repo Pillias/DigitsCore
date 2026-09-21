@@ -117,7 +117,7 @@ private fun InputStream.readBytesWithLimit(maxBytes: Int = MAX_IMPORT_BYTES): By
         val read = read(buffer)
         if (read < 0) break
         total += read
-        require(total <= maxBytes) { "백업 파일은 20MB 이하여야 합니다." }
+        require(total <= maxBytes) { "백업 파일은 64MB 이하여야 합니다." }
         output.write(buffer, 0, read)
     }
     return output.toByteArray()
@@ -1673,7 +1673,7 @@ fun PresetModeScreen(
                             ) {
                                 Text("기록 보존 방식", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                                 Text(
-                                    "앱별 시작·종료 상세와 5분 단위 코어 지수 표본은 30일, 날짜별 집계는 365일 보관합니다.",
+                                    "앱별 시작·종료 상세와 5분 단위 코어 지수 표본은 30일, 시간별·날짜별 집계는 365일 보관합니다.",
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.outline
                                 )

@@ -28,6 +28,22 @@ class DatabaseCategoryMigrationTest {
     }
 
     @Test
+    fun migration18To19KeepsCheckpointAndCreatesHourlyArchive() {
+        helper.createDatabase(databaseName, 18).apply {
+            execSQL("INSERT INTO cumulative_score_state(id,payload) VALUES (1,'checkpoint-preserved')")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(databaseName, 19, true, DigitsDatabase.MIGRATION_18_19)
+        db.query("SELECT payload FROM cumulative_score_state").use {
+            assertEquals(true, it.moveToFirst()); assertEquals("checkpoint-preserved", it.getString(0))
+        }
+        listOf("usage_hourly", "score_hourly", "score_impact_hourly", "statistics_state").forEach { table ->
+            db.query("SELECT count(*) FROM $table").use { it.moveToFirst(); assertEquals(0, it.getInt(0)) }
+        }
+        db.close()
+    }
+
+    @Test
     fun migration17To18PreservesScoreHistoryAndAddsEncryptedCheckpointTable() {
         helper.createDatabase(databaseName, 17).apply {
             execSQL("INSERT INTO app_weights(packageName, appName, categoryType, customWeight, isUserModified) VALUES ('study.app','Study','PRODUCTIVE',NULL,1)")

@@ -213,7 +213,9 @@ object DataBackupManager {
         rootJson.put("coreIndexSamples", samplesArray)
         rootJson.put("hourlyStatistics", StatisticsBackup.export(db))
 
-        rootJson.toString()
+        rootJson.toString().also {
+            require(it.toByteArray(Charsets.UTF_8).size <= MAX_BACKUP_BYTES - 1024) { "Backup file is too large" }
+        }
     }
 
     suspend fun exportEncrypted(context: Context, password: CharArray): ByteArray = withContext(Dispatchers.IO) {

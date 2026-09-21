@@ -28,7 +28,10 @@ class CumulativeScoreStoreTest {
                 dateString = "2026-09-20", appName = "Game", categoryLevel = 3, isLateNight = false)))
             val now = start + 122 * 60_000L
             val first = CumulativeScoreStore.update(db, now, start - 60_000L, ZoneId.of("UTC"))
+            val impacts = db.statisticsDao().allImpacts()
             val second = CumulativeScoreStore.update(db, now, start - 60_000L, ZoneId.of("UTC"))
+            assertEquals(impacts, db.statisticsDao().allImpacts())
+            assertTrue(impacts.any { it.packageName == "test.game" && it.loss > 0 })
             assertEquals(first.first.checkpoint, second.first.checkpoint)
             assertEquals(first.first, CumulativeRecord.decode(db.cumulativeScoreStateDao().get()!!.payload))
             assertTrue(first.first.checkpoint.state.recoveryBurden > 0.0)

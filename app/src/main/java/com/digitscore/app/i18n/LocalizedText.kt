@@ -331,8 +331,8 @@ object UiTranslator {
         "그래프의 날짜를 누르면 하루 중 변화를 볼 수 있습니다." to
             "Tap a date on the chart to view changes during that day.",
         "프리셋:" to "Preset:",
-        "앱별 시작·종료 상세와 5분 단위 코어 지수 표본은 30일, 날짜별 집계는 365일 보관합니다." to
-            "App start/end details and five-minute Core Index samples are retained for 30 days; daily summaries are retained for 365 days.",
+        "앱별 시작·종료 상세와 5분 단위 코어 지수 표본은 30일, 시간별·날짜별 집계는 365일 보관합니다." to
+            "App start/end details and five-minute Core Index samples are retained for 30 days; hourly and daily summaries are retained for 365 days.",
         "코어 지수 기록을 준비하고 있습니다." to "Core Index history is being prepared.",
         "사용 흐름을 측정하면 날짜별 기록이 쌓입니다." to
             "Daily records accumulate as your usage pattern is measured.",
@@ -429,7 +429,7 @@ object UiTranslator {
         "백업 데이터 형식이 올바르지 않습니다." to "The backup format is invalid.",
         "백업 파일 형식이 올바르지 않습니다." to "The backup file format is invalid.",
         "복원에 실패했습니다." to "Restore failed.",
-        "백업 파일은 20MB 이하여야 합니다." to "Backup files must be 20 MB or smaller.",
+        "백업 파일은 64MB 이하여야 합니다." to "Backup files must be 64 MB or smaller.",
         "백업 실패" to "Backup failed",
         "복원 중 오류가 발생했습니다" to "An error occurred while restoring",
         "이전 평문 백업을 복원했습니다. 새 백업은 암호화됩니다." to "Legacy plaintext backup restored. New backups are encrypted.",

@@ -8,7 +8,7 @@ Android UsageEvents
 UsageStatsHelper — 최초 상태 복원 + 커서 이후 증분 이벤트 재구성
         ↓
 TrackerForegroundService — 화면 켜짐 중 주기 갱신 및 경계 처리
-        ├─ Room + SQLCipher — 상세 30일 / 일별 집계 365일 / 상호작용 25시간
+        ├─ Room + SQLCipher — 상세 30일 / 일별 집계 365일 / 상호작용 48시간
         ├─ ScoreRepository(StateFlow) — 현재 프로세스의 화면 상태
         ├─ CumulativeScoreStore → CumulativeTimeline → CumulativeScoreEngine — 누적 상태·증분 점수
         ├─ CoreIndexCoach — 변화 원인·회복 예상·한 가지 제안
@@ -41,7 +41,7 @@ TrackerForegroundService — 화면 켜짐 중 주기 갱신 및 경계 처리
 
 ### 저장
 
-Room 데이터베이스 버전은 v18입니다.
+Room 데이터베이스 버전은 v19입니다.
 
 - `cumulative_score_state`: 설정 버전, 내부 점수, 가속 잔여, 회복 부담, 커서, 기상 확인 및 제안 선택. 상세 기록 보관 기간과 독립적으로 유지되며 전체 기록 삭제 시 삭제
 
@@ -50,7 +50,7 @@ Room 데이터베이스 버전은 v18입니다.
 - `daily_app_usage`: 앱별 일일 사용시간·실행·1분 미만 실행·최장 세션 집계, 365일
 - `daily_usage_coverage`: 날짜별 자체 측정 완료 여부
 - `daily_score_history`: 일별 코어 지수·화면·언락과 당시 `coreIndexPresetId`, `scoreModelVersion` 집계. 새 누적 모델은 버전 5이며 이전 모델 기록도 보존
-- `device_interaction_events`: 잠금 해제와 알림 interruption의 최소 타임스탬프, 25시간. 원본 앱 이벤트 전체는 저장하지 않음
+- `device_interaction_events`: 잠금 해제와 알림 interruption의 최소 타임스탬프, 48시간. 원본 앱 이벤트 전체는 저장하지 않음
 
 대시보드·앱 상세·상태 알림·위젯과 통계의 24시간 화면은 `core_index_samples`, `foreground_usage_sessions`, `device_interaction_events`를 현재 시점까지의 24시간으로 잘라 사용합니다. 자정 기준 일일 집계는 4주·요일별·장기 날짜 통계용으로만 사용하며, 4주 화면은 오늘을 포함한 28일 달력 축에 배치합니다.
 24시간 복합 차트는 5분 코어 지수 표본을 하나의 연속 추세선으로 표시합니다. 화면 OFF로 표본이 없는 구간은 다음 사용 시 계산된 회복값까지 직선으로 연결하되, 하단 사용량 막대에는 추정값을 채우지 않고 0으로 유지합니다. 전면 사용량과 언락은 같은 24개 버킷에 정렬합니다. 4주 차트의 사용량 막대는 모든 유효 일별 집계를, 코어 지수 범위봉은 현재 지수를 계산할 수 있는 날짜만 사용합니다. 헤더는 기간 평균 대신 현재 지수와 최저·최고를 표시하고, 7일 이동평균선은 누락일을 0으로 채우지 않습니다.

@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -59,9 +60,9 @@ private fun points(value: Double) = String.format(Locale.getDefault(), "%.1f", v
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatisticsScreen(onNavigateBack: () -> Unit) {
+fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = null) {
     val context = LocalContext.current
-    val db = remember { DigitsDatabase.getInstance(context) }
+    val db = remember(database) { database ?: DigitsDatabase.getInstance(context) }
     val dao = remember { db.statisticsDao() }
     val zone = ZoneId.systemDefault()
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -103,15 +104,24 @@ fun StatisticsScreen(onNavigateBack: () -> Unit) {
     }.collectAsState(emptyList())
     val histories by db.scoreDao().getAllScoreHistories().collectAsState(emptyList())
     val rawAvailable = isDay && start >= now - 30L * 24 * STAT_HOUR
-    val visibleUsage = remember(usage, sessions, start, end, rawAvailable) {
+    val exactInteractions = isDay && start >= now - 47L * STAT_HOUR
+    val events by remember(start, end, exactInteractions) {
+        if (exactInteractions) db.deviceInteractionEventDao().observeBetween(start - 15_000, end) else flowOf(emptyList())
+    }.collectAsState(emptyList())
+    val visibleUsage = remember(usage, sessions, events, start, end, rawAvailable) {
         if (!rawAvailable) usage else {
             val raw = aggregateUsageHours(sessions, start, end, now - 120_000)
             val interactions = usage.filter { it.packageName.isEmpty() }.associateBy { it.hour }
             val combined = raw.associateBy { it.hour to it.packageName }.toMutableMap()
+            val unlockCounts = UsageStatsHelper.resolvedUnlockTimestamps(events).filter { it >= start && it < end }
+                .groupingBy { statisticHour(it) }.eachCount()
+            val notificationCounts = events.filter { it.timestampMillis >= start && it.eventType == DeviceInteractionEventEntity.NOTIFICATION_INTERRUPTION }
+                .groupingBy { statisticHour(it.timestampMillis) }.eachCount()
             interactions.forEach { (hour, row) ->
                 val key = hour to ""
                 combined[key] = (combined[key] ?: UsageHourEntity(hour, "", "")).copy(
-                    unlocks = row.unlocks, notifications = row.notifications)
+                    unlocks = if (exactInteractions && row.unlocks != null) unlockCounts[hour] ?: 0 else row.unlocks,
+                    notifications = if (exactInteractions && row.notifications != null) notificationCounts[hour] ?: 0 else row.notifications)
             }
             combined.values.toList()
         }
@@ -127,7 +137,10 @@ fun StatisticsScreen(onNavigateBack: () -> Unit) {
     }
     val selected = selectedTime?.let { t -> buckets.firstOrNull { t >= it.start && t < it.end } }
     val selectedSample = if (isDay && selectedTime != null) visibleSamples.minByOrNull { abs(it.timestampMillis - selectedTime!!) } else null
-    val readings = buckets.mapNotNull { it.score }
+    val readings = if (isDay && visibleSamples.isNotEmpty()) visibleSamples.map {
+        ScoreHourEntity(statisticHour(it.timestampMillis), it.scoreModelVersion, it.timestampMillis, it.timestampMillis,
+            it.exactScore, it.exactScore, it.exactScore, it.exactScore)
+    } else buckets.mapNotNull { it.score }
     val latest = readings.lastOrNull()
     val currentModel = latest?.model ?: 5
     val comparable = readings.filter { it.model == currentModel }
@@ -143,7 +156,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit) {
             } }, actions = { TextButton(onClick = { showHelp = true }) { Text(label("읽는 법", "Guide")) } })
     }) { padding ->
         ResponsiveContent(Modifier.padding(padding)) {
-            LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            LazyColumn(Modifier.fillMaxSize().testTag("statistics-list"), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 item {
                     Column(Modifier.padding(horizontal = 22.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(if (selected != null) label("선택한 기록", "Selected reading") else label("코어 지수", "Core Index"), color = MaterialTheme.colorScheme.onSurfaceVariant)

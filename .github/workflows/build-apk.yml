@@ -109,7 +109,9 @@ jobs:
           profile: pixel_2
           disk-size: 2048M
           disable-animations: true
-          script: gradle :app:connectedDebugAndroidTest --stacktrace --no-daemon
+          script: |
+            gradle :app:connectedDebugAndroidTest --stacktrace --no-daemon
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then for image in light candles dark-large; do echo "BEGIN_STATISTICS_IMAGE_$image"; adb exec-out run-as com.digitscore.app cat "files/statistics-$image.png" | base64 -w 120; echo "END_STATISTICS_IMAGE_$image"; done; fi
 
       - name: Upload database upgrade test report
         if: failure()
