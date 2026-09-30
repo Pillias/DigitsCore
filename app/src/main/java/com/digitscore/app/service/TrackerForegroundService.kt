@@ -555,6 +555,8 @@ class TrackerForegroundService : Service() {
                     ?: coreIndexPreset.defaultScoringConfig
                 val (cumulativeRecord, cumulativeDetail) = com.digitscore.app.data.CumulativeScoreStore.update(
                     db, now, cumulativeCoverageStart)
+                val rollingScoreDetail = cumulativeDetail.copy(
+                    recentUsageMinutes = rollingUsageSummary.totalScreenTimeMillis / 60_000L)
                 ScoreRepository.updateRollingScoreDetail(rollingScoreDetail)
 
                 // 아침 기상 알림 무응답 시 자동 판정 (관찰 윈도우 15~30분)

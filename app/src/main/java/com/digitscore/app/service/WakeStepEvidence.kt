@@ -2,6 +2,7 @@ package com.digitscore.app.service
 
 import android.Manifest
 import android.content.Context
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.hardware.*
 import android.os.Build
@@ -20,25 +21,28 @@ object WakeStepAdaptiveManager {
     private const val KEY_CALCULATED_THRESHOLD = "calculated_step_threshold"
     const val DEFAULT_THRESHOLD = 50
 
-    fun getThreshold(context: Context): Int {
-        val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+    fun getThreshold(prefs: SharedPreferences): Int {
         return prefs.getInt(KEY_CALCULATED_THRESHOLD, DEFAULT_THRESHOLD)
     }
 
-    fun getSampleCount(context: Context): Int {
-        val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+    fun getThreshold(context: Context): Int =
+        getThreshold(context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE))
+
+    fun getSampleCount(prefs: SharedPreferences): Int {
         val historyStr = prefs.getString(KEY_STEP_SAMPLES, "") ?: ""
         if (historyStr.isBlank()) return 0
         return historyStr.split(",").count { it.isNotBlank() }
     }
 
+    fun getSampleCount(context: Context): Int =
+        getSampleCount(context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE))
+
     /**
      * 아침 기상 감지 시점의 15분간 걸음 수 변위를 저장하고,
      * 표본이 3일 이상 쌓이면 중앙값(median)의 2/3 지점으로 자동 최적화합니다.
      */
-    fun recordSample(context: Context, stepsDelta: Float) {
+    fun recordSample(prefs: SharedPreferences, stepsDelta: Float) {
         if (stepsDelta <= 0f) return
-        val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
         val historyStr = prefs.getString(KEY_STEP_SAMPLES, "") ?: ""
         val history = historyStr.split(",")
             .mapNotNull { it.trim().toFloatOrNull() }
@@ -58,6 +62,9 @@ object WakeStepAdaptiveManager {
             prefs.edit().putInt(KEY_CALCULATED_THRESHOLD, adaptive).apply()
         }
     }
+
+    fun recordSample(context: Context, stepsDelta: Float) =
+        recordSample(context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE), stepsDelta)
 }
 
 /** Optional hardware counter, not accelerometer polling. Raw step samples stay in memory. */

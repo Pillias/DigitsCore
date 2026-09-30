@@ -129,6 +129,7 @@
     <string name="privacy_choice_title">사용자 선택권</string>
     <string name="privacy_choice_body">상세 사용 구간과 5분 단위 코어 지수 표본은 30일, 잠금 해제·알림 최소 이벤트는 25시간, 날짜별 사용·실행 집계는 365일 보관합니다. 사용자가 만든 암호화 백업에는 내보낸 시점의 상세 기록도 포함됩니다. 잠금 화면 상세 숨김, 추적 중지와 모든 사용 기록 즉시 삭제를 지원하며 Android 설정에서 권한을 언제든 철회할 수 있습니다.</string>
     <string name="privacy_contact_title">문의</string>
+    <string name="privacy_contact_body">개인정보 관련 문의는 Google Play 스토어에 표시된 개발자 연락처를 이용해 주세요.</string>
     <string name="wake_prompt_channel_name">DigitsCore 기상 확인</string>
     <string name="wake_prompt_channel_description">아침 기상 감지 시 활동 시작 여부를 확인합니다.</string>
     <string name="wake_prompt_title">좋은 아침입니다! 활동을 시작하나요?</string>
