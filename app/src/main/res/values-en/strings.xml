@@ -129,6 +129,11 @@
     <string name="privacy_choice_title">Your choices</string>
     <string name="privacy_choice_body">Detailed sessions and five-minute Core Index samples are retained for 30 days, minimal unlock and notification events for 25 hours, and daily usage and open-count aggregates for 365 days. An encrypted export includes details available at export time. You can hide lock-screen details, stop tracking, delete all history immediately, or revoke access in Android settings.</string>
     <string name="privacy_contact_title">Contact</string>
-    <string name="privacy_contact_body">Use the developer contact shown on Google Play for privacy questions.</string>
+    <string name="wake_prompt_channel_name">DigitsCore Wake Confirmation</string>
+    <string name="wake_prompt_channel_description">Confirms whether you have started your day upon wake detection.</string>
+    <string name="wake_prompt_title">Good morning! Ready to start your day?</string>
+    <string name="wake_prompt_content">Awake breaks will restore your Core Index.</string>
+    <string name="wake_prompt_action_start">Start day</string>
+    <string name="wake_prompt_action_rest">Still resting</string>
     <string name="confirm">OK</string>
 </resources>

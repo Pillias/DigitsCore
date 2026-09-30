@@ -32,6 +32,8 @@ fun WakeEvidenceSettings() {
     var enabled by remember { mutableStateOf(prefs.getBoolean("steps_enabled", false)) }
     val available = remember { (context.getSystemService(Context.SENSOR_SERVICE) as SensorManager)
         .getDefaultSensor(Sensor.TYPE_STEP_COUNTER) != null }
+    val threshold = remember(enabled) { com.digitscore.app.service.WakeStepAdaptiveManager.getThreshold(context) }
+    val samples = remember(enabled) { com.digitscore.app.service.WakeStepAdaptiveManager.getSampleCount(context) }
     fun save(value: Boolean) {
         enabled = value
         prefs.edit().putBoolean("steps_enabled", value).apply()
@@ -40,11 +42,14 @@ fun WakeEvidenceSettings() {
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { save(it) }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(if (english) "Wake detection · Optional steps" else "기상 판단 · 걸음 보조 (선택)")
+            Text(if (english) "Wake detection · Adaptive steps" else "기상 판단 · 적응형 걸음 보조")
             Text(if (!available) {
                 if (english) "No step counter available. Usage-pattern detection still works." else "걸음 센서가 없습니다. 사용 패턴 기준 판단은 계속 동작합니다."
-            } else if (english) "50 steps within 15 minutes can support morning waking detection. No location or step history is stored."
-            else "아침에 15분 내 50걸음을 기상 보조 근거로 사용합니다. 위치나 걸음 이력은 저장하지 않습니다.")
+            } else if (english) {
+                "Waking is detected when reaching $threshold steps in 15 minutes (auto-calibrated to 2/3 of your pattern; $samples day(s) recorded). No location or raw step history is stored."
+            } else {
+                "아침 15분 내 ${threshold}걸음 감지 시 기상 보조 근거로 사용합니다. (3일 이상 측정 시 평소 기상 걸음의 2/3으로 자동 최적화, 현재 ${samples}일 학습됨) 위치나 이동 궤적은 일절 저장하지 않습니다."
+            })
             Switch(enabled = available, checked = enabled, onCheckedChange = { value ->
                 if (value && Build.VERSION.SDK_INT >= 29) permission.launch(Manifest.permission.ACTIVITY_RECOGNITION)
                 else save(value)
@@ -110,8 +115,9 @@ fun HabitReviewCard(score: Int, apps: List<AppUsage>) {
                     } }) { Text(if (english) "Still resting" else "아직 쉬는 중") }
                 }
                 if (hasStepSensor) {
-                    Text(if (english) "Optional: 50 steps within 15 minutes can support waking detection. No location or raw movement history is saved."
-                        else "선택: 15분 안에 50걸음을 기상 보조 근거로 사용합니다. 위치나 원시 움직임 기록은 저장하지 않습니다.")
+                    val threshold = remember(steps, revision) { com.digitscore.app.service.WakeStepAdaptiveManager.getThreshold(context) }
+                    Text(if (english) "Optional: Waking is assisted when reaching $threshold steps in 15 minutes (auto-calibrated to 2/3 of your pattern). No location is saved."
+                        else "선택: 15분 안에 ${threshold}걸음 감지 시 기상 보조 근거로 사용합니다. (패턴의 2/3으로 자동 조정) 위치 정보는 저장하지 않습니다.")
                     Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                         Text(if (english) "Use step evidence" else "걸음 보조 판단")
                         Switch(checked = steps, onCheckedChange = { enabled ->

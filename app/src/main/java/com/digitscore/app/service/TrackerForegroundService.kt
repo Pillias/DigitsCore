@@ -81,7 +81,13 @@ class TrackerForegroundService : Service() {
     private var cachedTodaySnapshot: TodayUsageSnapshot? = null
     private var lastUsageQueryEndMillis: Long = 0L
     private var interactionBootstrapDone = false
+    private var pendingWakeTimestamp: Long = 0L
+    private var pendingWakeBaseUsageMillis: Long = 0L
+
     private val wakeSteps by lazy { WakeStepEvidence(this) { timestamp ->
+        pendingWakeTimestamp = timestamp
+        pendingWakeBaseUsageMillis = cachedTodaySnapshot?.assignedUsageMillis ?: 0L
+        ScoreNotificationManager.showMorningWakePromptNotification(this, timestamp)
         serviceScope.launch(Dispatchers.IO) {
             com.digitscore.app.data.CumulativeScoreStore.confirmActivity(
                 DigitsDatabase.getInstance(applicationContext), timestamp, awake = true, acknowledge = false)
@@ -98,6 +104,8 @@ class TrackerForegroundService : Service() {
     companion object {
         const val ACTION_STOP_TRACKING = "com.digitscore.app.action.STOP_TRACKING"
         const val ACTION_REFRESH_NOTIFICATION = "com.digitscore.app.action.REFRESH_NOTIFICATION"
+        const val ACTION_CONFIRM_WAKE = "com.digitscore.app.action.CONFIRM_WAKE"
+        const val ACTION_SNOOZE_WAKE = "com.digitscore.app.action.SNOOZE_WAKE"
         private const val ROLLING_WINDOW_MILLIS = 24 * 60 * 60 * 1_000L
         private const val DETAIL_RETENTION_MILLIS = 30L * 24 * 60 * 60 * 1_000L
         private const val CORE_INDEX_SAMPLE_BUCKET_MILLIS = 5 * 60_000L
@@ -547,9 +555,29 @@ class TrackerForegroundService : Service() {
                     ?: coreIndexPreset.defaultScoringConfig
                 val (cumulativeRecord, cumulativeDetail) = com.digitscore.app.data.CumulativeScoreStore.update(
                     db, now, cumulativeCoverageStart)
-                val rollingScoreDetail = cumulativeDetail.copy(
-                    recentUsageMinutes = rollingUsageSummary.totalScreenTimeMillis / 60_000L)
                 ScoreRepository.updateRollingScoreDetail(rollingScoreDetail)
+
+                // 아침 기상 알림 무응답 시 자동 판정 (관찰 윈도우 15~30분)
+                if (pendingWakeTimestamp > 0L) {
+                    val wakeElapsed = now - pendingWakeTimestamp
+                    val currentAssigned = cachedTodaySnapshot?.assignedUsageMillis ?: 0L
+                    val usageDelta = currentAssigned - pendingWakeBaseUsageMillis
+                    if (wakeElapsed >= 15 * 60_000L && usageDelta >= 2 * 60_000L) {
+                        // 15분 경과 + 전면 앱 2분 이상 지속 사용: 기상 명백함 -> 기상 자동 확정
+                        com.digitscore.app.data.CumulativeScoreStore.confirmActivity(
+                            db, pendingWakeTimestamp, awake = true, acknowledge = true
+                        )
+                        ScoreNotificationManager.cancelMorningWakePromptNotification(applicationContext)
+                        pendingWakeTimestamp = 0L
+                    } else if (wakeElapsed >= 30 * 60_000L && usageDelta < 30_000L) {
+                        // 30분 경과 + 폰 사용 없음: 잠결 뒤척임 또는 오인식 -> 수면 복귀 보호(Sleep Rollback)
+                        com.digitscore.app.data.CumulativeScoreStore.confirmActivity(
+                            db, now, awake = false, acknowledge = true
+                        )
+                        ScoreNotificationManager.cancelMorningWakePromptNotification(applicationContext)
+                        pendingWakeTimestamp = 0L
+                    }
+                }
 
                 val previousSample = db.coreIndexSampleDao().getLatestBefore(now)
                 val guidance = CoreIndexCoach.create(
@@ -796,6 +824,30 @@ class TrackerForegroundService : Service() {
                 }
             }
             return START_NOT_STICKY
+        }
+        if (intent?.action == ACTION_CONFIRM_WAKE) {
+            val ts = intent.getLongExtra("timestamp", System.currentTimeMillis())
+            serviceScope.launch(Dispatchers.IO) {
+                com.digitscore.app.data.CumulativeScoreStore.confirmActivity(
+                    DigitsDatabase.getInstance(applicationContext), ts, awake = true, acknowledge = true
+                )
+                ScoreNotificationManager.cancelMorningWakePromptNotification(applicationContext)
+                pendingWakeTimestamp = 0L
+                recalculateAndNotify()
+            }
+            return START_STICKY
+        }
+        if (intent?.action == ACTION_SNOOZE_WAKE) {
+            val ts = intent.getLongExtra("timestamp", System.currentTimeMillis())
+            serviceScope.launch(Dispatchers.IO) {
+                com.digitscore.app.data.CumulativeScoreStore.confirmActivity(
+                    DigitsDatabase.getInstance(applicationContext), ts, awake = false, acknowledge = true
+                )
+                ScoreNotificationManager.cancelMorningWakePromptNotification(applicationContext)
+                pendingWakeTimestamp = 0L
+                recalculateAndNotify()
+            }
+            return START_STICKY
         }
         recalculateAndNotify()
         return START_STICKY

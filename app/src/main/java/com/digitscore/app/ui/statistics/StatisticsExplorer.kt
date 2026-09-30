@@ -194,7 +194,11 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                         TextButton(onClick = { zoom = if (zoom >= 4f) 1f else zoom * 2f }) { Text("${zoom.toInt()}×") }
                     }
                     ExplorerChart(buckets, if (isDay) visibleSamples else emptyList(), isDay, detailed, showUnlocks,
-                        start, end, selectedTime, zoom, { zoom = it.coerceIn(1f, 4f) }, { selectedTime = it })
+                        start, end, selectedTime, zoom, { zoom = it.coerceIn(1f, 4f) }, { selectedTime = it },
+                        onSwipeDay = { delta ->
+                            offsetDays = (offsetDays + delta).coerceIn(0, 364)
+                            selectedTime = null
+                        })
                     if (detailed) Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Legend(MaterialTheme.colorScheme.primary, label("일반 사용", "General"))
                         Spacer(Modifier.width(12.dp)); Legend(ScoreRed, label("관리 사용", "Managed"))
@@ -212,25 +216,19 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                         }
                     } else Text(label("좌우로 이동 · 길게 눌러 시점 선택 · 두 손가락으로 확대", "Scroll sideways · hold to inspect · pinch to zoom"),
                         Modifier.padding(horizontal = 22.dp), fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
-                    // Accessible alternatives to chart-only gestures.
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = {
-                            if (selectedDay != null) selectedDay = selectedDay!!.minusDays(1)
-                            else offsetDays = (offsetDays + if (isDay) 1 else 7).coerceAtMost((365 - period).coerceAtLeast(0))
-                            selectedTime = null
-                        }, enabled = start > now - 364L * 24 * STAT_HOUR) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, label("이전 기간", "Previous period")) }
-                        Text("${dateLabel(start, "yy/MM/dd")} – ${dateLabel(end, "MM/dd HH:mm")}", Modifier.weight(1f), fontSize = 12.sp)
-                        TextButton(onClick = { offsetDays = 0; selectedDay = null; selectedTime = null }) { Text(label("현재로", "Latest")) }
-                        IconButton(onClick = {
-                            if (selectedDay != null) selectedDay = selectedDay!!.plusDays(1)
-                            else offsetDays = (offsetDays - if (isDay) 1 else 7).coerceAtLeast(0)
-                            selectedTime = null
-                        }, enabled = end < now - 60_000) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, label("다음 기간", "Next period")) }
+                    // 간결한 기간 날짜 표시 및 오늘로 복귀 버튼
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("${dateLabel(start, "yy/MM/dd")} – ${dateLabel(end, "MM/dd HH:mm")}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (offsetDays > 0 || selectedDay != null) {
+                            TextButton(onClick = { offsetDays = 0; selectedDay = null; selectedTime = null }) {
+                                Text(label("오늘로 복귀 ↺", "Latest ↺"))
+                            }
+                        }
                     }
                 }
                 if (selectedDay == null) item {
                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(1 to label("24시간", "24h"), 7 to label("1주", "1w"), 28 to label("4주", "4w"),
+                        listOf(1 to label("24시간", "24h"), 28 to label("4주", "4w"),
                             90 to label("3개월", "3m"), 365 to label("1년", "1y")).forEach { (days, text) ->
                             FilterChip(selected = period == days, onClick = { period = days; offsetDays = 0; selectedTime = null; hourCandles = false; zoom = 1f; allApps = false }, label = { Text(text) })
                         }
@@ -338,7 +336,8 @@ private fun appValue(app: ExplorerApp, mode: Int) = when (mode) { 1 -> app.loss 
 private fun ExplorerChart(
     buckets: List<ExplorerBucket>, samples: List<CoreIndexSampleEntity>, line: Boolean,
     detailed: Boolean, unlocks: Boolean, start: Long, end: Long, selection: Long?,
-    zoom: Float, onZoom: (Float) -> Unit, onSelect: (Long) -> Unit
+    zoom: Float, onZoom: (Float) -> Unit, onSelect: (Long) -> Unit,
+    onSwipeDay: ((Int) -> Unit)? = null
 ) {
     val primary = MaterialTheme.colorScheme.primary
     val muted = MaterialTheme.colorScheme.outline
@@ -355,13 +354,33 @@ private fun ExplorerChart(
     LaunchedEffect(scroll.maxValue) { if (!initialScroll && scroll.maxValue > 0) { scroll.scrollTo(scroll.maxValue); initialScroll = true } }
     val selected = selection?.let { t -> buckets.firstOrNull { t >= it.start && t < it.end } }
     val chartDescription = selected?.let { label("${dateLabel(it.start)} 점수 ${it.score?.last?.roundToInt() ?: "—"}, 오픈 ${it.opens ?: 0}회", "${dateLabel(it.start)}, score ${it.score?.last?.roundToInt() ?: "—"}, ${it.opens ?: 0} opens") }
-        ?: label("코어 지수와 사용 기록 차트. 아래 이전·다음 기록 버튼으로도 탐색할 수 있습니다.", "Core Index and usage chart. Previous and next reading buttons are available below.")
+        ?: label("코어 지수와 사용 기록 차트. 좌우로 스와이프하여 이전 날짜를 탐색할 수 있습니다.", "Core Index and usage chart. Swipe sideways to explore past dates.")
     BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         val width = maxOf(maxWidth - 36.dp, if (line) 0.dp else (buckets.size * 14).dp) * zoom
         val height = if (detailed) 360.dp else 230.dp
         Row {
             Column(Modifier.weight(1f).horizontalScroll(scroll)) {
                 Canvas(Modifier.width(width).height(height).semantics { contentDescription = chartDescription }
+                    .pointerInput(start, end, width, line, zoom) {
+                        if (line && onSwipeDay != null && zoom <= 1.05f) {
+                            var totalDragX = 0f
+                            detectHorizontalDragGestures(
+                                onDragStart = { totalDragX = 0f },
+                                onDragEnd = {
+                                    if (totalDragX > 40f) {
+                                        onSwipeDay(1) // 오른쪽으로 밀면 어제(과거)로 이동
+                                    } else if (totalDragX < -40f) {
+                                        onSwipeDay(-1) // 왼쪽으로 밀면 내일(최신)로 이동
+                                    }
+                                    totalDragX = 0f
+                                },
+                                onHorizontalDrag = { change, dragAmount ->
+                                    change.consume()
+                                    totalDragX += dragAmount
+                                }
+                            )
+                        }
+                    }
                     .pointerInput(start, end, width) {
                         detectTapGestures { onSelect(start + ((end - start) * (it.x / size.width).coerceIn(0f, 0.999999f)).toLong()) }
                     }

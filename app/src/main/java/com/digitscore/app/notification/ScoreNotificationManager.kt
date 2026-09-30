@@ -29,8 +29,10 @@ object ScoreNotificationManager {
     const val CHANNEL_ID = "digitscore_status_channel"
     const val GUIDANCE_CHANNEL_ID = "digitscore_guidance_channel"
     const val SOFT_GUIDANCE_CHANNEL_ID = "digitscore_soft_guidance_v2"
+    const val WAKE_PROMPT_CHANNEL_ID = "digitscore_wake_prompt_channel"
     const val NOTIFICATION_ID = 1001
     private const val GUIDANCE_NOTIFICATION_ID = 1002
+    private const val WAKE_PROMPT_NOTIFICATION_ID = 1003
 
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -69,7 +71,77 @@ object ScoreNotificationManager {
                     setSound(null, null)
                 }
             )
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    WAKE_PROMPT_CHANNEL_ID,
+                    strings.getString(R.string.wake_prompt_channel_name),
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = strings.getString(R.string.wake_prompt_channel_description)
+                    enableVibration(true)
+                }
+            )
         }
+    }
+
+    fun showMorningWakePromptNotification(context: Context, timestamp: Long) {
+        val strings = AppLocale.stringsContext(context)
+        val launchIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            10,
+            launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val confirmIntent = PendingIntent.getService(
+            context,
+            11,
+            Intent(context, TrackerForegroundService::class.java).apply {
+                action = TrackerForegroundService.ACTION_CONFIRM_WAKE
+                putExtra("timestamp", timestamp)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val snoozeIntent = PendingIntent.getService(
+            context,
+            12,
+            Intent(context, TrackerForegroundService::class.java).apply {
+                action = TrackerForegroundService.ACTION_SNOOZE_WAKE
+                putExtra("timestamp", timestamp)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(context, WAKE_PROMPT_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(strings.getString(R.string.wake_prompt_title))
+            .setContentText(strings.getString(R.string.wake_prompt_content))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .addAction(
+                android.R.drawable.ic_media_play,
+                strings.getString(R.string.wake_prompt_action_start),
+                confirmIntent
+            )
+            .addAction(
+                android.R.drawable.ic_lock_idle_alarm,
+                strings.getString(R.string.wake_prompt_action_rest),
+                snoozeIntent
+            )
+            .build()
+
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(WAKE_PROMPT_NOTIFICATION_ID, notification)
+    }
+
+    fun cancelMorningWakePromptNotification(context: Context) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.cancel(WAKE_PROMPT_NOTIFICATION_ID)
     }
 
     fun showRapidUsageNotification(

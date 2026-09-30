@@ -2,9 +2,9 @@
 
 DigitsCore는 Android에서 **화면이 켜지고 잠금 해제된 동안 실제로 전면에 표시된 앱**을 측정해, 사용과 활동 중 휴식을 누적한 1~99 범위의 **코어 지수(Core Index)**로 보여주는 디지털 웰빙 앱입니다.
 
-[최신 Release](https://github.com/Pillias/DigitsCore/releases/latest) · [점수 계산 방식](docs/SCORING.md) · [구조](docs/ARCHITECTURE.md) · [출시 준비 현황](docs/RELEASE_READINESS.md) · [개인정보처리방침](PRIVACY_POLICY.md)
+[최신 Release](https://github.com/Pillias/DigitsCore/releases/latest) · [GitHub Actions 빌드 내역](https://github.com/Pillias/DigitsCore/actions) · [점수 계산 방식](docs/SCORING.md) · [구조](docs/ARCHITECTURE.md) · [출시 준비 현황](docs/RELEASE_READINESS.md) · [개인정보처리방침](PRIVACY_POLICY.md)
 
-> 현재 GitHub Release의 APK는 실사용 검증용 debug 서명 빌드입니다. Google Play 배포용 업로드 키 서명 AAB와는 구분됩니다.
+> 최신 APK는 [GitHub Releases](https://github.com/Pillias/DigitsCore/releases/latest) 또는 [GitHub Actions Artifacts](https://github.com/Pillias/DigitsCore/actions)에서 내려받으실 수 있습니다. Google Play 배포용 업로드 키 서명 AAB와는 구분됩니다.
 
 ## 현재 구현 상태
 
