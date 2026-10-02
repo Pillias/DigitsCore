@@ -67,8 +67,6 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
     val dao = remember { db.statisticsDao() }
     val zone = ZoneId.systemDefault()
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    var period by rememberSaveable { mutableIntStateOf(1) }
-    var offsetDays by rememberSaveable { mutableIntStateOf(0) }
     var hourCandles by rememberSaveable { mutableStateOf(false) }
     var detailed by rememberSaveable { mutableStateOf(true) }
     var showUnlocks by rememberSaveable { mutableStateOf(false) }
@@ -83,12 +81,12 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
     val liveScore by ScoreRepository.rollingScoreDetail.collectAsState()
     LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(60_000) } }
 
-    val isDay = period == 1 || selectedDay != null
+    val isDay = selectedDay != null
     val end = selectedDay?.plusDays(1)?.atStartOfDay(zone)?.toInstant()?.toEpochMilli()?.coerceAtMost(now)
-        ?: (now - offsetDays * 24L * STAT_HOUR)
+        ?: now
     val start = selectedDay?.atStartOfDay(zone)?.toInstant()?.toEpochMilli()
-        ?: if (period == 1) end - 24 * STAT_HOUR else Instant.ofEpochMilli(end).atZone(zone).toLocalDate()
-            .minusDays((period - 1).toLong()).atStartOfDay(zone).toInstant().toEpochMilli()
+        ?: Instant.ofEpochMilli(end).atZone(zone).toLocalDate()
+            .minusDays(89L).atStartOfDay(zone).toInstant().toEpochMilli()
     val daily = !isDay && !hourCandles
     val queryStart = statisticHour(start)
     val queryEnd = statisticHour(end) + STAT_HOUR
@@ -154,7 +152,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
     val currentModel = latest?.model ?: 5
     val comparable = readings.filter { it.model == currentModel }
     val displayed = if (selected != null) selectedSample?.exactScore ?: selected.score?.last
-        else if (offsetDays == 0 && selectedDay == null && currentModel == 5) liveScore?.exactScore ?: latest?.last else latest?.last
+        else if (selectedDay == null && currentModel == 5) liveScore?.exactScore ?: latest?.last else latest?.last
     val change = if (selected == null && comparable.isNotEmpty() && displayed != null)
         displayed - comparable.first().first else null
     val coverage = visibleImpacts.filter { it.packageName.isEmpty() }
@@ -188,17 +186,20 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = { detailed = !detailed }) { Text(if (detailed) label("✓ 자세한 차트", "✓ Detailed chart") else label("자세한 차트", "Detailed chart")) }
                         Spacer(Modifier.weight(1f))
-                        if (!isDay && period <= 28) TextButton(onClick = { hourCandles = !hourCandles; selectedTime = null; zoom = 1f }) {
+                        if (!isDay) TextButton(onClick = { hourCandles = !hourCandles; selectedTime = null; zoom = 1f }) {
                             Text(if (hourCandles) label("시간봉 ▾", "Hourly ▾") else label("일봉 ▾", "Daily ▾"))
                         }
-                        TextButton(onClick = { zoom = if (zoom >= 4f) 1f else zoom * 2f }) { Text("${zoom.toInt()}×") }
+                        TextButton(onClick = {
+                            zoom = when (zoom) {
+                                0.5f -> 1f
+                                1f -> 2f
+                                2f -> 4f
+                                else -> 0.5f
+                            }
+                        }) { Text(if (zoom == 0.5f) "0.5×" else "${zoom.toInt()}×") }
                     }
                     ExplorerChart(buckets, if (isDay) visibleSamples else emptyList(), isDay, detailed, showUnlocks,
-                        start, end, selectedTime, zoom, { zoom = it.coerceIn(1f, 4f) }, { selectedTime = it },
-                        onSwipeDay = { delta ->
-                            offsetDays = (offsetDays + delta).coerceIn(0, 364)
-                            selectedTime = null
-                        })
+                        start, end, selectedTime, zoom, { zoom = it.coerceIn(0.5f, 4f) }, { selectedTime = it })
                     if (detailed) Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Legend(MaterialTheme.colorScheme.primary, label("일반 사용", "General"))
                         Spacer(Modifier.width(12.dp)); Legend(ScoreRed, label("관리 사용", "Managed"))
@@ -214,33 +215,31 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                 selectedTime = null; zoom = 1f
                             }) { Text(label("이날 자세히 보기 ›", "Explore this day ›")) }
                         }
-                    } else Text(label("좌우로 이동 · 길게 눌러 시점 선택 · 두 손가락으로 확대", "Scroll sideways · hold to inspect · pinch to zoom"),
+                    } else Text(label("좌우로 부드럽게 스크롤 · 터치하여 시점 선택 · 두 손가락으로 확대", "Smooth horizontal scroll · tap to inspect · pinch to zoom"),
                         Modifier.padding(horizontal = 22.dp), fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
                     // 간결한 기간 날짜 표시 및 오늘로 복귀 버튼
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("${dateLabel(start, "yy/MM/dd")} – ${dateLabel(end, "MM/dd HH:mm")}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (offsetDays > 0 || selectedDay != null) {
-                            TextButton(onClick = { offsetDays = 0; selectedDay = null; selectedTime = null }) {
-                                Text(label("오늘로 복귀 ↺", "Latest ↺"))
+                        Text(
+                            if (selectedDay != null) dateLabel(start, "yyyy년 MM월 dd일")
+                            else "${dateLabel(Instant.ofEpochMilli(end).atZone(zone).toLocalDate().minusDays(27L).atStartOfDay(zone).toInstant().toEpochMilli(), "yy/MM/dd")} – ${dateLabel(end, "yy/MM/dd")} (4주 기본)",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (selectedDay != null) {
+                            TextButton(onClick = { selectedDay = null; selectedTime = null }) {
+                                Text(label("4주 전체 보기 ↺", "4-Week View ↺"))
                             }
                         }
                     }
                 }
-                if (selectedDay == null) item {
-                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(1 to label("24시간", "24h"), 28 to label("4주", "4w"),
-                            90 to label("3개월", "3m"), 365 to label("1년", "1y")).forEach { (days, text) ->
-                            FilterChip(selected = period == days, onClick = { period = days; offsetDays = 0; selectedTime = null; hourCandles = false; zoom = 1f; allApps = false }, label = { Text(text) })
-                        }
-                    }
-                }
                 item {
+                    val summaryBuckets = if (isDay) buckets else buckets.takeLast(28)
                     HorizontalDivider(Modifier.padding(horizontal = 20.dp))
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(label("기간 요약", "Period summary"), fontWeight = FontWeight.Bold)
+                        Text(if (selectedDay != null) label("하루 요약", "Day summary") else label("기간 요약 (최근 4주)", "Period summary (Last 4 weeks)"), fontWeight = FontWeight.Bold)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            val countsKnown = apps.isNotEmpty() || buckets.any { it.opens != null }
-                            SmallMetric(label("화면", "Screen"), buckets.mapNotNull { it.usage }.takeIf { it.isNotEmpty() }?.sum()?.let(::minutes) ?: "—")
+                            val countsKnown = apps.isNotEmpty() || summaryBuckets.any { it.opens != null }
+                            SmallMetric(label("화면", "Screen"), summaryBuckets.mapNotNull { it.usage }.takeIf { it.isNotEmpty() }?.sum()?.let(::minutes) ?: "—")
                             SmallMetric(label("앱 오픈", "App opens"), if (countsKnown) apps.sumOf { it.opens }.toString() else "—")
                             SmallMetric(label("1분 이하", "≤1 min"), if (countsKnown) apps.sumOf { it.shortOpens }.toString() else "—")
                         }
@@ -336,8 +335,7 @@ private fun appValue(app: ExplorerApp, mode: Int) = when (mode) { 1 -> app.loss 
 private fun ExplorerChart(
     buckets: List<ExplorerBucket>, samples: List<CoreIndexSampleEntity>, line: Boolean,
     detailed: Boolean, unlocks: Boolean, start: Long, end: Long, selection: Long?,
-    zoom: Float, onZoom: (Float) -> Unit, onSelect: (Long) -> Unit,
-    onSwipeDay: ((Int) -> Unit)? = null
+    zoom: Float, onZoom: (Float) -> Unit, onSelect: (Long) -> Unit
 ) {
     val primary = MaterialTheme.colorScheme.primary
     val muted = MaterialTheme.colorScheme.outline
@@ -354,33 +352,22 @@ private fun ExplorerChart(
     LaunchedEffect(scroll.maxValue) { if (!initialScroll && scroll.maxValue > 0) { scroll.scrollTo(scroll.maxValue); initialScroll = true } }
     val selected = selection?.let { t -> buckets.firstOrNull { t >= it.start && t < it.end } }
     val chartDescription = selected?.let { label("${dateLabel(it.start)} 점수 ${it.score?.last?.roundToInt() ?: "—"}, 오픈 ${it.opens ?: 0}회", "${dateLabel(it.start)}, score ${it.score?.last?.roundToInt() ?: "—"}, ${it.opens ?: 0} opens") }
-        ?: label("코어 지수와 사용 기록 차트. 좌우로 스와이프하여 이전 날짜를 탐색할 수 있습니다.", "Core Index and usage chart. Swipe sideways to explore past dates.")
+        ?: label("코어 지수와 사용 기록 차트. 좌우로 부드럽게 스크롤하여 날짜를 탐색할 수 있습니다.", "Core Index and usage chart. Scroll sideways to explore dates.")
     BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        val width = maxOf(maxWidth - 36.dp, if (line) 0.dp else (buckets.size * 14).dp) * zoom
+        val viewportWidth = maxWidth - 36.dp
+        val width = if (line) {
+            viewportWidth * zoom
+        } else if (buckets.isEmpty()) {
+            viewportWidth
+        } else if (buckets.first().end - buckets.first().start <= STAT_HOUR) {
+            maxOf(viewportWidth, (viewportWidth / 48f) * buckets.size * zoom)
+        } else {
+            maxOf(viewportWidth, (viewportWidth / 28f) * buckets.size * zoom)
+        }
         val height = if (detailed) 360.dp else 230.dp
         Row {
             Column(Modifier.weight(1f).horizontalScroll(scroll)) {
                 Canvas(Modifier.width(width).height(height).semantics { contentDescription = chartDescription }
-                    .pointerInput(start, end, width, line, zoom) {
-                        if (line && onSwipeDay != null && zoom <= 1.05f) {
-                            var totalDragX = 0f
-                            detectHorizontalDragGestures(
-                                onDragStart = { totalDragX = 0f },
-                                onDragEnd = {
-                                    if (totalDragX > 40f) {
-                                        onSwipeDay(1) // 오른쪽으로 밀면 어제(과거)로 이동
-                                    } else if (totalDragX < -40f) {
-                                        onSwipeDay(-1) // 왼쪽으로 밀면 내일(최신)로 이동
-                                    }
-                                    totalDragX = 0f
-                                },
-                                onHorizontalDrag = { change, dragAmount ->
-                                    change.consume()
-                                    totalDragX += dragAmount
-                                }
-                            )
-                        }
-                    }
                     .pointerInput(start, end, width) {
                         detectTapGestures { onSelect(start + ((end - start) * (it.x / size.width).coerceIn(0f, 0.999999f)).toLong()) }
                     }
@@ -473,11 +460,6 @@ private fun ExplorerChart(
     }
     if (detailed && !unlocks) Text(label("주황색: 전체 오픈 중 1분 이하 실행", "Orange: opens lasting ≤1 min, included in the total"),
         Modifier.padding(horizontal = 22.dp), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-        val index = selected?.let { buckets.indexOf(it) } ?: buckets.lastIndex
-        TextButton(onClick = { buckets.getOrNull((index - 1).coerceAtLeast(0))?.let { onSelect(it.start) } }, enabled = index > 0) { Text(label("이전 기록", "Previous reading")) }
-        TextButton(onClick = { buckets.getOrNull((index + 1).coerceAtMost(buckets.lastIndex))?.let { onSelect(it.start) } }, enabled = index < buckets.lastIndex) { Text(label("다음 기록", "Next reading")) }
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

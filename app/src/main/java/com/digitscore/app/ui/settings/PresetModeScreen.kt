@@ -1767,7 +1767,7 @@ fun PresetModeScreen(
                         .clickable {
                             selectedDetail = SettingsDetail(
                                 title = "DigitsCore",
-                                value = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                                value = "v${BuildConfig.VERSION_NAME} · ${BuildConfig.BUILD_DATE}",
                                 description = "디지털 사용 습관을 전면 앱 사용시간과 언락 기록으로 분석합니다.",
                                 supportingText = "개인정보 처리 방식은 아래 개인정보 처리 안내에서 확인할 수 있습니다."
                             )
@@ -1796,7 +1796,7 @@ fun PresetModeScreen(
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                                text = "v${BuildConfig.VERSION_NAME} · ${BuildConfig.BUILD_DATE}",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary

@@ -67,7 +67,7 @@ internal fun BugReportDialog(
     ) {
         BugReportBuilder.build(
             environment = BugReportEnvironment(
-                versionName = BuildConfig.VERSION_NAME,
+                versionName = "${BuildConfig.VERSION_NAME} · ${BuildConfig.BUILD_DATE}",
                 versionCode = BuildConfig.VERSION_CODE,
                 manufacturer = Build.MANUFACTURER,
                 model = Build.MODEL,
@@ -167,7 +167,7 @@ internal fun BugReportDialog(
 private fun shareBugReport(context: Context, report: String) {
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
-        putExtra(Intent.EXTRA_SUBJECT, "DigitsCore ${BuildConfig.VERSION_NAME} bug report")
+        putExtra(Intent.EXTRA_SUBJECT, "DigitsCore v${BuildConfig.VERSION_NAME} (${BuildConfig.BUILD_DATE}) bug report")
         putExtra(Intent.EXTRA_TEXT, report)
     }
     context.startActivity(

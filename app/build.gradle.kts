@@ -1,3 +1,7 @@
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -13,13 +17,16 @@ android {
     val tagVersion = System.getenv("GITHUB_REF_NAME")
         ?.takeIf { System.getenv("GITHUB_REF_TYPE") == "tag" && it.startsWith("v") }
         ?.removePrefix("v")
+    val defaultVersion = "3.1.1"
+    val buildDate = SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(Date())
 
     defaultConfig {
         applicationId = "com.digitscore.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 100 + runNumber
-        versionName = tagVersion ?: "1.0.$runNumber"
+        versionCode = 311
+        versionName = tagVersion ?: defaultVersion
+        buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
