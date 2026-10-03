@@ -971,13 +971,13 @@ fun PresetModeScreen(
                         Text(
                             text = when (selectedIconStyle) {
                                 StatusIconStyle.BIG_NUMBER ->
-                                    "큰 점수 크기는 유지하고, 점수 구간에 맞는 고대비 단색으로 숫자와 전원 원호를 표시합니다."
+                                    UiTranslator.translate("상단 스템을 컴팩트하게 올리고, 굵은 아웃라인 숫자를 중앙에 크게 표시합니다.")
                                 StatusIconStyle.SCORE_PROPORTION ->
-                                    "빨간 원호 위를 현재 점수만큼 녹색이 채웁니다. 중앙 막대는 점수 구간색으로 바뀝니다."
+                                    UiTranslator.translate("여백을 최소화한 볼드 전원 심볼에 점수 비율(빨강 바탕+녹색 호)을 채웁니다.")
                                 StatusIconStyle.SCORE_TIER ->
-                                    "전원 버튼 전체가 점수 구간에 따라 빨강·주황·노랑·초록으로 바뀝니다."
+                                    UiTranslator.translate("여백을 최소화한 볼드 전원 심볼 전체가 점수 구간색으로 표시됩니다.")
                                 StatusIconStyle.NUMBER_FOCUS ->
-                                    "작은 전원 버튼 옆에 외곽선을 넣은 큰 점수를 분리해 표시합니다."
+                                    UiTranslator.translate("볼드 전원 심볼 옆에 고대비 외곽선 숫자를 분리하여 표시합니다.")
                             },
                             fontSize = 12.sp,
                             lineHeight = 17.sp,

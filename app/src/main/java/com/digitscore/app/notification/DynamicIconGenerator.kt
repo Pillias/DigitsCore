@@ -13,12 +13,16 @@ import androidx.annotation.ColorInt
 import androidx.core.graphics.drawable.IconCompat
 import kotlin.math.roundToInt
 
-/** 상태바에 점수와 전원 버튼 형상을 함께 렌더링합니다. */
+/**
+ * 상태바 알림 아이콘 및 위젯용 고해상도 동적 아이콘을 생성합니다.
+ * 24dp 상태바 극소형 캔버스에서도 선명하게 보이도록 여백을 최소화(크기 140% 극대화)하고,
+ * 볼드 스트로크와 외곽 고대비 컨투어 림을 적용하여 밝은/어두운 배경 모두에 대응합니다.
+ */
 object DynamicIconGenerator {
-    private const val RED = "#E74C3C"
+    private const val RED = "#FF5A5F"
     private const val ORANGE = "#E67E22"
     private const val YELLOW = "#F1C40F"
-    private const val GREEN = "#2ECC71"
+    private const val GREEN = "#35D07F"
 
     fun createScoreBitmapIcon(
         context: Context,
@@ -27,143 +31,254 @@ object DynamicIconGenerator {
     ): Bitmap {
         val normalizedScore = score.coerceIn(0, 100)
         val density = context.resources.displayMetrics.density
-        // OS 축소 후에도 숫자와 둥근 끝이 선명하도록 충분히 큰 원본으로 그립니다.
+        // OS 축소 후에도 선명하도록 충분히 큰 고해상도(최소 128px) 원본으로 그립니다.
         val size = (64 * density).roundToInt().coerceAtLeast(128)
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val tierColor = scoreTierColor(normalizedScore)
 
-        if (style == StatusIconStyle.BIG_NUMBER) {
-            // 숫자 크기는 유지하면서 점수 구간색 하나로 숫자와 전원 실루엣을 묶습니다.
-            // 밝은·어두운 시스템 모드별로 명도를 달리해 배경 대비를 확보합니다.
-            val statusColor = statusIconScoreColor(context, normalizedScore)
-            drawCoreNumberFrame(canvas, size, statusColor)
-            drawScoreText(
-                canvas = canvas,
-                size = size,
-                score = normalizedScore,
-                centerX = size / 2f,
-                centerY = size * 0.59f,
-                maxWidth = size * 0.86f,
-                scaleForDigits = floatArrayOf(0.90f, 0.82f, 0.58f),
-                solidColor = statusColor
-            )
-            return bitmap
-        }
-
-        if (style == StatusIconStyle.NUMBER_FOCUS) {
-            drawSeparatedPowerSymbol(canvas, size, tierColor)
-            drawScoreText(
-                canvas = canvas,
-                size = size,
-                score = normalizedScore,
-                centerX = size * 0.69f,
-                centerY = size * 0.52f,
-                maxWidth = size * 0.60f,
-                scaleForDigits = floatArrayOf(0.76f, 0.64f, 0.46f)
-            )
-            return bitmap
-        }
-
-        val strokeWidth = size * 0.085f
-        val ringBounds = RectF(
-            strokeWidth * 0.72f,
-            strokeWidth * 0.72f,
-            size - strokeWidth * 0.72f,
-            size - strokeWidth * 0.72f
-        )
-        val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            this.style = Paint.Style.STROKE
-            strokeCap = Paint.Cap.ROUND
-            this.strokeWidth = strokeWidth
-        }
-
-        // 위쪽 중앙을 기준으로 대칭인 76도 간격을 둔 전원 버튼 원호입니다.
-        val arcStart = -52f
-        val fullSweep = 284f
         when (style) {
-            StatusIconStyle.SCORE_PROPORTION -> {
-                ringPaint.color = Color.parseColor(RED)
-                canvas.drawArc(ringBounds, arcStart, fullSweep, false, ringPaint)
-                if (normalizedScore > 0) {
-                    ringPaint.color = Color.parseColor(GREEN)
-                    canvas.drawArc(
-                        ringBounds,
-                        arcStart,
-                        fullSweep * normalizedScore / 100f,
-                        false,
-                        ringPaint
-                    )
-                }
+            StatusIconStyle.BIG_NUMBER -> {
+                // 옵션 2: 볼드 전원 링 + 센터 대형 고대비 숫자
+                drawBigNumberFrame(canvas, size, normalizedScore, tierColor)
+                drawScoreText(
+                    canvas = canvas,
+                    size = size,
+                    score = normalizedScore,
+                    centerX = size / 2f,
+                    centerY = size * 0.62f,
+                    maxWidth = size * 0.68f,
+                    scaleForDigits = floatArrayOf(0.48f, 0.44f, 0.36f)
+                )
+            }
+            StatusIconStyle.NUMBER_FOCUS -> {
+                // 숫자 분리형: 좌측 미니 볼드 전원 심볼 + 우측 대형 고대비 숫자
+                drawSeparatedPowerSymbol(canvas, size, normalizedScore, tierColor)
+                drawScoreText(
+                    canvas = canvas,
+                    size = size,
+                    score = normalizedScore,
+                    centerX = size * 0.67f,
+                    centerY = size * 0.52f,
+                    maxWidth = size * 0.56f,
+                    scaleForDigits = floatArrayOf(0.56f, 0.48f, 0.38f)
+                )
             }
             StatusIconStyle.SCORE_TIER -> {
-                ringPaint.color = tierColor
-                canvas.drawArc(ringBounds, arcStart, fullSweep, false, ringPaint)
+                // 전원 단계형: 볼드 풀사이즈 전원 심볼 전체에 점수 티어 단일 색상 적용 (숫자 겹침 제거, 크기 극대화)
+                drawFullPowerSymbol(canvas, size, normalizedScore, tierColor, isProportionMode = false)
             }
-            StatusIconStyle.BIG_NUMBER -> Unit // 위의 코어 숫자 전용 경로에서 반환됩니다.
-            StatusIconStyle.NUMBER_FOCUS -> Unit // 위의 분리형 전용 경로에서 반환됩니다.
+            StatusIconStyle.SCORE_PROPORTION -> {
+                // 옵션 1 (기본 권장): 볼드 풀사이즈 전원 심볼 (빨간 베이스 + 녹색 점수 아크 + 티어 스템)
+                // 여백을 최소화하여 24dp 상태바 캔버스를 140% 꽉 채우고, 외곽 컨투어로 밝은/어두운 배경 동시 대응
+                drawFullPowerSymbol(canvas, size, normalizedScore, tierColor, isProportionMode = true)
+            }
         }
 
-        val stemPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = tierColor
-            this.style = Paint.Style.STROKE
-            strokeCap = Paint.Cap.ROUND
-            this.strokeWidth = strokeWidth
-        }
-        canvas.drawLine(size / 2f, size * 0.075f, size / 2f, size * 0.285f, stemPaint)
-
-        drawScoreText(
-            canvas = canvas,
-            size = size,
-            score = normalizedScore,
-            centerX = size / 2f,
-            centerY = size * 0.61f,
-            maxWidth = size * 0.78f,
-            scaleForDigits = floatArrayOf(0.68f, 0.58f, 0.43f)
-        )
         return bitmap
     }
 
-    private fun drawCoreNumberFrame(canvas: Canvas, size: Int, color: Int) {
-        val strokeWidth = size * 0.047f
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            this.color = color
-            this.style = Paint.Style.STROKE
+    /**
+     * 옵션 1 (기본 권장) / 전원 단계형:
+     * 캔버스 꽉 찬 볼드 풀사이즈 전원 심볼을 렌더링합니다.
+     * 여백 0% 최소화로 24dp 상태바에서 압도적인 크기를 가지며,
+     * 외곽 반투명 섀도우 컨투어 림으로 흰색/검은색 배경 모두에서 선명합니다.
+     */
+    private fun drawFullPowerSymbol(
+        canvas: Canvas,
+        size: Int,
+        score: Int,
+        tierColor: Int,
+        isProportionMode: Boolean
+    ) {
+        val cx = size / 2f
+        val cy = size * 0.51f
+        val strokeWidth = size * 0.14f
+        val r = size * 0.38f
+        val ringBounds = RectF(cx - r, cy - r, cx + r, cy + r)
+
+        val arcStart = -50f
+        val fullSweep = 280f
+        val stemTop = size * 0.10f
+        val stemBottom = cy - r * 0.05f
+
+        // 1. 외곽 고대비 반투명 섀도우 컨투어 (라이트/다크 배경 동시 대비 확보)
+        val contourPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
-            this.strokeWidth = strokeWidth
+            this.strokeWidth = strokeWidth * 1.25f
+            color = Color.argb(90, 0, 0, 0)
+        }
+        canvas.drawArc(ringBounds, arcStart, fullSweep, false, contourPaint)
+        canvas.drawLine(cx, stemTop, cx, stemBottom, contourPaint)
+
+        // 2. 원호 렌더링
+        if (isProportionMode) {
+            // 빨간 바탕 원호
+            val redPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeCap = Paint.Cap.ROUND
+                this.strokeWidth = strokeWidth
+                color = Color.parseColor(RED)
+            }
+            canvas.drawArc(ringBounds, arcStart, fullSweep, false, redPaint)
+
+            // 점수 비율 녹색 호
+            if (score > 0) {
+                val greenPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    style = Paint.Style.STROKE
+                    strokeCap = Paint.Cap.ROUND
+                    this.strokeWidth = strokeWidth
+                    color = Color.parseColor(GREEN)
+                }
+                canvas.drawArc(ringBounds, arcStart, fullSweep * (score / 100f), false, greenPaint)
+            }
+        } else {
+            // 티어 단일 색상 원호
+            val tierPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeCap = Paint.Cap.ROUND
+                this.strokeWidth = strokeWidth
+                color = tierColor
+            }
+            canvas.drawArc(ringBounds, arcStart, fullSweep, false, tierPaint)
         }
 
-        // 위쪽을 넓게 비운 U자형 원호라 큰 숫자의 폭을 거의 침범하지 않습니다.
-        // 상태바가 색을 단색으로 치환해도 전원 막대와 대칭 원호의 외곽은 남습니다.
-        val bounds = RectF(
-            size * 0.03f,
-            size * 0.12f,
-            size * 0.97f,
-            size * 0.98f
-        )
-        canvas.drawArc(bounds, -38f, 256f, false, paint)
-        canvas.drawLine(
-            size * 0.5f,
-            size * 0.02f,
-            size * 0.5f,
-            size * 0.17f,
-            paint
-        )
-    }
-
-    private fun drawSeparatedPowerSymbol(canvas: Canvas, size: Int, color: Int) {
-        val strokeWidth = size * 0.065f
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            this.color = color
-            this.style = Paint.Style.STROKE
+        // 3. 상단 스템 (티어 색상)
+        val stemPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
             this.strokeWidth = strokeWidth
+            color = tierColor
         }
-        val bounds = RectF(size * 0.045f, size * 0.31f, size * 0.35f, size * 0.615f)
-        canvas.drawArc(bounds, -48f, 276f, false, paint)
-        canvas.drawLine(size * 0.1975f, size * 0.25f, size * 0.1975f, size * 0.405f, paint)
+        canvas.drawLine(cx, stemTop, cx, stemBottom, stemPaint)
     }
 
+    /**
+     * 옵션 2: 볼드 전원 링 프레임
+     * 상단 스템을 컴팩트하게 축소하여 원 내부 공간을 확보하고,
+     * 센터 숫자가 스템과 겹치지 않도록 구성합니다.
+     */
+    private fun drawBigNumberFrame(
+        canvas: Canvas,
+        size: Int,
+        score: Int,
+        tierColor: Int
+    ) {
+        val cx = size / 2f
+        val cy = size * 0.52f
+        val strokeWidth = size * 0.105f
+        val r = size * 0.36f
+        val ringBounds = RectF(cx - r, cy - r, cx + r, cy + r)
+
+        val arcStart = -50f
+        val fullSweep = 280f
+        val stemTop = size * 0.06f
+        val stemBottom = size * 0.22f
+
+        // 고대비 컨투어 림
+        val contourPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            this.strokeWidth = strokeWidth * 1.35f
+            color = Color.argb(80, 0, 0, 0)
+        }
+        canvas.drawArc(ringBounds, arcStart, fullSweep, false, contourPaint)
+        canvas.drawLine(cx, stemTop, cx, stemBottom, contourPaint)
+
+        // 빨간 바탕 원호
+        val redPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            this.strokeWidth = strokeWidth
+            color = Color.parseColor(RED)
+        }
+        canvas.drawArc(ringBounds, arcStart, fullSweep, false, redPaint)
+
+        // 녹색 점수 호
+        if (score > 0) {
+            val greenPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeCap = Paint.Cap.ROUND
+                this.strokeWidth = strokeWidth
+                color = Color.parseColor(GREEN)
+            }
+            canvas.drawArc(ringBounds, arcStart, fullSweep * (score / 100f), false, greenPaint)
+        }
+
+        // 컴팩트 스템
+        val stemPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            this.strokeWidth = strokeWidth
+            color = tierColor
+        }
+        canvas.drawLine(cx, stemTop, cx, stemBottom, stemPaint)
+    }
+
+    /**
+     * 숫자 분리형: 좌측 미니 전원 심볼
+     */
+    private fun drawSeparatedPowerSymbol(
+        canvas: Canvas,
+        size: Int,
+        score: Int,
+        tierColor: Int
+    ) {
+        val cx = size * 0.23f
+        val cy = size * 0.50f
+        val strokeWidth = size * 0.085f
+        val r = size * 0.19f
+        val ringBounds = RectF(cx - r, cy - r, cx + r, cy + r)
+
+        val arcStart = -50f
+        val fullSweep = 280f
+        val stemTop = cy - r * 1.15f
+        val stemBottom = cy - r * 0.05f
+
+        // 고대비 컨투어
+        val contourPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            this.strokeWidth = strokeWidth * 1.35f
+            color = Color.argb(80, 0, 0, 0)
+        }
+        canvas.drawArc(ringBounds, arcStart, fullSweep, false, contourPaint)
+        canvas.drawLine(cx, stemTop, cx, stemBottom, contourPaint)
+
+        // 빨간 바탕
+        val redPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            this.strokeWidth = strokeWidth
+            color = Color.parseColor(RED)
+        }
+        canvas.drawArc(ringBounds, arcStart, fullSweep, false, redPaint)
+
+        // 녹색 점수 호
+        if (score > 0) {
+            val greenPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeCap = Paint.Cap.ROUND
+                this.strokeWidth = strokeWidth
+                color = Color.parseColor(GREEN)
+            }
+            canvas.drawArc(ringBounds, arcStart, fullSweep * (score / 100f), false, greenPaint)
+        }
+
+        // 스템
+        val stemPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            this.strokeWidth = strokeWidth
+            color = tierColor
+        }
+        canvas.drawLine(cx, stemTop, cx, stemBottom, stemPaint)
+    }
+
+    /**
+     * 밝고 어두운 상태바 배경 모두에서 숫자가 선명하도록 굵은 다크 외곽선과 화이트 채움을 함께 그립니다.
+     */
     private fun drawScoreText(
         canvas: Canvas,
         size: Int,
@@ -195,11 +310,14 @@ object DynamicIconGenerator {
             return
         }
 
-        // 밝고 어두운 상태바 모두에서 숫자의 경계를 잃지 않도록 외곽선을 먼저 그립니다.
+        // 굵은 다크 아웃라인 (흰 배경 및 밝은 상태바에서도 또렷한 경계선 형성)
         textPaint.style = Paint.Style.STROKE
-        textPaint.strokeWidth = size * 0.035f
-        textPaint.color = Color.argb(220, 20, 20, 20)
+        textPaint.strokeWidth = size * 0.08f
+        textPaint.strokeJoin = Paint.Join.ROUND
+        textPaint.color = Color.argb(220, 15, 15, 15)
         canvas.drawText(text, centerX, baseline, textPaint)
+
+        // 화이트 채움
         textPaint.style = Paint.Style.FILL
         textPaint.color = Color.WHITE
         canvas.drawText(text, centerX, baseline, textPaint)
@@ -244,8 +362,7 @@ object DynamicIconGenerator {
 
     /**
      * 위젯 전용: 숫자 텍스트가 겹치지 않는 순수 전원 버튼(Power Symbol) 게이지 비트맵을 생성합니다.
-     * 빨간색 베이스 원호 위를 점수 비율만큼 녹색 아크가 시계 방향으로 덮으며,
-     * 상단 중앙 스템 막대는 점수 티어 색상을 적용합니다.
+     * 상태바의 풀사이즈 전원 심볼(옵션 1)과 100% 동일한 비례와 색상을 공유합니다.
      */
     fun createPurePowerGaugeBitmap(
         context: Context,
@@ -259,57 +376,7 @@ object DynamicIconGenerator {
         val canvas = Canvas(bitmap)
         val tierColor = scoreTierColor(normalizedScore)
 
-        val strokeWidth = size * 0.115f
-        val r = (size - strokeWidth * 2.2f) / 2f
-        val cx = size / 2f
-        val cy = size / 2f
-        val ringBounds = RectF(cx - r, cy - r, cx + r, cy + r)
-
-        val basePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(RED)
-            style = Paint.Style.STROKE
-            strokeCap = Paint.Cap.ROUND
-            this.strokeWidth = strokeWidth
-        }
-
-        val startAngle = -60f
-        val fullSweep = 300f
-
-        // 1. 빨간색 바탕 원호
-        canvas.drawArc(ringBounds, startAngle, fullSweep, false, basePaint)
-
-        // 2. 점수 비율 녹색 호
-        if (normalizedScore > 0) {
-            val scorePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor(GREEN)
-                style = Paint.Style.STROKE
-                strokeCap = Paint.Cap.ROUND
-                this.strokeWidth = strokeWidth
-            }
-            canvas.drawArc(ringBounds, startAngle, fullSweep * normalizedScore / 100f, false, scorePaint)
-        }
-
-        // 3. 중앙 수직 스템 막대
-        val stemTop = cy - r * 1.15f
-        val stemBottom = cy - r * 0.08f
-
-        val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = tierColor
-            alpha = 50
-            style = Paint.Style.STROKE
-            strokeCap = Paint.Cap.ROUND
-            this.strokeWidth = strokeWidth * 1.3f
-        }
-        canvas.drawLine(cx, stemTop, cx, stemBottom, glowPaint)
-
-        val stemPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = tierColor
-            style = Paint.Style.STROKE
-            strokeCap = Paint.Cap.ROUND
-            this.strokeWidth = strokeWidth
-        }
-        canvas.drawLine(cx, stemTop, cx, stemBottom, stemPaint)
-
+        drawFullPowerSymbol(canvas, size, normalizedScore, tierColor, isProportionMode = true)
         return bitmap
     }
 }

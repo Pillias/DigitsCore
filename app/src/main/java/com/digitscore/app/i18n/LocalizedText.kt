@@ -533,10 +533,20 @@ object UiTranslator {
         "끄면 백그라운드 서비스와 상태바 점수 알림이 즉시 종료됩니다." to "Turning this off stops background tracking and the status notification immediately.",
         "상태바 아이콘 스타일" to "Status Bar Icon Style",
         "코어 숫자형 (권장)" to "Core Number (Recommended)",
+        "코어 숫자형" to "Core Number",
+        "점수 비율형 (기본 권장)" to "Score Proportion (Default Recommended)",
         "점수 비율형" to "Score Proportion",
         "전원 단계형" to "Power Tier",
         "단계 단색형" to "Single-color Tier",
         "숫자 분리형" to "Separated Number",
+        "상단 스템을 컴팩트하게 올리고, 굵은 아웃라인 숫자를 중앙에 크게 표시합니다." to
+            "Moves the top stem up and shows a large bold outlined score in the center.",
+        "여백을 최소화한 볼드 전원 심볼에 점수 비율(빨강 바탕+녹색 호)을 채웁니다." to
+            "Fills the full-bleed bold power symbol with the score ratio (red base + green arc).",
+        "여백을 최소화한 볼드 전원 심볼 전체가 점수 구간색으로 표시됩니다." to
+            "Displays the full-bleed bold power symbol in the score tier color.",
+        "볼드 전원 심볼 옆에 고대비 외곽선 숫자를 분리하여 표시합니다." to
+            "Displays a high-contrast outlined score beside a bold power symbol.",
         "큰 점수 크기는 유지하고, 점수 구간에 맞는 고대비 단색으로 숫자와 전원 원호를 표시합니다." to
             "Keeps the large score and uses one high-contrast tier color for both the number and power arc.",
         "빨간 원호 위를 현재 점수만큼 녹색이 채웁니다. 중앙 막대는 점수 구간색으로 바뀝니다." to
