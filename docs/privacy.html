@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DigitsCore 개인정보처리방침 (Privacy Policy)</title>
+  <style>
+    :root {
+      --bg: #0B111C;
+      --card-bg: #121A29;
+      --text: #F1F5F9;
+      --text-muted: #94A3B8;
+      --accent: #35D07F;
+      --border: #1E293B;
+      --danger: #FF5A5F;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #F8FAFC;
+        --card-bg: #FFFFFF;
+        --text: #0F172A;
+        --text-muted: #64748B;
+        --accent: #059669;
+        --border: #E2E8F0;
+        --danger: #E11D48;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      padding: 24px 16px;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 36px 28px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    }
+    .header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 24px;
+      margin-bottom: 28px;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+      background: rgba(53, 208, 127, 0.12);
+      border: 1px solid rgba(53, 208, 127, 0.25);
+      padding: 4px 10px;
+      border-radius: 9999px;
+      margin-bottom: 12px;
+    }
+    h1 {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+    .date {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    h2 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-top: 32px;
+      margin-bottom: 14px;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    h2::before {
+      content: "";
+      width: 4px;
+      height: 18px;
+      background: var(--accent);
+      border-radius: 2px;
+      display: inline-block;
+    }
+    p {
+      margin-bottom: 14px;
+      font-size: 15px;
+      color: var(--text);
+    }
+    ul {
+      margin-left: 20px;
+      margin-bottom: 16px;
+    }
+    li {
+      margin-bottom: 8px;
+      font-size: 14.5px;
+      color: var(--text);
+    }
+    .highlight-box {
+      background: rgba(53, 208, 127, 0.06);
+      border: 1px solid rgba(53, 208, 127, 0.2);
+      border-radius: 12px;
+      padding: 16px;
+      margin: 20px 0;
+      font-size: 14px;
+    }
+    .highlight-box strong {
+      color: var(--accent);
+    }
+    .contact-card {
+      background: rgba(148, 163, 184, 0.08);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      margin-top: 14px;
+      font-size: 14.5px;
+    }
+    .contact-card div { margin-bottom: 6px; }
+    .contact-card div:last-child { margin-bottom: 0; }
+    .contact-card strong { color: var(--text); }
+    .lang-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+    }
+    .tab-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      background: var(--accent);
+      color: #0B111C;
+      border-color: var(--accent);
+    }
+    .en-section { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <span class="badge">DigitsCore Official Legal Document</span>
+      <h1>DigitsCore 개인정보처리방침</h1>
+      <div class="date">최종 수정일 및 시행일: 2026년 10월 3일</div>
+    </div>
+
+    <!-- Language Selector -->
+    <div class="lang-tabs">
+      <button class="tab-btn active" onclick="switchLang('ko')">한국어 (Korean)</button>
+      <button class="tab-btn" onclick="switchLang('en')">English (Summary)</button>
+    </div>
+
+    <!-- Korean Content -->
+    <div id="ko-content">
+      <div class="highlight-box">
+        <strong>핵심 요약:</strong> DigitsCore는 사용자의 사용 기록을 외부 서버로 전송하지 않습니다. 광고 SDK나 서드파티 분석 SDK가 없으며, 모든 데이터는 SQLCipher와 Android Keystore를 통해 기기 내부에서 암호화되어 로컬에서만 처리됩니다.
+      </div>
+
+      <h2>1. 처리하는 정보</h2>
+      <p>DigitsCore는 사용자가 Android의 사용 정보 접근 권한을 직접 허용한 경우 다음 정보를 기기 내부에서 읽어 처리합니다.</p>
+      <ul>
+        <li>앱 이름 및 패키지 이름</li>
+        <li>화면 ON·잠금 해제 상태에서 마지막으로 상호작용한 앱의 사용 구간·전환 시각과 분할 화면·PiP에서 함께 표시된 앱 중 점수 부하가 가장 높은 앱/등급 (30일 보관)</li>
+        <li>앱별 일일 사용시간·실행 횟수·1분 미만 실행 횟수 집계 (365일 보관)</li>
+        <li>화면이 켜진 동안 계산한 5분 단위 코어 지수 변화 표본 (30일 보관)</li>
+        <li>시간별 전체/앱 사용시간·오픈 횟수·1분 이하 실행, 점수 시작·마지막·최저·최고, 실제 감점 및 회복 집계 (365일 보관)</li>
+        <li>기기 잠금 해제 이벤트 (<code>ACTION_USER_PRESENT</code>, <code>KEYGUARD_HIDDEN</code>) 시각 및 횟수 (48시간 보관)</li>
+        <li>Android UsageEvents가 제공하는 알림 interruption 수치</li>
+        <li>사용자가 앱에서 지정한 분류, 점수 규칙, 언어·화면 모드·알림·위젯 설정</li>
+        <li>홈 위젯 재생성을 위한 마지막 코어 지수·화면시간·관리 앱 시간·언락 횟수·상태 요약</li>
+      </ul>
+
+      <h2>2. 처리 목적</h2>
+      <p>위 정보는 24시간 누적 코어 지수 계산, 분할 화면·PiP를 포함한 앱 사용 부담 산출, 앱별 시간대·세션·짧은 실행·장기 추세 통계, 잠금 해제 시간대 비교를 계산하여 <strong>앱 화면, 상태바 알림, 홈 화면 위젯에 표시하는 목적으로만</strong> 사용됩니다.</p>
+      <p>알림 내용은 일체 읽거나 저장하지 않으며 Android UsageEvents가 제공하는 통계 이벤트 수치만 비교에 사용합니다.</p>
+
+      <h2>3. 저장, 전송 및 제3자 제공 (서버 전송 없음)</h2>
+      <ul>
+        <li><strong>기기 내 로컬 암호화:</strong> 사용 기록과 설정은 기기 내부 데이터베이스에 저장되며, SQLCipher 및 Android Keystore 암호화 키로 강력하게 보호됩니다.</li>
+        <li><strong>클라우드 백업 제외:</strong> 데이터베이스, 설정 및 암호화 키 파일은 OS 자동 클라우드 백업 및 기기 간 자동 전송 대상에서 명시적으로 제외됩니다.</li>
+        <li><strong>서버 전송 및 판매 없음:</strong> DigitsCore는 사용 기록을 개발자 서버로 전송하지 않으며, 제3자에게 수집·판매하지 않습니다.</li>
+        <li><strong>광고 및 트래커 부재:</strong> 광고 SDK와 외부 분석(Analytics) SDK를 일체 탑재하지 않습니다.</li>
+        <li><strong>사용자 직접 백업:</strong> 사용자가 수동 백업 기능을 직접 실행한 경우에만, 사용자 비밀번호로 AES-256-GCM 암호화된 백업 파일이 Android 공유 시트로 생성됩니다.</li>
+      </ul>
+
+      <h2>4. 보유 및 삭제</h2>
+      <p>앱별 상세 사용 구간과 5분 단위 코어 지수 표본은 30일, 잠금 해제 이벤트는 48시간, 시간별·일별 통계 집계는 365일간 기기 내부에 보관된 후 자동 삭제됩니다.</p>
+      <p>사용자는 앱 설정의 <strong>[모든 사용 기록 즉시 삭제]</strong>를 누르거나, Android 앱 설정에서 데이터를 삭제하거나 앱을 제거하여 언제든지 모든 저장 정보를 즉시 영구 삭제할 수 있습니다.</p>
+
+      <h2>5. 사용자 권한 및 선택권</h2>
+      <ul>
+        <li>DigitsCore 설정에서 백그라운드 추적 끄기</li>
+        <li>상태바 알림에서 [추적 중지] 선택</li>
+        <li>잠금 화면에서 점수 및 사용시간 숨기기 설정</li>
+        <li>모든 사용 기록 즉시 삭제</li>
+        <li>Android 시스템 설정에서 사용 정보 접근 권한 철회</li>
+      </ul>
+
+      <h2>6. 어린이 개인정보 보호</h2>
+      <p>DigitsCore는 계정을 생성하지 않으며 사용자의 연령 정보를 수집하지 않습니다. 만 13세 미만 어린이의 개인 식별 정보를 고의로 수집하지 않습니다.</p>
+
+      <h2>7. 개발자 및 문의처</h2>
+      <div class="contact-card">
+        <div><strong>개발자 / 조직명:</strong> DsCore</div>
+        <div><strong>공식 지원 이메일:</strong> <a href="mailto:DigitsCore@gmail.com" style="color: var(--accent); text-decoration: none;">DigitsCore@gmail.com</a></div>
+        <div><strong>패키지명:</strong> com.digitscore.app</div>
+        <div><strong>공개 URL:</strong> <a href="https://pillias.github.io/DigitsCore/privacy.html" style="color: var(--accent); text-decoration: none;">https://pillias.github.io/DigitsCore/privacy.html</a></div>
+      </div>
+    </div>
+
+    <!-- English Summary Content -->
+    <div id="en-content" class="en-section">
+      <div class="highlight-box">
+        <strong>Executive Summary:</strong> DigitsCore does NOT transmit your usage data to any external server. All app usage data, unlock counts, and Core Index scores are processed and stored locally on your device with SQLCipher and Android Keystore encryption. No ads, no analytics SDKs.
+      </div>
+
+      <h2>1. Information Processed (On-Device Only)</h2>
+      <ul>
+        <li>Foreground application name and package name</li>
+        <li>Screen-on time, app usage intervals, and app switch timestamps (stored locally up to 30 days)</li>
+        <li>Daily app usage statistics and launch frequencies (stored locally up to 365 days)</li>
+        <li>Device unlock timestamps (via ACTION_USER_PRESENT, KEYGUARD_HIDDEN, stored up to 48 hours)</li>
+        <li>User-configured score preferences, themes, and notification presets</li>
+      </ul>
+
+      <h2>2. Purpose of Processing</h2>
+      <p>Data is used exclusively to compute your real-time 24-hour Core Index score, screen time analytics, and display them on the in-app dashboard, status bar notification, and home widgets.</p>
+
+      <h2>3. Storage, Transmission & Sharing (Zero Server Transmission)</h2>
+      <ul>
+        <li><strong>On-Device Encryption:</strong> Database is encrypted using SQLCipher and protected with Android Keystore.</li>
+        <li><strong>No External Transmission:</strong> DigitsCore does not operate a collection server and does not transmit, sell, or share personal data with any third party.</li>
+        <li><strong>No Ad or Analytics SDKs:</strong> The application contains zero advertising SDKs and zero third-party tracking libraries.</li>
+      </ul>
+
+      <h2>4. Data Retention and Deletion</h2>
+      <p>Users can delete all stored data immediately at any time by selecting "Delete All Records Immediately" within the app settings, or by clearing app storage / uninstalling the app in Android system settings.</p>
+
+      <h2>5. Contact Information</h2>
+      <div class="contact-card">
+        <div><strong>Developer:</strong> DsCore</div>
+        <div><strong>Support Email:</strong> <a href="mailto:DigitsCore@gmail.com" style="color: var(--accent); text-decoration: none;">DigitsCore@gmail.com</a></div>
+        <div><strong>Package Name:</strong> com.digitscore.app</div>
+        <div><strong>Official URL:</strong> <a href="https://pillias.github.io/DigitsCore/privacy.html" style="color: var(--accent); text-decoration: none;">https://pillias.github.io/DigitsCore/privacy.html</a></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function switchLang(lang) {
+      const ko = document.getElementById('ko-content');
+      const en = document.getElementById('en-content');
+      const btns = document.querySelectorAll('.tab-btn');
+      if (lang === 'ko') {
+        ko.style.display = 'block';
+        en.style.display = 'none';
+        btns[0].classList.add('active');
+        btns[1].classList.remove('active');
+      } else {
+        ko.style.display = 'none';
+        en.style.display = 'block';
+        btns[0].classList.remove('active');
+        btns[1].classList.add('active');
+      }
+    }
+  </script>
+</body>
+</html>
