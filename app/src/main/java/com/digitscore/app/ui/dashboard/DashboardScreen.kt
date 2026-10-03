@@ -124,9 +124,13 @@ fun DashboardScreen(
     val rollingUsageSummary by viewModel.rollingUsageSummary.collectAsState()
     val unlockCount by viewModel.unlockCount.collectAsState()
     val guidance by viewModel.coreIndexGuidance.collectAsState()
-
-    val sampleCutoff = remember { System.currentTimeMillis() - 24 * 3600 * 1000L }
-    val todaySamples by remember { db.coreIndexSampleDao().observeSince(sampleCutoff) }.collectAsState(emptyList())
+    val todayStart = remember {
+        java.time.LocalDate.now(java.time.ZoneId.systemDefault())
+            .atStartOfDay(java.time.ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+    }
+    val todaySamples by remember { db.coreIndexSampleDao().observeSince(todayStart) }.collectAsState(emptyList())
 
     // 모달 / 다이얼로그 상태 관리
     var showScoreDetailModal by remember { mutableStateOf(false) }
@@ -442,6 +446,12 @@ private fun TodayCoreIndexSparklineCard(
     samples: List<CoreIndexSampleEntity>,
     onClick: () -> Unit
 ) {
+    val context = LocalContext.current
+    val zone = remember { java.time.ZoneId.systemDefault() }
+    val todayStart = remember {
+        java.time.LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli()
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -462,14 +472,17 @@ private fun TodayCoreIndexSparklineCard(
             ) {
                 Column {
                     Text(
-                        text = "최근 24시간 코어 지수 변화",
+                        text = "오늘 하루 코어 지수 변화",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
+                    val firstScore = samples.firstOrNull()?.score ?: currentScore
+                    val diff = currentScore - firstScore
+                    val diffStr = if (diff > 0) "+${diff}점" else if (diff < 0) "${diff}점" else "0점"
                     val minScore = samples.minOfOrNull { it.score } ?: currentScore
                     val maxScore = samples.maxOfOrNull { it.score } ?: currentScore
                     Text(
-                        text = "최저 ${minScore}점 · 최고 ${maxScore}점 · 현재 ${currentScore}점",
+                        text = "오늘 시작 ${firstScore}점 → 현재 ${currentScore}점 (${diffStr}) · 최고 ${maxScore}점",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -485,14 +498,22 @@ private fun TodayCoreIndexSparklineCard(
             }
 
             val primaryColor = MaterialTheme.colorScheme.primary
-            val gridColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+            val gridColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)
+
+            // Dynamic Y scale matching StatisticsExplorer
+            val allScores = (samples.map { it.exactScore } + currentScore.toDouble()).filter { it > 0.0 }
+            val minVal = allScores.minOrNull() ?: 50.0
+            val maxVal = allScores.maxOrNull() ?: 80.0
+            val span = maxOf(20.0, maxVal - minVal + 10.0)
+            val low = ((minVal + maxVal - span) / 2.0).coerceIn(0.0, (100.0 - span).coerceAtLeast(0.0))
+            val high = (low + span).coerceAtMost(100.0)
 
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(96.dp)
                     .semantics {
-                        contentDescription = "최근 24시간 코어 지수 변화 차트, 현재 ${currentScore}점"
+                        contentDescription = "오늘 하루 코어 지수 변화 차트, 현재 ${currentScore}점"
                     }
             ) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
@@ -502,30 +523,32 @@ private fun TodayCoreIndexSparklineCard(
                     val bottomPadding = 8f
                     val chartH = h - topPadding - bottomPadding
 
-                    // Reference guide lines for 50, 75, 90
-                    val guideScores = listOf(50, 75, 90)
-                    for (gScore in guideScores) {
-                        val y = topPadding + chartH * (1f - (gScore - 40f) / 60f)
+                    fun yPos(score: Double): Float =
+                        topPadding + chartH * (1f - ((score - low) / (high - low).coerceAtLeast(1.0)).toFloat())
+
+                    // Reference guide lines at low, mid, high
+                    listOf(low, (low + high) / 2.0, high).forEach { gVal ->
+                        val y = yPos(gVal)
                         drawLine(
                             color = gridColor,
                             start = Offset(0f, y),
                             end = Offset(w, y),
-                            strokeWidth = 1f
+                            strokeWidth = 1.dp.toPx()
                         )
                     }
 
-                    if (samples.size >= 2) {
-                        val minTs = samples.first().timestampMillis
-                        val maxTs = samples.last().timestampMillis
-                        val tsRange = (maxTs - minTs).coerceAtLeast(1L).toFloat()
+                    val nowMillis = System.currentTimeMillis()
+                    val duration = (nowMillis - todayStart).coerceAtLeast(60_000L).toDouble()
+                    fun xPos(ts: Long): Float =
+                        (((ts - todayStart).toDouble() / duration).coerceIn(0.0, 1.0) * w).toFloat()
 
+                    if (samples.size >= 2) {
                         val path = Path()
                         val fillPath = Path()
 
                         samples.forEachIndexed { i, s ->
-                            val x = ((s.timestampMillis - minTs) / tsRange) * w
-                            val normalizedScore = ((s.score - 40f) / 60f).coerceIn(0f, 1f)
-                            val y = topPadding + chartH * (1f - normalizedScore)
+                            val x = xPos(s.timestampMillis)
+                            val y = yPos(s.exactScore)
 
                             if (i == 0) {
                                 path.moveTo(x, y)
@@ -537,7 +560,9 @@ private fun TodayCoreIndexSparklineCard(
                             }
                         }
 
-                        fillPath.lineTo(w, h - bottomPadding)
+                        val lastSample = samples.last()
+                        val lastX = xPos(lastSample.timestampMillis)
+                        fillPath.lineTo(lastX, h - bottomPadding)
                         fillPath.close()
 
                         drawPath(
@@ -558,17 +583,14 @@ private fun TodayCoreIndexSparklineCard(
                             style = Stroke(width = 2.5f.dp.toPx(), cap = StrokeCap.Round)
                         )
 
-                        val lastSample = samples.last()
-                        val lastX = w
-                        val lastY = topPadding + chartH * (1f - ((lastSample.score - 40f) / 60f).coerceIn(0f, 1f))
+                        val lastY = yPos(lastSample.exactScore)
                         drawCircle(
                             color = primaryColor,
                             radius = 3.5f.dp.toPx(),
                             center = Offset(lastX, lastY)
                         )
                     } else {
-                        val normalizedScore = ((currentScore - 40f) / 60f).coerceIn(0f, 1f)
-                        val y = topPadding + chartH * (1f - normalizedScore)
+                        val y = yPos(currentScore.toDouble())
                         drawLine(
                             color = primaryColor,
                             start = Offset(0f, y),
@@ -584,12 +606,17 @@ private fun TodayCoreIndexSparklineCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "24시간 전",
+                    text = "00:00",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.outline
                 )
                 Text(
-                    text = "12시간 전",
+                    text = "06:00",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                Text(
+                    text = "12:00",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.outline
                 )
@@ -712,7 +739,8 @@ private fun ScoreGaugeCard(
                     CoreIndexGauge(
                         score = score,
                         grade = gradeText,
-                        modifier = Modifier.size(140.dp)
+                        modifier = Modifier.width(110.dp),
+                        iconSize = 64.dp
                     )
                     ScoreGaugeSummary(
                         rollingScore = rollingScore,
@@ -728,7 +756,8 @@ private fun ScoreGaugeCard(
                     CoreIndexGauge(
                         score = score,
                         grade = gradeText,
-                        modifier = Modifier.size(112.dp)
+                        modifier = Modifier.width(88.dp),
+                        iconSize = 48.dp
                     )
                     Column(
                         modifier = Modifier.weight(1f),

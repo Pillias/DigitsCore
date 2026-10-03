@@ -91,7 +91,21 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
     var allApps by remember { mutableStateOf(false) }
     var zoom by remember { mutableFloatStateOf(1f) }
     var showHelp by remember { mutableStateOf(false) }
-    BackHandler(enabled = selectedDay != null && selectedApp == null) { selectedDay = null; selectedTime = null }
+    var navigatedFromOverview by remember { mutableStateOf(false) }
+
+    val handleBack: () -> Unit = {
+        when {
+            selectedApp != null -> selectedApp = null
+            selectedTime != null -> selectedTime = null
+            selectedDay != null && navigatedFromOverview -> {
+                selectedDay = null
+                navigatedFromOverview = false
+            }
+            else -> onNavigateBack()
+        }
+    }
+
+    BackHandler(onBack = handleBack)
     val liveScore by ScoreRepository.rollingScoreDetail.collectAsState()
     LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(60_000) } }
 
@@ -173,7 +187,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
 
     Scaffold(topBar = {
         TopAppBar(title = { Text(if (selectedDay != null) selectedDay.toString() else label("사용 통계", "Usage statistics"), fontWeight = FontWeight.Bold) },
-            navigationIcon = { IconButton(onClick = { if (selectedDay != null) { selectedDay = null; selectedTime = null } else onNavigateBack() }) {
+            navigationIcon = { IconButton(onClick = handleBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, label("뒤로", "Back"))
             } }, actions = { TextButton(onClick = { showHelp = true }) { Text(label("읽는 법", "Guide")) } })
     }) { padding ->
@@ -227,6 +241,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                             if (!isDay) TextButton(onClick = {
                                 selectedDay = Instant.ofEpochMilli(selected.start).atZone(zone).toLocalDate()
                                 selectedTime = null; zoom = 1f
+                                navigatedFromOverview = true
                             }) { Text(label("이날 자세히 보기 ›", "Explore this day ›")) }
                         }
                     } else Text(label("좌우로 부드럽게 스크롤 · 터치하여 시점 선택 · 두 손가락으로 확대", "Smooth horizontal scroll · tap to inspect · pinch to zoom"),
@@ -270,7 +285,11 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                     Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "다음 날")
                                 }
                             }
-                            TextButton(onClick = { selectedDay = null; selectedTime = null }) {
+                            TextButton(onClick = {
+                                selectedDay = null
+                                selectedTime = null
+                                navigatedFromOverview = true
+                            }) {
                                 Text(label("4주 전체 보기 ↺", "4-Week View ↺"))
                             }
                         } else {
@@ -279,7 +298,11 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            TextButton(onClick = { selectedDay = LocalDate.now(zone); selectedTime = null }) {
+                            TextButton(onClick = {
+                                selectedDay = LocalDate.now(zone)
+                                selectedTime = null
+                                navigatedFromOverview = true
+                            }) {
                                 Text(label("오늘 하루 보기 ›", "Today's View ›"))
                             }
                         }
