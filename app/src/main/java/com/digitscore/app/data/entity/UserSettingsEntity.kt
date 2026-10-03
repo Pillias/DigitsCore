@@ -37,7 +37,7 @@ data class UserSettingsEntity(
     val isNotificationEnabled: Boolean = true,
     val appHistoryRetentionDays: Int = 365,
     val hideSensitiveNotificationOnLockScreen: Boolean = true,
-    val statusIconStyleId: String = "big_number",
+    val statusIconStyleId: String = "score_proportion",
     val widgetBackgroundStyleId: String = "dark",
     val isRapidUsageAlertEnabled: Boolean = true,
     val usePresetRapidAlertDefaults: Boolean = true,

@@ -8,6 +8,6 @@ enum class StatusIconStyle(val id: String) {
 
     companion object {
         fun fromId(id: String?): StatusIconStyle =
-            entries.firstOrNull { it.id == id } ?: BIG_NUMBER
+            entries.firstOrNull { it.id == id } ?: SCORE_PROPORTION
     }
 }

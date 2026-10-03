@@ -5,9 +5,9 @@ import org.junit.Test
 
 class StatusIconStyleTest {
     @Test
-    fun `unknown and missing style safely use large number style`() {
-        assertEquals(StatusIconStyle.BIG_NUMBER, StatusIconStyle.fromId(null))
-        assertEquals(StatusIconStyle.BIG_NUMBER, StatusIconStyle.fromId("unknown"))
+    fun `unknown and missing style safely use proportion style`() {
+        assertEquals(StatusIconStyle.SCORE_PROPORTION, StatusIconStyle.fromId(null))
+        assertEquals(StatusIconStyle.SCORE_PROPORTION, StatusIconStyle.fromId("unknown"))
     }
 
     @Test

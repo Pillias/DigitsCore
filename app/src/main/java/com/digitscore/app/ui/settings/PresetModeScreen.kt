@@ -918,8 +918,8 @@ fun PresetModeScreen(
                         ) {
                             OutlinedTextField(
                                 value = UiTranslator.translate(when (selectedIconStyle) {
-                                    StatusIconStyle.BIG_NUMBER -> "코어 숫자형 (권장)"
-                                    StatusIconStyle.SCORE_PROPORTION -> "점수 비율형"
+                                    StatusIconStyle.SCORE_PROPORTION -> "점수 비율형 (기본 권장)"
+                                    StatusIconStyle.BIG_NUMBER -> "코어 숫자형"
                                     StatusIconStyle.SCORE_TIER -> "전원 단계형"
                                     StatusIconStyle.NUMBER_FOCUS -> "숫자 분리형"
                                 }),
@@ -935,9 +935,9 @@ fun PresetModeScreen(
                                 onDismissRequest = { isStatusIconMenuExpanded = false }
                             ) {
                                 listOf(
-                                    StatusIconStyle.BIG_NUMBER to "코어 숫자형 (권장)",
+                                    StatusIconStyle.SCORE_PROPORTION to "점수 비율형 (기본 권장)",
+                                    StatusIconStyle.BIG_NUMBER to "코어 숫자형",
                                     StatusIconStyle.SCORE_TIER to "전원 단계형",
-                                    StatusIconStyle.SCORE_PROPORTION to "점수 비율형",
                                     StatusIconStyle.NUMBER_FOCUS to "숫자 분리형"
                                 ).forEach { (style, label) ->
                                     DropdownMenuItem(

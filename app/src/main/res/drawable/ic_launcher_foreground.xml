@@ -21,11 +21,11 @@
         android:strokeLineCap="round"
         android:strokeWidth="8" />
 
-    <!-- 위쪽 원호 끝과 좌우 대칭을 이루는 고정 전원 막대 -->
+    <!-- 위쪽 원호 끝과 좌우 대칭을 이루는 고정 전원 막대 (녹색 일체화) -->
     <path
         android:fillColor="#00000000"
         android:pathData="M54,24 L54,50"
-        android:strokeColor="#FFFFFF"
+        android:strokeColor="#35D07F"
         android:strokeLineCap="round"
         android:strokeWidth="8" />
 </vector>

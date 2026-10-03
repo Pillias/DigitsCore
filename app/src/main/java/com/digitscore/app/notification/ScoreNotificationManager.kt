@@ -181,7 +181,7 @@ object ScoreNotificationManager {
         }
         val expanded = listOfNotNull(body, recovery).joinToString("\n")
         val notification = NotificationCompat.Builder(context, SOFT_GUIDANCE_CHANNEL_ID)
-            .setSmallIcon(DynamicIconGenerator.createScoreIconCompat(context, score, StatusIconStyle.BIG_NUMBER))
+            .setSmallIcon(DynamicIconGenerator.createScoreIconCompat(context, score, StatusIconStyle.SCORE_PROPORTION))
             .setColor(DynamicIconGenerator.statusIconScoreColor(context, score))
             .setContentTitle(strings.getString(R.string.rapid_alert_title, score))
             .setContentText(body)
@@ -201,7 +201,7 @@ object ScoreNotificationManager {
         unlockCount: Int,
         hideSensitiveOnLockScreen: Boolean = true,
         rollingScoreDetail: RollingScoreDetail? = null,
-        statusIconStyle: StatusIconStyle = StatusIconStyle.BIG_NUMBER,
+        statusIconStyle: StatusIconStyle = StatusIconStyle.SCORE_PROPORTION,
         guidance: CoreIndexGuidance? = null
     ): Notification {
         val strings = AppLocale.stringsContext(context)
@@ -302,7 +302,7 @@ object ScoreNotificationManager {
         unlockCount: Int,
         hideSensitiveOnLockScreen: Boolean = true,
         rollingScoreDetail: RollingScoreDetail? = null,
-        statusIconStyle: StatusIconStyle = StatusIconStyle.BIG_NUMBER,
+        statusIconStyle: StatusIconStyle = StatusIconStyle.SCORE_PROPORTION,
         guidance: CoreIndexGuidance? = null
     ) {
         val notification = buildScoreNotification(

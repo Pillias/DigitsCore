@@ -23,7 +23,7 @@ object DynamicIconGenerator {
     fun createScoreBitmapIcon(
         context: Context,
         score: Int,
-        style: StatusIconStyle = StatusIconStyle.BIG_NUMBER
+        style: StatusIconStyle = StatusIconStyle.SCORE_PROPORTION
     ): Bitmap {
         val normalizedScore = score.coerceIn(0, 100)
         val density = context.resources.displayMetrics.density
@@ -239,6 +239,6 @@ object DynamicIconGenerator {
     fun createScoreIconCompat(
         context: Context,
         score: Int,
-        style: StatusIconStyle = StatusIconStyle.BIG_NUMBER
+        style: StatusIconStyle = StatusIconStyle.SCORE_PROPORTION
     ): IconCompat = IconCompat.createWithBitmap(createScoreBitmapIcon(context, score, style))
 }

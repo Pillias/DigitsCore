@@ -94,6 +94,12 @@ import com.digitscore.app.ui.theme.ScoreGreen
 import com.digitscore.app.ui.theme.ScoreOrange
 import com.digitscore.app.ui.theme.ScoreRed
 import com.digitscore.app.ui.theme.ScoreYellow
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
+import com.digitscore.app.ui.components.coreIndexTierColor
 import com.digitscore.app.ui.components.DetailChevron
 import com.digitscore.app.ui.components.CoreIndexGauge
 import com.digitscore.app.ui.components.InformationDetailDialog
@@ -486,6 +492,31 @@ private fun TodayCoreIndexSparklineCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    val headerTierColor = coreIndexTierColor(currentScore)
+                    val grade = ScoreGrade.fromScore(currentScore)
+                    Row(
+                        modifier = Modifier.padding(top = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .background(headerTierColor, CircleShape)
+                        )
+                        val zoneDesc = when {
+                            currentScore >= 80 -> "안정 구간"
+                            currentScore >= 60 -> "보통 구간"
+                            currentScore >= 40 -> "주의 구간"
+                            else -> "하위 위험 구간"
+                        }
+                        Text(
+                            text = "현재 ${currentScore}점 · ${grade.gradeText} ($zoneDesc)",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = headerTierColor
+                        )
+                    }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -497,21 +528,14 @@ private fun TodayCoreIndexSparklineCard(
                 }
             }
 
-            val primaryColor = MaterialTheme.colorScheme.primary
-            val gridColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)
+            val tierColor = coreIndexTierColor(currentScore)
+            val textMeasurer = rememberTextMeasurer()
 
-            // Dynamic Y scale matching StatisticsExplorer
-            val allScores = (samples.map { it.exactScore } + currentScore.toDouble()).filter { it > 0.0 }
-            val minVal = allScores.minOrNull() ?: 50.0
-            val maxVal = allScores.maxOrNull() ?: 80.0
-            val span = maxOf(20.0, maxVal - minVal + 10.0)
-            val low = ((minVal + maxVal - span) / 2.0).coerceIn(0.0, (100.0 - span).coerceAtLeast(0.0))
-            val high = (low + span).coerceAtMost(100.0)
-
+            // 0~100점 절대 척도 적용: 100점/표준점수 대비 현재 위치를 직관적으로 파악
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(96.dp)
+                    .height(116.dp)
                     .semantics {
                         contentDescription = "오늘 하루 코어 지수 변화 차트, 현재 ${currentScore}점"
                     }
@@ -519,23 +543,92 @@ private fun TodayCoreIndexSparklineCard(
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val w = size.width
                     val h = size.height
-                    val topPadding = 8f
-                    val bottomPadding = 8f
+                    val topPadding = 12f
+                    val bottomPadding = 12f
                     val chartH = h - topPadding - bottomPadding
 
                     fun yPos(score: Double): Float =
-                        topPadding + chartH * (1f - ((score - low) / (high - low).coerceAtLeast(1.0)).toFloat())
+                        topPadding + chartH * (1f - (score / 100.0).toFloat().coerceIn(0f, 1f))
 
-                    // Reference guide lines at low, mid, high
-                    listOf(low, (low + high) / 2.0, high).forEach { gVal ->
-                        val y = yPos(gVal)
-                        drawLine(
-                            color = gridColor,
-                            start = Offset(0f, y),
-                            end = Offset(w, y),
-                            strokeWidth = 1.dp.toPx()
+                    val y100 = yPos(100.0)
+                    val y80 = yPos(80.0)
+                    val y60 = yPos(60.0)
+                    val y40 = yPos(40.0)
+                    val y0 = yPos(0.0)
+
+                    // 4단계 표준 배경 컬러 밴드 (Zones)
+                    // 80~100점: 안정/최상 (ScoreGreen)
+                    drawRect(
+                        color = ScoreGreen.copy(alpha = 0.07f),
+                        topLeft = Offset(0f, y100),
+                        size = Size(w, y80 - y100)
+                    )
+                    // 60~80점: 보통 (ScoreYellow)
+                    drawRect(
+                        color = ScoreYellow.copy(alpha = 0.04f),
+                        topLeft = Offset(0f, y80),
+                        size = Size(w, y60 - y80)
+                    )
+                    // 40~60점: 주의 (ScoreOrange)
+                    drawRect(
+                        color = ScoreOrange.copy(alpha = 0.05f),
+                        topLeft = Offset(0f, y60),
+                        size = Size(w, y40 - y60)
+                    )
+                    // 0~40점: 위험/집중 관리 (ScoreRed)
+                    drawRect(
+                        color = ScoreRed.copy(alpha = 0.08f),
+                        topLeft = Offset(0f, y40),
+                        size = Size(w, y0 - y40)
+                    )
+
+                    val dashEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f), 0f)
+
+                    // 80점 표준 안정 기준선 (Dashed Green)
+                    drawLine(
+                        color = ScoreGreen.copy(alpha = 0.45f),
+                        start = Offset(0f, y80),
+                        end = Offset(w, y80),
+                        strokeWidth = 1.2f.dp.toPx(),
+                        pathEffect = dashEffect
+                    )
+                    drawText(
+                        textMeasurer = textMeasurer,
+                        text = "80 안정",
+                        topLeft = Offset(w - 44.dp.toPx(), y80 - 13.sp.toPx()),
+                        style = TextStyle(
+                            color = ScoreGreen.copy(alpha = 0.85f),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold
                         )
-                    }
+                    )
+
+                    // 60점 보통 경계선
+                    drawLine(
+                        color = ScoreYellow.copy(alpha = 0.25f),
+                        start = Offset(0f, y60),
+                        end = Offset(w, y60),
+                        strokeWidth = 0.8f.dp.toPx()
+                    )
+
+                    // 40점 위험 경계선 (Dashed Red)
+                    drawLine(
+                        color = ScoreRed.copy(alpha = 0.45f),
+                        start = Offset(0f, y40),
+                        end = Offset(w, y40),
+                        strokeWidth = 1.2f.dp.toPx(),
+                        pathEffect = dashEffect
+                    )
+                    drawText(
+                        textMeasurer = textMeasurer,
+                        text = "40 위험",
+                        topLeft = Offset(w - 44.dp.toPx(), y40 - 13.sp.toPx()),
+                        style = TextStyle(
+                            color = ScoreRed.copy(alpha = 0.85f),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
 
                     val nowMillis = System.currentTimeMillis()
                     val duration = (nowMillis - todayStart).coerceAtLeast(60_000L).toDouble()
@@ -565,34 +658,42 @@ private fun TodayCoreIndexSparklineCard(
                         fillPath.lineTo(lastX, h - bottomPadding)
                         fillPath.close()
 
+                        // 점수 상태에 맞춘 그라데이션 채움
                         drawPath(
                             path = fillPath,
                             brush = Brush.verticalGradient(
                                 colors = listOf(
-                                    primaryColor.copy(alpha = 0.22f),
-                                    Color.Transparent
+                                    tierColor.copy(alpha = 0.28f),
+                                    tierColor.copy(alpha = 0.02f)
                                 ),
                                 startY = topPadding,
                                 endY = h - bottomPadding
                             )
                         )
 
+                        // 점수 상태에 맞춘 메인 라인
                         drawPath(
                             path = path,
-                            color = primaryColor,
+                            color = tierColor,
                             style = Stroke(width = 2.5f.dp.toPx(), cap = StrokeCap.Round)
                         )
 
                         val lastY = yPos(lastSample.exactScore)
+                        // 마지막 포인트 외곽 발광 원 및 중심 원
                         drawCircle(
-                            color = primaryColor,
+                            color = tierColor.copy(alpha = 0.25f),
+                            radius = 7.dp.toPx(),
+                            center = Offset(lastX, lastY)
+                        )
+                        drawCircle(
+                            color = tierColor,
                             radius = 3.5f.dp.toPx(),
                             center = Offset(lastX, lastY)
                         )
                     } else {
                         val y = yPos(currentScore.toDouble())
                         drawLine(
-                            color = primaryColor,
+                            color = tierColor,
                             start = Offset(0f, y),
                             end = Offset(w, y),
                             strokeWidth = 2.dp.toPx()
