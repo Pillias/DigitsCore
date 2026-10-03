@@ -8,11 +8,15 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.digitscore.app.data.*
 import com.digitscore.app.data.entity.AppWeightEntity
 import com.digitscore.app.model.AppCategoryType
@@ -40,20 +44,39 @@ fun WakeEvidenceSettings() {
         TrackerForegroundService.refreshNotification(context)
     }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { save(it) }
-    Card(Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(if (english) "Wake detection · Adaptive steps" else "기상 판단 · 적응형 걸음 보조")
-            Text(if (!available) {
-                if (english) "No step counter available. Usage-pattern detection still works." else "걸음 센서가 없습니다. 사용 패턴 기준 판단은 계속 동작합니다."
-            } else if (english) {
-                "Waking is detected when reaching $threshold steps in 15 minutes (auto-calibrated to 2/3 of your pattern; $samples day(s) recorded). No location or raw step history is stored."
-            } else {
-                "아침 15분 내 ${threshold}걸음 감지 시 기상 보조 근거로 사용합니다. (3일 이상 측정 시 평소 기상 걸음의 2/3으로 자동 최적화, 현재 ${samples}일 학습됨) 위치나 이동 궤적은 일절 저장하지 않습니다."
-            })
-            Switch(enabled = available, checked = enabled, onCheckedChange = { value ->
-                if (value && Build.VERSION.SDK_INT >= 29) permission.launch(Manifest.permission.ACTIVITY_RECOGNITION)
-                else save(value)
-            })
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (english) "Wake detection · Adaptive steps" else "기상 판단 · 적응형 걸음 보조",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+                Switch(enabled = available, checked = enabled, onCheckedChange = { value ->
+                    if (value && Build.VERSION.SDK_INT >= 29) permission.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                    else save(value)
+                })
+            }
+            Text(
+                text = if (!available) {
+                    if (english) "No step counter available. Usage-pattern detection still works." else "걸음 센서가 없습니다. 사용 패턴 기준 판단은 계속 동작합니다."
+                } else if (english) {
+                    "Waking is detected when reaching $threshold steps in 15 minutes (auto-calibrated to 2/3 of your pattern; $samples day(s) recorded). No location or raw step history is stored."
+                } else {
+                    "아침 15분 내 ${threshold}걸음 감지 시 기상 보조 근거로 사용합니다. (3일 이상 측정 시 평소 기상 걸음의 2/3으로 자동 최적화, 현재 ${samples}일 학습됨) 위치나 이동 궤적은 일절 저장하지 않습니다."
+                },
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.outline,
+                lineHeight = 16.sp
+            )
         }
     }
 }
@@ -99,60 +122,129 @@ fun HabitReviewCard(score: Int, apps: List<AppUsage>) {
         }
     }
     if (morning) {
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(if (english) "Morning check-in · Core Index $score" else "아침 브리핑 · 코어 지수 $score")
-                Text(if (english) "Ready to start your day? Awake breaks can restore your index; estimated sleep holds recovery. No time entry needed."
-                    else "이제 활동을 시작하나요? 활동 중 휴식은 회복에 반영하고, 수면으로 추정한 휴식은 회복을 보류합니다. 시간을 입력할 필요는 없습니다.")
-                Row {
-                    TextButton(onClick = { scope.launch {
-                        CumulativeScoreStore.confirmActivity(db, System.currentTimeMillis(), true)
-                        revision++; TrackerForegroundService.refreshNotification(context)
-                    } }) { Text(if (english) "Start my day" else "활동 시작") }
-                    TextButton(onClick = { scope.launch {
-                        CumulativeScoreStore.confirmActivity(db, System.currentTimeMillis(), false)
-                        revision++; TrackerForegroundService.refreshNotification(context)
-                    } }) { Text(if (english) "Still resting" else "아직 쉬는 중") }
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = if (english) "Morning check-in · Core Index $score" else "아침 브리핑 · 코어 지수 $score",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = if (english) "Ready to start your day? Awake breaks can restore your index; estimated sleep holds recovery. No time entry needed."
+                        else "이제 활동을 시작하나요? 활동 중 휴식은 회복에 반영하고, 수면으로 추정한 휴식은 회복을 보류합니다. 시간을 입력할 필요는 없습니다.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 16.sp
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { scope.launch {
+                            CumulativeScoreStore.confirmActivity(db, System.currentTimeMillis(), true)
+                            revision++; TrackerForegroundService.refreshNotification(context)
+                        } },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) { Text(if (english) "Start my day" else "활동 시작", fontSize = 13.sp) }
+                    OutlinedButton(
+                        onClick = { scope.launch {
+                            CumulativeScoreStore.confirmActivity(db, System.currentTimeMillis(), false)
+                            revision++; TrackerForegroundService.refreshNotification(context)
+                        } },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) { Text(if (english) "Still resting" else "아직 쉬는 중", fontSize = 13.sp) }
                 }
                 if (hasStepSensor) {
                     val threshold = remember(steps, revision) { com.digitscore.app.service.WakeStepAdaptiveManager.getThreshold(context) }
-                    Text(if (english) "Optional: Waking is assisted when reaching $threshold steps in 15 minutes (auto-calibrated to 2/3 of your pattern). No location is saved."
-                        else "선택: 15분 안에 ${threshold}걸음 감지 시 기상 보조 근거로 사용합니다. (패턴의 2/3으로 자동 조정) 위치 정보는 저장하지 않습니다.")
-                    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                        Text(if (english) "Use step evidence" else "걸음 보조 판단")
-                        Switch(checked = steps, onCheckedChange = { enabled ->
-                            if (enabled && Build.VERSION.SDK_INT >= 29) permission.launch(Manifest.permission.ACTIVITY_RECOGNITION)
-                            else setSteps(enabled)
-                        })
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (english) "Use step evidence" else "걸음 보조 판단",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp
+                            )
+                            Text(
+                                text = if (english) "Waking is assisted when reaching $threshold steps in 15 min."
+                                    else "15분 안에 ${threshold}걸음 감지 시 기상 보조로 사용",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                        Switch(
+                            checked = steps,
+                            onCheckedChange = { enabled ->
+                                if (enabled && Build.VERSION.SDK_INT >= 29) permission.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                                else setSteps(enabled)
+                            }
+                        )
                     }
                 }
             }
         }
     }
     suggestion?.let { app ->
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(if (english) "Manage ${app.appName}?" else "${app.appName}을 관리 앱으로 바꿀까요?")
-                Text(if (english) "Used for at least 90 minutes on 3 days this week. Changes apply to future scoring only."
-                    else "최근 7일 중 3일 이상 90분 넘게 사용했습니다. 변경 후 사용부터 점수에 반영합니다.")
-                Row {
-                    TextButton(onClick = { scope.launch {
-                        val old = db.appDao().getAppWeight(app.packageName)
-                        db.appDao().insertOrUpdateAppWeight((old ?: AppWeightEntity(app.packageName, app.appName,
-                            AppCategoryType.NEUTRAL)).copy(categoryType = AppCategoryType.DISTRACTING, isUserModified = true))
-                        CumulativeScoreStore.snoozeSuggestion(db, app.packageName, Long.MAX_VALUE)
-                        revision++; TrackerForegroundService.refreshNotification(context)
-                    } }) { Text(if (english) "Manage" else "관리로 변경") }
-                    TextButton(onClick = { scope.launch {
-                        val old = db.appDao().getAppWeight(app.packageName)
-                        db.appDao().insertOrUpdateAppWeight((old ?: AppWeightEntity(app.packageName, app.appName,
-                            AppCategoryType.NEUTRAL)).copy(categoryType = AppCategoryType.NEUTRAL, isUserModified = true))
-                        CumulativeScoreStore.snoozeSuggestion(db, app.packageName, Long.MAX_VALUE); revision++
-                        TrackerForegroundService.refreshNotification(context)
-                    } }) { Text(if (english) "Keep general" else "일반 유지") }
-                    TextButton(onClick = { scope.launch {
-                        CumulativeScoreStore.snoozeSuggestion(db, app.packageName, System.currentTimeMillis() + 7 * 86_400_000L); revision++
-                    } }) { Text(if (english) "Later" else "나중에") }
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = if (english) "Manage ${app.appName}?" else "${app.appName}을 관리 앱으로 바꿀까요?",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = if (english) "Used for at least 90 minutes on 3 days this week. Changes apply to future scoring only."
+                        else "최근 7일 중 3일 이상 90분 넘게 사용했습니다. 변경 후 사용부터 점수에 반영합니다.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 16.sp
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(
+                        onClick = { scope.launch {
+                            val old = db.appDao().getAppWeight(app.packageName)
+                            db.appDao().insertOrUpdateAppWeight((old ?: AppWeightEntity(app.packageName, app.appName,
+                                AppCategoryType.NEUTRAL)).copy(categoryType = AppCategoryType.DISTRACTING, isUserModified = true))
+                            CumulativeScoreStore.snoozeSuggestion(db, app.packageName, Long.MAX_VALUE)
+                            revision++; TrackerForegroundService.refreshNotification(context)
+                        } },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) { Text(if (english) "Manage" else "관리로 변경", fontSize = 12.sp) }
+                    OutlinedButton(
+                        onClick = { scope.launch {
+                            val old = db.appDao().getAppWeight(app.packageName)
+                            db.appDao().insertOrUpdateAppWeight((old ?: AppWeightEntity(app.packageName, app.appName,
+                                AppCategoryType.NEUTRAL)).copy(categoryType = AppCategoryType.NEUTRAL, isUserModified = true))
+                            CumulativeScoreStore.snoozeSuggestion(db, app.packageName, Long.MAX_VALUE); revision++
+                            TrackerForegroundService.refreshNotification(context)
+                        } },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) { Text(if (english) "Keep general" else "일반 유지", fontSize = 12.sp) }
+                    TextButton(
+                        onClick = { scope.launch {
+                            CumulativeScoreStore.snoozeSuggestion(db, app.packageName, System.currentTimeMillis() + 7 * 86_400_000L); revision++
+                        } }
+                    ) { Text(if (english) "Later" else "나중에", fontSize = 12.sp) }
                 }
             }
         }

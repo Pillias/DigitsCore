@@ -218,7 +218,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                         Legend(MaterialTheme.colorScheme.primary, label("일반 사용", "General"))
                         Spacer(Modifier.width(12.dp)); Legend(ScoreRed, label("관리 사용", "Managed"))
                         Spacer(Modifier.weight(1f))
-                        TextButton(onClick = { showUnlocks = !showUnlocks }) { Text(if (showUnlocks) label("잠금 해제 ▾", "Unlocks ▾") else label("앱 오픈 ▾", "App opens ▾")) }
+                        TextButton(onClick = { showUnlocks = !showUnlocks }) { Text(if (showUnlocks) label("잠금 해제 ▾", "Unlocks ▾") else label("앱 실행 ▾", "App opens ▾")) }
                     }
                     if (selected != null) {
                         SelectionReadout(selected, showUnlocks)
@@ -254,7 +254,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             val countsKnown = apps.isNotEmpty() || summaryBuckets.any { it.opens != null }
                             SmallMetric(label("화면", "Screen"), summaryBuckets.mapNotNull { it.usage }.takeIf { it.isNotEmpty() }?.sum()?.let(::minutes) ?: "—")
-                            SmallMetric(label("앱 오픈", "App opens"), if (countsKnown) apps.sumOf { it.opens }.toString() else "—")
+                            SmallMetric(label("앱 실행", "App opens"), if (countsKnown) apps.sumOf { it.opens }.toString() else "—")
                             SmallMetric(label("1분 이하", "≤1 min"), if (countsKnown) apps.sumOf { it.shortOpens }.toString() else "—")
                         }
                         val top = apps.maxByOrNull { it.usage }
@@ -268,7 +268,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                     Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(label("앱별 요약", "Apps at a glance"), fontWeight = FontWeight.Bold, fontSize = 20.sp)
                         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf(label("사용시간", "Usage"), label("점수 영향", "Score impact"), label("오픈 횟수", "Opens")).forEachIndexed { index, text ->
+                            listOf(label("사용시간", "Usage"), label("점수 영향", "Score impact"), label("실행 횟수", "Opens")).forEachIndexed { index, text ->
                                 FilterChip(ranking == index, { ranking = index; allApps = false }, label = { Text(text) })
                             }
                         }
@@ -296,7 +296,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
     selectedApp?.let { app -> AppPeriodDialog(app, buckets, visibleUsage, start, end, daily) { selectedApp = null } }
     if (showHelp) AlertDialog(onDismissRequest = { showHelp = false }, confirmButton = { TextButton(onClick = { showHelp = false }) { Text(label("닫기", "Close")) } },
         title = { Text(label("차트 읽는 법", "Reading the chart")) }, text = {
-            Text(label("꺽은선 그래프는 기록된 코어 지수의 변화 추세를 연결합니다. 일별 보기에서는 각 날짜의 점수 추세선과 함께 당일의 최고·최저 점수 범위가 함께 표시됩니다.\n\n녹색 점은 상승, 빨간 점은 하락, 회색은 이전 점수 모델입니다. 차트 하단 막대는 같은 시간축의 화면 사용시간(분)과 앱 오픈·잠금 해제 횟수(회)를 나타냅니다.\n\n주황색 막대는 전체 오픈 중 1분 이하 짧은 실행입니다. 수면 중에는 부하가 없으나 회복이 정지됩니다.\n\n30일 이후에는 일별·시간별 집계로 유지되며 최대 1년 보관됩니다.",
+            Text(label("꺾은선 그래프는 기록된 코어 지수의 변화 추세를 연결합니다. 일별 보기에서는 각 날짜의 점수 추세선과 함께 당일의 최고·최저 점수 범위가 함께 표시됩니다.\n\n녹색 점은 상승, 빨간 점은 하락, 회색은 이전 점수 모델입니다. 차트 하단 막대는 같은 시간축의 화면 사용시간(분)과 앱 실행·잠금 해제 횟수(회)를 나타냅니다.\n\n주황색 막대는 전체 실행 중 1분 이하 짧은 사용입니다. 수면 중에는 부하가 없으나 회복이 정지됩니다.\n\n30일 이후에는 일별·시간별 집계로 유지되며 최대 1년 보관됩니다.",
                 "The line graph connects the trend of recorded Core Index scores. In daily view, the trend line is accompanied by each day's high/low score range.\n\nGreen indicates an increase, red a decrease, and gray a previous scoring model. The lower bars show screen usage time (minutes) and open/unlock counts on the same time axis.\n\nOrange bars represent short opens lasting ≤1 min. Sleep pauses recovery.\n\nAggregated daily and hourly history is preserved for up to one year."))
         })
 }
@@ -321,7 +321,7 @@ private fun appValue(app: ExplorerApp, mode: Int) = when (mode) { 1 -> app.loss 
             else Box(Modifier.size(36.dp).background(MaterialTheme.colorScheme.surfaceContainerHighest, CircleShape), contentAlignment = Alignment.Center) { Text(app.name.take(1)) }
             Column(Modifier.weight(1f)) {
                 Text(app.name, fontWeight = FontWeight.SemiBold)
-                Text(if (mode == 1) label("실제 감점 기여", "Recorded score loss") else label("${app.opens}회 오픈 · 1분 이하 ${app.shortOpens}회", "${app.opens} opens · ${app.shortOpens} ≤1 min"),
+                Text(if (mode == 1) label("실제 감점 기여", "Recorded score loss") else label("${app.opens}회 실행 · 1분 이하 ${app.shortOpens}회", "${app.opens} opens · ${app.shortOpens} ≤1 min"),
                     fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text(when (mode) { 1 -> "−${points(app.loss ?: 0.0)}"; 2 -> label("${app.opens}회", "${app.opens}"); else -> minutes(app.usage) }, color = color, fontWeight = FontWeight.Bold)
@@ -353,7 +353,7 @@ private fun appValue(app: ExplorerApp, mode: Int) = when (mode) { 1 -> app.loss 
             }
             Text(scoreText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
         }
-        Text(label("화면 사용시간 ${bucket.usage?.let(::minutes) ?: "—"} · 몰입 관리 앱 ${minutes(bucket.managed)}",
+        Text(label("화면 사용시간 ${bucket.usage?.let(::minutes) ?: "—"} · 관리 앱 ${minutes(bucket.managed)}",
             "Screen time ${bucket.usage?.let(::minutes) ?: "—"} · managed ${minutes(bucket.managed)}"), fontSize = 12.sp)
         Text(label("앱 실행 ${bucket.opens?.toString() ?: "—"}회 (1분 이하 ${bucket.shortOpens}회) · 잠금 해제 ${bucket.unlocks?.toString() ?: "—"}회",
             "App opens ${bucket.opens?.toString() ?: "—"} (≤1 min: ${bucket.shortOpens}) · unlocks ${bucket.unlocks?.toString() ?: "—"}"), fontSize = 12.sp)
@@ -382,7 +382,7 @@ private fun ExplorerChart(
     var initialScroll by remember(start / STAT_HOUR, line, buckets.size) { mutableStateOf(false) }
     LaunchedEffect(scroll.maxValue) { if (!initialScroll && scroll.maxValue > 0) { scroll.scrollTo(scroll.maxValue); initialScroll = true } }
     val selected = selection?.let { t -> buckets.firstOrNull { t >= it.start && t < it.end } }
-    val chartDescription = selected?.let { label("${dateLabel(it.start)} 점수 ${it.score?.last?.roundToInt() ?: "—"}, 오픈 ${it.opens ?: 0}회", "${dateLabel(it.start)}, score ${it.score?.last?.roundToInt() ?: "—"}, ${it.opens ?: 0} opens") }
+    val chartDescription = selected?.let { label("${dateLabel(it.start)} 점수 ${it.score?.last?.roundToInt() ?: "—"}, 실행 ${it.opens ?: 0}회", "${dateLabel(it.start)}, score ${it.score?.last?.roundToInt() ?: "—"}, ${it.opens ?: 0} opens") }
         ?: label("코어 지수와 사용 기록 차트. 좌우로 부드럽게 스크롤하여 날짜를 탐색할 수 있습니다.", "Core Index and usage chart. Scroll sideways to explore dates.")
     BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         val viewportWidth = maxWidth - 46.dp
@@ -527,8 +527,8 @@ private fun ExplorerChart(
                     drawContext.canvas.nativeCanvas.drawText(label("화면", "Usage"), 4.dp.toPx(), 206.dp.toPx(), sectionPaint)
                     drawContext.canvas.nativeCanvas.drawText(label("${maxMinutes}분", "${maxMinutes}m"), 4.dp.toPx(), 220.dp.toPx(), paint)
                     drawContext.canvas.nativeCanvas.drawText(label("0분", "0m"), 4.dp.toPx(), 258.dp.toPx(), paint)
-                    // 앱오픈 / 잠금해제 섹션
-                    val countTitle = if (unlocks) label("잠금", "Unlock") else label("오픈", "Opens")
+                    // 앱실행 / 잠금해제 섹션
+                    val countTitle = if (unlocks) label("잠금", "Unlock") else label("실행", "Opens")
                     drawContext.canvas.nativeCanvas.drawText(countTitle, 4.dp.toPx(), 274.dp.toPx(), sectionPaint)
                     drawContext.canvas.nativeCanvas.drawText(label("${maxCount}회", "${maxCount}"), 4.dp.toPx(), 288.dp.toPx(), paint)
                     drawContext.canvas.nativeCanvas.drawText(label("0회", "0"), 4.dp.toPx(), 326.dp.toPx(), paint)
@@ -536,7 +536,7 @@ private fun ExplorerChart(
             }
         }
     }
-    if (detailed && !unlocks) Text(label("주황색: 전체 오픈 중 1분 이하 실행", "Orange: opens lasting ≤1 min, included in the total"),
+    if (detailed && !unlocks) Text(label("주황색: 전체 실행 중 1분 이하", "Orange: opens lasting ≤1 min, included in the total"),
         Modifier.padding(horizontal = 22.dp), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
@@ -550,14 +550,14 @@ private fun ExplorerChart(
                 LazyColumn(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                     item { Text("${dateLabel(start)} – ${dateLabel(end)}", color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        SmallMetric(label("사용시간", "Usage"), minutes(app.usage)); SmallMetric(label("오픈", "Opens"), app.opens.toString()); SmallMetric(label("1분 이하", "≤1 min"), app.shortOpens.toString())
+                        SmallMetric(label("사용시간", "Usage"), minutes(app.usage)); SmallMetric(label("실행", "Opens"), app.opens.toString()); SmallMetric(label("1분 이하", "≤1 min"), app.shortOpens.toString())
                     } }
                     item { Text(label("기록된 감점 기여", "Recorded score loss"), fontWeight = FontWeight.Bold)
                         Text(app.loss?.let { "−${points(it)}" } ?: "—", fontSize = 30.sp, color = ScoreRed)
                         Text(app.impactFrom?.let { label("${dateLabel(it)}부터 기록된 실제 감점입니다. 휴식 회복은 이 앱에 배정하지 않습니다.", "Actual loss recorded since ${dateLabel(it)}. Rest recovery is not assigned to this app.") }
                             ?: label("이 구간의 감점 기여도 기록이 없습니다.", "No attribution recorded for this interval."), fontSize = 12.sp) }
                     item { AppMetricBars(label("사용시간 추세", "Usage trend"), series, false) }
-                    item { AppMetricBars(label("오픈 횟수 추세", "Open frequency"), series, true) }
+                    item { AppMetricBars(label("실행 횟수 추세", "Open frequency"), series, true) }
                     item { Text(label("시간별 기록이 없는 과거 날짜는 추세 막대를 비워 둡니다. 상단 합계에는 보관된 일별 기록이 포함될 수 있습니다.",
                         "Days without hourly history remain blank in these charts. Totals may include retained daily records."), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }

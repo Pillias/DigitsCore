@@ -62,6 +62,7 @@ import com.digitscore.app.ui.components.DetailChevron
 import com.digitscore.app.ui.components.ResponsiveContent
 import androidx.compose.ui.res.stringResource
 import com.digitscore.app.R
+import java.util.Locale
 
 @Composable
 fun OnboardingScreen(
@@ -152,7 +153,44 @@ fun OnboardingScreen(
                 modifier = Modifier.padding(top = 8.dp)
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = if (Locale.getDefault().language == "en") "How DigitsCore Works" else "DigitsCore의 핵심 방식",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    FeatureItem(
+                        icon = "🔄",
+                        title = if (Locale.getDefault().language == "en") "24-Hour Continuous Index" else "자정 리셋 없는 24시간 지수",
+                        desc = if (Locale.getDefault().language == "en") "Doesn't reset at midnight; continuously reflects your recent 24-hour phone habit." else "자정에 0으로 초기화되지 않고, 최근 24시간 동안의 사용 습관을 실시간 반영합니다."
+                    )
+                    FeatureItem(
+                        icon = "⏱️",
+                        title = if (Locale.getDefault().language == "en") "Continuous Use & Break Recovery" else "연속 사용 관리와 휴식 회복",
+                        desc = if (Locale.getDefault().language == "en") "30+ min continuous use accelerates load; screen-free breaks recover your score." else "30분 이상 연속 사용 시 부하가 커지며, 폰을 내려놓고 쉴 때 점수가 회복됩니다."
+                    )
+                    FeatureItem(
+                        icon = "🔒",
+                        title = if (Locale.getDefault().language == "en") "100% On-Device & Encrypted" else "서버 전송 없는 기기 내 암호화",
+                        desc = if (Locale.getDefault().language == "en") "All data is securely encrypted in device storage. Zero external transmission." else "모든 기록은 서버 전송 없이 기기 내부 암호화 DB에 안전하게 보관됩니다."
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             Card(
                 modifier = Modifier
@@ -316,6 +354,31 @@ private fun PermissionCard(
                     Text(stringResource(R.string.open_settings), fontSize = 12.sp)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun FeatureItem(icon: String, title: String, desc: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(text = icon, fontSize = 16.sp)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = desc,
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 15.sp
+            )
         }
     }
 }

@@ -160,14 +160,14 @@ fun DashboardScreen(
                     IconButton(onClick = onNavigateToAppSettings) {
                         Icon(
                             imageVector = Icons.Default.Category,
-                            contentDescription = UiTranslator.translate("앱 가중치 설정"),
+                            contentDescription = UiTranslator.translate("앱별 균형 등급"),
                             tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
                     IconButton(onClick = onNavigateToPresetSettings) {
                         Icon(
                             imageVector = Icons.Default.Tune,
-                            contentDescription = UiTranslator.translate("모드 설정"),
+                            contentDescription = UiTranslator.translate("설정"),
                             tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
@@ -904,7 +904,7 @@ fun ScreenTimeDetailDialog(
                             CompactBarChart(
                                 values = listOf(distractingMillis.toFloat(), (productiveMillis + neutralMillis).toFloat()),
                                 barColor = MaterialTheme.colorScheme.primary,
-                                contentDescription = UiTranslator.translate("방해 생산성 중립 앱 사용시간 비교 그래프")
+                                contentDescription = UiTranslator.translate("관리 및 일반 앱 사용시간 비교 그래프")
                             )
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
                                 Text("관리", fontSize = 10.sp, color = ScoreRed)

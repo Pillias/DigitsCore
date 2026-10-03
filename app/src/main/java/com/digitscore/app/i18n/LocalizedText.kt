@@ -474,6 +474,8 @@ object UiTranslator {
         "관리 대상 앱별 사용시간 그래프" to "Usage chart for managed apps",
         "방해 생산성 중립 앱 사용시간 비교 그래프" to
             "Usage chart comparing managed, growth and neutral apps",
+        "관리 및 일반 앱 사용시간 비교 그래프" to
+            "Usage chart comparing managed and general apps",
         "앱 분류 목록 관리" to "Manage App Ratings",
         "앱 등급 목록 관리" to "Manage App Ratings",
         "성장 앱" to "Growth Apps",
