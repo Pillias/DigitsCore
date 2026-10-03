@@ -94,7 +94,7 @@ object DailyGoalStore {
         return YesterdayBriefingSummary(
             score = prefs.getInt(KEY_YESTERDAY_SCORE, 80),
             totalScreenTimeMinutes = prefs.getLong(KEY_YESTERDAY_SCREEN_MINS, 0L),
-            topPackageName = prefs.getString(KEY_YESTERDAY_TOP_PKG, null),
+            topAppPackageName = prefs.getString(KEY_YESTERDAY_TOP_PKG, null),
             topAppName = prefs.getString(KEY_YESTERDAY_TOP_APP, "") ?: "",
             topAppUsageMinutes = prefs.getLong(KEY_YESTERDAY_TOP_MINS, 0L),
             unlockCount = prefs.getInt(KEY_YESTERDAY_UNLOCK, 0)
@@ -106,7 +106,7 @@ object DailyGoalStore {
         prefs.edit()
             .putInt(KEY_YESTERDAY_SCORE, summary.score)
             .putLong(KEY_YESTERDAY_SCREEN_MINS, summary.totalScreenTimeMinutes)
-            .putString(KEY_YESTERDAY_TOP_PKG, summary.topPackageName)
+            .putString(KEY_YESTERDAY_TOP_PKG, summary.topAppPackageName)
             .putString(KEY_YESTERDAY_TOP_APP, summary.topAppName)
             .putLong(KEY_YESTERDAY_TOP_MINS, summary.topAppUsageMinutes)
             .putInt(KEY_YESTERDAY_UNLOCK, summary.unlockCount)
@@ -148,7 +148,7 @@ object DailyGoalStore {
         val summary = YesterdayBriefingSummary(
             score = yesterdayScore,
             totalScreenTimeMinutes = yesterdayScreenTimeMins,
-            topPackageName = topAppPkg,
+            topAppPackageName = topAppPkg,
             topAppName = topAppName,
             topAppUsageMinutes = topAppMins,
             unlockCount = yesterdayUnlock
