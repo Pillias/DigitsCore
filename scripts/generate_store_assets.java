@@ -34,18 +34,25 @@ public class generate_store_assets {
         BasicStroke stroke = new BasicStroke((float) strokeW, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
         g2.setStroke(stroke);
 
-        // Red base arc: 280 deg
-        Shape redArc = new Arc2D.Double(cx - r, cy - r, 2 * r, 2 * r, -50, -280, Arc2D.OPEN);
+        // Exact match with ic_launcher_foreground.xml:
+        // Gap is at the top (centered at 90 deg / 12 o'clock).
+        // Upper-right start: 47.22 deg. Sweeps clockwise (negative extent) by 265.56 deg to upper-left (132.78 deg).
+        double startAngle = 47.22;
+        double fullSweep = -265.56;
+        double greenSweep = -163.42; // ~61.5% score proportion
+
+        // 2. Red base arc
+        Shape redArc = new Arc2D.Double(cx - r, cy - r, 2 * r, 2 * r, startAngle, fullSweep, Arc2D.OPEN);
         g2.setColor(new Color(0xFF, 0x5A, 0x5F));
         g2.draw(redArc);
 
-        // Green arc: ~60% of 280 = 168 deg
-        Shape greenArc = new Arc2D.Double(cx - r, cy - r, 2 * r, 2 * r, -50, -168, Arc2D.OPEN);
+        // 3. Green score arc (clockwise from upper-right past bottom to bottom-left)
+        Shape greenArc = new Arc2D.Double(cx - r, cy - r, 2 * r, 2 * r, startAngle, greenSweep, Arc2D.OPEN);
         g2.setColor(new Color(0x35, 0xD0, 0x7F));
         g2.draw(greenArc);
 
-        // Stem: (54, 24) to (54, 50)
-        Line2D stem = new Line2D.Double(54 * s, 24 * s, 54 * s, 50 * s);
+        // 4. Center top stem: (54, 24) to (54, 50) in 108dp viewport
+        Line2D stem = new Line2D.Double(cx, 24 * s, cx, 50 * s);
         g2.setColor(new Color(0x35, 0xD0, 0x7F));
         g2.draw(stem);
 
@@ -61,7 +68,7 @@ public class generate_store_assets {
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
-        // 1. Background Gradient (Dark Tech Navy to Slate)
+        // 1. Background Gradient
         GradientPaint gp = new GradientPaint(0, 0, new Color(0x0B, 0x11, 0x1C), w, h, new Color(0x16, 0x22, 0x36));
         g2.setPaint(gp);
         g2.fillRect(0, 0, w, h);
@@ -75,39 +82,41 @@ public class generate_store_assets {
         g2.setPaint(rgp);
         g2.fillOval(40, 50, 400, 400);
 
-        // 3. Draw Brand Power Symbol at (240, 250)
+        // 3. Brand Power Symbol at (240, 250)
         double cx = 240;
         double cy = 250;
         double r = 110;
-        float strokeW = 28f;
+        float strokeW = 31.5f;
 
         BasicStroke stroke = new BasicStroke(strokeW, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
         g2.setStroke(stroke);
 
-        Shape redArc = new Arc2D.Double(cx - r, cy - r, 2 * r, 2 * r, -50, -280, Arc2D.OPEN);
+        double startAngle = 47.22;
+        double fullSweep = -265.56;
+        double greenSweep = -163.42;
+
+        Shape redArc = new Arc2D.Double(cx - r, cy - r, 2 * r, 2 * r, startAngle, fullSweep, Arc2D.OPEN);
         g2.setColor(new Color(0xFF, 0x5A, 0x5F));
         g2.draw(redArc);
 
-        Shape greenArc = new Arc2D.Double(cx - r, cy - r, 2 * r, 2 * r, -50, -180, Arc2D.OPEN);
+        Shape greenArc = new Arc2D.Double(cx - r, cy - r, 2 * r, 2 * r, startAngle, greenSweep, Arc2D.OPEN);
         g2.setColor(new Color(0x35, 0xD0, 0x7F));
         g2.draw(greenArc);
 
-        Line2D stem = new Line2D.Double(cx, cy - r * 1.08, cx, cy - r * 0.05);
+        // Stem: from top into center
+        Line2D stem = new Line2D.Double(cx, cy - r * 1.08, cx, cy - r * 0.12);
         g2.setColor(new Color(0x35, 0xD0, 0x7F));
         g2.draw(stem);
 
         // 4. Typography
-        // Brand Title
         g2.setColor(Color.WHITE);
         g2.setFont(new Font("SansSerif", Font.BOLD, 68));
         g2.drawString("DigitsCore", 460, 215);
 
-        // Subtitle / Tagline
         g2.setColor(new Color(0x35, 0xD0, 0x7F));
         g2.setFont(new Font("SansSerif", Font.BOLD, 26));
         g2.drawString("24시간 연속 흐름 기반 코어 지수", 465, 265);
 
-        // Feature Bullets
         g2.setColor(new Color(0x94, 0xA3, 0xB8));
         g2.setFont(new Font("SansSerif", Font.PLAIN, 20));
         g2.drawString("• 자정에 리셋되지 않는 최근 24시간 실시간 회복 지표", 465, 320);
