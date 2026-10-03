@@ -17,7 +17,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.BugReport
-import androidx.compose.material.icons.automirrored.filled.FactCheck
+import androidx.compose.material.icons.filled.Speed
+import android.os.Build
+import android.view.View
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.AlertDialog
@@ -153,7 +160,7 @@ fun PresetModeScreen(
     var pendingEncryptedImport by remember { mutableStateOf<ByteArray?>(null) }
     var showDeleteHistoryConfirmation by remember { mutableStateOf(false) }
     var showBugReport by remember { mutableStateOf(false) }
-    var showReleaseReadiness by remember { mutableStateOf(false) }
+    var showDiagnosticsModal by remember { mutableStateOf(false) }
     var selectedDetail by remember { mutableStateOf<SettingsDetail?>(null) }
 
     fun selectPreset(mode: PresetMode) {
@@ -1831,12 +1838,12 @@ fun PresetModeScreen(
                         Text("버그 리포트", modifier = Modifier.padding(start = 6.dp), fontSize = 12.sp)
                     }
                     OutlinedButton(
-                        onClick = { showReleaseReadiness = true },
+                        onClick = { showDiagnosticsModal = true },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(10.dp)
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.FactCheck, contentDescription = null)
-                        Text("출시 체크리스트", modifier = Modifier.padding(start = 6.dp), fontSize = 12.sp)
+                        Icon(Icons.Default.Speed, contentDescription = null)
+                        Text("측정 상태 진단", modifier = Modifier.padding(start = 6.dp), fontSize = 12.sp)
                     }
                 }
             }
@@ -1862,8 +1869,11 @@ fun PresetModeScreen(
         )
     }
 
-    if (showReleaseReadiness) {
-        ReleaseReadinessDialog(onDismiss = { showReleaseReadiness = false })
+    if (showDiagnosticsModal) {
+        MeasurementDiagnosticsDialog(
+            diagnostics = measurementDiagnostics,
+            onDismiss = { showDiagnosticsModal = false }
+        )
     }
 
     selectedDetail?.let { detail ->
@@ -2007,22 +2017,41 @@ private fun BackupPasswordDialog(
     var password by remember { mutableStateOf("") }
     var confirmation by remember { mutableStateOf("") }
     val isValid = password.length >= 8 && (!confirmPassword || password == confirmation)
+
+    // 안드로이드 OS 자동완성(Samsung Pass, Google Password Manager)이 백업 암호화 키를 가로채지 못하도록 명시적 차단
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val view = LocalView.current
+        DisposableEffect(view) {
+            val original = view.importantForAutofill
+            view.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+            onDispose {
+                view.importantForAutofill = original
+            }
+        }
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "비밀번호는 백업에 저장되지 않으며 분실하면 복원할 수 없습니다.",
+                    "비밀번호는 앱이나 서버에 저장되지 않고 백업 파일 암호화(PBKDF2 + AES-256-GCM)에만 사용됩니다. 분실하면 복원할 수 없습니다.",
                     fontSize = 12.sp,
+                    lineHeight = 16.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("비밀번호 · 8자 이상") },
+                    label = { Text("암호화 비밀번호 · 8자 이상") },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = if (confirmPassword) ImeAction.Next else ImeAction.Done,
+                        autoCorrect = false
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (confirmPassword) {
@@ -2032,6 +2061,11 @@ private fun BackupPasswordDialog(
                         label = { Text("비밀번호 확인") },
                         singleLine = true,
                         visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Done,
+                            autoCorrect = false
+                        ),
                         isError = confirmation.isNotEmpty() && password != confirmation,
                         modifier = Modifier.fillMaxWidth()
                     )

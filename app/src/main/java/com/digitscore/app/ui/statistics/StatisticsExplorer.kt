@@ -85,7 +85,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
     var detailed by rememberSaveable { mutableStateOf(true) }
     var showUnlocks by rememberSaveable { mutableStateOf(false) }
     var selectedTime by remember { mutableStateOf<Long?>(null) }
-    var selectedDay by remember { mutableStateOf<LocalDate?>(null) }
+    var selectedDay by remember { mutableStateOf<LocalDate?>(LocalDate.now(zone)) }
     var selectedApp by remember { mutableStateOf<ExplorerApp?>(null) }
     var ranking by rememberSaveable { mutableIntStateOf(0) }
     var allApps by remember { mutableStateOf(false) }
@@ -231,17 +231,56 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                         }
                     } else Text(label("좌우로 부드럽게 스크롤 · 터치하여 시점 선택 · 두 손가락으로 확대", "Smooth horizontal scroll · tap to inspect · pinch to zoom"),
                         Modifier.padding(horizontal = 22.dp), fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
-                    // 간결한 기간 날짜 표시 및 오늘로 복귀 버튼
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            if (selectedDay != null) dateLabel(start, "yyyy년 MM월 dd일")
-                            else "${dateLabel(Instant.ofEpochMilli(end).atZone(zone).toLocalDate().minusDays(27L).atStartOfDay(zone).toInstant().toEpochMilli(), "yy/MM/dd")} – ${dateLabel(end, "yy/MM/dd")} (4주 기본)",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    // 간결한 기간 날짜 표시 및 오늘/4주 전환 버튼
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         if (selectedDay != null) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = {
+                                        selectedDay = selectedDay?.minusDays(1)
+                                        selectedTime = null
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "이전 날")
+                                }
+                                val isToday = selectedDay == LocalDate.now(zone)
+                                Text(
+                                    text = if (isToday) "${dateLabel(start, "yyyy년 MM월 dd일")} (오늘)"
+                                           else dateLabel(start, "yyyy년 MM월 dd일"),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                IconButton(
+                                    onClick = {
+                                        val next = selectedDay?.plusDays(1)
+                                        if (next != null && !next.isAfter(LocalDate.now(zone))) {
+                                            selectedDay = next
+                                            selectedTime = null
+                                        }
+                                    },
+                                    enabled = selectedDay?.isBefore(LocalDate.now(zone)) == true,
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "다음 날")
+                                }
+                            }
                             TextButton(onClick = { selectedDay = null; selectedTime = null }) {
                                 Text(label("4주 전체 보기 ↺", "4-Week View ↺"))
+                            }
+                        } else {
+                            Text(
+                                "${dateLabel(Instant.ofEpochMilli(end).atZone(zone).toLocalDate().minusDays(27L).atStartOfDay(zone).toInstant().toEpochMilli(), "yy/MM/dd")} – ${dateLabel(end, "yy/MM/dd")} (4주 기본)",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            TextButton(onClick = { selectedDay = LocalDate.now(zone); selectedTime = null }) {
+                                Text(label("오늘 하루 보기 ›", "Today's View ›"))
                             }
                         }
                     }

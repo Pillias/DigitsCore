@@ -177,68 +177,39 @@ private fun shareBugReport(context: Context, report: String) {
 }
 
 @Composable
-internal fun ReleaseReadinessDialog(onDismiss: () -> Unit) {
+internal fun MeasurementDiagnosticsDialog(
+    diagnostics: MeasurementDiagnostics,
+    onDismiss: () -> Unit
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("출시 준비 체크리스트", fontWeight = FontWeight.Bold) },
+        title = { Text("측정 정확도와 처리 비용", fontWeight = FontWeight.Bold) },
         text = {
-            LazyColumn(
-                modifier = Modifier.heightIn(max = 560.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                item {
-                    Text(
-                        "완료 ${ReleaseReadiness.count(ReadinessStatus.COMPLETE)}/16 · 검증 준비 ${ReleaseReadiness.count(ReadinessStatus.READY_TO_VALIDATE)} · 관리자 입력 ${ReleaseReadiness.count(ReadinessStatus.OWNER_ACTION)} · 외부 검증 ${ReleaseReadiness.count(ReadinessStatus.EXTERNAL_VALIDATION)}",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                item { Text("반드시 필요한 것", fontWeight = FontWeight.Bold) }
-                items(ReleaseReadiness.required, key = { it.number }) { item ->
-                    ReadinessRow(item)
-                }
-                item { Text("상품성을 위해 필요한 것", fontWeight = FontWeight.Bold) }
-                items(ReleaseReadiness.product, key = { it.number }) { item ->
-                    ReadinessRow(item)
-                }
-                item {
-                    Text(
-                        "기기·사용자·Play Console이 필요한 항목은 코드만으로 완료 처리하지 않습니다. 저장소 docs/RELEASE_READINESS.md에 실행 절차와 증빙 위치를 정리했습니다.",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    diagnostics.foregroundCoveragePercent?.let { "전면 앱 포착률 ${it}%" } ?: "포착률 계산 중",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    "최근 조회 ${diagnostics.lastQueryWindowMillis / 1_000}초 · 이벤트 ${diagnostics.queriedEventCount}개 · ${diagnostics.lastQueryDurationMillis}ms\n" +
+                    "오늘 ${diagnostics.cyclesToday}회 측정 · 조회 ${diagnostics.totalQueryDurationTodayMillis}ms · CPU ${diagnostics.totalCpuTodayMillis}ms\n" +
+                    "실제 이벤트 기준 최근 24시간 언락 ${diagnostics.rolling24HourUnlockCount}회",
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "포착률은 화면 ON·잠금 해제 시간 중 전면 앱을 특정한 비율입니다. CPU 시간은 측정기의 처리 비용이며 배터리 비율과 같지 않습니다.",
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp,
+                    color = MaterialTheme.colorScheme.outline
+                )
             }
         },
-        confirmButton = { Button(onClick = onDismiss) { Text("확인") } }
-    )
-}
-
-@Composable
-private fun ReadinessRow(item: ReleaseReadinessItem) {
-    val statusLabel = when (item.status) {
-        ReadinessStatus.COMPLETE -> "완료"
-        ReadinessStatus.READY_TO_VALIDATE -> "검증 준비"
-        ReadinessStatus.OWNER_ACTION -> "관리자 입력"
-        ReadinessStatus.EXTERNAL_VALIDATION -> "외부 검증"
-    }
-    val statusColor = when (item.status) {
-        ReadinessStatus.COMPLETE -> MaterialTheme.colorScheme.primary
-        ReadinessStatus.READY_TO_VALIDATE -> MaterialTheme.colorScheme.tertiary
-        ReadinessStatus.OWNER_ACTION -> MaterialTheme.colorScheme.error
-        ReadinessStatus.EXTERNAL_VALIDATION -> MaterialTheme.colorScheme.secondary
-    }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("${item.number}. ${item.title}", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            Text(statusLabel, color = statusColor, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        confirmButton = {
+            Button(onClick = onDismiss) { Text("확인") }
         }
-        Text(item.detail, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
+    )
 }

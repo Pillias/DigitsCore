@@ -59,7 +59,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import com.digitscore.app.data.entity.CoreIndexSampleEntity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -82,7 +87,6 @@ import com.digitscore.app.engine.ScoreFlow
 import com.digitscore.app.engine.CoreIndexGuidance
 import com.digitscore.app.engine.CoreIndexCause
 import com.digitscore.app.engine.CoreIndexRecommendation
-import com.digitscore.app.data.MeasurementDiagnostics
 import com.digitscore.app.model.AppCategoryType
 import com.digitscore.app.model.AppUsage
 import com.digitscore.app.service.TrackerForegroundService
@@ -120,7 +124,9 @@ fun DashboardScreen(
     val rollingUsageSummary by viewModel.rollingUsageSummary.collectAsState()
     val unlockCount by viewModel.unlockCount.collectAsState()
     val guidance by viewModel.coreIndexGuidance.collectAsState()
-    val diagnostics by viewModel.measurementDiagnostics.collectAsState()
+
+    val sampleCutoff = remember { System.currentTimeMillis() - 24 * 3600 * 1000L }
+    val todaySamples by remember { db.coreIndexSampleDao().observeSince(sampleCutoff) }.collectAsState(emptyList())
 
     // 모달 / 다이얼로그 상태 관리
     var showScoreDetailModal by remember { mutableStateOf(false) }
@@ -130,7 +136,6 @@ fun DashboardScreen(
     var selectedAppDetail by remember { mutableStateOf<AppUsage?>(null) }
     var showAllAppsModal by remember { mutableStateOf(false) }
     var showGuidanceModal by remember { mutableStateOf(false) }
-    var showDiagnosticsModal by remember { mutableStateOf(false) }
 
     val currentScore = rollingScoreDetail?.finalScore ?: 75
     val grade = ScoreGrade.fromScore(currentScore)
@@ -140,7 +145,7 @@ fun DashboardScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "DigitsCore",
+                        text = stringResource(R.string.app_name),
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp
                     )
@@ -181,86 +186,116 @@ fun DashboardScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-            // 1. 원형 점수 인디케이터 (클릭 시 점수 산출 상세 내역 팝업)
-            item {
-                ScoreGaugeCard(
-                    score = currentScore,
-                    grade = grade,
-                    rollingScore = rollingScoreDetail,
-                    onClick = { showScoreDetailModal = true }
-                )
-            }
-
-            item { HabitReviewCard(currentScore, appsUsage) }
-            // 2. 주요 3단 통계 카드 (각 카드 클릭 시 해당 세부 항목 팝업)
-            item {
-                ScoreStatsRow(
-                    screenTimeMillis = rollingUsageSummary.totalScreenTimeMillis,
-                    unlockCount = unlockCount,
-                    distractingMillis = rollingUsageSummary.managedTimeMillis,
-                    onScreenTimeClick = { showScreenTimeModal = true },
-                    onUnlockClick = { showUnlockModal = true },
-                    onDistractingClick = { showDistractingModal = true }
-                )
-            }
-
-            guidance?.let { currentGuidance ->
+                // 1. 원형 점수 인디케이터 (클릭 시 점수 산출 상세 내역 팝업)
                 item {
-                    GuidanceSummaryCard(
-                        guidance = currentGuidance,
-                        onClick = { showGuidanceModal = true }
+                    ScoreGaugeCard(
+                        score = currentScore,
+                        grade = grade,
+                        rollingScore = rollingScoreDetail,
+                        onClick = { showScoreDetailModal = true }
                     )
                 }
-            }
 
-            // 3. 실시간 앱 사용 헤더
-            item {
-                SectionHeading(
-                    title = "최근 24시간 앱 사용 현황",
-                    subtitle = "현재 시각 직전 24시간의 시간대·세션·최근 추세입니다.",
-                    actionLabel = if (appsUsage.size > 5) "전체 ${appsUsage.size}개" else "전체 보기",
-                    onAction = { showAllAppsModal = true }
-                )
-            }
-
-            // 4. 앱 사용 목록 (각 앱 클릭 시 개별 앱 통계 & 카테고리 변경 팝업)
-            if (appsUsage.isEmpty()) {
+                // 2. 주요 3단 통계 카드 (각 카드 클릭 시 해당 세부 항목 팝업)
                 item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = "아직 집계된 앱 사용 기록이 없습니다.",
-                            color = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.padding(24.dp),
-                            fontSize = 14.sp
+                    ScoreStatsRow(
+                        screenTimeMillis = rollingUsageSummary.totalScreenTimeMillis,
+                        unlockCount = unlockCount,
+                        distractingMillis = rollingUsageSummary.managedTimeMillis,
+                        onScreenTimeClick = { showScreenTimeModal = true },
+                        onUnlockClick = { showUnlockModal = true },
+                        onDistractingClick = { showDistractingModal = true }
+                    )
+                }
+
+                // 3. 최근 24시간 코어 지수 변화 스파크라인 카드 (클릭 시 전체 통계 화면 이동)
+                item {
+                    TodayCoreIndexSparklineCard(
+                        currentScore = currentScore,
+                        samples = todaySamples,
+                        onClick = onNavigateToStatistics
+                    )
+                }
+
+                item { HabitReviewCard(currentScore, appsUsage) }
+
+                guidance?.let { currentGuidance ->
+                    item {
+                        GuidanceSummaryCard(
+                            guidance = currentGuidance,
+                            onClick = { showGuidanceModal = true }
                         )
                     }
                 }
-            } else {
-                items(appsUsage.take(5)) { app ->
-                    AppUsageItemCard(
-                        appUsage = app,
-                        onClick = { selectedAppDetail = app }
+
+                // 4. 실시간 앱 사용 헤더
+                item {
+                    SectionHeading(
+                        title = "최근 24시간 앱 사용 현황",
+                        subtitle = "현재 시각 직전 24시간의 시간대·세션·최근 추세입니다.",
+                        actionLabel = if (appsUsage.size > 3) "전체 ${appsUsage.size}개" else "전체 보기",
+                        onAction = { showAllAppsModal = true }
                     )
                 }
-            }
 
-            item {
-                MeasurementStatusCard(
-                    diagnostics = diagnostics,
-                    onClick = { showDiagnosticsModal = true }
-                )
-            }
+                // 5. 상위 3개 앱 사용 목록
+                if (appsUsage.isEmpty()) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(
+                                text = "아직 집계된 앱 사용 기록이 없습니다.",
+                                color = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.padding(24.dp),
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                } else {
+                    items(appsUsage.take(3)) { app ->
+                        AppUsageItemCard(
+                            appUsage = app,
+                            onClick = { selectedAppDetail = app }
+                        )
+                    }
+                    if (appsUsage.size > 3) {
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showAllAppsModal = true },
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "나머지 ${appsUsage.size - 3}개 앱 모두 보기",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    DetailChevron(tint = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                        }
+                    }
+                }
 
-            item {
-                Spacer(modifier = Modifier.height(24.dp))
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
             }
-        }
         }
     }
 
@@ -375,13 +410,6 @@ fun DashboardScreen(
             }
         )
     }
-
-    if (showDiagnosticsModal) {
-        MeasurementDiagnosticsDialog(
-            diagnostics = diagnostics,
-            onDismiss = { showDiagnosticsModal = false }
-        )
-    }
 }
 
 @Composable
@@ -409,34 +437,168 @@ private fun GuidanceSummaryCard(guidance: CoreIndexGuidance, onClick: () -> Unit
 }
 
 @Composable
-private fun MeasurementStatusCard(diagnostics: MeasurementDiagnostics, onClick: () -> Unit) {
-    val coverage = diagnostics.foregroundCoveragePercent?.let { "${it}%" } ?: "—"
+private fun TodayCoreIndexSparklineCard(
+    currentScore: Int,
+    samples: List<CoreIndexSampleEntity>,
+    onClick: () -> Unit
+) {
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        shape = MaterialTheme.shapes.large
+        shape = RoundedCornerShape(16.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(Icons.Default.Speed, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Column(modifier = Modifier.weight(1f)) {
-                Text("측정 상태", style = MaterialTheme.typography.labelLarge)
-                Text(
-                    "${if (diagnostics.isIncremental) "증분 수집" else "상태 복원"} · 전면 앱 포착률 $coverage",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (diagnostics.updatedAtMillis > 0L) {
-                    Text(stringResource(R.string.measurement_last_update,
-                        java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
-                            .format(java.util.Date(diagnostics.updatedAtMillis))),
-                        style = MaterialTheme.typography.bodySmall)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "최근 24시간 코어 지수 변화",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    val minScore = samples.minOfOrNull { it.score } ?: currentScore
+                    val maxScore = samples.maxOfOrNull { it.score } ?: currentScore
+                    Text(
+                        text = "최저 ${minScore}점 · 최고 ${maxScore}점 · 현재 ${currentScore}점",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "상세 통계",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    DetailChevron(tint = MaterialTheme.colorScheme.primary)
                 }
             }
-            DetailChevron()
+
+            val primaryColor = MaterialTheme.colorScheme.primary
+            val gridColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(96.dp)
+                    .semantics {
+                        contentDescription = "최근 24시간 코어 지수 변화 차트, 현재 ${currentScore}점"
+                    }
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val w = size.width
+                    val h = size.height
+                    val topPadding = 8f
+                    val bottomPadding = 8f
+                    val chartH = h - topPadding - bottomPadding
+
+                    // Reference guide lines for 50, 75, 90
+                    val guideScores = listOf(50, 75, 90)
+                    for (gScore in guideScores) {
+                        val y = topPadding + chartH * (1f - (gScore - 40f) / 60f)
+                        drawLine(
+                            color = gridColor,
+                            start = Offset(0f, y),
+                            end = Offset(w, y),
+                            strokeWidth = 1f
+                        )
+                    }
+
+                    if (samples.size >= 2) {
+                        val minTs = samples.first().timestampMillis
+                        val maxTs = samples.last().timestampMillis
+                        val tsRange = (maxTs - minTs).coerceAtLeast(1L).toFloat()
+
+                        val path = Path()
+                        val fillPath = Path()
+
+                        samples.forEachIndexed { i, s ->
+                            val x = ((s.timestampMillis - minTs) / tsRange) * w
+                            val normalizedScore = ((s.score - 40f) / 60f).coerceIn(0f, 1f)
+                            val y = topPadding + chartH * (1f - normalizedScore)
+
+                            if (i == 0) {
+                                path.moveTo(x, y)
+                                fillPath.moveTo(x, h - bottomPadding)
+                                fillPath.lineTo(x, y)
+                            } else {
+                                path.lineTo(x, y)
+                                fillPath.lineTo(x, y)
+                            }
+                        }
+
+                        fillPath.lineTo(w, h - bottomPadding)
+                        fillPath.close()
+
+                        drawPath(
+                            path = fillPath,
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    primaryColor.copy(alpha = 0.22f),
+                                    Color.Transparent
+                                ),
+                                startY = topPadding,
+                                endY = h - bottomPadding
+                            )
+                        )
+
+                        drawPath(
+                            path = path,
+                            color = primaryColor,
+                            style = Stroke(width = 2.5f.dp.toPx(), cap = StrokeCap.Round)
+                        )
+
+                        val lastSample = samples.last()
+                        val lastX = w
+                        val lastY = topPadding + chartH * (1f - ((lastSample.score - 40f) / 60f).coerceIn(0f, 1f))
+                        drawCircle(
+                            color = primaryColor,
+                            radius = 3.5f.dp.toPx(),
+                            center = Offset(lastX, lastY)
+                        )
+                    } else {
+                        val normalizedScore = ((currentScore - 40f) / 60f).coerceIn(0f, 1f)
+                        val y = topPadding + chartH * (1f - normalizedScore)
+                        drawLine(
+                            color = primaryColor,
+                            start = Offset(0f, y),
+                            end = Offset(w, y),
+                            strokeWidth = 2.dp.toPx()
+                        )
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "24시간 전",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                Text(
+                    text = "12시간 전",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                Text(
+                    text = "현재",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
         }
     }
 }
@@ -499,22 +661,6 @@ private fun GuidanceDetailDialog(
     )
 }
 
-@Composable
-private fun MeasurementDiagnosticsDialog(
-    diagnostics: MeasurementDiagnostics,
-    onDismiss: () -> Unit
-) {
-    InformationDetailDialog(
-        title = "측정 정확도와 처리 비용",
-        value = diagnostics.foregroundCoveragePercent?.let { "전면 앱 포착률 ${it}%" } ?: "포착률 계산 중",
-        description = "최근 조회 ${diagnostics.lastQueryWindowMillis / 1_000}초 · 이벤트 ${diagnostics.queriedEventCount}개 · ${diagnostics.lastQueryDurationMillis}ms\n" +
-            "오늘 ${diagnostics.cyclesToday}회 측정 · 조회 ${diagnostics.totalQueryDurationTodayMillis}ms · CPU ${diagnostics.totalCpuTodayMillis}ms\n" +
-            "실제 이벤트 기준 최근 24시간 언락 ${diagnostics.rolling24HourUnlockCount}회",
-        supportingText = "포착률은 화면 ON·잠금 해제 시간 중 전면 앱을 특정한 비율입니다. CPU 시간은 측정기의 처리 비용이며 배터리 비율과 같지 않습니다. 실제 배터리 영향은 Android 배터리 사용량과 장기 실기기 시험에서 함께 확인해야 합니다.",
-        onDismiss = onDismiss
-    )
-}
-
 private fun guidanceCauseText(guidance: CoreIndexGuidance): String = when (guidance.cause) {
     CoreIndexCause.CALIBRATING -> "사용 흐름을 학습하고 있습니다."
     CoreIndexCause.CONTINUOUS_USE -> "연속 사용이 현재 지수 변화의 가장 큰 원인입니다."
@@ -554,19 +700,19 @@ private fun ScoreGaugeCard(
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp)
+                .padding(16.dp)
         ) {
             val useWideLayout = maxWidth >= 560.dp
             if (useWideLayout) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(28.dp),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     CoreIndexGauge(
                         score = score,
                         grade = gradeText,
-                        modifier = Modifier.size(172.dp)
+                        modifier = Modifier.size(140.dp)
                     )
                     ScoreGaugeSummary(
                         rollingScore = rollingScore,
@@ -574,23 +720,43 @@ private fun ScoreGaugeCard(
                     )
                 }
             } else {
-                Column(
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "${stringResource(R.string.digitscore_score)} · ${stringResource(R.string.cumulative_index_label)}",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                     CoreIndexGauge(
                         score = score,
                         grade = gradeText,
-                        modifier = Modifier.size(184.dp)
+                        modifier = Modifier.size(112.dp)
                     )
-                    ScoreStatusChip(rollingStatusText(rollingScore))
-                    ScoreDetailAffordance()
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "${stringResource(R.string.digitscore_score)} · ${stringResource(R.string.cumulative_index_label)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        ScoreStatusChip(rollingStatusText(rollingScore))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            HeroMetric(
+                                label = stringResource(R.string.recent_usage),
+                                value = formatMinutesToHoursAndMinutes(rollingScore?.recentUsageMinutes ?: 0L),
+                                modifier = Modifier.weight(1f)
+                            )
+                            HeroMetric(
+                                label = stringResource(R.string.continuous_usage),
+                                value = formatMinutesToHoursAndMinutes(rollingScore?.continuousUsageMinutes ?: 0L),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        ScoreDetailAffordance()
+                    }
                 }
             }
         }
