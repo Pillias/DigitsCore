@@ -143,5 +143,10 @@
     <string name="wake_prompt_content">Awake breaks will restore your Core Index.</string>
     <string name="wake_prompt_action_start">Start day</string>
     <string name="wake_prompt_action_rest">Still resting</string>
+    <string name="goal_channel_name">DigitsCore Goal Coaching</string>
+    <string name="goal_channel_description">Notifies daily goal progress and milestones.</string>
+    <string name="goal_milestone_title">Daily Goal Approaching 80%</string>
+    <string name="goal_milestone_content_app">%1$s %2$d min / Target %3$d min (80%%)</string>
+    <string name="goal_milestone_content_score">Current Core Index %1$d / Defense %2$d</string>
     <string name="confirm">OK</string>
 </resources>

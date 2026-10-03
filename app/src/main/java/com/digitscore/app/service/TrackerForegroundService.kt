@@ -682,6 +682,47 @@ class TrackerForegroundService : Service() {
                     )
                 }
 
+                // 데일리 맞춤 목표 (Daily Goal) 진행도 계산 및 80% 마일스톤 코칭
+                try {
+                    val (ySummary, currentGoal) = com.digitscore.app.data.DailyGoalStore.generateOrGetGoal(
+                        applicationContext, db, currentDateString
+                    )
+                    ScoreRepository.updateYesterdaySummary(ySummary)
+
+                    val updatedGoal = when (currentGoal.type) {
+                        com.digitscore.app.model.DailyGoalType.APP_USAGE_LIMIT -> {
+                            val todayApp = todayAppsUsage.firstOrNull { it.packageName == currentGoal.targetPackageName }
+                            val currentMins = ((todayApp?.usageTimeMillis ?: 0L) / 60_000L).toInt()
+                            currentGoal.copy(currentValue = currentMins)
+                        }
+                        com.digitscore.app.model.DailyGoalType.SCORE_DEFENSE -> {
+                            currentGoal.copy(currentValue = rollingScoreDetail.finalScore)
+                        }
+                        com.digitscore.app.model.DailyGoalType.UNLOCK_LIMIT -> {
+                            currentGoal.copy(currentValue = todayUnlockCount)
+                        }
+                    }
+
+                    // 80% 마일스톤 도달 시 1회성 알림 코칭
+                    val shouldNotify80 = !updatedGoal.notifiedMilestone80 &&
+                            updatedGoal.progressRatio >= 0.8f &&
+                            settings?.isNotificationEnabled != false
+
+                    if (shouldNotify80) {
+                        ScoreNotificationManager.showGoalMilestoneNotification(applicationContext, updatedGoal)
+                    }
+
+                    val finalGoal = if (shouldNotify80) updatedGoal.copy(notifiedMilestone80 = true) else updatedGoal
+                    com.digitscore.app.data.DailyGoalStore.updateProgress(
+                        applicationContext,
+                        finalGoal.currentValue,
+                        if (shouldNotify80) true else null
+                    )
+                    ScoreRepository.updateDailyGoal(finalGoal)
+                } catch (e: Exception) {
+                    android.util.Log.w("DigitsCoreGoal", "Failed to update daily goal progress", e)
+                }
+
                 // DB 일일 히스토리 업데이트
                 db.scoreDao().insertOrUpdateScoreHistory(
                     DailyScoreHistoryEntity(

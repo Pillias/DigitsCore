@@ -143,5 +143,10 @@
     <string name="wake_prompt_content">기상 후 활동 중 휴식은 코어 지수 회복에 반영됩니다.</string>
     <string name="wake_prompt_action_start">활동 시작</string>
     <string name="wake_prompt_action_rest">아직 쉬는 중</string>
+    <string name="goal_channel_name">디짓스코어 목표 코칭</string>
+    <string name="goal_channel_description">오늘의 맞춤 목표 달성 및 진행 현황을 알립니다.</string>
+    <string name="goal_milestone_title">오늘의 목표 80% 근접</string>
+    <string name="goal_milestone_content_app">%1$s %2$d분 사용 / 목표 %3$d분 (80%%)</string>
+    <string name="goal_milestone_content_score">현재 코어 지수 %1$d점 / 방어선 %2$d점</string>
     <string name="confirm">확인</string>
 </resources>

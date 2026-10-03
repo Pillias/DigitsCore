@@ -81,9 +81,13 @@ fun WakeEvidenceSettings() {
     }
 }
 
-/** Optional in-app briefing; no overlay, notification sound, or mandatory time entry. */
 @Composable
-fun HabitReviewCard(score: Int, apps: List<AppUsage>) {
+fun HabitReviewCard(
+    score: Int,
+    apps: List<AppUsage>,
+    dailyGoal: com.digitscore.app.model.DailyGoal? = null,
+    yesterdaySummary: com.digitscore.app.model.YesterdayBriefingSummary? = null
+) {
     val context = LocalContext.current
     val db = remember { DigitsDatabase.getInstance(context) }
     val scope = rememberCoroutineScope()
@@ -103,13 +107,16 @@ fun HabitReviewCard(score: Int, apps: List<AppUsage>) {
         TrackerForegroundService.refreshNotification(context)
     }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { setSteps(it) }
+
     LaunchedEffect(score, apps.map { it.packageName }, revision) {
         val record = db.cumulativeScoreStateDao().get()?.let { CumulativeRecord.decode(it.payload) }
             ?: return@LaunchedEffect
         val zone = ZoneId.systemDefault()
         val now = java.time.ZonedDateTime.now(zone)
         val handledDate = Instant.ofEpochMilli(record.briefingHandledAt).atZone(zone).toLocalDate()
-        morning = now.hour in 4..12 && handledDate != now.toLocalDate()
+        // 오전 4시~12시 사이, 아직 확인하지 않았거나 오늘의 목표 카드가 dismiss되지 않은 경우
+        morning = (now.hour in 4..12 && handledDate != now.toLocalDate()) ||
+                (dailyGoal != null && !dailyGoal.isDismissed && dailyGoal.isAutoAssigned)
         val since = LocalDate.now(zone).minusDays(6).toString()
         suggestion = null
         for (app in apps.filter { it.categoryType.canonical == AppCategoryType.NEUTRAL }) {
@@ -121,74 +128,254 @@ fun HabitReviewCard(score: Int, apps: List<AppUsage>) {
             }
         }
     }
-    if (morning) {
+
+    if (morning && dailyGoal != null && !dailyGoal.isDismissed) {
+        val summary = yesterdaySummary ?: com.digitscore.app.model.YesterdayBriefingSummary()
+        val yHours = summary.totalScreenTimeMinutes / 60
+        val yMins = summary.totalScreenTimeMinutes % 60
+        val yTimeStr = if (yHours > 0) "${yHours}h ${yMins}m" else "${yMins}m"
+
+        val topHours = summary.topAppUsageMinutes / 60
+        val topMins = summary.topAppUsageMinutes % 60
+        val topTimeStr = if (topHours > 0) "${topHours}h ${topMins}m" else "${topMins}m"
+
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = if (english) "Morning check-in · Core Index $score" else "아침 브리핑 · 코어 지수 $score",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
-                Text(
-                    text = if (english) "Ready to start your day? Awake breaks can restore your index; estimated sleep holds recovery. No time entry needed."
-                        else "이제 활동을 시작하나요? 활동 중 휴식은 회복에 반영하고, 수면으로 추정한 휴식은 회복을 보류합니다. 시간을 입력할 필요는 없습니다.",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    lineHeight = 16.sp
-                )
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // 상단 라벨
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (english) "MORNING BRIEFING" else "모닝 브리핑",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        letterSpacing = 1.sp
+                    )
+                    Text(
+                        text = if (english) "Yesterday Overview" else "어제 분석",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+
+                // 어제 핵심 통계 3칸 그리드 (숫자 강조)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Button(
-                        onClick = { scope.launch {
-                            CumulativeScoreStore.confirmActivity(db, System.currentTimeMillis(), true)
-                            revision++; TrackerForegroundService.refreshNotification(context)
-                        } },
+                    // 1. 어제 점수
+                    Surface(
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp)
-                    ) { Text(if (english) "Start my day" else "활동 시작", fontSize = 13.sp) }
-                    OutlinedButton(
-                        onClick = { scope.launch {
-                            CumulativeScoreStore.confirmActivity(db, System.currentTimeMillis(), false)
-                            revision++; TrackerForegroundService.refreshNotification(context)
-                        } },
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surface
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = if (english) "SCORE" else "점수",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.outline,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = "${summary.score}",
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = when {
+                                    summary.score >= 80 -> com.digitscore.app.ui.theme.ScoreGreen
+                                    summary.score >= 60 -> com.digitscore.app.ui.theme.ScoreYellow
+                                    else -> com.digitscore.app.ui.theme.ScoreRed
+                                }
+                            )
+                        }
+                    }
+
+                    // 2. 어제 화면 시간
+                    Surface(
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp)
-                    ) { Text(if (english) "Still resting" else "아직 쉬는 중", fontSize = 13.sp) }
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surface
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = if (english) "SCREEN" else "화면 시간",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.outline,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = yTimeStr,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    // 3. 어제 최대 사용 앱
+                    Surface(
+                        modifier = Modifier.weight(1.2f),
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surface
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = if (summary.topAppName.isNotBlank()) summary.topAppName else (if (english) "MAX LOAD" else "최대 부하"),
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.outline,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = if (summary.topAppUsageMinutes > 0) topTimeStr else "-",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = com.digitscore.app.ui.theme.ScoreOrange
+                            )
+                        }
+                    }
                 }
-                if (hasStepSensor) {
-                    val threshold = remember(steps, revision) { com.digitscore.app.service.WakeStepAdaptiveManager.getThreshold(context) }
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant)
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                // 오늘의 1가지 맞춤 목표 (미니 게이지 & 숫자)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = if (english) "Use step evidence" else "걸음 보조 판단",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 13.sp
-                            )
-                            Text(
-                                text = if (english) "Waking is assisted when reaching $threshold steps in 15 min."
-                                    else "15분 안에 ${threshold}걸음 감지 시 기상 보조로 사용",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        }
-                        Switch(
-                            checked = steps,
-                            onCheckedChange = { enabled ->
-                                if (enabled && Build.VERSION.SDK_INT >= 29) permission.launch(Manifest.permission.ACTIVITY_RECOGNITION)
-                                else setSteps(enabled)
-                            }
+                        Text(
+                            text = if (english) "TODAY'S TARGET" else "오늘의 추천 목표",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            letterSpacing = 1.sp
                         )
+                        if (dailyGoal.isAutoAssigned) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = MaterialTheme.colorScheme.secondaryContainer
+                            ) {
+                                Text(
+                                    text = if (english) "AUTOPILOT" else "자동 배정",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // 목표 내용 & 진행 수치
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        Text(
+                            text = when (dailyGoal.type) {
+                                com.digitscore.app.model.DailyGoalType.APP_USAGE_LIMIT ->
+                                    if (english) "${dailyGoal.targetAppName} under ${dailyGoal.targetValue}m"
+                                    else "${dailyGoal.targetAppName} ${dailyGoal.targetValue}분 이내"
+                                com.digitscore.app.model.DailyGoalType.SCORE_DEFENSE ->
+                                    if (english) "Defend Score ${dailyGoal.targetValue}+"
+                                    else "코어 지수 ${dailyGoal.targetValue}점 이상 방어"
+                                com.digitscore.app.model.DailyGoalType.UNLOCK_LIMIT ->
+                                    if (english) "Unlocks under ${dailyGoal.targetValue}"
+                                    else "잠금 해제 ${dailyGoal.targetValue}회 이내"
+                            },
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        Text(
+                            text = when (dailyGoal.type) {
+                                com.digitscore.app.model.DailyGoalType.APP_USAGE_LIMIT ->
+                                    "${dailyGoal.currentValue}m / ${dailyGoal.targetValue}m"
+                                com.digitscore.app.model.DailyGoalType.SCORE_DEFENSE ->
+                                    "${dailyGoal.currentValue}점 / ${dailyGoal.targetValue}점"
+                                com.digitscore.app.model.DailyGoalType.UNLOCK_LIMIT ->
+                                    "${dailyGoal.currentValue}회 / ${dailyGoal.targetValue}회"
+                            },
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (dailyGoal.isExceeded) com.digitscore.app.ui.theme.ScoreRed
+                            else MaterialTheme.colorScheme.outline
+                        )
+                    }
+
+                    // 프로그레스 바
+                    LinearProgressIndicator(
+                        progress = { dailyGoal.progressRatio },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp),
+                        color = when {
+                            dailyGoal.progressRatio >= 0.8f -> com.digitscore.app.ui.theme.ScoreOrange
+                            else -> MaterialTheme.colorScheme.primary
+                        },
+                        trackColor = MaterialTheme.colorScheme.surface,
+                    )
+                }
+
+                // 시작 / 건너뛰기 액션 버튼
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                com.digitscore.app.data.DailyGoalStore.setUserAccepted(context)
+                                CumulativeScoreStore.confirmActivity(db, System.currentTimeMillis(), true)
+                                revision++
+                                TrackerForegroundService.refreshNotification(context)
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(if (english) "Accept Goal" else "목표 시작", fontSize = 13.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                // 스킵하더라도 앱이 알아서 오토파일럿으로 유지하거나 카드만 닫음
+                                com.digitscore.app.data.DailyGoalStore.setDismissed(context, true)
+                                CumulativeScoreStore.confirmActivity(db, System.currentTimeMillis(), true)
+                                revision++
+                                TrackerForegroundService.refreshNotification(context)
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(if (english) "Pass (Auto)" else "건너뛰기 (자동)", fontSize = 13.sp)
                     }
                 }
             }
