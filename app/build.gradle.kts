@@ -17,14 +17,14 @@ android {
     val tagVersion = System.getenv("GITHUB_REF_NAME")
         ?.takeIf { System.getenv("GITHUB_REF_TYPE") == "tag" && it.startsWith("v") }
         ?.removePrefix("v")
-    val defaultVersion = "3.2.2"
+    val defaultVersion = "3.2.3"
     val buildDate = SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(Date())
 
     defaultConfig {
         applicationId = "com.digitscore.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 322
+        versionCode = 323
         versionName = tagVersion ?: defaultVersion
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
 

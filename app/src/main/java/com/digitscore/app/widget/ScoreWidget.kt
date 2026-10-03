@@ -74,8 +74,8 @@ class ScoreWidget : GlanceAppWidget() {
             ?: 0L
         val backgroundStyle = WidgetBackgroundStyle.fromId(settings?.widgetBackgroundStyleId)
         val palette = WidgetPalette.forStyle(backgroundStyle, score)
-        val scoreBitmap = DynamicIconGenerator.createScoreBitmapIcon(
-            context, score, StatusIconStyle.SCORE_PROPORTION
+        val gaugeBitmap = DynamicIconGenerator.createPurePowerGaugeBitmap(
+            context, score, 64
         )
         val screenTime = formatMinutes(strings, screenMinutes)
         val managedTime = formatMinutes(strings, managedMinutes)
@@ -106,15 +106,15 @@ class ScoreWidget : GlanceAppWidget() {
             WidgetSurface(backgroundStyle, palette) {
                 when {
                     currentSize.width >= 105.dp && currentSize.height >= 105.dp -> LargeWidget(
-                        scoreBitmap, score, localizedGrade, screenTime, unlockCount, managedTime,
+                        gaugeBitmap, score, localizedGrade, screenTime, unlockCount, managedTime,
                         continuousMinutes, keyMessage, accessibility, palette, strings,
                         currentSize.width
                     )
                     currentSize.width >= 100.dp || currentSize.height >= 100.dp -> MediumWidget(
-                        scoreBitmap, localizedGrade, screenTime, accessibility, palette,
-                        vertical = currentSize.height > currentSize.width
+                        gaugeBitmap, score, localizedGrade, screenTime, unlockCount, accessibility, palette,
+                        strings, vertical = currentSize.height > currentSize.width
                     )
-                    else -> SmallWidget(scoreBitmap, accessibility)
+                    else -> SmallWidget(gaugeBitmap, score, localizedGrade, accessibility, palette)
                 }
             }
         }
@@ -167,37 +167,104 @@ private fun WidgetSurface(
 }
 
 @Composable
-private fun SmallWidget(scoreBitmap: android.graphics.Bitmap, accessibility: String) {
-    Image(
-        provider = ImageProvider(scoreBitmap),
-        contentDescription = accessibility,
-        modifier = GlanceModifier.size(48.dp),
-        contentScale = ContentScale.Fit
-    )
+private fun SmallWidget(
+    gaugeBitmap: android.graphics.Bitmap,
+    score: Int,
+    grade: String,
+    accessibility: String,
+    palette: WidgetPalette
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Gauge(gaugeBitmap, accessibility, 30)
+        Spacer(GlanceModifier.height(1.dp))
+        Text(
+            text = score.toString(),
+            style = widgetTextStyle(palette.accent, 16, FontWeight.Bold),
+            maxLines = 1
+        )
+        Text(
+            text = grade,
+            style = widgetTextStyle(palette.primary, 9, FontWeight.Bold),
+            maxLines = 1
+        )
+    }
 }
 
 @Composable
 private fun MediumWidget(
-    scoreBitmap: android.graphics.Bitmap,
+    gaugeBitmap: android.graphics.Bitmap,
+    score: Int,
     grade: String,
     screenTime: String,
+    unlockCount: Int,
     accessibility: String,
     palette: WidgetPalette,
+    strings: Context,
     vertical: Boolean
 ) {
     if (vertical) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Gauge(scoreBitmap, accessibility, 48)
-            Text(grade, style = widgetTextStyle(palette.primary, 11, FontWeight.Bold), maxLines = 1)
-            Text(screenTime, style = widgetTextStyle(palette.secondary, 10), maxLines = 1)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Gauge(gaugeBitmap, accessibility, 34)
+            Spacer(GlanceModifier.height(1.dp))
+            Text(
+                text = "${score}점",
+                style = widgetTextStyle(palette.accent, 14, FontWeight.Bold),
+                maxLines = 1
+            )
+            Text(
+                text = grade,
+                style = widgetTextStyle(palette.primary, 10, FontWeight.Bold),
+                maxLines = 1
+            )
+            Text(
+                text = screenTime,
+                style = widgetTextStyle(palette.secondary, 9),
+                maxLines = 1
+            )
         }
     } else {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Gauge(scoreBitmap, accessibility, 48)
-            Spacer(GlanceModifier.width(6.dp))
-            Column {
-                Text(grade, style = widgetTextStyle(palette.primary, 11, FontWeight.Bold), maxLines = 1)
-                Text(screenTime, style = widgetTextStyle(palette.secondary, 10), maxLines = 1)
+        Row(
+            modifier = GlanceModifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Gauge(gaugeBitmap, accessibility, 32)
+                Spacer(GlanceModifier.height(1.dp))
+                Text(
+                    text = "${score}점",
+                    style = widgetTextStyle(palette.accent, 11, FontWeight.Bold),
+                    maxLines = 1
+                )
+            }
+            Spacer(GlanceModifier.width(8.dp))
+            Column(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = grade,
+                    style = widgetTextStyle(palette.accent, 11, FontWeight.Bold),
+                    maxLines = 1
+                )
+                Spacer(GlanceModifier.height(1.dp))
+                Text(
+                    text = "📱 $screenTime",
+                    style = widgetTextStyle(palette.primary, 10, FontWeight.Medium),
+                    maxLines = 1
+                )
+                Text(
+                    text = "🔓 ${strings.getString(R.string.unlock_count_short, unlockCount)}",
+                    style = widgetTextStyle(palette.secondary, 9),
+                    maxLines = 1
+                )
             }
         }
     }
@@ -205,7 +272,7 @@ private fun MediumWidget(
 
 @Composable
 private fun LargeWidget(
-    scoreBitmap: android.graphics.Bitmap,
+    gaugeBitmap: android.graphics.Bitmap,
     score: Int,
     grade: String,
     screenTime: String,
@@ -218,22 +285,33 @@ private fun LargeWidget(
     strings: Context,
     widgetWidth: Dp
 ) {
-    Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Gauge(scoreBitmap, accessibility, 72)
+    Row(
+        modifier = GlanceModifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Gauge(gaugeBitmap, accessibility, 46)
         Spacer(GlanceModifier.width(8.dp))
         Column {
             Text(
-                strings.getString(R.string.widget_index_24h),
+                text = strings.getString(R.string.widget_index_24h),
                 style = widgetTextStyle(palette.secondary, 10, FontWeight.Medium),
                 maxLines = 1
             )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "${score}점",
+                    style = widgetTextStyle(palette.accent, 18, FontWeight.Bold),
+                    maxLines = 1
+                )
+                Spacer(GlanceModifier.width(6.dp))
+                Text(
+                    text = grade,
+                    style = widgetTextStyle(palette.primary, 12, FontWeight.Bold),
+                    maxLines = 1
+                )
+            }
             Text(
-                grade,
-                style = widgetTextStyle(palette.accent, 14, FontWeight.Bold),
-                maxLines = 1
-            )
-            Text(
-                if (continuousMinutes > 0L) {
+                text = if (continuousMinutes > 0L) {
                     strings.getString(R.string.widget_continuous, continuousMinutes)
                 } else {
                     strings.getString(R.string.widget_score_points, score)
@@ -257,7 +335,7 @@ private fun LargeWidget(
     }
     Spacer(GlanceModifier.height(6.dp))
     Text(
-        keyMessage,
+        text = keyMessage,
         modifier = GlanceModifier.fillMaxWidth().background(palette.chip).cornerRadius(9.dp).padding(7.dp),
         style = widgetTextStyle(palette.primary, 10, FontWeight.Medium),
         maxLines = 2

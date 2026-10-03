@@ -241,4 +241,75 @@ object DynamicIconGenerator {
         score: Int,
         style: StatusIconStyle = StatusIconStyle.SCORE_PROPORTION
     ): IconCompat = IconCompat.createWithBitmap(createScoreBitmapIcon(context, score, style))
+
+    /**
+     * 위젯 전용: 숫자 텍스트가 겹치지 않는 순수 전원 버튼(Power Symbol) 게이지 비트맵을 생성합니다.
+     * 빨간색 베이스 원호 위를 점수 비율만큼 녹색 아크가 시계 방향으로 덮으며,
+     * 상단 중앙 스템 막대는 점수 티어 색상을 적용합니다.
+     */
+    fun createPurePowerGaugeBitmap(
+        context: Context,
+        score: Int,
+        sizeDp: Int = 64
+    ): Bitmap {
+        val normalizedScore = score.coerceIn(0, 100)
+        val density = context.resources.displayMetrics.density
+        val size = (sizeDp * density).roundToInt().coerceAtLeast(128)
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val tierColor = scoreTierColor(normalizedScore)
+
+        val strokeWidth = size * 0.115f
+        val r = (size - strokeWidth * 2.2f) / 2f
+        val cx = size / 2f
+        val cy = size / 2f
+        val ringBounds = RectF(cx - r, cy - r, cx + r, cy + r)
+
+        val basePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(RED)
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            this.strokeWidth = strokeWidth
+        }
+
+        val startAngle = -60f
+        val fullSweep = 300f
+
+        // 1. 빨간색 바탕 원호
+        canvas.drawArc(ringBounds, startAngle, fullSweep, false, basePaint)
+
+        // 2. 점수 비율 녹색 호
+        if (normalizedScore > 0) {
+            val scorePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(GREEN)
+                style = Paint.Style.STROKE
+                strokeCap = Paint.Cap.ROUND
+                this.strokeWidth = strokeWidth
+            }
+            canvas.drawArc(ringBounds, startAngle, fullSweep * normalizedScore / 100f, false, scorePaint)
+        }
+
+        // 3. 중앙 수직 스템 막대
+        val stemTop = cy - r * 1.15f
+        val stemBottom = cy - r * 0.08f
+
+        val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = tierColor
+            alpha = 50
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            this.strokeWidth = strokeWidth * 1.3f
+        }
+        canvas.drawLine(cx, stemTop, cx, stemBottom, glowPaint)
+
+        val stemPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = tierColor
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            this.strokeWidth = strokeWidth
+        }
+        canvas.drawLine(cx, stemTop, cx, stemBottom, stemPaint)
+
+        return bitmap
+    }
 }
