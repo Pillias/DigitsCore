@@ -30,9 +30,11 @@ object ScoreNotificationManager {
     const val GUIDANCE_CHANNEL_ID = "digitscore_guidance_channel"
     const val SOFT_GUIDANCE_CHANNEL_ID = "digitscore_soft_guidance_v2"
     const val WAKE_PROMPT_CHANNEL_ID = "digitscore_wake_prompt_channel"
+    const val GOAL_CHANNEL_ID = "digitscore_goal_channel"
     const val NOTIFICATION_ID = 1001
     private const val GUIDANCE_NOTIFICATION_ID = 1002
     private const val WAKE_PROMPT_NOTIFICATION_ID = 1003
+    private const val GOAL_NOTIFICATION_ID = 1004
 
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -81,7 +83,67 @@ object ScoreNotificationManager {
                     enableVibration(true)
                 }
             )
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    GOAL_CHANNEL_ID,
+                    strings.getString(R.string.goal_channel_name),
+                    NotificationManager.IMPORTANCE_DEFAULT
+                ).apply {
+                    description = strings.getString(R.string.goal_channel_description)
+                    enableVibration(false)
+                }
+            )
         }
+    }
+
+    fun showGoalMilestoneNotification(
+        context: Context,
+        goal: com.digitscore.app.model.DailyGoal
+    ) {
+        val strings = AppLocale.stringsContext(context)
+        val launchIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            20,
+            launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val title = strings.getString(R.string.goal_milestone_title)
+        val content = when (goal.type) {
+            com.digitscore.app.model.DailyGoalType.APP_USAGE_LIMIT -> {
+                strings.getString(
+                    R.string.goal_milestone_content_app,
+                    goal.targetAppName,
+                    goal.currentValue,
+                    goal.targetValue
+                )
+            }
+            com.digitscore.app.model.DailyGoalType.SCORE_DEFENSE -> {
+                strings.getString(
+                    R.string.goal_milestone_content_score,
+                    goal.currentValue,
+                    goal.targetValue
+                )
+            }
+            com.digitscore.app.model.DailyGoalType.UNLOCK_LIMIT -> {
+                "${goal.currentValue}회 / 목표 ${goal.targetValue}회"
+            }
+        }
+
+        val notification = NotificationCompat.Builder(context, GOAL_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(title)
+            .setContentText(content)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(GOAL_NOTIFICATION_ID, notification)
     }
 
     fun showMorningWakePromptNotification(context: Context, timestamp: Long) {

@@ -19,4 +19,6 @@ class DashboardViewModel : ViewModel() {
     val isServiceRunning: StateFlow<Boolean> = ScoreRepository.isServiceRunning
     val measurementDiagnostics: StateFlow<MeasurementDiagnostics> = ScoreRepository.measurementDiagnostics
     val coreIndexGuidance: StateFlow<CoreIndexGuidance?> = ScoreRepository.coreIndexGuidance
+    val dailyGoal: StateFlow<com.digitscore.app.model.DailyGoal?> = ScoreRepository.dailyGoal
+    val yesterdaySummary: StateFlow<com.digitscore.app.model.YesterdayBriefingSummary?> = ScoreRepository.yesterdaySummary
 }

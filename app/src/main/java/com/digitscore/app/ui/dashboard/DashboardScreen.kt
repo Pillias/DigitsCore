@@ -130,6 +130,8 @@ fun DashboardScreen(
     val rollingUsageSummary by viewModel.rollingUsageSummary.collectAsState()
     val unlockCount by viewModel.unlockCount.collectAsState()
     val guidance by viewModel.coreIndexGuidance.collectAsState()
+    val dailyGoal by viewModel.dailyGoal.collectAsState()
+    val yesterdaySummary by viewModel.yesterdaySummary.collectAsState()
     val todayStart = remember {
         java.time.LocalDate.now(java.time.ZoneId.systemDefault())
             .atStartOfDay(java.time.ZoneId.systemDefault())
@@ -229,7 +231,14 @@ fun DashboardScreen(
                     )
                 }
 
-                item { HabitReviewCard(currentScore, appsUsage) }
+                item {
+                    HabitReviewCard(
+                        score = currentScore,
+                        apps = appsUsage,
+                        dailyGoal = dailyGoal,
+                        yesterdaySummary = yesterdaySummary
+                    )
+                }
 
                 guidance?.let { currentGuidance ->
                     item {
