@@ -398,7 +398,7 @@ object DynamicIconGenerator {
 
         // 브랜드 다크 원형 배경 (#101820)
         val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL
+            this.style = Paint.Style.FILL
             color = Color.parseColor("#101820")
         }
         val cx = size / 2f

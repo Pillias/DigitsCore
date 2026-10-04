@@ -23,6 +23,7 @@ import com.digitscore.app.i18n.localizedGradeDescription
 import com.digitscore.app.ui.MainActivity
 import com.digitscore.app.service.TrackerForegroundService
 import com.digitscore.app.model.RapidUsageAlertConfig
+import com.digitscore.app.data.ScoreRepository
 
 object ScoreNotificationManager {
 
@@ -133,7 +134,7 @@ object ScoreNotificationManager {
             }
         }
 
-        val currentScore = TrackerForegroundService.currentRollingScoreDetail.value?.finalScore ?: 75
+        val currentScore = ScoreRepository.rollingScoreDetail.value?.finalScore ?: 75
         val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, currentScore, StatusIconStyle.SCORE_PROPORTION)
         val largeIcon = DynamicIconGenerator.createScoreLargeIcon(context, currentScore, StatusIconStyle.SCORE_PROPORTION)
         val iconColor = DynamicIconGenerator.statusIconScoreColor(context, currentScore)
@@ -185,7 +186,7 @@ object ScoreNotificationManager {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val currentScore = TrackerForegroundService.currentRollingScoreDetail.value?.finalScore ?: 80
+        val currentScore = ScoreRepository.rollingScoreDetail.value?.finalScore ?: 80
         val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, currentScore, StatusIconStyle.SCORE_PROPORTION)
         val largeIcon = DynamicIconGenerator.createScoreLargeIcon(context, currentScore, StatusIconStyle.SCORE_PROPORTION)
         val iconColor = DynamicIconGenerator.statusIconScoreColor(context, currentScore)
