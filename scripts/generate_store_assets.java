@@ -39,19 +39,13 @@ public class generate_store_assets {
         // Upper-right start: 47.22 deg. Sweeps clockwise (negative extent) by 265.56 deg to upper-left (132.78 deg).
         double startAngle = 47.22;
         double fullSweep = -265.56;
-        double greenSweep = -163.42; // ~61.5% score proportion
 
-        // 2. Red base arc
-        Shape redArc = new Arc2D.Double(cx - r, cy - r, 2 * r, 2 * r, startAngle, fullSweep, Arc2D.OPEN);
-        g2.setColor(new Color(0xFF, 0x5A, 0x5F));
-        g2.draw(redArc);
-
-        // 3. Green score arc (clockwise from upper-right past bottom to bottom-left)
-        Shape greenArc = new Arc2D.Double(cx - r, cy - r, 2 * r, 2 * r, startAngle, greenSweep, Arc2D.OPEN);
+        // 2. Full Green Brand Arc (100% full sweep)
+        Shape greenArc = new Arc2D.Double(cx - r, cy - r, 2 * r, 2 * r, startAngle, fullSweep, Arc2D.OPEN);
         g2.setColor(new Color(0x35, 0xD0, 0x7F));
         g2.draw(greenArc);
 
-        // 4. Center top stem: (54, 24) to (54, 50) in 108dp viewport
+        // 3. Center top stem: (54, 24) to (54, 50) in 108dp viewport
         Line2D stem = new Line2D.Double(cx, 24 * s, cx, 50 * s);
         g2.setColor(new Color(0x35, 0xD0, 0x7F));
         g2.draw(stem);
@@ -93,13 +87,8 @@ public class generate_store_assets {
 
         double startAngle = 47.22;
         double fullSweep = -265.56;
-        double greenSweep = -163.42;
 
-        Shape redArc = new Arc2D.Double(cx - r, cy - r, 2 * r, 2 * r, startAngle, fullSweep, Arc2D.OPEN);
-        g2.setColor(new Color(0xFF, 0x5A, 0x5F));
-        g2.draw(redArc);
-
-        Shape greenArc = new Arc2D.Double(cx - r, cy - r, 2 * r, 2 * r, startAngle, greenSweep, Arc2D.OPEN);
+        Shape greenArc = new Arc2D.Double(cx - r, cy - r, 2 * r, 2 * r, startAngle, fullSweep, Arc2D.OPEN);
         g2.setColor(new Color(0x35, 0xD0, 0x7F));
         g2.draw(greenArc);
 

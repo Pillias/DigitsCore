@@ -133,8 +133,15 @@ object ScoreNotificationManager {
             }
         }
 
+        val currentScore = TrackerForegroundService.currentRollingScoreDetail.value?.finalScore ?: 75
+        val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, currentScore, StatusIconStyle.SCORE_PROPORTION)
+        val largeIcon = DynamicIconGenerator.createScoreLargeIcon(context, currentScore, StatusIconStyle.SCORE_PROPORTION)
+        val iconColor = DynamicIconGenerator.statusIconScoreColor(context, currentScore)
+
         val notification = NotificationCompat.Builder(context, GOAL_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(iconCompat)
+            .setLargeIcon(largeIcon)
+            .setColor(iconColor)
             .setContentTitle(title)
             .setContentText(content)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -178,8 +185,15 @@ object ScoreNotificationManager {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val currentScore = TrackerForegroundService.currentRollingScoreDetail.value?.finalScore ?: 80
+        val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, currentScore, StatusIconStyle.SCORE_PROPORTION)
+        val largeIcon = DynamicIconGenerator.createScoreLargeIcon(context, currentScore, StatusIconStyle.SCORE_PROPORTION)
+        val iconColor = DynamicIconGenerator.statusIconScoreColor(context, currentScore)
+
         val notification = NotificationCompat.Builder(context, WAKE_PROMPT_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(iconCompat)
+            .setLargeIcon(largeIcon)
+            .setColor(iconColor)
             .setContentTitle(strings.getString(R.string.wake_prompt_title))
             .setContentText(strings.getString(R.string.wake_prompt_content))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -242,9 +256,13 @@ object ScoreNotificationManager {
             strings.getString(R.string.rapid_alert_recovery, it)
         }
         val expanded = listOfNotNull(body, recovery).joinToString("\n")
+        val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, score, StatusIconStyle.SCORE_PROPORTION)
+        val largeIcon = DynamicIconGenerator.createScoreLargeIcon(context, score, StatusIconStyle.SCORE_PROPORTION)
+        val iconColor = DynamicIconGenerator.statusIconScoreColor(context, score)
         val notification = NotificationCompat.Builder(context, SOFT_GUIDANCE_CHANNEL_ID)
-            .setSmallIcon(DynamicIconGenerator.createScoreIconCompat(context, score, StatusIconStyle.SCORE_PROPORTION))
-            .setColor(DynamicIconGenerator.statusIconScoreColor(context, score))
+            .setSmallIcon(iconCompat)
+            .setLargeIcon(largeIcon)
+            .setColor(iconColor)
             .setContentTitle(strings.getString(R.string.rapid_alert_title, score))
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(expanded))
@@ -312,10 +330,12 @@ object ScoreNotificationManager {
         }.joinToString("\n")
 
         val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, score, statusIconStyle)
+        val largeIcon = DynamicIconGenerator.createScoreLargeIcon(context, score, statusIconStyle)
         val iconColor = DynamicIconGenerator.statusIconScoreColor(context, score)
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(iconCompat)
+            .setLargeIcon(largeIcon)
             .setColor(iconColor)
             .setContentTitle(title)
             .setContentText(keyMessage)
@@ -344,6 +364,7 @@ object ScoreNotificationManager {
             builder.setPublicVersion(
                 NotificationCompat.Builder(context, CHANNEL_ID)
                     .setSmallIcon(iconCompat)
+                    .setLargeIcon(largeIcon)
                     .setColor(iconColor)
                     .setContentTitle(strings.getString(R.string.tracking_active))
                     .setContentText(strings.getString(R.string.unlock_for_details))

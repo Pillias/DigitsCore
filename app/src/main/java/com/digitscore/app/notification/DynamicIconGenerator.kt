@@ -379,4 +379,66 @@ object DynamicIconGenerator {
         drawFullPowerSymbol(canvas, size, normalizedScore, tierColor, isProportionMode = true)
         return bitmap
     }
+
+    /**
+     * 알림창 대형 아이콘(Large Icon)을 생성합니다.
+     * Samsung OneUI 및 Android 12+의 알림창 좌측 원형 슬롯에 표시되며,
+     * 고유 브랜드 다크 원형 배경(#101820) 위에 실시간 점수(%) 게이지 또는 숫자를 렌더링합니다.
+     */
+    fun createScoreLargeIcon(
+        context: Context,
+        score: Int,
+        style: StatusIconStyle = StatusIconStyle.SCORE_PROPORTION
+    ): Bitmap {
+        val normalizedScore = score.coerceIn(0, 100)
+        val density = context.resources.displayMetrics.density
+        val size = (64 * density).roundToInt().coerceAtLeast(128)
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        // 브랜드 다크 원형 배경 (#101820)
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.parseColor("#101820")
+        }
+        val cx = size / 2f
+        val cy = size / 2f
+        canvas.drawCircle(cx, cy, size / 2f, bgPaint)
+
+        val tierColor = scoreTierColor(normalizedScore)
+        when (style) {
+            StatusIconStyle.BIG_NUMBER -> {
+                drawBigNumberFrame(canvas, size, normalizedScore, tierColor)
+                drawScoreText(
+                    canvas = canvas,
+                    size = size,
+                    score = normalizedScore,
+                    centerX = size / 2f,
+                    centerY = size * 0.62f,
+                    maxWidth = size * 0.68f,
+                    scaleForDigits = floatArrayOf(0.48f, 0.44f, 0.36f)
+                )
+            }
+            StatusIconStyle.NUMBER_FOCUS -> {
+                drawSeparatedPowerSymbol(canvas, size, normalizedScore, tierColor)
+                drawScoreText(
+                    canvas = canvas,
+                    size = size,
+                    score = normalizedScore,
+                    centerX = size * 0.67f,
+                    centerY = size * 0.52f,
+                    maxWidth = size * 0.56f,
+                    scaleForDigits = floatArrayOf(0.56f, 0.48f, 0.38f)
+                )
+            }
+            StatusIconStyle.SCORE_TIER -> {
+                drawFullPowerSymbol(canvas, size, normalizedScore, tierColor, isProportionMode = false)
+            }
+            StatusIconStyle.SCORE_PROPORTION -> {
+                drawFullPowerSymbol(canvas, size, normalizedScore, tierColor, isProportionMode = true)
+            }
+        }
+
+        return bitmap
+    }
 }
