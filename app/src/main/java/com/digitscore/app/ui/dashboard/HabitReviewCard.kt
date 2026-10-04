@@ -351,6 +351,7 @@ fun HabitReviewCard(
                         onClick = {
                             scope.launch {
                                 com.digitscore.app.data.DailyGoalStore.setUserAccepted(context)
+                                com.digitscore.app.data.DailyGoalStore.markBriefingCompleted(context)
                                 CumulativeScoreStore.confirmActivity(db, System.currentTimeMillis(), true)
                                 revision++
                                 TrackerForegroundService.refreshNotification(context)
@@ -367,6 +368,7 @@ fun HabitReviewCard(
                             scope.launch {
                                 // 스킵하더라도 앱이 알아서 오토파일럿으로 유지하거나 카드만 닫음
                                 com.digitscore.app.data.DailyGoalStore.setDismissed(context, true)
+                                com.digitscore.app.data.DailyGoalStore.markBriefingCompleted(context)
                                 CumulativeScoreStore.confirmActivity(db, System.currentTimeMillis(), true)
                                 revision++
                                 TrackerForegroundService.refreshNotification(context)

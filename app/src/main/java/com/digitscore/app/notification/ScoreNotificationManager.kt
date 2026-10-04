@@ -264,7 +264,8 @@ object ScoreNotificationManager {
         hideSensitiveOnLockScreen: Boolean = true,
         rollingScoreDetail: RollingScoreDetail? = null,
         statusIconStyle: StatusIconStyle = StatusIconStyle.SCORE_PROPORTION,
-        guidance: CoreIndexGuidance? = null
+        guidance: CoreIndexGuidance? = null,
+        dailyGoal: com.digitscore.app.model.DailyGoal? = null
     ): Notification {
         val strings = AppLocale.stringsContext(context)
         val launchIntent = Intent(context, MainActivity::class.java).apply {
@@ -295,7 +296,7 @@ object ScoreNotificationManager {
             unlockCount,
             formatMinutesToHoursAndMinutes(strings, scoreDetail.distractingTimeMinutes)
         )
-        val keyMessage = notificationActionMessage(strings, guidance, grade)
+        val keyMessage = notificationActionMessage(strings, guidance, grade, dailyGoal, score)
         val causeMessage = notificationCauseMessage(strings, guidance)
         val recoveryMessage = guidance?.recoveryMinutes?.let { minutes ->
             guidance.recoveryTargetScore?.let { target ->
@@ -365,7 +366,8 @@ object ScoreNotificationManager {
         hideSensitiveOnLockScreen: Boolean = true,
         rollingScoreDetail: RollingScoreDetail? = null,
         statusIconStyle: StatusIconStyle = StatusIconStyle.SCORE_PROPORTION,
-        guidance: CoreIndexGuidance? = null
+        guidance: CoreIndexGuidance? = null,
+        dailyGoal: com.digitscore.app.model.DailyGoal? = null
     ) {
         val notification = buildScoreNotification(
             context,
@@ -374,7 +376,8 @@ object ScoreNotificationManager {
             hideSensitiveOnLockScreen,
             rollingScoreDetail,
             statusIconStyle,
-            guidance
+            guidance,
+            dailyGoal
         )
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(NOTIFICATION_ID, notification)
@@ -393,19 +396,79 @@ object ScoreNotificationManager {
     private fun notificationActionMessage(
         strings: Context,
         guidance: CoreIndexGuidance?,
-        grade: ScoreGrade
-    ): String = when (guidance?.recommendation) {
-        CoreIndexRecommendation.TAKE_TEN_MINUTE_BREAK ->
-            strings.getString(R.string.notification_action_ten_minute_break)
-        CoreIndexRecommendation.TAKE_QUIET_BREAK ->
-            strings.getString(R.string.notification_action_quiet_break)
-        CoreIndexRecommendation.BATCH_PHONE_CHECKS ->
-            strings.getString(R.string.notification_action_batch_checks)
-        CoreIndexRecommendation.WIND_DOWN ->
-            strings.getString(R.string.notification_action_wind_down)
-        CoreIndexRecommendation.KEEP_BALANCE ->
-            strings.getString(R.string.notification_action_keep_balance)
-        null -> strings.localizedGradeDescription(grade)
+        grade: ScoreGrade,
+        dailyGoal: com.digitscore.app.model.DailyGoal?,
+        score: Int
+    ): String {
+        // 1. 오늘의 설정/배정된 목표가 있는 경우 목표 진행 상태를 최우선으로 안내
+        if (dailyGoal != null && !dailyGoal.isDismissed) {
+            when (dailyGoal.type) {
+                com.digitscore.app.model.DailyGoalType.APP_USAGE_LIMIT -> {
+                    val percent = (dailyGoal.progressRatio * 100).toInt()
+                    return if (dailyGoal.isExceeded) {
+                        strings.getString(
+                            R.string.notification_goal_app_exceeded,
+                            dailyGoal.targetAppName,
+                            dailyGoal.currentValue,
+                            dailyGoal.targetValue
+                        )
+                    } else {
+                        strings.getString(
+                            R.string.notification_goal_app_pace,
+                            dailyGoal.targetAppName,
+                            dailyGoal.currentValue,
+                            dailyGoal.targetValue,
+                            percent
+                        )
+                    }
+                }
+                com.digitscore.app.model.DailyGoalType.SCORE_DEFENSE -> {
+                    return if (dailyGoal.currentValue >= dailyGoal.targetValue) {
+                        strings.getString(
+                            R.string.notification_goal_score_good,
+                            dailyGoal.currentValue,
+                            dailyGoal.targetValue
+                        )
+                    } else {
+                        strings.getString(
+                            R.string.notification_goal_score_warning,
+                            dailyGoal.currentValue,
+                            dailyGoal.targetValue
+                        )
+                    }
+                }
+                com.digitscore.app.model.DailyGoalType.UNLOCK_LIMIT -> {
+                    return if (dailyGoal.isExceeded) {
+                        strings.getString(
+                            R.string.notification_goal_unlock_exceeded,
+                            dailyGoal.currentValue,
+                            dailyGoal.targetValue
+                        )
+                    } else {
+                        strings.getString(
+                            R.string.notification_goal_unlock_pace,
+                            dailyGoal.currentValue,
+                            dailyGoal.targetValue
+                        )
+                    }
+                }
+            }
+        }
+
+        // 2. 목표가 없거나 처리 중일 때: 코칭 추천 메시지
+        return when (guidance?.recommendation) {
+            CoreIndexRecommendation.TAKE_TEN_MINUTE_BREAK ->
+                strings.getString(R.string.notification_action_ten_minute_break)
+            CoreIndexRecommendation.TAKE_QUIET_BREAK ->
+                strings.getString(R.string.notification_action_quiet_break)
+            CoreIndexRecommendation.BATCH_PHONE_CHECKS ->
+                strings.getString(R.string.notification_action_batch_checks)
+            CoreIndexRecommendation.WIND_DOWN ->
+                strings.getString(R.string.notification_action_wind_down)
+            CoreIndexRecommendation.KEEP_BALANCE ->
+                strings.getString(R.string.notification_action_keep_balance)
+            null -> strings.localizedGradeDescription(grade)
+        }
     }
 
     private fun notificationCauseMessage(

@@ -148,6 +148,19 @@ fun DashboardScreen(
     var selectedAppDetail by remember { mutableStateOf<AppUsage?>(null) }
     var showAllAppsModal by remember { mutableStateOf(false) }
     var showGuidanceModal by remember { mutableStateOf(false) }
+    var showMorningDialog by remember { mutableStateOf(false) }
+
+    // 아침 기상 시 아직 브리핑 팝업을 확인하지 않은 경우 다이얼로그 자동 표시
+    LaunchedEffect(dailyGoal, yesterdaySummary) {
+        val currentGoal = dailyGoal
+        val summary = yesterdaySummary
+        if (currentGoal != null && summary != null) {
+            val isCompleted = com.digitscore.app.data.DailyGoalStore.isBriefingCompleted(context)
+            if (!isCompleted && !currentGoal.isDismissed) {
+                showMorningDialog = true
+            }
+        }
+    }
 
     val currentScore = rollingScoreDetail?.finalScore ?: 75
     val grade = ScoreGrade.fromScore(currentScore)
@@ -426,6 +439,35 @@ fun DashboardScreen(
             onNavigateToStatistics = {
                 showGuidanceModal = false
                 onNavigateToStatistics()
+            }
+        )
+    }
+
+    if (showMorningDialog && dailyGoal != null && yesterdaySummary != null) {
+        MorningBriefingDialog(
+            yesterdaySummary = requireNotNull(yesterdaySummary),
+            dailyGoal = requireNotNull(dailyGoal),
+            onAcceptGoal = {
+                scope.launch {
+                    com.digitscore.app.data.DailyGoalStore.setUserAccepted(context)
+                    com.digitscore.app.data.CumulativeScoreStore.confirmActivity(db, System.currentTimeMillis(), true)
+                    TrackerForegroundService.refreshNotification(context)
+                }
+                showMorningDialog = false
+            },
+            onSkipGoal = {
+                scope.launch {
+                    com.digitscore.app.data.DailyGoalStore.markBriefingCompleted(context)
+                    com.digitscore.app.data.CumulativeScoreStore.confirmActivity(db, System.currentTimeMillis(), true)
+                    TrackerForegroundService.refreshNotification(context)
+                }
+                showMorningDialog = false
+            },
+            onDismiss = {
+                scope.launch {
+                    com.digitscore.app.data.DailyGoalStore.markBriefingCompleted(context)
+                }
+                showMorningDialog = false
             }
         )
     }

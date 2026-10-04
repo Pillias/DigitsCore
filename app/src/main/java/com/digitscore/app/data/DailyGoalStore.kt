@@ -81,9 +81,28 @@ object DailyGoalStore {
         prefs.edit().putBoolean(KEY_DISMISSED, dismissed).apply()
     }
 
+    private const val KEY_BRIEFING_COMPLETED = "goal_briefing_completed"
+
+    fun isBriefingCompleted(context: Context, todayDate: String = getTodayDateString()): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val savedDate = prefs.getString(KEY_DATE, null)
+        return savedDate == todayDate && prefs.getBoolean(KEY_BRIEFING_COMPLETED, false)
+    }
+
+    fun markBriefingCompleted(context: Context, todayDate: String = getTodayDateString()) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString(KEY_DATE, todayDate)
+            .putBoolean(KEY_BRIEFING_COMPLETED, true)
+            .apply()
+    }
+
     fun setUserAccepted(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putBoolean(KEY_AUTO_ASSIGNED, false).apply()
+        prefs.edit()
+            .putBoolean(KEY_AUTO_ASSIGNED, false)
+            .putBoolean(KEY_BRIEFING_COMPLETED, true)
+            .apply()
     }
 
     fun getYesterdaySummary(context: Context, todayDate: String = getTodayDateString()): YesterdayBriefingSummary? {

@@ -62,6 +62,12 @@
     <string name="notification_action_quiet_break">Leave notifications for a moment and take a screen-free break.</string>
     <string name="notification_action_batch_checks">Delay the next check and review notifications together.</string>
     <string name="notification_action_wind_down">Finish managed-app use and dim the screen for the night.</string>
+    <string name="notification_goal_app_pace">Today %1$s: %2$d/%3$d min (%4$d%%)</string>
+    <string name="notification_goal_app_exceeded">Today %1$s: Over %3$d min target (%2$d min used)</string>
+    <string name="notification_goal_score_good">Defending %2$d+ target score (Current %1$d)</string>
+    <string name="notification_goal_score_warning">Below %2$d defense line (Current %1$d)</string>
+    <string name="notification_goal_unlock_pace">Unlocks: %1$d / Limit %2$d</string>
+    <string name="notification_goal_unlock_exceeded">Unlocks: %1$d (Exceeded %2$d limit)</string>
     <string name="notification_cause_calibrating">More usage data will make guidance more personal.</string>
     <string name="notification_cause_continuous">%1$d minutes of continuous use is affecting your current load.</string>
     <string name="notification_cause_managed">%1$s led recent load with %2$d minutes of use.</string>

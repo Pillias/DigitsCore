@@ -657,32 +657,8 @@ class TrackerForegroundService : Service() {
                     }
                 }
 
-                // 알림 갱신
-                if (settings?.isNotificationEnabled != false) {
-                    val notification = ScoreNotificationManager.buildScoreNotification(
-                        applicationContext,
-                        displayScoreDetail,
-                        rollingUnlockCount,
-                        settings?.hideSensitiveNotificationOnLockScreen ?: true,
-                        rollingScoreDetail,
-                        StatusIconStyle.fromId(settings?.statusIconStyleId),
-                        guidance
-                    )
-                    // 단순 notify 갱신 대신 foreground 연결을 다시 확인해 OEM 재시작이나
-                    // 일시적인 알림 제거 뒤에도 상태 아이콘이 복원되도록 합니다.
-                    startForeground(ScoreNotificationManager.NOTIFICATION_ID, notification)
-                    maybeShowRapidUsageNotification(
-                        enabled = settings?.isRapidUsageAlertEnabled != false,
-                        config = rapidUsageAlertConfig,
-                        currentScore = rollingScoreDetail.finalScore,
-                        continuousUsageMinutes = rollingScoreDetail.continuousUsageMinutes,
-                        sessions = recentSessions,
-                        guidance = guidance,
-                        now = now
-                    )
-                }
-
                 // 데일리 맞춤 목표 (Daily Goal) 진행도 계산 및 80% 마일스톤 코칭
+                var activeGoal: com.digitscore.app.model.DailyGoal? = null
                 try {
                     val (ySummary, currentGoal) = com.digitscore.app.data.DailyGoalStore.generateOrGetGoal(
                         applicationContext, db, currentDateString
@@ -719,8 +695,35 @@ class TrackerForegroundService : Service() {
                         if (shouldNotify80) true else null
                     )
                     ScoreRepository.updateDailyGoal(finalGoal)
+                    activeGoal = finalGoal
                 } catch (e: Exception) {
                     android.util.Log.w("DigitsCoreGoal", "Failed to update daily goal progress", e)
+                }
+
+                // 알림 갱신
+                if (settings?.isNotificationEnabled != false) {
+                    val notification = ScoreNotificationManager.buildScoreNotification(
+                        applicationContext,
+                        displayScoreDetail,
+                        rollingUnlockCount,
+                        settings?.hideSensitiveNotificationOnLockScreen ?: true,
+                        rollingScoreDetail,
+                        StatusIconStyle.fromId(settings?.statusIconStyleId),
+                        guidance,
+                        activeGoal
+                    )
+                    // 단순 notify 갱신 대신 foreground 연결을 다시 확인해 OEM 재시작이나
+                    // 일시적인 알림 제거 뒤에도 상태 아이콘이 복원되도록 합니다.
+                    startForeground(ScoreNotificationManager.NOTIFICATION_ID, notification)
+                    maybeShowRapidUsageNotification(
+                        enabled = settings?.isRapidUsageAlertEnabled != false,
+                        config = rapidUsageAlertConfig,
+                        currentScore = rollingScoreDetail.finalScore,
+                        continuousUsageMinutes = rollingScoreDetail.continuousUsageMinutes,
+                        sessions = recentSessions,
+                        guidance = guidance,
+                        now = now
+                    )
                 }
 
                 // DB 일일 히스토리 업데이트
