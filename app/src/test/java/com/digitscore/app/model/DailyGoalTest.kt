@@ -48,4 +48,40 @@ class DailyGoalTest {
         val failedGoal = goal.copy(currentValue = 65)
         assertFalse(failedGoal.isAchieved)
     }
+
+    @Test
+    fun testMultiGoalEvaluation() {
+        val multiGoal = DailyGoal(
+            dateString = "2026-10-06",
+            scoreTarget = 70,
+            currentScore = 75,
+            targetPackageName = "com.google.android.youtube",
+            targetAppName = "YouTube",
+            appLimitMinutes = 30,
+            currentAppUsageMinutes = 20,
+            unlockLimitTarget = 40,
+            currentUnlockCount = 25
+        )
+
+        // All 3 goals are currently within target
+        assertTrue(multiGoal.isScoreDefenseAchieved)
+        assertTrue(multiGoal.isAppLimitAchieved)
+        assertTrue(multiGoal.isUnlockLimitAchieved)
+        assertEquals(20f / 30f, multiGoal.appProgressRatio, 0.001f)
+        assertEquals(25f / 40f, multiGoal.unlockProgressRatio, 0.001f)
+
+        // When app limit is exceeded
+        val exceededAppGoal = multiGoal.copy(currentAppUsageMinutes = 35)
+        assertFalse(exceededAppGoal.isAppLimitAchieved)
+        assertEquals(35f / 30f, exceededAppGoal.appProgressRatio, 0.001f)
+
+        // When score falls below target
+        val failedScoreGoal = multiGoal.copy(currentScore = 65)
+        assertFalse(failedScoreGoal.isScoreDefenseAchieved)
+
+        // When unlock count is exceeded
+        val exceededUnlockGoal = multiGoal.copy(currentUnlockCount = 45)
+        assertFalse(exceededUnlockGoal.isUnlockLimitAchieved)
+    }
 }
+

@@ -114,9 +114,9 @@ fun HabitReviewCard(
         val zone = ZoneId.systemDefault()
         val now = java.time.ZonedDateTime.now(zone)
         val handledDate = Instant.ofEpochMilli(record.briefingHandledAt).atZone(zone).toLocalDate()
-        // 오전 4시~12시 사이, 아직 확인하지 않았거나 오늘의 목표 카드가 dismiss되지 않은 경우
-        morning = (now.hour in 4..12 && handledDate != now.toLocalDate()) ||
-                (dailyGoal != null && !dailyGoal.isDismissed && dailyGoal.isAutoAssigned)
+        // 오전 5시~12시 사이, 아직 확인하지 않았거나 오늘의 목표 카드가 dismiss되지 않은 경우 (새벽 0~4시 심야 미표시)
+        morning = (now.hour in 5..12 && handledDate != now.toLocalDate()) ||
+                (dailyGoal != null && !dailyGoal.isDismissed && dailyGoal.isAutoAssigned && now.hour in 5..12)
         val since = LocalDate.now(zone).minusDays(6).toString()
         suggestion = null
         for (app in apps.filter { it.categoryType.canonical == AppCategoryType.NEUTRAL }) {
@@ -259,15 +259,15 @@ fun HabitReviewCard(
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-                // 오늘의 1가지 맞춤 목표 (미니 게이지 & 숫자)
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // 오늘의 3대 복합 목표 (미니 게이지 & 숫자)
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = if (english) "TODAY'S TARGET" else "오늘의 추천 목표",
+                            text = if (english) "TODAY'S 3-IN-1 GOALS" else "오늘의 3대 맞춤 목표",
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.primary,
@@ -289,57 +289,98 @@ fun HabitReviewCard(
                         }
                     }
 
-                    // 목표 내용 & 진행 수치
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Bottom
-                    ) {
-                        Text(
-                            text = when (dailyGoal.type) {
-                                com.digitscore.app.model.DailyGoalType.APP_USAGE_LIMIT ->
-                                    if (english) "${dailyGoal.targetAppName} under ${dailyGoal.targetValue}m"
-                                    else "${dailyGoal.targetAppName} ${dailyGoal.targetValue}분 이내"
-                                com.digitscore.app.model.DailyGoalType.SCORE_DEFENSE ->
-                                    if (english) "Defend Score ${dailyGoal.targetValue}+"
-                                    else "코어 지수 ${dailyGoal.targetValue}점 이상 방어"
-                                com.digitscore.app.model.DailyGoalType.UNLOCK_LIMIT ->
-                                    if (english) "Unlocks under ${dailyGoal.targetValue}"
-                                    else "잠금 해제 ${dailyGoal.targetValue}회 이내"
-                            },
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-
-                        Text(
-                            text = when (dailyGoal.type) {
-                                com.digitscore.app.model.DailyGoalType.APP_USAGE_LIMIT ->
-                                    "${dailyGoal.currentValue}m / ${dailyGoal.targetValue}m"
-                                com.digitscore.app.model.DailyGoalType.SCORE_DEFENSE ->
-                                    "${dailyGoal.currentValue}점 / ${dailyGoal.targetValue}점"
-                                com.digitscore.app.model.DailyGoalType.UNLOCK_LIMIT ->
-                                    "${dailyGoal.currentValue}회 / ${dailyGoal.targetValue}회"
-                            },
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (dailyGoal.isExceeded) com.digitscore.app.ui.theme.ScoreRed
-                            else MaterialTheme.colorScheme.outline
+                    // 1. 코어 지수 방어선
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = if (english) "1. Core Index Defense" else "1. 코어 지수 방어선",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "${dailyGoal.currentScore}점 / 목표 ${dailyGoal.scoreTarget}점",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (dailyGoal.isScoreDefenseAchieved) com.digitscore.app.ui.theme.ScoreGreen
+                                else com.digitscore.app.ui.theme.ScoreRed
+                            )
+                        }
+                        LinearProgressIndicator(
+                            progress = { (dailyGoal.currentScore.toFloat() / 100f).coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth().height(4.dp),
+                            color = if (dailyGoal.isScoreDefenseAchieved) com.digitscore.app.ui.theme.ScoreGreen
+                            else com.digitscore.app.ui.theme.ScoreRed,
+                            trackColor = MaterialTheme.colorScheme.surface
                         )
                     }
 
-                    // 프로그레스 바
-                    LinearProgressIndicator(
-                        progress = { dailyGoal.progressRatio },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(6.dp),
-                        color = when {
-                            dailyGoal.progressRatio >= 0.8f -> com.digitscore.app.ui.theme.ScoreOrange
-                            else -> MaterialTheme.colorScheme.primary
-                        },
-                        trackColor = MaterialTheme.colorScheme.surface,
-                    )
+                    // 2. 특정 앱 사용량 제한 (선택된 경우)
+                    if (dailyGoal.targetPackageName != null) {
+                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "2. ${dailyGoal.targetAppName} 제한",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = "${dailyGoal.currentAppUsageMinutes}분 / 목표 ${dailyGoal.appLimitMinutes}분",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (dailyGoal.currentAppUsageMinutes > dailyGoal.appLimitMinutes) com.digitscore.app.ui.theme.ScoreRed
+                                    else if (dailyGoal.appProgressRatio >= 0.8f) com.digitscore.app.ui.theme.ScoreOrange
+                                    else MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            LinearProgressIndicator(
+                                progress = { dailyGoal.appProgressRatio.coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth().height(4.dp),
+                                color = if (dailyGoal.currentAppUsageMinutes > dailyGoal.appLimitMinutes) com.digitscore.app.ui.theme.ScoreRed
+                                else if (dailyGoal.appProgressRatio >= 0.8f) com.digitscore.app.ui.theme.ScoreOrange
+                                else MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.surface
+                            )
+                        }
+                    }
+
+                    // 3. 잠금 해제 조절
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = if (english) "3. Unlock Limit" else "3. 잠금 해제 조절",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "${dailyGoal.currentUnlockCount}회 / 목표 ${dailyGoal.unlockLimitTarget}회",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (dailyGoal.currentUnlockCount > dailyGoal.unlockLimitTarget) com.digitscore.app.ui.theme.ScoreRed
+                                else if (dailyGoal.unlockProgressRatio >= 0.8f) com.digitscore.app.ui.theme.ScoreOrange
+                                else MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                        LinearProgressIndicator(
+                            progress = { dailyGoal.unlockProgressRatio.coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth().height(4.dp),
+                            color = if (dailyGoal.currentUnlockCount > dailyGoal.unlockLimitTarget) com.digitscore.app.ui.theme.ScoreRed
+                            else if (dailyGoal.unlockProgressRatio >= 0.8f) com.digitscore.app.ui.theme.ScoreOrange
+                            else MaterialTheme.colorScheme.secondary,
+                            trackColor = MaterialTheme.colorScheme.surface
+                        )
+                    }
                 }
 
                 // 시작 / 건너뛰기 액션 버튼

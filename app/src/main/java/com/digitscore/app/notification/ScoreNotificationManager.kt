@@ -113,25 +113,21 @@ object ScoreNotificationManager {
         )
 
         val title = strings.getString(R.string.goal_milestone_title)
-        val content = when (goal.type) {
-            com.digitscore.app.model.DailyGoalType.APP_USAGE_LIMIT -> {
-                strings.getString(
-                    R.string.goal_milestone_content_app,
-                    goal.targetAppName,
-                    goal.currentValue,
-                    goal.targetValue
-                )
-            }
-            com.digitscore.app.model.DailyGoalType.SCORE_DEFENSE -> {
-                strings.getString(
-                    R.string.goal_milestone_content_score,
-                    goal.currentValue,
-                    goal.targetValue
-                )
-            }
-            com.digitscore.app.model.DailyGoalType.UNLOCK_LIMIT -> {
-                "${goal.currentValue}회 / 목표 ${goal.targetValue}회"
-            }
+        val content = if (goal.targetPackageName != null && goal.appProgressRatio >= 0.8f) {
+            strings.getString(
+                R.string.goal_milestone_content_app,
+                goal.targetAppName,
+                goal.currentAppUsageMinutes,
+                goal.appLimitMinutes
+            )
+        } else if (goal.unlockProgressRatio >= 0.8f) {
+            "${goal.currentUnlockCount}회 / 목표 ${goal.unlockLimitTarget}회 (80% 도달)"
+        } else {
+            strings.getString(
+                R.string.goal_milestone_content_score,
+                goal.currentScore,
+                goal.scoreTarget
+            )
         }
 
         val currentScore = ScoreRepository.rollingScoreDetail.value?.finalScore ?: 75
@@ -424,57 +420,65 @@ object ScoreNotificationManager {
     ): String {
         // 1. 오늘의 설정/배정된 목표가 있는 경우 목표 진행 상태를 최우선으로 안내
         if (dailyGoal != null && !dailyGoal.isDismissed) {
-            when (dailyGoal.type) {
-                com.digitscore.app.model.DailyGoalType.APP_USAGE_LIMIT -> {
-                    val percent = (dailyGoal.progressRatio * 100).toInt()
-                    return if (dailyGoal.isExceeded) {
-                        strings.getString(
-                            R.string.notification_goal_app_exceeded,
-                            dailyGoal.targetAppName,
-                            dailyGoal.currentValue,
-                            dailyGoal.targetValue
-                        )
-                    } else {
-                        strings.getString(
-                            R.string.notification_goal_app_pace,
-                            dailyGoal.targetAppName,
-                            dailyGoal.currentValue,
-                            dailyGoal.targetValue,
-                            percent
-                        )
-                    }
-                }
-                com.digitscore.app.model.DailyGoalType.SCORE_DEFENSE -> {
-                    return if (dailyGoal.currentValue >= dailyGoal.targetValue) {
-                        strings.getString(
-                            R.string.notification_goal_score_good,
-                            dailyGoal.currentValue,
-                            dailyGoal.targetValue
-                        )
-                    } else {
-                        strings.getString(
-                            R.string.notification_goal_score_warning,
-                            dailyGoal.currentValue,
-                            dailyGoal.targetValue
-                        )
-                    }
-                }
-                com.digitscore.app.model.DailyGoalType.UNLOCK_LIMIT -> {
-                    return if (dailyGoal.isExceeded) {
-                        strings.getString(
-                            R.string.notification_goal_unlock_exceeded,
-                            dailyGoal.currentValue,
-                            dailyGoal.targetValue
-                        )
-                    } else {
-                        strings.getString(
-                            R.string.notification_goal_unlock_pace,
-                            dailyGoal.currentValue,
-                            dailyGoal.targetValue
-                        )
-                    }
+            // (1) 특정 앱이 초과되었거나 80%에 근접한 경우
+            if (dailyGoal.targetPackageName != null) {
+                if (dailyGoal.currentAppUsageMinutes > dailyGoal.appLimitMinutes) {
+                    return strings.getString(
+                        R.string.notification_goal_app_exceeded,
+                        dailyGoal.targetAppName,
+                        dailyGoal.currentAppUsageMinutes,
+                        dailyGoal.appLimitMinutes
+                    )
+                } else if (dailyGoal.appProgressRatio >= 0.8f) {
+                    val percent = (dailyGoal.appProgressRatio * 100).toInt()
+                    return strings.getString(
+                        R.string.notification_goal_app_pace,
+                        dailyGoal.targetAppName,
+                        dailyGoal.currentAppUsageMinutes,
+                        dailyGoal.appLimitMinutes,
+                        percent
+                    )
                 }
             }
+
+            // (2) 잠금 해제가 80% 이상 소진된 경우
+            if (dailyGoal.unlockProgressRatio >= 0.8f) {
+                return if (dailyGoal.currentUnlockCount > dailyGoal.unlockLimitTarget) {
+                    strings.getString(
+                        R.string.notification_goal_unlock_exceeded,
+                        dailyGoal.currentUnlockCount,
+                        dailyGoal.unlockLimitTarget
+                    )
+                } else {
+                    strings.getString(
+                        R.string.notification_goal_unlock_pace,
+                        dailyGoal.currentUnlockCount,
+                        dailyGoal.unlockLimitTarget
+                    )
+                }
+            }
+
+            // (3) 코어 지수가 방어선 미만으로 내려간 경우
+            if (dailyGoal.currentScore < dailyGoal.scoreTarget) {
+                return strings.getString(
+                    R.string.notification_goal_score_warning,
+                    dailyGoal.currentScore,
+                    dailyGoal.scoreTarget
+                )
+            }
+
+            // (4) 평시: 특정 앱 진행 상황과 방어선 유지 안내
+            if (dailyGoal.targetPackageName != null) {
+                val percent = (dailyGoal.appProgressRatio * 100).toInt()
+                return "${dailyGoal.targetAppName}: ${dailyGoal.currentAppUsageMinutes}분/${dailyGoal.appLimitMinutes}분 ($percent%) · 방어선 ${dailyGoal.scoreTarget}점 유지 중"
+            }
+
+            // (5) 특정 앱이 없을 때 코어 지수 정상 유지
+            return strings.getString(
+                R.string.notification_goal_score_good,
+                dailyGoal.currentScore,
+                dailyGoal.scoreTarget
+            )
         }
 
         // 2. 목표가 없거나 처리 중일 때: 코칭 추천 메시지

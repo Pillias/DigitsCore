@@ -661,27 +661,27 @@ class TrackerForegroundService : Service() {
                 var activeGoal: com.digitscore.app.model.DailyGoal? = null
                 try {
                     val (ySummary, currentGoal) = com.digitscore.app.data.DailyGoalStore.generateOrGetGoal(
-                        applicationContext, db, currentDateString
+                        applicationContext, db, com.digitscore.app.data.DailyGoalStore.getLogicalDateString()
                     )
                     ScoreRepository.updateYesterdaySummary(ySummary)
 
-                    val updatedGoal = when (currentGoal.type) {
-                        com.digitscore.app.model.DailyGoalType.APP_USAGE_LIMIT -> {
-                            val todayApp = todayAppsUsage.firstOrNull { it.packageName == currentGoal.targetPackageName }
-                            val currentMins = ((todayApp?.usageTimeMillis ?: 0L) / 60_000L).toInt()
-                            currentGoal.copy(currentValue = currentMins)
-                        }
-                        com.digitscore.app.model.DailyGoalType.SCORE_DEFENSE -> {
-                            currentGoal.copy(currentValue = rollingScoreDetail.finalScore)
-                        }
-                        com.digitscore.app.model.DailyGoalType.UNLOCK_LIMIT -> {
-                            currentGoal.copy(currentValue = todayUnlockCount)
-                        }
+                    val todayApp = currentGoal.targetPackageName?.let { pkg ->
+                        todayAppsUsage.firstOrNull { it.packageName == pkg }
                     }
+                    val appMins = ((todayApp?.usageTimeMillis ?: 0L) / 60_000L).toInt()
 
-                    // 80% 마일스톤 도달 시 1회성 알림 코칭
+                    val updatedGoal = currentGoal.copy(
+                        currentScore = rollingScoreDetail.finalScore,
+                        currentAppUsageMinutes = appMins,
+                        currentUnlockCount = todayUnlockCount,
+                        currentValue = if (currentGoal.targetPackageName != null) appMins else rollingScoreDetail.finalScore
+                    )
+
+                    // 80% 마일스톤 도달 시 1회성 알림 코칭 (앱 사용량 80% 또는 잠금해제 80%)
+                    val isAppAt80 = currentGoal.targetPackageName != null && updatedGoal.appProgressRatio >= 0.8f
+                    val isUnlockAt80 = updatedGoal.unlockProgressRatio >= 0.8f
                     val shouldNotify80 = !updatedGoal.notifiedMilestone80 &&
-                            updatedGoal.progressRatio >= 0.8f &&
+                            (isAppAt80 || isUnlockAt80) &&
                             settings?.isNotificationEnabled != false
 
                     if (shouldNotify80) {
@@ -691,8 +691,10 @@ class TrackerForegroundService : Service() {
                     val finalGoal = if (shouldNotify80) updatedGoal.copy(notifiedMilestone80 = true) else updatedGoal
                     com.digitscore.app.data.DailyGoalStore.updateProgress(
                         applicationContext,
-                        finalGoal.currentValue,
-                        if (shouldNotify80) true else null
+                        currentScore = finalGoal.currentScore,
+                        currentAppMins = finalGoal.currentAppUsageMinutes,
+                        currentUnlock = finalGoal.currentUnlockCount,
+                        notifiedMilestone80 = if (shouldNotify80) true else null
                     )
                     ScoreRepository.updateDailyGoal(finalGoal)
                     activeGoal = finalGoal

@@ -150,11 +150,12 @@ fun DashboardScreen(
     var showGuidanceModal by remember { mutableStateOf(false) }
     var showMorningDialog by remember { mutableStateOf(false) }
 
-    // 아침 기상 시 아직 브리핑 팝업을 확인하지 않은 경우 다이얼로그 자동 표시
+    // 아침 기상 시(오전 5시~12시) 아직 브리핑 팝업을 확인하지 않은 경우 다이얼로그 자동 표시 (새벽 0~4시 심야 미표시)
     LaunchedEffect(dailyGoal, yesterdaySummary) {
         val currentGoal = dailyGoal
         val summary = yesterdaySummary
-        if (currentGoal != null && summary != null) {
+        val currentHour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        if (currentGoal != null && summary != null && currentHour in 5..12) {
             val isCompleted = com.digitscore.app.data.DailyGoalStore.isBriefingCompleted(context)
             if (!isCompleted && !currentGoal.isDismissed) {
                 showMorningDialog = true
@@ -447,9 +448,11 @@ fun DashboardScreen(
         MorningBriefingDialog(
             yesterdaySummary = requireNotNull(yesterdaySummary),
             dailyGoal = requireNotNull(dailyGoal),
-            onAcceptGoal = {
+            onAcceptGoals = { scoreTarget, targetPkg, targetAppName, appLimitMins, unlockLimit ->
                 scope.launch {
-                    com.digitscore.app.data.DailyGoalStore.setUserAccepted(context)
+                    com.digitscore.app.data.DailyGoalStore.setCustomGoal(
+                        context, scoreTarget, targetPkg, targetAppName, appLimitMins, unlockLimit
+                    )
                     com.digitscore.app.data.CumulativeScoreStore.confirmActivity(db, System.currentTimeMillis(), true)
                     TrackerForegroundService.refreshNotification(context)
                 }
