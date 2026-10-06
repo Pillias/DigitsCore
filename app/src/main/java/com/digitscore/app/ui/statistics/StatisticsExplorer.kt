@@ -34,6 +34,7 @@ import androidx.core.graphics.drawable.toBitmap
 import com.digitscore.app.data.*
 import com.digitscore.app.data.entity.*
 import com.digitscore.app.ui.components.ResponsiveContent
+import com.digitscore.app.ui.components.coreIndexTierColor
 import com.digitscore.app.ui.theme.ScoreGreen
 import com.digitscore.app.ui.theme.ScoreRed
 import com.digitscore.app.ui.theme.ScoreOrange
@@ -197,7 +198,9 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                     Column(Modifier.padding(horizontal = 22.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(if (selected != null) label("선택한 기록", "Selected reading") else label("코어 지수", "Core Index"), color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text(displayed?.roundToInt()?.toString() ?: "—", modifier = Modifier.testTag("statistics-score"), fontSize = 48.sp, fontWeight = FontWeight.ExtraBold)
+                            val scoreInt = displayed?.roundToInt() ?: 80
+                            val tierColor = coreIndexTierColor(scoreInt)
+                            Text(displayed?.roundToInt()?.toString() ?: "—", color = tierColor, modifier = Modifier.testTag("statistics-score"), fontSize = 48.sp, fontWeight = FontWeight.ExtraBold)
                             change?.let { Text("${if (it >= 0) "+" else ""}${points(it)}", color = if (it >= 0) ScoreGreen else ScoreRed,
                                 fontSize = 20.sp, modifier = Modifier.padding(bottom = 8.dp)) }
                         }
@@ -491,27 +494,36 @@ private fun ExplorerChart(
                         // 1일 상세 5분 샘플 꺾은선
                         val readings = if (samples.isNotEmpty()) samples.map { Triple(it.timestampMillis, it.exactScore, it.scoreModelVersion) }
                             else buckets.mapNotNull { it.score?.let { s -> Triple(s.lastAt, s.last, s.model) } }
+                        val latestScore = readings.lastOrNull()?.second?.roundToInt() ?: 80
+                        val chartTierColor = coreIndexTierColor(latestScore)
                         readings.zipWithNext().forEach { (a, b) ->
-                            if (a.third == b.third) drawLine(if (b.third == 5) primary else muted,
+                            val segColor = if (b.third == 5) coreIndexTierColor(b.second.roundToInt()) else muted
+                            drawLine(segColor,
                                 Offset(x(a.first), y(a.second)), Offset(x(b.first), y(b.second)), 2.5.dp.toPx(), StrokeCap.Round)
                         }
-                        readings.lastOrNull()?.let { drawCircle(primary.copy(alpha = 0.12f), 10.dp.toPx(), Offset(x(it.first), y(it.second))); drawCircle(primary, 4.dp.toPx(), Offset(x(it.first), y(it.second))) }
+                        readings.lastOrNull()?.let {
+                            drawCircle(chartTierColor.copy(alpha = 0.20f), 10.dp.toPx(), Offset(x(it.first), y(it.second)))
+                            drawCircle(chartTierColor, 4.dp.toPx(), Offset(x(it.first), y(it.second)))
+                        }
                     } else if (isHourly) {
                         // 시간별 꺾은선 그래프
                         val hourlyReadings = buckets.mapNotNull { b -> b.score?.let { s -> Triple((b.start + b.end) / 2, s.last, s.model) } }
+                        val latestScore = hourlyReadings.lastOrNull()?.second?.roundToInt() ?: 80
+                        val chartTierColor = coreIndexTierColor(latestScore)
                         hourlyReadings.zipWithNext().forEach { (a, b) ->
-                            if (a.third == b.third) drawLine(
-                                if (b.third == 5) primary else muted,
+                            val segColor = if (b.third == 5) coreIndexTierColor(b.second.roundToInt()) else muted
+                            drawLine(
+                                segColor,
                                 Offset(x(a.first), y(a.second)), Offset(x(b.first), y(b.second)), 2.5.dp.toPx(), StrokeCap.Round
                             )
                         }
                         hourlyReadings.forEach { pt ->
-                            val ptColor = if (pt.third == 5) primary else muted
+                            val ptColor = if (pt.third == 5) coreIndexTierColor(pt.second.roundToInt()) else muted
                             drawCircle(ptColor, 2.5.dp.toPx(), Offset(x(pt.first), y(pt.second)))
                         }
                         hourlyReadings.lastOrNull()?.let {
-                            drawCircle(primary.copy(alpha = 0.15f), 9.dp.toPx(), Offset(x(it.first), y(it.second)))
-                            drawCircle(primary, 4.dp.toPx(), Offset(x(it.first), y(it.second)))
+                            drawCircle(chartTierColor.copy(alpha = 0.20f), 9.dp.toPx(), Offset(x(it.first), y(it.second)))
+                            drawCircle(chartTierColor, 4.dp.toPx(), Offset(x(it.first), y(it.second)))
                         }
                     } else {
                         // 일별 보기: 꺾은선 그래프 + 당일 최고/최저 변동폭 범위
@@ -527,8 +539,9 @@ private fun ExplorerChart(
                         // 2) 날짜별 점수 추세 꺾은선
                         val dayReadings = buckets.mapNotNull { b -> b.score?.let { s -> Triple((b.start + b.end) / 2, s.last, s.model) } }
                         dayReadings.zipWithNext().forEach { (a, b) ->
-                            if (a.third == b.third) drawLine(
-                                if (b.third == 5) primary else muted,
+                            val segColor = if (b.third == 5) coreIndexTierColor(b.second.roundToInt()) else muted
+                            drawLine(
+                                segColor,
                                 Offset(x(a.first), y(a.second)), Offset(x(b.first), y(b.second)), 2.8.dp.toPx(), StrokeCap.Round
                             )
                         }
@@ -540,8 +553,9 @@ private fun ExplorerChart(
                             drawCircle(surface, 1.5.dp.toPx(), Offset(mid, y(s.last)))
                         } }
                         dayReadings.lastOrNull()?.let {
-                            drawCircle(primary.copy(alpha = 0.18f), 10.dp.toPx(), Offset(x(it.first), y(it.second)))
-                            drawCircle(primary, 4.5.dp.toPx(), Offset(x(it.first), y(it.second)))
+                            val lastTierColor = coreIndexTierColor(it.second.roundToInt())
+                            drawCircle(lastTierColor.copy(alpha = 0.20f), 10.dp.toPx(), Offset(x(it.first), y(it.second)))
+                            drawCircle(lastTierColor, 4.5.dp.toPx(), Offset(x(it.first), y(it.second)))
                         }
                     }
                     if (detailed) {

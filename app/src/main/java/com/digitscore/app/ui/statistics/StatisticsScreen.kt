@@ -43,6 +43,7 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.TextButton
 import com.digitscore.app.i18n.Text
 import com.digitscore.app.i18n.UiTranslator
+import com.digitscore.app.ui.components.coreIndexTierColor
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -657,13 +658,13 @@ private fun RollingMarketChartCard(
         summarizeRollingUsage(sessions, windowStartMillis, windowEndMillis)
     }
     val axisColor = MaterialTheme.colorScheme.outline
-    val lineColor = MaterialTheme.colorScheme.primary
+    val current = visible.lastOrNull()?.score
+    val lineColor = current?.let { coreIndexTierColor(it) } ?: MaterialTheme.colorScheme.primary
     val surfaceColor = MaterialTheme.colorScheme.surface
     var selectedIndex by remember(visible) {
         mutableStateOf<Int?>(visible.lastIndex.takeIf { it >= 0 })
     }
     val selectedSample = selectedIndex?.let(visible::getOrNull)
-    val current = visible.lastOrNull()?.score
     val change = if (visible.size >= 2) current?.minus(visible.first().score) else null
     val duration = (windowEndMillis - windowStartMillis).coerceAtLeast(1L)
     val selectedBucket = selectedSample?.let {

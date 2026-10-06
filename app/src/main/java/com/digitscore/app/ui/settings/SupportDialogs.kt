@@ -216,73 +216,60 @@ private const val SUPPORT_EMAIL = "DigitsCore@gmail.com"
 
 private fun sendBugReportEmail(context: Context, report: String, screenshotUris: List<android.net.Uri>) {
     val subject = "DigitsCore v${BuildConfig.VERSION_NAME} (${BuildConfig.BUILD_DATE}) bug report"
-    val intent = when {
-        screenshotUris.size > 1 -> {
-            Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                type = "image/*"
-                putExtra(Intent.EXTRA_EMAIL, arrayOf(SUPPORT_EMAIL))
-                putExtra(Intent.EXTRA_SUBJECT, subject)
-                putExtra(Intent.EXTRA_TEXT, report)
-                putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(screenshotUris))
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+    // 이메일 클라이언트 전용 Intent 구성 (메신저 및 일반 공유 제외)
+    val emailIntent = if (screenshotUris.size > 1) {
+        Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+            type = "message/rfc822"
+            selector = Intent(Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:"))
+            putExtra(Intent.EXTRA_EMAIL, arrayOf(SUPPORT_EMAIL))
+            putExtra(Intent.EXTRA_SUBJECT, subject)
+            putExtra(Intent.EXTRA_TEXT, report)
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(screenshotUris))
+            val clipData = ClipData.newUri(context.contentResolver, "screenshot", screenshotUris.first())
+            for (i in 1 until screenshotUris.size) {
+                clipData.addItem(ClipData.Item(screenshotUris[i]))
             }
+            this.clipData = clipData
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        screenshotUris.size == 1 -> {
-            Intent(Intent.ACTION_SEND).apply {
-                type = "image/*"
-                putExtra(Intent.EXTRA_EMAIL, arrayOf(SUPPORT_EMAIL))
-                putExtra(Intent.EXTRA_SUBJECT, subject)
-                putExtra(Intent.EXTRA_TEXT, report)
-                putExtra(Intent.EXTRA_STREAM, screenshotUris.first())
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
+    } else if (screenshotUris.size == 1) {
+        Intent(Intent.ACTION_SEND).apply {
+            type = "message/rfc822"
+            selector = Intent(Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:"))
+            putExtra(Intent.EXTRA_EMAIL, arrayOf(SUPPORT_EMAIL))
+            putExtra(Intent.EXTRA_SUBJECT, subject)
+            putExtra(Intent.EXTRA_TEXT, report)
+            putExtra(Intent.EXTRA_STREAM, screenshotUris.first())
+            clipData = ClipData.newUri(context.contentResolver, "screenshot", screenshotUris.first())
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        else -> {
-            Intent(Intent.ACTION_SENDTO).apply {
-                data = android.net.Uri.parse("mailto:$SUPPORT_EMAIL")
-                putExtra(Intent.EXTRA_SUBJECT, subject)
-                putExtra(Intent.EXTRA_TEXT, report)
-            }
+    } else {
+        Intent(Intent.ACTION_SENDTO).apply {
+            data = android.net.Uri.parse("mailto:$SUPPORT_EMAIL")
+            putExtra(Intent.EXTRA_SUBJECT, subject)
+            putExtra(Intent.EXTRA_TEXT, report)
         }
     }
 
     try {
-        context.startActivity(
-            Intent.createChooser(intent, UiTranslator.translate("이메일 앱 선택"))
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
-    } catch (e: Exception) {
-        // 이메일 앱이 없는 경우 일반 공유로 폴백
-        val shareIntent = if (screenshotUris.size > 1) {
-            Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                type = "image/*"
-                putExtra(Intent.EXTRA_EMAIL, arrayOf(SUPPORT_EMAIL))
-                putExtra(Intent.EXTRA_SUBJECT, subject)
-                putExtra(Intent.EXTRA_TEXT, report)
-                putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(screenshotUris))
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-        } else if (screenshotUris.size == 1) {
-            Intent(Intent.ACTION_SEND).apply {
-                type = "image/*"
-                putExtra(Intent.EXTRA_EMAIL, arrayOf(SUPPORT_EMAIL))
-                putExtra(Intent.EXTRA_SUBJECT, subject)
-                putExtra(Intent.EXTRA_TEXT, report)
-                putExtra(Intent.EXTRA_STREAM, screenshotUris.first())
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-        } else {
-            Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_EMAIL, arrayOf(SUPPORT_EMAIL))
-                putExtra(Intent.EXTRA_SUBJECT, subject)
-                putExtra(Intent.EXTRA_TEXT, report)
-            }
+        val chooser = Intent.createChooser(emailIntent, UiTranslator.translate("이메일 앱 선택")).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        context.startActivity(
-            Intent.createChooser(shareIntent, UiTranslator.translate("버그 리포트 공유"))
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
+        context.startActivity(chooser)
+    } catch (_: Exception) {
+        // Fallback: ACTION_SENDTO 직접 실행
+        try {
+            val fallback = Intent(Intent.ACTION_SENDTO).apply {
+                data = android.net.Uri.parse("mailto:$SUPPORT_EMAIL")
+                putExtra(Intent.EXTRA_SUBJECT, subject)
+                putExtra(Intent.EXTRA_TEXT, report)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(fallback)
+        } catch (_: Exception) {
+            Toast.makeText(context, UiTranslator.translate("이메일 앱을 열 수 없습니다. 리포트를 복사하여 보내주세요."), Toast.LENGTH_LONG).show()
+        }
     }
 }
 
