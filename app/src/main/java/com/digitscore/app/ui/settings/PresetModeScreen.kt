@@ -38,6 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import com.digitscore.app.i18n.Text
 import com.digitscore.app.data.entity.effectiveScoringConfig
 import com.digitscore.app.model.defaultScoringConfig
@@ -146,9 +147,10 @@ fun PresetModeScreen(
     val settings = userSettings ?: UserSettingsEntity()
     val selectedModeId = settings.selectedPresetModeId
     val selectedPreset = PresetMode.fromId(selectedModeId)
-    val selectedCoreIndexPreset = CoreIndexPreset.BALANCED
+    val selectedCoreIndexPreset = CoreIndexPreset.fromId(settings.selectedCoreIndexPresetId)
     val rapidAlertConfig = settings.effectiveRapidUsageAlertConfig(selectedCoreIndexPreset)
     val scoringConfig = settings.effectiveScoringConfig(selectedCoreIndexPreset)
+
     var showPrivacyPolicy by remember { mutableStateOf(false) }
     var isPresetMenuExpanded by remember { mutableStateOf(false) }
     var isCoreIndexPresetMenuExpanded by remember { mutableStateOf(false) }
@@ -477,19 +479,44 @@ fun PresetModeScreen(
                                 expanded = isCoreIndexPresetMenuExpanded,
                                 onDismissRequest = { isCoreIndexPresetMenuExpanded = false }
                             ) {
-                                listOf(CoreIndexPreset.BALANCED).forEach { preset ->
+                                CoreIndexPreset.entries.forEach { preset ->
+                                    val isAvailable = preset == CoreIndexPreset.BALANCED
                                     DropdownMenuItem(
                                         text = {
                                             Column {
-                                                Text(preset.title, fontWeight = FontWeight.SemiBold)
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Text(preset.title, fontWeight = FontWeight.SemiBold)
+                                                    if (!isAvailable) {
+                                                        Surface(
+                                                            shape = RoundedCornerShape(4.dp),
+                                                            color = MaterialTheme.colorScheme.surfaceVariant
+                                                        ) {
+                                                            Text(
+                                                                "Later",
+                                                                fontSize = 9.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = MaterialTheme.colorScheme.outline,
+                                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
                                                 Text(
-                                                    preset.sensitivitySummary,
+                                                    if (isAvailable) preset.sensitivitySummary else "충분한 데이터 축적 후 추후 제공 예정",
                                                     fontSize = 11.sp,
                                                     color = MaterialTheme.colorScheme.outline
                                                 )
                                             }
                                         },
-                                        onClick = { selectCoreIndexPreset(preset) },
+                                        onClick = {
+                                            if (isAvailable) {
+                                                selectCoreIndexPreset(preset)
+                                            }
+                                        },
+                                        enabled = isAvailable,
                                         trailingIcon = if (preset == selectedCoreIndexPreset) {
                                             {
                                                 Icon(
@@ -517,7 +544,7 @@ fun PresetModeScreen(
                             color = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            "다른 프리셋은 준비 중입니다. 점수는 누적되며 이전 기록을 다시 계산하지 않습니다.",
+                            "다른 프리셋은 추후 제공될 예정입니다. 현재는 일상 균형 모드로 최적화되어 작동합니다.",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
@@ -525,167 +552,16 @@ fun PresetModeScreen(
                 }
             }
 
-            if (false) { // Legacy v4 controls retained only for backup compatibility, not live tuning.
-            item {
-                SectionHeading(
-                    title = "코어 지수 세부 계산 조정",
-                    subtitle = "연속 사용 가속, 심야 차등 가중치, 수면 중 회복 여부를 직접 조정합니다."
-                )
-            }
 
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("프리셋 기본값 사용", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                Text(
-                                    if (settings.usePresetScoringDefaults) "${selectedCoreIndexPreset.title} 최적값 자동 적용 중"
-                                    else "사용자 직접 조정 모드 활성화됨",
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
-                            }
-                            androidx.compose.material3.Switch(
-                                checked = settings.usePresetScoringDefaults,
-                                onCheckedChange = { useDefaults ->
-                                    if (useDefaults) {
-                                        val def = selectedCoreIndexPreset.defaultScoringConfig
-                                        saveScoringSettings(
-                                            settings.copy(
-                                                usePresetScoringDefaults = true,
-                                                customContinuousStartMinutes = def.continuousLoadStartMinutes.toInt(),
-                                                customLateNightTier1Multiplier = def.lateNightTier1Multiplier.toFloat(),
-                                                customLateNightTier2Multiplier = def.lateNightTier2Multiplier.toFloat(),
-                                                customIsSleepFreezeEnabled = def.isSleepFreezeEnabled,
-                                                customSleepThresholdMinutes = def.sleepDetectionThresholdMinutes.toInt(),
-                                                customTargetUnlockCount = def.unlockThreshold
-                                            )
-                                        )
-                                    } else {
-                                        customizeScoring(useDefaults = false)
-                                    }
-                                }
-                            )
-                        }
 
-                        if (!settings.usePresetScoringDefaults) {
-                            // 1. 연속 사용 가속 시작 시간
-                            RapidAlertSlider(
-                                title = "연속 사용 가속 시작 시간",
-                                value = scoringConfig.continuousLoadStartMinutes.toInt(),
-                                valueLabel = "${scoringConfig.continuousLoadStartMinutes.toInt()}분부터",
-                                range = 15f..60f,
-                                steps = 8,
-                                onValueCommitted = { customizeScoring(continuousStartMinutes = it) }
-                            )
 
-                            // 2. 심야 1단계 (23~01시) 가중치
-                            RapidAlertSlider(
-                                title = "심야 1단계 (23~01시) 가중치",
-                                value = (scoringConfig.lateNightTier1Multiplier * 10).toInt(),
-                                valueLabel = String.format(java.util.Locale.US, "%.1f배", scoringConfig.lateNightTier1Multiplier),
-                                range = 10f..25f,
-                                steps = 14,
-                                onValueCommitted = { customizeScoring(lateNightTier1Multiplier = it / 10f) }
-                            )
-
-                            // 3. 심야 2단계 (01~05시) 가중치
-                            RapidAlertSlider(
-                                title = "심야 2단계 (01~05시) 가중치",
-                                value = (scoringConfig.lateNightTier2Multiplier * 10).toInt(),
-                                valueLabel = String.format(java.util.Locale.US, "%.1f배", scoringConfig.lateNightTier2Multiplier),
-                                range = 15f..35f,
-                                steps = 19,
-                                onValueCommitted = { customizeScoring(lateNightTier2Multiplier = it / 10f) }
-                            )
-
-                            // 4. 수면 회복 제한 스위치
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("수면 중 회복 제한", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                    Text(
-                                        "야간 휴식의 회복을 제한합니다. 아침의 반복 잠금 해제나 지속 사용으로 기상을 추정합니다.",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.outline
-                                    )
-                                }
-                                androidx.compose.material3.Switch(
-                                    checked = scoringConfig.isSleepFreezeEnabled,
-                                    onCheckedChange = { freeze ->
-                                        customizeScoring(isSleepFreezeEnabled = freeze)
-                                    }
-                                )
-                            }
-
-                            // 5. 수면 판정 최소 시간
-                            if (scoringConfig.isSleepFreezeEnabled) {
-                                RapidAlertSlider(
-                                    title = "수면 판정 화면 미사용 시간",
-                                    value = scoringConfig.sleepDetectionThresholdMinutes.toInt(),
-                                    valueLabel = "${scoringConfig.sleepDetectionThresholdMinutes.toInt()}분",
-                                    range = 120f..240f,
-                                    steps = 3,
-                                    onValueCommitted = { customizeScoring(sleepThresholdMinutes = it) }
-                                )
-                            }
-
-                            // 6. 일일 목표 언락 횟수
-                            RapidAlertSlider(
-                                title = "최근 24시간 언락 기준",
-                                value = scoringConfig.unlockThreshold,
-                                valueLabel = "${scoringConfig.unlockThreshold}회 초과 시 감점",
-                                range = 10f..50f,
-                                steps = 7,
-                                onValueCommitted = { customizeScoring(targetUnlockCount = it) }
-                            )
-
-                            OutlinedButton(
-                                onClick = {
-                                    val def = selectedCoreIndexPreset.defaultScoringConfig
-                                    saveScoringSettings(
-                                        settings.copy(
-                                            usePresetScoringDefaults = true,
-                                            customContinuousStartMinutes = def.continuousLoadStartMinutes.toInt(),
-                                            customLateNightTier1Multiplier = def.lateNightTier1Multiplier.toFloat(),
-                                            customLateNightTier2Multiplier = def.lateNightTier2Multiplier.toFloat(),
-                                            customIsSleepFreezeEnabled = def.isSleepFreezeEnabled,
-                                            customSleepThresholdMinutes = def.sleepDetectionThresholdMinutes.toInt(),
-                                            customTargetUnlockCount = def.unlockThreshold
-                                        )
-                                    )
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("${selectedCoreIndexPreset.title} 기본값으로 복원")
-                            }
-                        }
-                    }
-                }
-            }
-
-            }
             item {
                 SectionHeading(
                     title = "급격한 사용 증가 알림",
                     subtitle = "게임이나 화면을 방해하지 않는 1단계 알림의 조건을 정합니다."
                 )
             }
+
 
             item {
                 Card(

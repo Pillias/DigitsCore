@@ -83,5 +83,34 @@ class DailyGoalTest {
         val exceededUnlockGoal = multiGoal.copy(currentUnlockCount = 45)
         assertFalse(exceededUnlockGoal.isUnlockLimitAchieved)
     }
+
+    @Test
+    fun testUnlockGoalEvaluation() {
+        val unlockGoal = DailyGoal(
+            dateString = "2026-10-06",
+            unlockLimitTarget = 40,
+            currentUnlockCount = 35
+        )
+        assertEquals(DailyGoalType.UNLOCK_LIMIT, unlockGoal.type)
+        assertTrue(unlockGoal.isAchieved)
+        assertFalse(unlockGoal.isExceeded)
+        assertEquals(35f / 40f, unlockGoal.progressRatio, 0.001f)
+
+        val exceededUnlock = unlockGoal.copy(currentUnlockCount = 42)
+        assertFalse(exceededUnlock.isAchieved)
+        assertTrue(exceededUnlock.isExceeded)
+    }
+
+    @Test
+    fun testLogicalDateCutoff() {
+        // DailyGoalStore logical date produces yyyy-MM-dd
+        val logicalDate = com.digitscore.app.data.DailyGoalStore.getLogicalDateString()
+        assertTrue(logicalDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}")))
+
+        val yesterdayLogical = com.digitscore.app.data.DailyGoalStore.getYesterdayLogicalDateString()
+        assertTrue(yesterdayLogical.matches(Regex("\\d{4}-\\d{2}-\\d{2}")))
+        assertNotEquals(logicalDate, yesterdayLogical)
+    }
 }
+
 

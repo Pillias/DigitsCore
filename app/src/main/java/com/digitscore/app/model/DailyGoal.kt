@@ -40,9 +40,21 @@ data class DailyGoal(
     val currentUnlockCount: Int = 0,
 
     // 하위 호환 필드
-    val type: DailyGoalType = if (targetPackageName != null) DailyGoalType.APP_USAGE_LIMIT else DailyGoalType.SCORE_DEFENSE,
-    val targetValue: Int = if (targetPackageName != null) appLimitMinutes else scoreTarget,
-    val currentValue: Int = if (targetPackageName != null) currentAppUsageMinutes else currentScore,
+    val type: DailyGoalType = when {
+        targetPackageName != null -> DailyGoalType.APP_USAGE_LIMIT
+        unlockLimitTarget in 1..99 -> DailyGoalType.UNLOCK_LIMIT
+        else -> DailyGoalType.SCORE_DEFENSE
+    },
+    val targetValue: Int = when {
+        targetPackageName != null -> appLimitMinutes
+        unlockLimitTarget in 1..99 -> unlockLimitTarget
+        else -> scoreTarget
+    },
+    val currentValue: Int = when {
+        targetPackageName != null -> currentAppUsageMinutes
+        unlockLimitTarget in 1..99 -> currentUnlockCount
+        else -> currentScore
+    },
 
     val isAutoAssigned: Boolean = true,  // 사용자가 스킵하여 앱이 자동 지정했는지 여부
     val isDismissed: Boolean = false,    // 카드를 숨겼는지 여부
@@ -58,37 +70,60 @@ data class DailyGoal(
 
     // 잠금해제 진행 비율
     val unlockProgressRatio: Float
-        get() = if (unlockLimitTarget > 0) (currentUnlockCount.toFloat() / unlockLimitTarget).coerceIn(0f, 1.5f) else 0f
+        get() {
+            val limit = if (unlockLimitTarget > 0) unlockLimitTarget else targetValue
+            val current = if (currentUnlockCount > 0) currentUnlockCount else currentValue
+            return if (limit > 0) (current.toFloat() / limit).coerceIn(0f, 1.5f) else 0f
+        }
 
     // 코어 지수 방어 달성 여부
     val isScoreDefenseAchieved: Boolean
-        get() = (if (currentScore > 0) currentScore else currentValue) >= (if (scoreTarget > 0) scoreTarget else targetValue)
+        get() {
+            val target = if (type == DailyGoalType.SCORE_DEFENSE) (if (targetValue > 0) targetValue else scoreTarget) else scoreTarget
+            val current = if (type == DailyGoalType.SCORE_DEFENSE) (if (currentValue > 0) currentValue else currentScore) else currentScore
+            return current >= target
+        }
 
     // 특정 앱 제한 준수 여부
     val isAppLimitAchieved: Boolean
-        get() = (if (currentAppUsageMinutes > 0) currentAppUsageMinutes else currentValue) <= (if (appLimitMinutes > 0) appLimitMinutes else targetValue)
+        get() {
+            val limit = if (appLimitMinutes > 0) appLimitMinutes else targetValue
+            val current = if (currentAppUsageMinutes > 0) currentAppUsageMinutes else currentValue
+            return current <= limit
+        }
 
     // 잠금해제 제한 준수 여부
     val isUnlockLimitAchieved: Boolean
-        get() = currentUnlockCount <= unlockLimitTarget
+        get() {
+            val limit = if (unlockLimitTarget > 0) unlockLimitTarget else targetValue
+            val current = if (currentUnlockCount > 0) currentUnlockCount else currentValue
+            return current <= limit
+        }
 
     // 하위 호환 진행도 (0.0 .. 1.0)
     val progressRatio: Float
-        get() = if (targetValue > 0) (currentValue.toFloat() / targetValue).coerceIn(0f, 1f)
-        else if (targetPackageName != null) appProgressRatio.coerceIn(0f, 1f)
-        else if (scoreTarget > 0) (currentScore.toFloat() / scoreTarget).coerceIn(0f, 1f)
-        else 0f
+        get() = when (type) {
+            DailyGoalType.APP_USAGE_LIMIT -> appProgressRatio.coerceIn(0f, 1f)
+            DailyGoalType.UNLOCK_LIMIT -> unlockProgressRatio.coerceIn(0f, 1f)
+            DailyGoalType.SCORE_DEFENSE -> {
+                val target = if (scoreTarget > 0) scoreTarget else targetValue
+                val current = if (currentScore > 0) currentScore else currentValue
+                if (target > 0) (current.toFloat() / target).coerceIn(0f, 1f) else 0f
+            }
+        }
 
     val isExceeded: Boolean
         get() = when (type) {
-            DailyGoalType.APP_USAGE_LIMIT, DailyGoalType.UNLOCK_LIMIT -> currentValue > targetValue
-            DailyGoalType.SCORE_DEFENSE -> false
+            DailyGoalType.APP_USAGE_LIMIT -> !isAppLimitAchieved
+            DailyGoalType.UNLOCK_LIMIT -> !isUnlockLimitAchieved
+            DailyGoalType.SCORE_DEFENSE -> !isScoreDefenseAchieved
         }
 
     val isAchieved: Boolean
         get() = when (type) {
-            DailyGoalType.APP_USAGE_LIMIT, DailyGoalType.UNLOCK_LIMIT -> currentValue <= targetValue
-            DailyGoalType.SCORE_DEFENSE -> currentValue >= targetValue
+            DailyGoalType.APP_USAGE_LIMIT -> isAppLimitAchieved
+            DailyGoalType.UNLOCK_LIMIT -> isUnlockLimitAchieved
+            DailyGoalType.SCORE_DEFENSE -> isScoreDefenseAchieved
         }
 }
 

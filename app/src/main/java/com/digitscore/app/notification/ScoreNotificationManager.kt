@@ -99,7 +99,8 @@ object ScoreNotificationManager {
 
     fun showGoalMilestoneNotification(
         context: Context,
-        goal: com.digitscore.app.model.DailyGoal
+        goal: com.digitscore.app.model.DailyGoal,
+        statusIconStyle: StatusIconStyle = StatusIconStyle.SCORE_PROPORTION
     ) {
         val strings = AppLocale.stringsContext(context)
         val launchIntent = Intent(context, MainActivity::class.java).apply {
@@ -130,12 +131,13 @@ object ScoreNotificationManager {
             )
         }
 
-        val currentScore = ScoreRepository.rollingScoreDetail.value?.finalScore ?: 75
-        val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, currentScore, StatusIconStyle.SCORE_PROPORTION)
-        val largeIcon = DynamicIconGenerator.createScoreLargeIcon(context, currentScore, StatusIconStyle.SCORE_PROPORTION)
+        val currentScore = goal.currentScore
+        val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, currentScore, statusIconStyle)
+        val largeIcon = DynamicIconGenerator.createScoreLargeIcon(context, currentScore, statusIconStyle)
         val iconColor = DynamicIconGenerator.statusIconScoreColor(context, currentScore)
 
         val notification = NotificationCompat.Builder(context, GOAL_CHANNEL_ID)
+
             .setSmallIcon(iconCompat)
             .setLargeIcon(largeIcon)
             .setColor(iconColor)
@@ -222,7 +224,8 @@ object ScoreNotificationManager {
         score: Int,
         config: RapidUsageAlertConfig,
         alert: RapidUsageAlert,
-        recoveryMinutes: Int?
+        recoveryMinutes: Int?,
+        statusIconStyle: StatusIconStyle = StatusIconStyle.SCORE_PROPORTION
     ) {
         val strings = AppLocale.stringsContext(context)
         val pendingIntent = PendingIntent.getActivity(
@@ -253,10 +256,11 @@ object ScoreNotificationManager {
             strings.getString(R.string.rapid_alert_recovery, it)
         }
         val expanded = listOfNotNull(body, recovery).joinToString("\n")
-        val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, score, StatusIconStyle.SCORE_PROPORTION)
-        val largeIcon = DynamicIconGenerator.createScoreLargeIcon(context, score, StatusIconStyle.SCORE_PROPORTION)
+        val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, score, statusIconStyle)
+        val largeIcon = DynamicIconGenerator.createScoreLargeIcon(context, score, statusIconStyle)
         val iconColor = DynamicIconGenerator.statusIconScoreColor(context, score)
         val notification = NotificationCompat.Builder(context, SOFT_GUIDANCE_CHANNEL_ID)
+
             .setSmallIcon(iconCompat)
             .setLargeIcon(largeIcon)
             .setColor(iconColor)
@@ -473,13 +477,20 @@ object ScoreNotificationManager {
                 return "${dailyGoal.targetAppName}: ${dailyGoal.currentAppUsageMinutes}분/${dailyGoal.appLimitMinutes}분 ($percent%) · 방어선 ${dailyGoal.scoreTarget}점 유지 중"
             }
 
-            // (5) 특정 앱이 없을 때 코어 지수 정상 유지
+            // (5) 평시: 잠금 해제 목표가 설정된 경우 현재 잠금 해제 진행 안내
+            if (dailyGoal.unlockLimitTarget in 1..99 && dailyGoal.type == com.digitscore.app.model.DailyGoalType.UNLOCK_LIMIT) {
+                val percent = (dailyGoal.unlockProgressRatio * 100).toInt()
+                return "잠금 해제: ${dailyGoal.currentUnlockCount}회/${dailyGoal.unlockLimitTarget}회 ($percent%) · 방어선 ${dailyGoal.scoreTarget}점 유지 중"
+            }
+
+            // (6) 코어 지수 정상 유지 안내
             return strings.getString(
                 R.string.notification_goal_score_good,
                 dailyGoal.currentScore,
                 dailyGoal.scoreTarget
             )
         }
+
 
         // 2. 목표가 없거나 처리 중일 때: 코칭 추천 메시지
         return when (guidance?.recommendation) {

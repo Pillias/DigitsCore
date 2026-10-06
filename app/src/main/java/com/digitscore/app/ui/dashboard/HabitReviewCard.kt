@@ -114,9 +114,10 @@ fun HabitReviewCard(
         val zone = ZoneId.systemDefault()
         val now = java.time.ZonedDateTime.now(zone)
         val handledDate = Instant.ofEpochMilli(record.briefingHandledAt).atZone(zone).toLocalDate()
-        // 오전 5시~12시 사이, 아직 확인하지 않았거나 오늘의 목표 카드가 dismiss되지 않은 경우 (새벽 0~4시 심야 미표시)
-        morning = (now.hour in 5..12 && handledDate != now.toLocalDate()) ||
-                (dailyGoal != null && !dailyGoal.isDismissed && dailyGoal.isAutoAssigned && now.hour in 5..12)
+        // 오전 5시~11시59분 사이, 아직 확인하지 않았거나 오늘의 목표 카드가 dismiss되지 않은 경우 (새벽 0~4시 심야 미표시)
+        morning = (now.hour in 5..11 && handledDate != now.toLocalDate()) ||
+                (dailyGoal != null && !dailyGoal.isDismissed && dailyGoal.isAutoAssigned && now.hour in 5..11)
+
         val since = LocalDate.now(zone).minusDays(6).toString()
         suggestion = null
         for (app in apps.filter { it.categoryType.canonical == AppCategoryType.NEUTRAL }) {

@@ -150,18 +150,19 @@ fun DashboardScreen(
     var showGuidanceModal by remember { mutableStateOf(false) }
     var showMorningDialog by remember { mutableStateOf(false) }
 
-    // 아침 기상 시(오전 5시~12시) 아직 브리핑 팝업을 확인하지 않은 경우 다이얼로그 자동 표시 (새벽 0~4시 심야 미표시)
+    // 아침 기상 시(오전 5시~11시59분) 아직 브리핑 팝업을 확인하지 않은 경우 다이얼로그 자동 표시 (새벽 0~4시 심야 미표시)
     LaunchedEffect(dailyGoal, yesterdaySummary) {
         val currentGoal = dailyGoal
         val summary = yesterdaySummary
         val currentHour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-        if (currentGoal != null && summary != null && currentHour in 5..12) {
+        if (currentGoal != null && summary != null && currentHour in 5..11) {
             val isCompleted = com.digitscore.app.data.DailyGoalStore.isBriefingCompleted(context)
             if (!isCompleted && !currentGoal.isDismissed) {
                 showMorningDialog = true
             }
         }
     }
+
 
     val currentScore = rollingScoreDetail?.finalScore ?: 75
     val grade = ScoreGrade.fromScore(currentScore)
@@ -2069,6 +2070,7 @@ private fun CompactBarChart(
 ) {
     val safeValues = values.map { it.coerceAtLeast(0f) }
     val maximum = (safeValues.maxOrNull() ?: 0f).coerceAtLeast(1f)
+    val baselineColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
@@ -2080,11 +2082,12 @@ private fun CompactBarChart(
         val barWidth = ((size.width - gap * (safeValues.size - 1)) / safeValues.size)
             .coerceAtLeast(1f)
         drawLine(
-            color = Color.Gray.copy(alpha = 0.25f),
+            color = baselineColor,
             start = Offset(0f, size.height),
             end = Offset(size.width, size.height),
             strokeWidth = 1.dp.toPx()
         )
+
         safeValues.forEachIndexed { index, value ->
             val barHeight = if (value <= 0f) 1.dp.toPx() else (value / maximum) * size.height
             val color = if (warningThreshold != null && value >= warningThreshold) {

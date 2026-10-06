@@ -103,14 +103,21 @@ object DailyGoalStore {
             .apply()
     }
 
+    private val storeLock = Any()
+
     fun updateProgress(
         context: Context,
         currentScore: Int? = null,
         currentAppMins: Int? = null,
         currentUnlock: Int? = null,
         notifiedMilestone80: Boolean? = null
-    ) {
+    ) = synchronized(storeLock) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val savedDate = prefs.getString(KEY_DATE, null)
+        val todayDate = getLogicalDateString()
+        if (savedDate != null && savedDate != todayDate) {
+            return@synchronized
+        }
         val editor = prefs.edit()
         currentScore?.let { editor.putInt(KEY_CURRENT_SCORE, it) }
         currentAppMins?.let { editor.putInt(KEY_CURRENT_APP, it) }
@@ -126,7 +133,7 @@ object DailyGoalStore {
         targetAppName: String,
         appLimitMinutes: Int,
         unlockLimitTarget: Int
-    ) {
+    ) = synchronized(storeLock) {
         val currentGoal = getGoal(context) ?: DailyGoal(dateString = getLogicalDateString())
         val updated = currentGoal.copy(
             scoreTarget = scoreTarget,
@@ -140,7 +147,7 @@ object DailyGoalStore {
         markBriefingCompleted(context)
     }
 
-    fun setDismissed(context: Context, dismissed: Boolean) {
+    fun setDismissed(context: Context, dismissed: Boolean) = synchronized(storeLock) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_DISMISSED, dismissed).apply()
     }
@@ -151,7 +158,7 @@ object DailyGoalStore {
         return savedDate == todayDate && prefs.getBoolean(KEY_BRIEFING_COMPLETED, false)
     }
 
-    fun markBriefingCompleted(context: Context, todayDate: String = getLogicalDateString()) {
+    fun markBriefingCompleted(context: Context, todayDate: String = getLogicalDateString()) = synchronized(storeLock) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
             .putString(KEY_DATE, todayDate)
@@ -159,7 +166,7 @@ object DailyGoalStore {
             .apply()
     }
 
-    fun setUserAccepted(context: Context) {
+    fun setUserAccepted(context: Context) = synchronized(storeLock) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
             .putBoolean(KEY_AUTO_ASSIGNED, false)
@@ -186,7 +193,7 @@ object DailyGoalStore {
         )
     }
 
-    fun saveYesterdaySummary(context: Context, summary: YesterdayBriefingSummary) {
+    fun saveYesterdaySummary(context: Context, summary: YesterdayBriefingSummary) = synchronized(storeLock) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val candidatesJson = serializeCandidates(summary.candidateApps)
 
@@ -220,17 +227,22 @@ object DailyGoalStore {
             val list = mutableListOf<AppCandidate>()
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
-                list.add(
-                    AppCandidate(
-                        packageName = obj.getString("pkg"),
-                        appName = obj.getString("name"),
-                        yesterdayUsageMinutes = obj.getLong("mins")
+                val pkg = obj.optString("pkg")
+                val name = obj.optString("name")
+                if (pkg.isNotBlank()) {
+                    list.add(
+                        AppCandidate(
+                            packageName = pkg,
+                            appName = if (name.isNotBlank()) name else pkg,
+                            yesterdayUsageMinutes = obj.optLong("mins", 0L)
+                        )
                     )
-                )
+                }
             }
             list
         }.getOrDefault(emptyList())
     }
+
 
     /**
      * 어제 데이터를 기반으로 오늘의 맞춤형 복합 목표 세트(점수, 특정 앱, 언락)를 생성 및 반환합니다.

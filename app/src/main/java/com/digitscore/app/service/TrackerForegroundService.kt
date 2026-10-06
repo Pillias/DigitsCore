@@ -11,6 +11,7 @@ import android.os.PowerManager
 import android.os.Process
 import androidx.core.content.ContextCompat
 import com.digitscore.app.data.DigitsDatabase
+import com.digitscore.app.data.DailyGoalStore
 import com.digitscore.app.data.ScoreRepository
 import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.TodayUsageSnapshot
@@ -139,17 +140,14 @@ class TrackerForegroundService : Service() {
         }
 
         private fun getTodayDateString(): String {
-            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            return sdf.format(Date())
+            return DailyGoalStore.getLogicalDateString()
         }
 
         private fun getYesterdayDateString(): String {
-            val cal = java.util.Calendar.getInstance()
-            cal.add(java.util.Calendar.DAY_OF_YEAR, -1)
-            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            return sdf.format(cal.time)
+            return DailyGoalStore.getYesterdayLogicalDateString()
         }
     }
+
 
     override fun onCreate() {
         super.onCreate()
@@ -224,7 +222,7 @@ class TrackerForegroundService : Service() {
             persistScreenState()
         }
         startPeriodicTracking()
-        recalculateAndNotify()
+        recalculateAndNotify(immediate = true)
     }
 
     private fun onScreenTurnedOff() {
@@ -234,7 +232,7 @@ class TrackerForegroundService : Service() {
         trackingJob?.cancel()
         trackingJob = null
         // 화면 OFF 직전까지의 앱 사용 구간을 일일 기록에 확정합니다.
-        recalculateAndNotify()
+        recalculateAndNotify(immediate = true)
     }
 
     private fun onUserUnlocked() {
@@ -250,9 +248,8 @@ class TrackerForegroundService : Service() {
                     )
                 )
             )
-            recalculateAndNotify()
-            delay(USAGE_EVENT_SETTLE_DELAY_MILLIS + 500L)
-            recalculateAndNotify()
+            // 언락 후 이벤트 정착을 기다려 1회만 재계산합니다 (불필요한 4중 중복 호출 방지)
+            recalculateAndNotify(delayMillis = USAGE_EVENT_SETTLE_DELAY_MILLIS)
         }
     }
 
@@ -261,11 +258,12 @@ class TrackerForegroundService : Service() {
         trackingJob = serviceScope.launch {
             while (isActive) {
                 checkDateRollover()
-                recalculateAndNotify()
+                recalculateAndNotify(immediate = true)
                 delay(60_000L) // 1분 주기
             }
         }
     }
+
 
     private fun checkDateRollover() {
         val today = getTodayDateString()
@@ -318,14 +316,23 @@ class TrackerForegroundService : Service() {
         }
     }
 
-    private fun recalculateAndNotify() {
-        serviceScope.launch {
+    private var recalcJob: Job? = null
+
+    private fun recalculateAndNotify(immediate: Boolean = false, delayMillis: Long = 0L) {
+        if (!immediate) {
+            recalcJob?.cancel()
+        }
+        recalcJob = serviceScope.launch {
+            if (delayMillis > 0L) {
+                delay(delayMillis)
+            }
             recalcMutex.withLock {
                 val cycleCpuStartedAt = Process.getElapsedCpuTime()
                 if (!UsageStatsHelper.hasUsageStatsPermission(applicationContext)) {
                     cumulativeCoverageStart = System.currentTimeMillis()
                     return@launch
                 }
+
 
                 val db = DigitsDatabase.getInstance(applicationContext)
                 val settings = db.settingsDao().getSettings()
@@ -548,11 +555,12 @@ class TrackerForegroundService : Service() {
                 if (!wasCalibrated && recordedUsageMillis >= 60 * 60 * 1_000L) {
                     trackingPreferences.edit().putBoolean("rolling_score_calibrated", true).apply()
                 }
-                val coreIndexPreset = CoreIndexPreset.BALANCED
+                val coreIndexPreset = CoreIndexPreset.fromId(settings?.selectedCoreIndexPresetId ?: "balanced")
                 val rapidUsageAlertConfig = settings?.effectiveRapidUsageAlertConfig(coreIndexPreset)
                     ?: coreIndexPreset.defaultRapidUsageAlertConfig
                 val scoringConfig = settings?.effectiveScoringConfig(coreIndexPreset)
                     ?: coreIndexPreset.defaultScoringConfig
+
                 val (cumulativeRecord, cumulativeDetail) = com.digitscore.app.data.CumulativeScoreStore.update(
                     db, now, cumulativeCoverageStart)
                 val rollingScoreDetail = cumulativeDetail.copy(
@@ -674,8 +682,13 @@ class TrackerForegroundService : Service() {
                         currentScore = rollingScoreDetail.finalScore,
                         currentAppUsageMinutes = appMins,
                         currentUnlockCount = todayUnlockCount,
-                        currentValue = if (currentGoal.targetPackageName != null) appMins else rollingScoreDetail.finalScore
+                        currentValue = when (currentGoal.type) {
+                            com.digitscore.app.model.DailyGoalType.APP_USAGE_LIMIT -> appMins
+                            com.digitscore.app.model.DailyGoalType.UNLOCK_LIMIT -> todayUnlockCount
+                            com.digitscore.app.model.DailyGoalType.SCORE_DEFENSE -> rollingScoreDetail.finalScore
+                        }
                     )
+
 
                     // 80% 마일스톤 도달 시 1회성 알림 코칭 (앱 사용량 80% 또는 잠금해제 80%)
                     val isAppAt80 = currentGoal.targetPackageName != null && updatedGoal.appProgressRatio >= 0.8f
@@ -685,8 +698,10 @@ class TrackerForegroundService : Service() {
                             settings?.isNotificationEnabled != false
 
                     if (shouldNotify80) {
-                        ScoreNotificationManager.showGoalMilestoneNotification(applicationContext, updatedGoal)
+                        val iconStyle = StatusIconStyle.fromId(settings?.statusIconStyleId)
+                        ScoreNotificationManager.showGoalMilestoneNotification(applicationContext, updatedGoal, iconStyle)
                     }
+
 
                     val finalGoal = if (shouldNotify80) updatedGoal.copy(notifiedMilestone80 = true) else updatedGoal
                     com.digitscore.app.data.DailyGoalStore.updateProgress(
@@ -792,14 +807,19 @@ class TrackerForegroundService : Service() {
         ) ?: return
         val lastAlertAt = trackingPreferences.getLong("last_rapid_usage_alert_at", 0L)
         if (now - lastAlertAt < sanitizedConfig.cooldownMinutes * 60_000L) return
+        val iconStyle = StatusIconStyle.fromId(
+            DigitsDatabase.getInstance(applicationContext).settingsDao().getSettings()?.statusIconStyleId
+        )
         ScoreNotificationManager.showRapidUsageNotification(
             context = applicationContext,
             score = currentScore,
             config = sanitizedConfig,
             alert = alert,
-            recoveryMinutes = guidance.recoveryMinutes
+            recoveryMinutes = guidance.recoveryMinutes,
+            statusIconStyle = iconStyle
         )
         trackingPreferences.edit().putLong("last_rapid_usage_alert_at", now).apply()
+
     }
 
     private fun updateMeasurementDiagnostics(
