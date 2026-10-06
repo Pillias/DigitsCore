@@ -11,6 +11,7 @@ import android.os.PowerManager
 import android.os.Process
 import androidx.core.content.ContextCompat
 import com.digitscore.app.data.DigitsDatabase
+import com.digitscore.app.data.DailyGoalStore
 import com.digitscore.app.data.ScoreRepository
 import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.TodayUsageSnapshot
@@ -139,17 +140,14 @@ class TrackerForegroundService : Service() {
         }
 
         private fun getTodayDateString(): String {
-            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            return sdf.format(Date())
+            return DailyGoalStore.getLogicalDateString()
         }
 
         private fun getYesterdayDateString(): String {
-            val cal = java.util.Calendar.getInstance()
-            cal.add(java.util.Calendar.DAY_OF_YEAR, -1)
-            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            return sdf.format(cal.time)
+            return DailyGoalStore.getYesterdayLogicalDateString()
         }
     }
+
 
     override fun onCreate() {
         super.onCreate()
@@ -224,7 +222,7 @@ class TrackerForegroundService : Service() {
             persistScreenState()
         }
         startPeriodicTracking()
-        recalculateAndNotify()
+        recalculateAndNotify(immediate = true)
     }
 
     private fun onScreenTurnedOff() {
@@ -234,7 +232,7 @@ class TrackerForegroundService : Service() {
         trackingJob?.cancel()
         trackingJob = null
         // 화면 OFF 직전까지의 앱 사용 구간을 일일 기록에 확정합니다.
-        recalculateAndNotify()
+        recalculateAndNotify(immediate = true)
     }
 
     private fun onUserUnlocked() {
@@ -250,9 +248,8 @@ class TrackerForegroundService : Service() {
                     )
                 )
             )
-            recalculateAndNotify()
-            delay(USAGE_EVENT_SETTLE_DELAY_MILLIS + 500L)
-            recalculateAndNotify()
+            // 언락 후 이벤트 정착을 기다려 1회만 재계산합니다 (불필요한 4중 중복 호출 방지)
+            recalculateAndNotify(delayMillis = USAGE_EVENT_SETTLE_DELAY_MILLIS)
         }
     }
 
@@ -261,11 +258,12 @@ class TrackerForegroundService : Service() {
         trackingJob = serviceScope.launch {
             while (isActive) {
                 checkDateRollover()
-                recalculateAndNotify()
+                recalculateAndNotify(immediate = true)
                 delay(60_000L) // 1분 주기
             }
         }
     }
+
 
     private fun checkDateRollover() {
         val today = getTodayDateString()
@@ -318,14 +316,23 @@ class TrackerForegroundService : Service() {
         }
     }
 
-    private fun recalculateAndNotify() {
-        serviceScope.launch {
+    private var recalcJob: Job? = null
+
+    private fun recalculateAndNotify(immediate: Boolean = false, delayMillis: Long = 0L) {
+        if (!immediate) {
+            recalcJob?.cancel()
+        }
+        recalcJob = serviceScope.launch {
+            if (delayMillis > 0L) {
+                delay(delayMillis)
+            }
             recalcMutex.withLock {
                 val cycleCpuStartedAt = Process.getElapsedCpuTime()
                 if (!UsageStatsHelper.hasUsageStatsPermission(applicationContext)) {
                     cumulativeCoverageStart = System.currentTimeMillis()
                     return@launch
                 }
+
 
                 val db = DigitsDatabase.getInstance(applicationContext)
                 val settings = db.settingsDao().getSettings()
@@ -548,11 +555,12 @@ class TrackerForegroundService : Service() {
                 if (!wasCalibrated && recordedUsageMillis >= 60 * 60 * 1_000L) {
                     trackingPreferences.edit().putBoolean("rolling_score_calibrated", true).apply()
                 }
-                val coreIndexPreset = CoreIndexPreset.BALANCED
+                val coreIndexPreset = CoreIndexPreset.fromId(settings?.selectedCoreIndexPresetId ?: "balanced")
                 val rapidUsageAlertConfig = settings?.effectiveRapidUsageAlertConfig(coreIndexPreset)
                     ?: coreIndexPreset.defaultRapidUsageAlertConfig
                 val scoringConfig = settings?.effectiveScoringConfig(coreIndexPreset)
                     ?: coreIndexPreset.defaultScoringConfig
+
                 val (cumulativeRecord, cumulativeDetail) = com.digitscore.app.data.CumulativeScoreStore.update(
                     db, now, cumulativeCoverageStart)
                 val rollingScoreDetail = cumulativeDetail.copy(
@@ -657,6 +665,58 @@ class TrackerForegroundService : Service() {
                     }
                 }
 
+                // 데일리 맞춤 목표 (Daily Goal) 진행도 계산 및 80% 마일스톤 코칭
+                var activeGoal: com.digitscore.app.model.DailyGoal? = null
+                try {
+                    val (ySummary, currentGoal) = com.digitscore.app.data.DailyGoalStore.generateOrGetGoal(
+                        applicationContext, db, com.digitscore.app.data.DailyGoalStore.getLogicalDateString()
+                    )
+                    ScoreRepository.updateYesterdaySummary(ySummary)
+
+                    val todayApp = currentGoal.targetPackageName?.let { pkg ->
+                        todayAppsUsage.firstOrNull { it.packageName == pkg }
+                    }
+                    val appMins = ((todayApp?.usageTimeMillis ?: 0L) / 60_000L).toInt()
+
+                    val updatedGoal = currentGoal.copy(
+                        currentScore = rollingScoreDetail.finalScore,
+                        currentAppUsageMinutes = appMins,
+                        currentUnlockCount = todayUnlockCount,
+                        currentValue = when (currentGoal.type) {
+                            com.digitscore.app.model.DailyGoalType.APP_USAGE_LIMIT -> appMins
+                            com.digitscore.app.model.DailyGoalType.UNLOCK_LIMIT -> todayUnlockCount
+                            com.digitscore.app.model.DailyGoalType.SCORE_DEFENSE -> rollingScoreDetail.finalScore
+                        }
+                    )
+
+
+                    // 80% 마일스톤 도달 시 1회성 알림 코칭 (앱 사용량 80% 또는 잠금해제 80%)
+                    val isAppAt80 = currentGoal.targetPackageName != null && updatedGoal.appProgressRatio >= 0.8f
+                    val isUnlockAt80 = updatedGoal.unlockProgressRatio >= 0.8f
+                    val shouldNotify80 = !updatedGoal.notifiedMilestone80 &&
+                            (isAppAt80 || isUnlockAt80) &&
+                            settings?.isNotificationEnabled != false
+
+                    if (shouldNotify80) {
+                        val iconStyle = StatusIconStyle.fromId(settings?.statusIconStyleId)
+                        ScoreNotificationManager.showGoalMilestoneNotification(applicationContext, updatedGoal, iconStyle)
+                    }
+
+
+                    val finalGoal = if (shouldNotify80) updatedGoal.copy(notifiedMilestone80 = true) else updatedGoal
+                    com.digitscore.app.data.DailyGoalStore.updateProgress(
+                        applicationContext,
+                        currentScore = finalGoal.currentScore,
+                        currentAppMins = finalGoal.currentAppUsageMinutes,
+                        currentUnlock = finalGoal.currentUnlockCount,
+                        notifiedMilestone80 = if (shouldNotify80) true else null
+                    )
+                    ScoreRepository.updateDailyGoal(finalGoal)
+                    activeGoal = finalGoal
+                } catch (e: Exception) {
+                    android.util.Log.w("DigitsCoreGoal", "Failed to update daily goal progress", e)
+                }
+
                 // 알림 갱신
                 if (settings?.isNotificationEnabled != false) {
                     val notification = ScoreNotificationManager.buildScoreNotification(
@@ -666,7 +726,8 @@ class TrackerForegroundService : Service() {
                         settings?.hideSensitiveNotificationOnLockScreen ?: true,
                         rollingScoreDetail,
                         StatusIconStyle.fromId(settings?.statusIconStyleId),
-                        guidance
+                        guidance,
+                        activeGoal
                     )
                     // 단순 notify 갱신 대신 foreground 연결을 다시 확인해 OEM 재시작이나
                     // 일시적인 알림 제거 뒤에도 상태 아이콘이 복원되도록 합니다.
@@ -680,47 +741,6 @@ class TrackerForegroundService : Service() {
                         guidance = guidance,
                         now = now
                     )
-                }
-
-                // 데일리 맞춤 목표 (Daily Goal) 진행도 계산 및 80% 마일스톤 코칭
-                try {
-                    val (ySummary, currentGoal) = com.digitscore.app.data.DailyGoalStore.generateOrGetGoal(
-                        applicationContext, db, currentDateString
-                    )
-                    ScoreRepository.updateYesterdaySummary(ySummary)
-
-                    val updatedGoal = when (currentGoal.type) {
-                        com.digitscore.app.model.DailyGoalType.APP_USAGE_LIMIT -> {
-                            val todayApp = todayAppsUsage.firstOrNull { it.packageName == currentGoal.targetPackageName }
-                            val currentMins = ((todayApp?.usageTimeMillis ?: 0L) / 60_000L).toInt()
-                            currentGoal.copy(currentValue = currentMins)
-                        }
-                        com.digitscore.app.model.DailyGoalType.SCORE_DEFENSE -> {
-                            currentGoal.copy(currentValue = rollingScoreDetail.finalScore)
-                        }
-                        com.digitscore.app.model.DailyGoalType.UNLOCK_LIMIT -> {
-                            currentGoal.copy(currentValue = todayUnlockCount)
-                        }
-                    }
-
-                    // 80% 마일스톤 도달 시 1회성 알림 코칭
-                    val shouldNotify80 = !updatedGoal.notifiedMilestone80 &&
-                            updatedGoal.progressRatio >= 0.8f &&
-                            settings?.isNotificationEnabled != false
-
-                    if (shouldNotify80) {
-                        ScoreNotificationManager.showGoalMilestoneNotification(applicationContext, updatedGoal)
-                    }
-
-                    val finalGoal = if (shouldNotify80) updatedGoal.copy(notifiedMilestone80 = true) else updatedGoal
-                    com.digitscore.app.data.DailyGoalStore.updateProgress(
-                        applicationContext,
-                        finalGoal.currentValue,
-                        if (shouldNotify80) true else null
-                    )
-                    ScoreRepository.updateDailyGoal(finalGoal)
-                } catch (e: Exception) {
-                    android.util.Log.w("DigitsCoreGoal", "Failed to update daily goal progress", e)
                 }
 
                 // DB 일일 히스토리 업데이트
@@ -787,14 +807,19 @@ class TrackerForegroundService : Service() {
         ) ?: return
         val lastAlertAt = trackingPreferences.getLong("last_rapid_usage_alert_at", 0L)
         if (now - lastAlertAt < sanitizedConfig.cooldownMinutes * 60_000L) return
+        val iconStyle = StatusIconStyle.fromId(
+            DigitsDatabase.getInstance(applicationContext).settingsDao().getSettings()?.statusIconStyleId
+        )
         ScoreNotificationManager.showRapidUsageNotification(
             context = applicationContext,
             score = currentScore,
             config = sanitizedConfig,
             alert = alert,
-            recoveryMinutes = guidance.recoveryMinutes
+            recoveryMinutes = guidance.recoveryMinutes,
+            statusIconStyle = iconStyle
         )
         trackingPreferences.edit().putLong("last_rapid_usage_alert_at", now).apply()
+
     }
 
     private fun updateMeasurementDiagnostics(

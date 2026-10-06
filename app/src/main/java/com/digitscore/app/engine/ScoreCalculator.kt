@@ -83,12 +83,9 @@ object ScoreCalculator {
 
         for (app in appsUsage) {
             val mins = app.usageTimeMinutes.coerceAtLeast(0L)
-            totalScreenMinutes += mins
             when {
                 app.categoryType.isPenalty -> {
-                    distractingMinutes += mins
                     val lateNightMins = app.lateNightUsageMinutes.coerceIn(0L, mins)
-                    lateNightDistractingMinutes += lateNightMins
                     val ratingMultiplier = -app.categoryType.scoreMultiplier
 
                     // 1) 로그(Log) 기반 연속 사용 가속도 계수 계산
@@ -111,12 +108,12 @@ object ScoreCalculator {
                     }
                 }
                 app.categoryType.isBonus -> {
-                    productiveMinutes += mins
                     // 보너스 강도는 아래에서 앱별로 합산합니다.
                 }
                 else -> { /* 균형 등급은 페널티/보너스 없음 */ }
             }
         }
+
 
         // 화면 합계는 앱마다 분 단위로 먼저 잘라 더하지 않습니다. 여러 개의 짧은
         // 세션도 합산 후 1분이 되면 일별 집계·알림·위젯 시간에 반영됩니다.

@@ -18,7 +18,7 @@ if [[ ! -f "$KEYSTORE_PATH" ]]; then
 fi
 
 SOURCE_AAB="app/build/outputs/bundle/release/app-release.aab"
-OUTPUT_AAB="DigitsCore-v3.2.4-release.aab"
+OUTPUT_AAB="${3:-DigitsCore-release.aab}"
 
 if [[ ! -f "$SOURCE_AAB" ]]; then
   echo "안내: 릴리스 번들이 없습니다. 새로 빌드합니다..."

@@ -129,17 +129,29 @@ object UsageStatsHelper {
     }
 
     /**
-     * 오늘 0시 0분 0초 타임스탬프 반환
+     * 오늘 활동일 시작 타임스탬프 반환.
+     * 활동일은 오전 05:00에 전환되므로, 새벽 00:00~04:59는 전날 05:00부터 시작된 활동일로 취급합니다.
      */
-    fun getStartOfTodayMillis(): Long {
+    fun getStartOfLogicalDayMillis(nowMillis: Long = System.currentTimeMillis()): Long {
         val calendar = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0)
+            timeInMillis = nowMillis
+            val hour = get(Calendar.HOUR_OF_DAY)
+            if (hour < 5) {
+                add(Calendar.DAY_OF_YEAR, -1)
+            }
+            set(Calendar.HOUR_OF_DAY, 5)
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }
         return calendar.timeInMillis
     }
+
+    /**
+     * 레거시 호환용 (05:00 AM 논리일 시작 타임스탬프 반환)
+     */
+    fun getStartOfTodayMillis(): Long = getStartOfLogicalDayMillis()
+
 
     private val IGNORED_SYSTEM_PACKAGES = setOf(
         "android",

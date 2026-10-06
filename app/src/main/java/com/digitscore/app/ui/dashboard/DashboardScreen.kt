@@ -148,6 +148,21 @@ fun DashboardScreen(
     var selectedAppDetail by remember { mutableStateOf<AppUsage?>(null) }
     var showAllAppsModal by remember { mutableStateOf(false) }
     var showGuidanceModal by remember { mutableStateOf(false) }
+    var showMorningDialog by remember { mutableStateOf(false) }
+
+    // 아침 기상 시(오전 5시~11시59분) 아직 브리핑 팝업을 확인하지 않은 경우 다이얼로그 자동 표시 (새벽 0~4시 심야 미표시)
+    LaunchedEffect(dailyGoal, yesterdaySummary) {
+        val currentGoal = dailyGoal
+        val summary = yesterdaySummary
+        val currentHour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        if (currentGoal != null && summary != null && currentHour in 5..11) {
+            val isCompleted = com.digitscore.app.data.DailyGoalStore.isBriefingCompleted(context)
+            if (!isCompleted && !currentGoal.isDismissed) {
+                showMorningDialog = true
+            }
+        }
+    }
+
 
     val currentScore = rollingScoreDetail?.finalScore ?: 75
     val grade = ScoreGrade.fromScore(currentScore)
@@ -429,6 +444,37 @@ fun DashboardScreen(
             }
         )
     }
+
+    if (showMorningDialog && dailyGoal != null && yesterdaySummary != null) {
+        MorningBriefingDialog(
+            yesterdaySummary = requireNotNull(yesterdaySummary),
+            dailyGoal = requireNotNull(dailyGoal),
+            onAcceptGoals = { scoreTarget, targetPkg, targetAppName, appLimitMins, unlockLimit ->
+                scope.launch {
+                    com.digitscore.app.data.DailyGoalStore.setCustomGoal(
+                        context, scoreTarget, targetPkg, targetAppName, appLimitMins, unlockLimit
+                    )
+                    com.digitscore.app.data.CumulativeScoreStore.confirmActivity(db, System.currentTimeMillis(), true)
+                    TrackerForegroundService.refreshNotification(context)
+                }
+                showMorningDialog = false
+            },
+            onSkipGoal = {
+                scope.launch {
+                    com.digitscore.app.data.DailyGoalStore.markBriefingCompleted(context)
+                    com.digitscore.app.data.CumulativeScoreStore.confirmActivity(db, System.currentTimeMillis(), true)
+                    TrackerForegroundService.refreshNotification(context)
+                }
+                showMorningDialog = false
+            },
+            onDismiss = {
+                scope.launch {
+                    com.digitscore.app.data.DailyGoalStore.markBriefingCompleted(context)
+                }
+                showMorningDialog = false
+            }
+        )
+    }
 }
 
 @Composable
@@ -540,7 +586,7 @@ private fun TodayCoreIndexSparklineCard(
             val tierColor = coreIndexTierColor(currentScore)
             val textMeasurer = rememberTextMeasurer()
 
-            // 0~100점 절대 척도 적용: 100점/표준점수 대비 현재 위치를 직관적으로 파악
+            // 동적 가변 스케일 적용: 당일 점수 변화를 생생하게 파악할 수 있도록 Y축 범위 유연 조정
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -556,88 +602,100 @@ private fun TodayCoreIndexSparklineCard(
                     val bottomPadding = 12f
                     val chartH = h - topPadding - bottomPadding
 
+                    // 당일 점수 최소/최대 기반 동적 스케일 계산
+                    val allScores = samples.map { it.exactScore } + listOf(currentScore.toDouble())
+                    val rawMin = allScores.minOrNull() ?: currentScore.toDouble()
+                    val rawMax = allScores.maxOrNull() ?: currentScore.toDouble()
+                    val scoreRange = rawMax - rawMin
+
+                    // 최소 16점 스팬으로 미세 변동도 과장 없이 곡선 표현
+                    val targetSpan = maxOf(16.0, scoreRange + 6.0)
+                    val centerScore = (rawMin + rawMax) / 2.0
+                    var yMin = (centerScore - targetSpan / 2.0).coerceIn(0.0, 100.0 - targetSpan)
+                    var yMax = (yMin + targetSpan).coerceAtMost(100.0)
+                    if (yMax - yMin < targetSpan) {
+                        yMin = (yMax - targetSpan).coerceAtLeast(0.0)
+                    }
+
                     fun yPos(score: Double): Float =
-                        topPadding + chartH * (1f - (score / 100.0).toFloat().coerceIn(0f, 1f))
+                        topPadding + chartH * (1f - ((score - yMin) / (yMax - yMin)).toFloat().coerceIn(0f, 1f))
 
-                    val y100 = yPos(100.0)
-                    val y80 = yPos(80.0)
-                    val y60 = yPos(60.0)
-                    val y40 = yPos(40.0)
-                    val y0 = yPos(0.0)
+                    fun drawZone(bottomScore: Double, topScore: Double, color: Color) {
+                        val boundedTop = topScore.coerceAtMost(yMax)
+                        val boundedBottom = bottomScore.coerceAtLeast(yMin)
+                        if (boundedBottom < boundedTop) {
+                            val yTop = yPos(boundedTop)
+                            val yBottom = yPos(boundedBottom)
+                            drawRect(
+                                color = color,
+                                topLeft = Offset(0f, yTop),
+                                size = Size(w, yBottom - yTop)
+                            )
+                        }
+                    }
 
-                    // 4단계 표준 배경 컬러 밴드 (Zones)
-                    // 80~100점: 안정/최상 (ScoreGreen)
-                    drawRect(
-                        color = ScoreGreen.copy(alpha = 0.07f),
-                        topLeft = Offset(0f, y100),
-                        size = Size(w, y80 - y100)
-                    )
-                    // 60~80점: 보통 (ScoreYellow)
-                    drawRect(
-                        color = ScoreYellow.copy(alpha = 0.04f),
-                        topLeft = Offset(0f, y80),
-                        size = Size(w, y60 - y80)
-                    )
-                    // 40~60점: 주의 (ScoreOrange)
-                    drawRect(
-                        color = ScoreOrange.copy(alpha = 0.05f),
-                        topLeft = Offset(0f, y60),
-                        size = Size(w, y40 - y60)
-                    )
-                    // 0~40점: 위험/집중 관리 (ScoreRed)
-                    drawRect(
-                        color = ScoreRed.copy(alpha = 0.08f),
-                        topLeft = Offset(0f, y40),
-                        size = Size(w, y0 - y40)
-                    )
+                    // 4단계 표준 배경 컬러 밴드 (가변 범위에 맞게 동적 표시)
+                    drawZone(80.0, 100.0, ScoreGreen.copy(alpha = 0.07f))
+                    drawZone(60.0, 80.0, ScoreYellow.copy(alpha = 0.04f))
+                    drawZone(40.0, 60.0, ScoreOrange.copy(alpha = 0.05f))
+                    drawZone(0.0, 40.0, ScoreRed.copy(alpha = 0.08f))
 
                     val dashEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f), 0f)
 
-                    // 80점 표준 안정 기준선 (Dashed Green)
-                    drawLine(
-                        color = ScoreGreen.copy(alpha = 0.45f),
-                        start = Offset(0f, y80),
-                        end = Offset(w, y80),
-                        strokeWidth = 1.2f.dp.toPx(),
-                        pathEffect = dashEffect
-                    )
-                    drawText(
-                        textMeasurer = textMeasurer,
-                        text = "80 안정",
-                        topLeft = Offset(w - 44.dp.toPx(), y80 - 13.sp.toPx()),
-                        style = TextStyle(
-                            color = ScoreGreen.copy(alpha = 0.85f),
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold
+                    // 80점 표준 안정 기준선 (가변 범위 내 존재 시 표시)
+                    if (80.0 in yMin..yMax) {
+                        val y80 = yPos(80.0)
+                        drawLine(
+                            color = ScoreGreen.copy(alpha = 0.45f),
+                            start = Offset(0f, y80),
+                            end = Offset(w, y80),
+                            strokeWidth = 1.2f.dp.toPx(),
+                            pathEffect = dashEffect
                         )
-                    )
+                        drawText(
+                            textMeasurer = textMeasurer,
+                            text = "80 안정",
+                            topLeft = Offset(w - 44.dp.toPx(), y80 - 13.sp.toPx()),
+                            style = TextStyle(
+                                color = ScoreGreen.copy(alpha = 0.85f),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    }
 
                     // 60점 보통 경계선
-                    drawLine(
-                        color = ScoreYellow.copy(alpha = 0.25f),
-                        start = Offset(0f, y60),
-                        end = Offset(w, y60),
-                        strokeWidth = 0.8f.dp.toPx()
-                    )
-
-                    // 40점 위험 경계선 (Dashed Red)
-                    drawLine(
-                        color = ScoreRed.copy(alpha = 0.45f),
-                        start = Offset(0f, y40),
-                        end = Offset(w, y40),
-                        strokeWidth = 1.2f.dp.toPx(),
-                        pathEffect = dashEffect
-                    )
-                    drawText(
-                        textMeasurer = textMeasurer,
-                        text = "40 위험",
-                        topLeft = Offset(w - 44.dp.toPx(), y40 - 13.sp.toPx()),
-                        style = TextStyle(
-                            color = ScoreRed.copy(alpha = 0.85f),
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold
+                    if (60.0 in yMin..yMax) {
+                        val y60 = yPos(60.0)
+                        drawLine(
+                            color = ScoreYellow.copy(alpha = 0.25f),
+                            start = Offset(0f, y60),
+                            end = Offset(w, y60),
+                            strokeWidth = 0.8f.dp.toPx()
                         )
-                    )
+                    }
+
+                    // 40점 위험 경계선 (가변 범위 내 존재 시 표시)
+                    if (40.0 in yMin..yMax) {
+                        val y40 = yPos(40.0)
+                        drawLine(
+                            color = ScoreRed.copy(alpha = 0.45f),
+                            start = Offset(0f, y40),
+                            end = Offset(w, y40),
+                            strokeWidth = 1.2f.dp.toPx(),
+                            pathEffect = dashEffect
+                        )
+                        drawText(
+                            textMeasurer = textMeasurer,
+                            text = "40 위험",
+                            topLeft = Offset(w - 44.dp.toPx(), y40 - 13.sp.toPx()),
+                            style = TextStyle(
+                                color = ScoreRed.copy(alpha = 0.85f),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    }
 
                     val nowMillis = System.currentTimeMillis()
                     val duration = (nowMillis - todayStart).coerceAtLeast(60_000L).toDouble()
@@ -2024,6 +2082,7 @@ private fun CompactBarChart(
 ) {
     val safeValues = values.map { it.coerceAtLeast(0f) }
     val maximum = (safeValues.maxOrNull() ?: 0f).coerceAtLeast(1f)
+    val baselineColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
@@ -2035,11 +2094,12 @@ private fun CompactBarChart(
         val barWidth = ((size.width - gap * (safeValues.size - 1)) / safeValues.size)
             .coerceAtLeast(1f)
         drawLine(
-            color = Color.Gray.copy(alpha = 0.25f),
+            color = baselineColor,
             start = Offset(0f, size.height),
             end = Offset(size.width, size.height),
             strokeWidth = 1.dp.toPx()
         )
+
         safeValues.forEachIndexed { index, value ->
             val barHeight = if (value <= 0f) 1.dp.toPx() else (value / maximum) * size.height
             val color = if (warningThreshold != null && value >= warningThreshold) {

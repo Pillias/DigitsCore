@@ -18,3 +18,8 @@ local.properties
 *.dcorebackup
 /scratch/
 *.apk
+*.aab
+*.jks
+*.keystore
+keystore/
+ci_download/
