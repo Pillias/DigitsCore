@@ -303,7 +303,7 @@ fun HabitReviewCard(
                                 fontWeight = FontWeight.Medium
                             )
                             Text(
-                                text = "${dailyGoal.currentScore}점 / 목표 ${dailyGoal.scoreTarget}점",
+                                text = "${dailyGoal.currentScore}P / ${if (english) "Target" else "목표"} ${dailyGoal.scoreTarget}P",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (dailyGoal.isScoreDefenseAchieved) com.digitscore.app.ui.theme.ScoreGreen
@@ -327,13 +327,13 @@ fun HabitReviewCard(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = "2. ${dailyGoal.targetAppName} 제한",
+                                    text = if (english) "2. Limit ${dailyGoal.targetAppName}" else "2. ${dailyGoal.targetAppName} 제한",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurface,
                                     fontWeight = FontWeight.Medium
                                 )
                                 Text(
-                                    text = "${dailyGoal.currentAppUsageMinutes}분 / 목표 ${dailyGoal.appLimitMinutes}분",
+                                    text = "${dailyGoal.currentAppUsageMinutes}m / ${if (english) "Target" else "목표"} ${dailyGoal.appLimitMinutes}m",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (dailyGoal.currentAppUsageMinutes > dailyGoal.appLimitMinutes) com.digitscore.app.ui.theme.ScoreRed
@@ -365,7 +365,7 @@ fun HabitReviewCard(
                                 fontWeight = FontWeight.Medium
                             )
                             Text(
-                                text = "${dailyGoal.currentUnlockCount}회 / 목표 ${dailyGoal.unlockLimitTarget}회",
+                                text = "${dailyGoal.currentUnlockCount}x / ${if (english) "Target" else "목표"} ${dailyGoal.unlockLimitTarget}x",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (dailyGoal.currentUnlockCount > dailyGoal.unlockLimitTarget) com.digitscore.app.ui.theme.ScoreRed

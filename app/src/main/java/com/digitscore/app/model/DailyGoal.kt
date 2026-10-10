@@ -15,7 +15,8 @@ enum class DailyGoalType {
 data class AppCandidate(
     val packageName: String,
     val appName: String,
-    val yesterdayUsageMinutes: Long
+    val yesterdayUsageMinutes: Long,
+    val isRoutineHeavy: Boolean = true
 )
 
 /**
@@ -137,5 +138,7 @@ data class YesterdayBriefingSummary(
     val topAppName: String = "",
     val topAppUsageMinutes: Long = 0L,
     val unlockCount: Int = 0,
-    val candidateApps: List<AppCandidate> = emptyList()
+    val candidateApps: List<AppCandidate> = emptyList(),
+    val past14DaysLowestUnlock: Int = 0,
+    val past14DaysAverageUnlock: Int = 0
 )

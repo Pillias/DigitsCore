@@ -1,6 +1,8 @@
+import java.io.FileInputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -13,19 +15,39 @@ android {
     namespace = "com.digitscore.app"
     compileSdk = 36
 
-    val runNumber = (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1)
+    val versionPropsFile = rootProject.file("version.properties")
+    val versionProps = Properties().apply {
+        if (versionPropsFile.exists()) {
+            FileInputStream(versionPropsFile).use { load(it) }
+        }
+    }
+
+    val versionMajor = versionProps.getProperty("MAJOR", "3").toIntOrNull() ?: 3
+    val versionMinor = versionProps.getProperty("MINOR", "3").toIntOrNull() ?: 3
+    val versionPatch = versionProps.getProperty("PATCH", "0").toIntOrNull() ?: 0
+    val defaultVersion = "$versionMajor.$versionMinor.$versionPatch"
+
     val tagVersion = System.getenv("GITHUB_REF_NAME")
         ?.takeIf { System.getenv("GITHUB_REF_TYPE") == "tag" && it.startsWith("v") }
         ?.removePrefix("v")
-    val defaultVersion = "3.2.5"
+
+    val finalVersionName = tagVersion ?: defaultVersion
+
+    val versionParts = finalVersionName.split(".").mapNotNull { it.toIntOrNull() }
+    val calculatedVersionCode = if (versionParts.size >= 3) {
+        versionParts[0] * 100 + versionParts[1] * 10 + versionParts[2]
+    } else {
+        versionMajor * 100 + versionMinor * 10 + versionPatch
+    }
+
     val buildDate = SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(Date())
 
     defaultConfig {
         applicationId = "com.digitscore.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 325
-        versionName = tagVersion ?: defaultVersion
+        versionCode = calculatedVersionCode
+        versionName = finalVersionName
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -104,6 +126,15 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+
+    applicationVariants.all {
+        val variantName = name
+        val vName = versionName
+        outputs.all {
+            (this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl)?.outputFileName =
+                "DigitsCore-v${vName}-${variantName}.apk"
         }
     }
 }

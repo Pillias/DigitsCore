@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import java.util.Locale
 import androidx.core.app.NotificationCompat
 import com.digitscore.app.R
 import com.digitscore.app.engine.ScoreDetail
@@ -36,6 +37,7 @@ object ScoreNotificationManager {
     private const val GUIDANCE_NOTIFICATION_ID = 1002
     private const val WAKE_PROMPT_NOTIFICATION_ID = 1003
     private const val GOAL_NOTIFICATION_ID = 1004
+    private const val MORNING_BRIEFING_NOTIFICATION_ID = 1005
 
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -133,13 +135,10 @@ object ScoreNotificationManager {
 
         val currentScore = goal.currentScore
         val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, currentScore, statusIconStyle)
-        val largeIcon = DynamicIconGenerator.createScoreLargeIcon(context, currentScore, statusIconStyle)
         val iconColor = DynamicIconGenerator.statusIconScoreColor(context, currentScore)
 
         val notification = NotificationCompat.Builder(context, GOAL_CHANNEL_ID)
-
             .setSmallIcon(iconCompat)
-            .setLargeIcon(largeIcon)
             .setColor(iconColor)
             .setContentTitle(title)
             .setContentText(content)
@@ -186,12 +185,10 @@ object ScoreNotificationManager {
 
         val currentScore = ScoreRepository.rollingScoreDetail.value?.finalScore ?: 80
         val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, currentScore, StatusIconStyle.SCORE_PROPORTION)
-        val largeIcon = DynamicIconGenerator.createScoreLargeIcon(context, currentScore, StatusIconStyle.SCORE_PROPORTION)
         val iconColor = DynamicIconGenerator.statusIconScoreColor(context, currentScore)
 
         val notification = NotificationCompat.Builder(context, WAKE_PROMPT_CHANNEL_ID)
             .setSmallIcon(iconCompat)
-            .setLargeIcon(largeIcon)
             .setColor(iconColor)
             .setContentTitle(strings.getString(R.string.wake_prompt_title))
             .setContentText(strings.getString(R.string.wake_prompt_content))
@@ -217,6 +214,53 @@ object ScoreNotificationManager {
     fun cancelMorningWakePromptNotification(context: Context) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.cancel(WAKE_PROMPT_NOTIFICATION_ID)
+    }
+
+    fun showMorningBriefingHeadsUpNotification(context: Context) {
+        val strings = AppLocale.stringsContext(context)
+        val launchIntent = Intent(context, com.digitscore.app.ui.MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(com.digitscore.app.ui.MainActivity.EXTRA_SHOW_MORNING_BRIEFING, true)
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            20,
+            launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val currentScore = ScoreRepository.rollingScoreDetail.value?.finalScore ?: 80
+        val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, currentScore, StatusIconStyle.SCORE_TIER)
+        val iconColor = DynamicIconGenerator.statusIconScoreColor(context, currentScore)
+
+        val title = strings.getString(R.string.morning_briefing_prompt_title)
+        val content = strings.getString(R.string.morning_briefing_prompt_content)
+        val actionText = strings.getString(R.string.morning_briefing_prompt_action)
+
+        val notification = NotificationCompat.Builder(context, WAKE_PROMPT_CHANNEL_ID)
+            .setSmallIcon(iconCompat)
+            .setColor(iconColor)
+            .setContentTitle(title)
+            .setContentText(content)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .setFullScreenIntent(pendingIntent, true)
+            .addAction(
+                android.R.drawable.ic_menu_edit,
+                actionText,
+                pendingIntent
+            )
+            .build()
+
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(MORNING_BRIEFING_NOTIFICATION_ID, notification)
+    }
+
+    fun cancelMorningBriefingNotification(context: Context) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.cancel(MORNING_BRIEFING_NOTIFICATION_ID)
     }
 
     fun showRapidUsageNotification(
@@ -257,12 +301,9 @@ object ScoreNotificationManager {
         }
         val expanded = listOfNotNull(body, recovery).joinToString("\n")
         val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, score, statusIconStyle)
-        val largeIcon = DynamicIconGenerator.createScoreLargeIcon(context, score, statusIconStyle)
         val iconColor = DynamicIconGenerator.statusIconScoreColor(context, score)
         val notification = NotificationCompat.Builder(context, SOFT_GUIDANCE_CHANNEL_ID)
-
             .setSmallIcon(iconCompat)
-            .setLargeIcon(largeIcon)
             .setColor(iconColor)
             .setContentTitle(strings.getString(R.string.rapid_alert_title, score))
             .setContentText(body)
@@ -322,21 +363,67 @@ object ScoreNotificationManager {
                 strings.getString(R.string.notification_recovery_forecast, minutes, target)
             }
         }
+        val isBelowDefense = dailyGoal != null && score < dailyGoal.scoreTarget
+        val defenseLine = dailyGoal?.scoreTarget ?: 70
+        val stepTarget = if (isBelowDefense) {
+            guidance?.recoveryTargetScore?.takeIf { it > score && it <= defenseLine }
+                ?: when {
+                    score < 40 -> (score + 3).coerceAtLeast(40).coerceAtMost(45)
+                    score < 50 -> (score + 4).coerceAtLeast(45).coerceAtMost(50)
+                    score < 60 -> (score + 5).coerceAtLeast(55).coerceAtMost(60)
+                    score < 70 -> (score + 5).coerceAtLeast(65).coerceAtMost(70)
+                    else -> defenseLine
+                }.coerceAtMost(defenseLine)
+        } else {
+            defenseLine
+        }
+        val pointsNeeded = (stepTarget - score).coerceAtLeast(1)
+        val isEn = Locale.getDefault().language == "en"
+        val recMinutes = guidance?.recoveryMinutes
+        val recoveryActionLong = if (recMinutes != null && recMinutes > 0) {
+            strings.getString(R.string.action_rest_recovery_long, recMinutes, stepTarget)
+        } else if (guidance?.leadingAppName != null && guidance.leadingAppMinutes > 15) {
+            if (isEn) "Pausing managed apps like ${guidance.leadingAppName} (${guidance.leadingAppMinutes}m) will speed up recovery."
+            else "${guidance.leadingAppName}(${guidance.leadingAppMinutes}분) 등 몰입 관리 앱을 잠시 멈추면 회복이 빨라집니다."
+        } else {
+            if (isEn) "Putting down the screen and resting will gradually restore your balance."
+            else "화면 사용을 멈추고 휴식을 유지하면 점진적으로 회복됩니다."
+        }
+
         val expandedText = buildList {
-            add("${strings.getString(R.string.notification_key_label)} · $keyMessage")
-            causeMessage?.takeIf { it.isNotBlank() }?.let(::add)
-            recoveryMessage?.takeIf { it.isNotBlank() }?.let(::add)
-            add("")
-            add(contentText)
+            if (dailyGoal != null && !dailyGoal.isDismissed) {
+                add(if (isEn) "🎯 Today's 3 Key Goals" else "🎯 오늘 3대 실천 목표")
+                val targetScore = dailyGoal.scoreTarget
+                val scoreDiff = (targetScore - score).coerceAtLeast(0)
+                if (scoreDiff > 0) {
+                    add(if (isEn) "• Core Index: ${score}P / Target ${targetScore}P (+${scoreDiff}P)" else "• 코어 지수: ${score}P / 목표 ${targetScore}P (+${scoreDiff}P)")
+                } else {
+                    add(if (isEn) "• Core Index: ${score}P / Target ${targetScore}P (Achieved 🎉)" else "• 코어 지수: ${score}P / 목표 ${targetScore}P (달성 🎉)")
+                }
+                if (dailyGoal.targetPackageName != null) {
+                    val appMins = dailyGoal.currentAppUsageMinutes
+                    val appLimit = dailyGoal.appLimitMinutes
+                    val appPercent = if (appLimit > 0) (appMins * 100 / appLimit) else 0
+                    val warn = if (appMins > appLimit) (if (isEn) " [Over!]" else " [초과!]") else ""
+                    add(if (isEn) "• ${dailyGoal.targetAppName}: ${appMins} / ${appLimit}m (${appPercent}%)$warn" else "• ${dailyGoal.targetAppName}: ${appMins} / ${appLimit}분 (${appPercent}%)$warn")
+                }
+                val unlockTarget = dailyGoal.unlockLimitTarget
+                val unlockPercent = if (unlockTarget > 0) (unlockCount * 100 / unlockTarget) else 0
+                val warn = if (unlockCount > unlockTarget) (if (isEn) " [Over!]" else " [초과!]") else ""
+                add(if (isEn) "• Unlocks: ${unlockCount} / ${unlockTarget} (${unlockPercent}%)$warn" else "• 잠금 해제: ${unlockCount} / ${unlockTarget}회 (${unlockPercent}%)$warn")
+                add("")
+                add(contentText)
+            } else {
+                add("${strings.getString(R.string.notification_key_label)} · $keyMessage")
+                add(contentText)
+            }
         }.joinToString("\n")
 
         val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, score, statusIconStyle)
-        val largeIcon = DynamicIconGenerator.createScoreLargeIcon(context, score, statusIconStyle)
         val iconColor = DynamicIconGenerator.statusIconScoreColor(context, score)
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(iconCompat)
-            .setLargeIcon(largeIcon)
             .setColor(iconColor)
             .setContentTitle(title)
             .setContentText(keyMessage)
@@ -365,7 +452,6 @@ object ScoreNotificationManager {
             builder.setPublicVersion(
                 NotificationCompat.Builder(context, CHANNEL_ID)
                     .setSmallIcon(iconCompat)
-                    .setLargeIcon(largeIcon)
                     .setColor(iconColor)
                     .setContentTitle(strings.getString(R.string.tracking_active))
                     .setContentText(strings.getString(R.string.unlock_for_details))
@@ -422,73 +508,39 @@ object ScoreNotificationManager {
         dailyGoal: com.digitscore.app.model.DailyGoal?,
         score: Int
     ): String {
-        // 1. 오늘의 설정/배정된 목표가 있는 경우 목표 진행 상태를 최우선으로 안내
+        // 1. 오늘의 설정/배정된 3대 목표(코어 지수, 앱 1개 제한, 잠금해제 횟수) 진행 상태 안내
         if (dailyGoal != null && !dailyGoal.isDismissed) {
-            // (1) 특정 앱이 초과되었거나 80%에 근접한 경우
-            if (dailyGoal.targetPackageName != null) {
-                if (dailyGoal.currentAppUsageMinutes > dailyGoal.appLimitMinutes) {
-                    return strings.getString(
-                        R.string.notification_goal_app_exceeded,
-                        dailyGoal.targetAppName,
-                        dailyGoal.currentAppUsageMinutes,
-                        dailyGoal.appLimitMinutes
-                    )
-                } else if (dailyGoal.appProgressRatio >= 0.8f) {
-                    val percent = (dailyGoal.appProgressRatio * 100).toInt()
-                    return strings.getString(
-                        R.string.notification_goal_app_pace,
-                        dailyGoal.targetAppName,
-                        dailyGoal.currentAppUsageMinutes,
-                        dailyGoal.appLimitMinutes,
-                        percent
-                    )
-                }
+            val isEn = Locale.getDefault().language == "en"
+            val isBelowDefense = dailyGoal.currentScore < dailyGoal.scoreTarget
+            val scorePart = if (isBelowDefense) {
+                val stepTarget = guidance?.recoveryTargetScore?.takeIf { it > dailyGoal.currentScore && it <= dailyGoal.scoreTarget }
+                    ?: when {
+                        dailyGoal.currentScore < 40 -> (dailyGoal.currentScore + 3).coerceAtLeast(40).coerceAtMost(45)
+                        dailyGoal.currentScore < 50 -> (dailyGoal.currentScore + 4).coerceAtLeast(45).coerceAtMost(50)
+                        dailyGoal.currentScore < 60 -> (dailyGoal.currentScore + 5).coerceAtLeast(55).coerceAtMost(60)
+                        dailyGoal.currentScore < 70 -> (dailyGoal.currentScore + 5).coerceAtLeast(65).coerceAtMost(70)
+                        else -> dailyGoal.scoreTarget
+                    }.coerceAtMost(dailyGoal.scoreTarget)
+                val diff = (stepTarget - dailyGoal.currentScore).coerceAtLeast(1)
+                if (isEn) "Target ${stepTarget}P (+${diff})" else "목표 ${stepTarget}점(+${diff})"
+            } else {
+                if (isEn) "Defending ${dailyGoal.scoreTarget}P" else "목표 ${dailyGoal.scoreTarget}점 방어"
             }
 
-            // (2) 잠금 해제가 80% 이상 소진된 경우
-            if (dailyGoal.unlockProgressRatio >= 0.8f) {
-                return if (dailyGoal.currentUnlockCount > dailyGoal.unlockLimitTarget) {
-                    strings.getString(
-                        R.string.notification_goal_unlock_exceeded,
-                        dailyGoal.currentUnlockCount,
-                        dailyGoal.unlockLimitTarget
-                    )
-                } else {
-                    strings.getString(
-                        R.string.notification_goal_unlock_pace,
-                        dailyGoal.currentUnlockCount,
-                        dailyGoal.unlockLimitTarget
-                    )
-                }
-            }
+            val appPart = if (dailyGoal.targetPackageName != null) {
+                val appName = dailyGoal.targetAppName.ifBlank { if (isEn) "App" else "앱" }
+                val isOver = dailyGoal.currentAppUsageMinutes > dailyGoal.appLimitMinutes
+                val marker = if (isOver) "⚠️" else ""
+                if (isEn) "$marker$appName ${dailyGoal.currentAppUsageMinutes}/${dailyGoal.appLimitMinutes}m"
+                else "$marker$appName ${dailyGoal.currentAppUsageMinutes}/${dailyGoal.appLimitMinutes}분"
+            } else null
 
-            // (3) 코어 지수가 방어선 미만으로 내려간 경우
-            if (dailyGoal.currentScore < dailyGoal.scoreTarget) {
-                return strings.getString(
-                    R.string.notification_goal_score_warning,
-                    dailyGoal.currentScore,
-                    dailyGoal.scoreTarget
-                )
-            }
+            val isUnlockOver = dailyGoal.currentUnlockCount > dailyGoal.unlockLimitTarget
+            val unlockMarker = if (isUnlockOver) "⚠️" else ""
+            val unlockPart = if (isEn) "${unlockMarker}Opens ${dailyGoal.currentUnlockCount}/${dailyGoal.unlockLimitTarget}"
+            else "${unlockMarker}오픈 ${dailyGoal.currentUnlockCount}/${dailyGoal.unlockLimitTarget}회"
 
-            // (4) 평시: 특정 앱 진행 상황과 방어선 유지 안내
-            if (dailyGoal.targetPackageName != null) {
-                val percent = (dailyGoal.appProgressRatio * 100).toInt()
-                return "${dailyGoal.targetAppName}: ${dailyGoal.currentAppUsageMinutes}분/${dailyGoal.appLimitMinutes}분 ($percent%) · 방어선 ${dailyGoal.scoreTarget}점 유지 중"
-            }
-
-            // (5) 평시: 잠금 해제 목표가 설정된 경우 현재 잠금 해제 진행 안내
-            if (dailyGoal.unlockLimitTarget in 1..99 && dailyGoal.type == com.digitscore.app.model.DailyGoalType.UNLOCK_LIMIT) {
-                val percent = (dailyGoal.unlockProgressRatio * 100).toInt()
-                return "잠금 해제: ${dailyGoal.currentUnlockCount}회/${dailyGoal.unlockLimitTarget}회 ($percent%) · 방어선 ${dailyGoal.scoreTarget}점 유지 중"
-            }
-
-            // (6) 코어 지수 정상 유지 안내
-            return strings.getString(
-                R.string.notification_goal_score_good,
-                dailyGoal.currentScore,
-                dailyGoal.scoreTarget
-            )
+            return listOfNotNull(scorePart, appPart, unlockPart).joinToString(" · ")
         }
 
 

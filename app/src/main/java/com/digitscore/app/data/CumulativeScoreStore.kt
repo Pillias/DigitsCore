@@ -35,7 +35,8 @@ data class CumulativeRecord(
     companion object {
         fun decode(payload: String): CumulativeRecord {
             val obj = JSONObject(payload)
-            require(obj.getInt("version") == CumulativeScoreConfig.CURRENT.version) { "Unsupported score configuration" }
+            val ver = obj.optInt("version", 1)
+            require(ver in 1..CumulativeScoreConfig.CURRENT.version) { "Unsupported score configuration" }
             val timestamp = obj.getLong("timestamp")
             require(timestamp >= 0L)
             val s = obj.getDouble("signal")
@@ -45,7 +46,7 @@ data class CumulativeRecord(
             require(s.isFinite() && s in 0.0..100.0)
             require(listOf(q, r, b).all { it.isFinite() && it >= 0.0 })
             return CumulativeRecord(CumulativeCheckpoint(timestamp, CumulativeScoreState(s, q, r, b)),
-                obj.getInt("version"), obj.getLong("startedAt"), obj.optLong("wake"),
+                ver, obj.getLong("startedAt"), obj.optLong("wake"),
                 obj.optLong("restingUntil"), obj.optLong("briefing"),
                 obj.optJSONObject("suggestions")?.let { map ->
                     map.keys().asSequence().associateWith { map.getLong(it) }
@@ -57,6 +58,11 @@ data class CumulativeRecord(
 /** The service is the sole advancing writer. UI/notification/forecast never advances this cursor. */
 object CumulativeScoreStore {
     private var windowCache: Triple<DigitsDatabase, String, RestWindow>? = null
+
+    fun clearWindowCache() {
+        windowCache = null
+    }
+
     suspend fun update(
         db: DigitsDatabase,
         nowMillis: Long,
@@ -80,7 +86,8 @@ object CumulativeScoreStore {
         fun asUse(it: com.digitscore.app.data.entity.ForegroundUsageSessionEntity) =
             CumulativeUse(it.startTimeMillis, it.endTimeMillis, it.effectiveCategoryLevel >= 3,
                 "${it.packageName}:${it.sessionStartTimeMillis}", it.sessionStartTimeMillis,
-                it.packageName, it.effectivePackageName)
+                it.packageName, it.effectivePackageName,
+                exempt = (it.effectiveCategoryLevel <= 0))
         val dayKey = "${java.time.Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDate()}:$zone"
         val cached = windowCache
         val window = if (cached?.first === db && cached.second == dayKey) cached.third else {

@@ -73,15 +73,18 @@ class WakeStepEvidence(private val context: Context, private val onWake: (Long) 
     private var registered = false
     private val samples = java.util.ArrayDeque<Pair<Long, Float>>()
     private var confirmedDate: String? = null
+    private var detectorAccumulatedSteps = 0f
 
     fun refresh() {
         val optedIn = context.getSharedPreferences("habit_sensor_settings", Context.MODE_PRIVATE)
-            .getBoolean("steps_enabled", false)
+            .getBoolean("steps_enabled", true)
         val permission = Build.VERSION.SDK_INT < 29 || ContextCompat.checkSelfPermission(context,
             Manifest.permission.ACTIVITY_RECOGNITION) == PackageManager.PERMISSION_GRANTED
         if (!optedIn || !permission) { stop(); return }
         if (registered) return
-        val sensor = manager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) ?: return
+        val sensor = manager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+            ?: manager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
+            ?: return
         registered = runCatching { manager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL,
             60_000_000) }.getOrDefault(false)
     }
@@ -90,7 +93,14 @@ class WakeStepEvidence(private val context: Context, private val onWake: (Long) 
         val elapsed = event.timestamp / 1_000_000L
         // Ignore delayed samples older than fifteen minutes; never treat since-boot total as new steps.
         if (SystemClock.elapsedRealtime() - elapsed > 15 * 60_000L) return
-        val value = event.values.firstOrNull() ?: return
+        val value = if (event.sensor.type == Sensor.TYPE_STEP_COUNTER) {
+            event.values.firstOrNull() ?: return
+        } else if (event.sensor.type == Sensor.TYPE_STEP_DETECTOR) {
+            detectorAccumulatedSteps += (event.values.firstOrNull() ?: 1.0f)
+            detectorAccumulatedSteps
+        } else {
+            return
+        }
         if (!value.isFinite()) return
         val last = samples.peekLast()
         if (last != null && (elapsed < last.first || value < last.second)) samples.clear()

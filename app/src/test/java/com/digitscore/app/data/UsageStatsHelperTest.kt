@@ -12,6 +12,7 @@ class UsageStatsHelperTest {
     fun appRatingsExposeGeneralAndManagedChoices() {
         assertEquals(
             listOf(
+                AppCategoryType.EXEMPT,
                 AppCategoryType.NEUTRAL,
                 AppCategoryType.DISTRACTING
             ),

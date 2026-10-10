@@ -344,7 +344,7 @@ internal fun PreviousStatisticsScreen(
                             val averageUnlocks = histories.sumOf { it.unlockCount } / count
                             selectedDetail = StatisticsDetail(
                                 title = "사용 시간과 언락",
-                                value = "화면 평균 ${formatMinutesToHoursAndMinutes(averageScreen)} · 언락 평균 ${averageUnlocks}회",
+                                value = "화면 평균 ${formatMinutesToHoursAndMinutes(averageScreen)} · 언락 평균 ${averageUnlocks}x",
                                 description = "4주 차트에서 날짜별 화면시간, 관리 앱 시간과 언락 횟수를 함께 비교합니다.",
                                 supportingText = "청록색은 전체 화면시간, 빨간색은 관리 앱 시간, 노란 점은 언락 횟수입니다."
                             )
@@ -712,7 +712,7 @@ private fun RollingMarketChartCard(
                             append(" · ${sample.score}점")
                             append("\n화면 ${formatMinutesToHoursAndMinutes(usage / 60_000L)}")
                             append(" · 관리 ${formatMinutesToHoursAndMinutes(managed / 60_000L)}")
-                            append(" · 언락 ${unlocks}회")
+                            append(" · 언락 ${unlocks}x")
                             selectedApp?.let { append(" · $it") }
                         },
                         modifier = Modifier
@@ -1389,8 +1389,8 @@ private fun FourWeekMarketChartCard(
                                 selectedIndex?.let { movingAverages.getOrNull(it) }?.let {
                                     String.format(Locale.getDefault(), "%.1f", it)
                                 } ?: "—" else "—")
-                            if (english) append("\nScreen ${range.history.totalScreenTimeMinutes} min · Managed ${range.history.distractingTimeMinutes} min · ${range.history.unlockCount} unlocks")
-                            else append("\n화면 ${formatMinutesToHoursAndMinutes(range.history.totalScreenTimeMinutes)} · 관리 ${formatMinutesToHoursAndMinutes(range.history.distractingTimeMinutes)} · 언락 ${range.history.unlockCount}회")
+                            if (english) append("\nScreen ${formatMinutesToHoursAndMinutes(range.history.totalScreenTimeMinutes)} · Managed ${formatMinutesToHoursAndMinutes(range.history.distractingTimeMinutes)} · Unlocks ${range.history.unlockCount}x")
+                            else append("\n화면 ${formatMinutesToHoursAndMinutes(range.history.totalScreenTimeMinutes)} · 관리 ${formatMinutesToHoursAndMinutes(range.history.distractingTimeMinutes)} · 언락 ${range.history.unlockCount}x")
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1665,8 +1665,8 @@ private fun IntradayCoreIndexDialog(
                     TextButton(onClick = onNext) { Text("다음 기록") }
                 }
                 Text(
-                    if (english) "Screen ${history.totalScreenTimeMinutes} min · Managed ${history.distractingTimeMinutes} min · ${history.unlockCount} unlocks"
-                    else "화면 ${formatMinutesToHoursAndMinutes(history.totalScreenTimeMinutes)} · 관리 ${formatMinutesToHoursAndMinutes(history.distractingTimeMinutes)} · 언락 ${history.unlockCount}회",
+                    if (english) "Screen ${formatMinutesToHoursAndMinutes(history.totalScreenTimeMinutes)} · Managed ${formatMinutesToHoursAndMinutes(history.distractingTimeMinutes)} · Unlocks ${history.unlockCount}x"
+                    else "화면 ${formatMinutesToHoursAndMinutes(history.totalScreenTimeMinutes)} · 관리 ${formatMinutesToHoursAndMinutes(history.distractingTimeMinutes)} · 언락 ${history.unlockCount}x",
                     fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (visible.isEmpty()) {
@@ -1843,7 +1843,7 @@ private fun UsageAndUnlockBarChartCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.size(10.dp).background(ScoreYellow, CircleShape))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = "언락(회)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(text = "언락(x)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
@@ -2032,7 +2032,7 @@ private fun AnalyticsSummaryCards(
             MetricCard(
                 modifier = Modifier.weight(1f),
                 title = "일평균 언락",
-                value = "${avgUnlockCount}회",
+                value = "${avgUnlockCount}x",
                 icon = Icons.Default.LockOpen,
                 iconColor = ScoreOrange,
                 subtitle = "하루 폰 켠 횟수",
@@ -2040,7 +2040,7 @@ private fun AnalyticsSummaryCards(
                     onDetailRequested(
                         StatisticsDetail(
                             "일평균 언락",
-                            "${avgUnlockCount}회",
+                            "${avgUnlockCount}x",
                             "기록된 날짜의 잠금 해제 횟수 평균입니다.",
                             "짧은 앱 사용은 시간과 별도로 앱별 실행 횟수에 반영됩니다."
                         )
@@ -2052,12 +2052,13 @@ private fun AnalyticsSummaryCards(
 }
 
 private fun formatMinutesToHoursAndMinutes(minutes: Long): String {
-    val hours = minutes / 60
-    val mins = minutes % 60
+    val safeMinutes = minutes.coerceAtLeast(0L)
+    val hours = safeMinutes / 60
+    val mins = safeMinutes % 60
     return when {
-        hours > 0 && mins > 0 -> "${hours}시간 ${mins}분"
-        hours > 0 -> "${hours}시간"
-        else -> "${mins}분"
+        hours > 0 && mins > 0 -> "${hours}h ${mins}m"
+        hours > 0 -> "${hours}h"
+        else -> "${mins}m"
     }
 }
 

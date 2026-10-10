@@ -49,6 +49,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.Locale
 import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.entity.AppWeightEntity
@@ -88,13 +89,32 @@ fun AppWeightSettingsScreen(
         savedAppWeights.associateBy { it.packageName }
     }
 
-    val filteredApps = remember(installedApps, searchQuery, appWeightMap) {
-        installedApps.filter {
-            it.appName.contains(searchQuery, ignoreCase = true) ||
-            it.packageName.contains(searchQuery, ignoreCase = true)
-        }.map { app ->
+    val allResolvedApps = remember(installedApps, appWeightMap) {
+        installedApps.map { app ->
             val saved = appWeightMap[app.packageName]
             app.copy(categoryType = (saved?.categoryType ?: app.categoryType).canonical)
+        }
+    }
+
+    val highlightApps = remember(allResolvedApps) {
+        allResolvedApps.filter { app ->
+            com.digitscore.app.model.AppCategoryPolicy.isHighlightCandidate(
+                app.packageName,
+                app.categoryType,
+                app.usageTimeMinutes
+            )
+        }.sortedWith(
+            compareByDescending<AppUsage> { it.categoryType == AppCategoryType.DISTRACTING }
+                .thenByDescending { it.categoryType == AppCategoryType.EXEMPT }
+                .thenBy { it.appName }
+        )
+    }
+
+    val filteredApps = remember(allResolvedApps, searchQuery) {
+        if (searchQuery.isBlank()) allResolvedApps
+        else allResolvedApps.filter {
+            it.appName.contains(searchQuery, ignoreCase = true) ||
+            it.packageName.contains(searchQuery, ignoreCase = true)
         }
     }
 
@@ -125,111 +145,94 @@ fun AppWeightSettingsScreen(
                     .fillMaxSize()
                     .padding(horizontal = 20.dp)
             ) {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                placeholder = { Text("앱 이름 또는 패키지 검색", color = MaterialTheme.colorScheme.outline) },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = UiTranslator.translate("검색"),
-                        tint = MaterialTheme.colorScheme.outline
-                    )
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    focusedTextColor = MaterialTheme.colorScheme.onBackground,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onBackground
-                )
-            )
-
-            Text(
-                text = "${filteredApps.size}개 앱 · 항목을 누르면 등급 설명과 변경 옵션을 볼 수 있습니다.",
-                style = MaterialTheme.typography.bodyMedium,
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
-
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(filteredApps) { app ->
-                    val tagColor = ratingColor(app.categoryType)
-
-                    Card(
+                    val isEn = Locale.getDefault().language == "en"
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { selectedAppForEdit = app },
+                            .padding(vertical = 12.dp),
+                        placeholder = { Text(if (isEn) "Search app name or package" else "앱 이름 또는 패키지 검색", color = MaterialTheme.colorScheme.outline) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = if (isEn) "Search" else UiTranslator.translate("검색"),
+                                tint = MaterialTheme.colorScheme.outline
+                            )
+                        },
+                        singleLine = true,
                         shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onBackground
                         )
+                    )
+
+                    Text(
+                        text = if (isEn) "${filteredApps.size} apps · Tap to view description and change category."
+                        else "${filteredApps.size}개 앱 · 항목을 누르면 등급 설명과 변경 옵션을 볼 수 있습니다.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
+                        if (searchQuery.isBlank() && highlightApps.isNotEmpty()) {
+                            item {
                                 Text(
-                                    text = app.appName,
+                                    text = if (isEn) "⭐ Key Highlight Apps" else "⭐ 주요 관리 대상 (하일라이트 앱)",
+                                    style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onBackground,
-                                    fontSize = 15.sp
-                                )
-                                Text(
-                                    text = app.packageName,
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.outline
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
                                 )
                             }
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            items(highlightApps) { app ->
+                                AppWeightRowCard(app = app, onClick = { selectedAppForEdit = app })
+                            }
+                            item {
+                                Spacer(modifier = Modifier.height(10.dp))
                                 Text(
-                                    text = app.categoryType.displayName,
-                                    fontSize = 12.sp,
+                                    text = if (isEn) "📱 All Installed Apps (${filteredApps.size})"
+                                    else "📱 전체 앱 목록 (${filteredApps.size}개)",
+                                    style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = tagColor,
-                                    modifier = Modifier
-                                        .background(tagColor.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    color = MaterialTheme.colorScheme.onBackground,
+                                    modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                DetailChevron()
+                            }
+                        }
+
+                        items(filteredApps) { app ->
+                            AppWeightRowCard(app = app, onClick = { selectedAppForEdit = app })
+                        }
+
+                        if (filteredApps.isEmpty()) {
+                            item {
+                                Text(
+                                    text = if (isEn) "No apps found." else "검색 결과가 없습니다.",
+                                    color = MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 32.dp),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
                             }
                         }
                     }
-                }
-
-                if (filteredApps.isEmpty()) {
-                    item {
-                        Text(
-                            text = "검색 결과가 없습니다.",
-                            color = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 32.dp),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                    }
-                }
-            }
         }
         }
     }
 
     // 카테고리 변경 다이얼로그
     selectedAppForEdit?.let { targetApp ->
+        val isEn = Locale.getDefault().language == "en"
         var currentCategory by remember { mutableStateOf(targetApp.categoryType.canonical) }
 
         AlertDialog(
@@ -238,7 +241,7 @@ fun AppWeightSettingsScreen(
             text = {
                 Column {
                     Text(
-                        text = "이 앱이 디지털 균형에 미치는 정도를 선택해 주세요.",
+                        text = if (isEn) "Select the impact of this app on your digital balance." else "이 앱이 디지털 균형에 미치는 정도를 선택해 주세요.",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 12.dp)
@@ -289,12 +292,12 @@ fun AppWeightSettingsScreen(
                         selectedAppForEdit = null
                     }
                 ) {
-                    Text("저장", fontWeight = FontWeight.Bold)
+                    Text(if (isEn) "Save" else "저장", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { selectedAppForEdit = null }) {
-                    Text("취소")
+                    Text(if (isEn) "Cancel" else "취소")
                 }
             },
             containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -303,8 +306,63 @@ fun AppWeightSettingsScreen(
 }
 
 @Composable
-private fun ratingColor(category: AppCategoryType): Color = when (category.level) {
-    1 -> ScoreGreen
-    2 -> MaterialTheme.colorScheme.outline
-    else -> ScoreRed
+private fun AppWeightRowCard(
+    app: AppUsage,
+    onClick: () -> Unit
+) {
+    val tagColor = ratingColor(app.categoryType)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = app.appName,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontSize = 15.sp
+                )
+                Text(
+                    text = app.packageName,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = app.categoryType.displayName,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = tagColor,
+                    modifier = Modifier
+                        .background(tagColor.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                DetailChevron()
+            }
+        }
+    }
+}
+
+@Composable
+private fun ratingColor(category: AppCategoryType): Color = when (category.canonical) {
+    AppCategoryType.EXEMPT -> Color(0xFF29B6F6)
+    AppCategoryType.NEUTRAL -> MaterialTheme.colorScheme.outline
+    AppCategoryType.DISTRACTING -> ScoreRed
+    else -> MaterialTheme.colorScheme.outline
 }

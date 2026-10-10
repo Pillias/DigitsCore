@@ -208,44 +208,38 @@ fun MorningBriefingDialog(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         // 목표 A: 코어 지수 방어선
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = if (english) "1. Core Index Defense" else "1. 코어 지수 방어선",
+                                    text = if (english) "1. Core Index Goal" else "1. 코어 지수 목표",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "${selectedScoreTarget}점 이상",
-                                    fontSize = 12.sp,
+                                    text = "${selectedScoreTarget} P",
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                listOf(65, 70, 75, 80).forEach { target ->
-                                    FilterChip(
-                                        selected = selectedScoreTarget == target,
-                                        onClick = { selectedScoreTarget = target },
-                                        label = { Text("${target}점", fontSize = 11.sp) },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                            }
+                            Slider(
+                                value = selectedScoreTarget.toFloat(),
+                                onValueChange = { selectedScoreTarget = (Math.round(it / 5f) * 5).toInt() },
+                                valueRange = 40f..80f,
+                                steps = 7,
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
 
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
                         // 목표 B: 특정 앱 제한 (앱 선택 + 시간 조절)
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -258,9 +252,9 @@ fun MorningBriefingDialog(
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = if (selectedAppPkg != null) "$selectedAppName ${selectedAppLimit}분 이내"
+                                    text = if (selectedAppPkg != null) "$selectedAppName ${selectedAppLimit}m"
                                     else (if (english) "None" else "선택 안 함"),
-                                    fontSize = 12.sp,
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = if (selectedAppPkg != null) com.digitscore.app.ui.theme.ScoreOrange
                                     else MaterialTheme.colorScheme.outline
@@ -274,7 +268,6 @@ fun MorningBriefingDialog(
                                     .horizontalScroll(rememberScrollState()),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                // "선택 안 함" 칩
                                 FilterChip(
                                     selected = selectedAppPkg == null,
                                     onClick = {
@@ -302,59 +295,76 @@ fun MorningBriefingDialog(
                                 }
                             }
 
-                            // 선택된 앱이 있을 때 시간 제한 칩 표시
+                            // 선택된 앱이 있을 때 드래그 슬라이더 표시
                             if (selectedAppPkg != null) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    listOf(15, 30, 45, 60).forEach { limit ->
-                                        FilterChip(
-                                            selected = selectedAppLimit == limit,
-                                            onClick = { selectedAppLimit = limit },
-                                            label = { Text("${limit}분", fontSize = 11.sp) },
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
+                                val currentCandidate = yesterdaySummary.candidateApps.firstOrNull { it.packageName == selectedAppPkg }
+                                val yMins = currentCandidate?.yesterdayUsageMinutes ?: 0L
+                                if (yMins > 0) {
+                                    val reduction = ((yMins - selectedAppLimit).toFloat() / yMins.toFloat() * 100).toInt().coerceAtLeast(0)
+                                    Text(
+                                        text = if (english) "💡 Yesterday ${yMins}m → Target ${selectedAppLimit}m today (-${reduction}%)"
+                                        else "💡 어제 ${yMins}분 사용 → 오늘 목표 ${selectedAppLimit}분 (${reduction}% 절감 제안)",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Medium
+                                    )
                                 }
+                                Slider(
+                                    value = selectedAppLimit.toFloat(),
+                                    onValueChange = { selectedAppLimit = (Math.round(it / 5f) * 5).toInt() },
+                                    valueRange = 15f..180f,
+                                    steps = 32,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                             }
                         }
 
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
                         // 목표 C: 잠금 해제 횟수 제한
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = if (english) "3. Daily Unlock Limit" else "3. 잠금 해제 조절",
+                                    text = if (english) "3. Daily Unlock Limit" else "3. 일일 잠금 해제 조절",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "${selectedUnlockTarget}회 이내",
-                                    fontSize = 12.sp,
+                                    text = "${selectedUnlockTarget}x",
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = MaterialTheme.colorScheme.secondary
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                listOf(30, 40, 50, 60).forEach { unlocks ->
-                                    FilterChip(
-                                        selected = selectedUnlockTarget == unlocks,
-                                        onClick = { selectedUnlockTarget = unlocks },
-                                        label = { Text("${unlocks}회", fontSize = 11.sp) },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
+                            val yUnlock = yesterdaySummary.unlockCount
+                            val baseLowest = yesterdaySummary.past14DaysLowestUnlock
+                            val unlockContextText = if (yUnlock > 0 && baseLowest > 0) {
+                                if (english) "💡 Gradual reduction based on yesterday (${yUnlock}x) & 14-day low (${baseLowest}x)"
+                                else "💡 어제 ${yUnlock}x · 14일 최저 ${baseLowest}x 기반 점진적 감축"
+                            } else if (yUnlock > 0) {
+                                if (english) "💡 Gradual reduction based on yesterday (${yUnlock}x)"
+                                else "💡 어제 ${yUnlock}x 언락 기반 점진적 감축"
+                            } else null
+                            if (unlockContextText != null) {
+                                Text(
+                                    text = unlockContextText,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    fontWeight = FontWeight.Medium
+                                )
                             }
+                            Slider(
+                                value = selectedUnlockTarget.toFloat(),
+                                onValueChange = { selectedUnlockTarget = (Math.round(it / 10f) * 10).toInt() },
+                                valueRange = 40f..180f,
+                                steps = 13,
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     }
                 }

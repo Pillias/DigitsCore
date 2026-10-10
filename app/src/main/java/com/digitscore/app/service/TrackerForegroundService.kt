@@ -86,13 +86,27 @@ class TrackerForegroundService : Service() {
     private var pendingWakeBaseUsageMillis: Long = 0L
 
     private val wakeSteps by lazy { WakeStepEvidence(this) { timestamp ->
-        pendingWakeTimestamp = timestamp
-        pendingWakeBaseUsageMillis = cachedTodaySnapshot?.assignedUsageMillis ?: 0L
-        ScoreNotificationManager.showMorningWakePromptNotification(this, timestamp)
         serviceScope.launch(Dispatchers.IO) {
+            val db = DigitsDatabase.getInstance(applicationContext)
+            // 50보 이상 걸음 발생 시 자체 일어난 것으로 자동 확정
             com.digitscore.app.data.CumulativeScoreStore.confirmActivity(
-                DigitsDatabase.getInstance(applicationContext), timestamp, awake = true, acknowledge = false)
-            recalculateAndNotify()
+                db, timestamp, awake = true, acknowledge = true
+            )
+            pendingWakeTimestamp = 0L
+            ScoreNotificationManager.cancelMorningWakePromptNotification(applicationContext)
+            recalculateAndNotify(immediate = true)
+
+            // 오늘 아직 브리핑을 완료하지 않았다면 목표 팝업 또는 알림 준비
+            val isCompleted = com.digitscore.app.data.DailyGoalStore.isBriefingCompleted(applicationContext)
+            if (!isCompleted) {
+                withContext(Dispatchers.Main) {
+                    if (isScreenInteractive()) {
+                        triggerMorningBriefingPopup()
+                    } else {
+                        ScoreNotificationManager.showMorningBriefingHeadsUpNotification(applicationContext)
+                    }
+                }
+            }
         }
     } }
     private var cumulativeCoverageStart = UsageStatsHelper.getStartOfTodayMillis()
@@ -189,6 +203,8 @@ class TrackerForegroundService : Service() {
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_SCREEN_OFF)
             addAction(Intent.ACTION_USER_PRESENT)
+            addAction(Intent.ACTION_TIMEZONE_CHANGED)
+            addAction(Intent.ACTION_TIME_CHANGED)
         }
 
         screenEventReceiver = ScreenEventReceiver(
@@ -200,6 +216,9 @@ class TrackerForegroundService : Service() {
             },
             onUserPresent = {
                 onUserUnlocked()
+            },
+            onTimeOrTimezoneChanged = {
+                handleTimeOrTimezoneChanged()
             }
         )
 
@@ -209,6 +228,14 @@ class TrackerForegroundService : Service() {
             filter,
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
+    }
+
+    private fun handleTimeOrTimezoneChanged() {
+        checkDateRollover()
+        cachedTodaySnapshot = null
+        lastUsageQueryEndMillis = 0L
+        com.digitscore.app.data.CumulativeScoreStore.clearWindowCache()
+        recalculateAndNotify(immediate = true)
     }
 
     private fun onScreenTurnedOn() {
@@ -240,7 +267,8 @@ class TrackerForegroundService : Service() {
         // 실제 ACTION_USER_PRESENT 수신 시각을 암호화 DB에 먼저 남깁니다.
         // UsageEvents.KEYGUARD_HIDDEN과 겹쳐도 조회 단계에서 한 번의 해제로 합칩니다.
         serviceScope.launch(Dispatchers.IO) {
-            DigitsDatabase.getInstance(applicationContext).deviceInteractionEventDao().insertAll(
+            val db = DigitsDatabase.getInstance(applicationContext)
+            db.deviceInteractionEventDao().insertAll(
                 listOf(
                     DeviceInteractionEventEntity(
                         timestampMillis = System.currentTimeMillis(),
@@ -248,9 +276,55 @@ class TrackerForegroundService : Service() {
                     )
                 )
             )
+
+            // 아침 첫 잠금 해제(05:00 ~ 11:59) 시 목표 팝업 표시 검사
+            checkMorningFirstUnlockBriefing(db)
+
             // 언락 후 이벤트 정착을 기다려 1회만 재계산합니다 (불필요한 4중 중복 호출 방지)
             recalculateAndNotify(delayMillis = USAGE_EVENT_SETTLE_DELAY_MILLIS)
         }
+    }
+
+    private suspend fun checkMorningFirstUnlockBriefing(db: DigitsDatabase) {
+        val calendar = Calendar.getInstance()
+        val hour = calendar.get(Calendar.HOUR_OF_DAY)
+        // 아침 시간대: 05:00 ~ 11:59 (새벽 0~4시 심야 제외)
+        if (hour in 5..11) {
+            val isCompleted = DailyGoalStore.isBriefingCompleted(applicationContext)
+            val prefs = applicationContext.getSharedPreferences("morning_prompt_state", Context.MODE_PRIVATE)
+            val lastPromptDate = prefs.getString("last_unlock_prompt_date", "")
+            val todayDate = DailyGoalStore.getLogicalDateString()
+
+            if (!isCompleted && lastPromptDate != todayDate) {
+                // 오늘 아침 첫 번째 잠금 해제 발생!
+                prefs.edit().putString("last_unlock_prompt_date", todayDate).apply()
+
+                // 사용자 기상 상태 자동 확정
+                com.digitscore.app.data.CumulativeScoreStore.confirmActivity(
+                    db, System.currentTimeMillis(), awake = true, acknowledge = true
+                )
+
+                withContext(Dispatchers.Main) {
+                    triggerMorningBriefingPopup()
+                }
+            }
+        }
+    }
+
+    private fun triggerMorningBriefingPopup() {
+        try {
+            val launchIntent = Intent(applicationContext, com.digitscore.app.ui.MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+                putExtra(com.digitscore.app.ui.MainActivity.EXTRA_SHOW_MORNING_BRIEFING, true)
+            }
+            applicationContext.startActivity(launchIntent)
+        } catch (e: Exception) {
+            android.util.Log.w("TrackerService", "Direct activity start failed: ${e.message}")
+        }
+        // OS 백그라운드 시작 제약 대응을 위해 고우선순위 헤드업 알림을 함께 표시
+        ScoreNotificationManager.showMorningBriefingHeadsUpNotification(applicationContext)
     }
 
     private fun startPeriodicTracking() {
@@ -477,7 +551,7 @@ class TrackerForegroundService : Service() {
                     todayInteractionEvents
                 ).size
                 todayUnlockCount = finalUnlockCount
-                ScoreRepository.updateUnlockCount(rollingUnlockCount)
+                ScoreRepository.updateUnlockCount(finalUnlockCount)
 
                 // 화면 OFF 이벤트로 실제 휴식 시간을 누적한다. 수면/권한 누락 시간을
                 // 단순히 "자정 이후 경과 시간 - 앱 사용 시간"으로 간주하지 않는다.
@@ -637,7 +711,7 @@ class TrackerForegroundService : Service() {
                     score = rollingScoreDetail.finalScore,
                     screenMinutes = displayScoreDetail.totalScreenTimeMinutes,
                     managedMinutes = displayScoreDetail.distractingTimeMinutes,
-                    unlockCount = rollingUnlockCount,
+                    unlockCount = finalUnlockCount,
                     flow = rollingScoreDetail.flow,
                     continuousUsageMinutes = rollingScoreDetail.continuousUsageMinutes,
                     recommendation = guidance.recommendation,
@@ -722,7 +796,7 @@ class TrackerForegroundService : Service() {
                     val notification = ScoreNotificationManager.buildScoreNotification(
                         applicationContext,
                         displayScoreDetail,
-                        rollingUnlockCount,
+                        finalUnlockCount,
                         settings?.hideSensitiveNotificationOnLockScreen ?: true,
                         rollingScoreDetail,
                         StatusIconStyle.fromId(settings?.statusIconStyleId),

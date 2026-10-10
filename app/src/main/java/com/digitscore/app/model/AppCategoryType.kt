@@ -1,10 +1,11 @@
 package com.digitscore.app.model
 
 /**
- * 앱 사용이 디지털 균형에 미치는 정도를 나타내는 3단계 등급입니다.
+ * 앱 사용이 디지털 균형에 미치는 정도를 나타내는 등급입니다.
  *
- * MILDLY_PRODUCTIVE / MILDLY_DISTRACTING은 과거 5단계 데이터와 백업을 읽기 위한
- * 호환 식별자입니다. UI와 새 기록에는 성장 / 균형 / 몰입 관리 세 등급만 사용합니다.
+ * EXEMPT: 지도, 내비, 통화, 도구 등 필수 앱 (감점 및 연속사용 시간 제외)
+ * NEUTRAL: 일반적인 일상/업무/독서 앱 (기본 사용 부하)
+ * DISTRACTING: 숏폼, SNS, 게임, 웹툰 등 (30분 초과 시 가속 감점 관리)
  */
 enum class AppCategoryType(
     val level: Int,
@@ -14,6 +15,14 @@ enum class AppCategoryType(
     private val englishDescription: String,
     val scoreMultiplier: Float
 ) {
+    EXEMPT(
+        level = 0,
+        koreanName = "면제",
+        englishName = "Exempt",
+        koreanDescription = "지도, 내비, 통화, 도구 등 필수 앱 · 감점 및 연속사용 시간 제외",
+        englishDescription = "Maps, navigation, phone, tools · No penalty, excluded from usage streak",
+        scoreMultiplier = 0.0f
+    ),
     PRODUCTIVE(
         level = 1,
         koreanName = "일반",
@@ -55,32 +64,39 @@ enum class AppCategoryType(
         scoreMultiplier = -1.0f
     );
 
+    val isExempt: Boolean get() = this == EXEMPT
     val isPenalty: Boolean get() = scoreMultiplier < 0f
     val isBonus: Boolean get() = scoreMultiplier > 0f
     val displayName: String get() = if (java.util.Locale.getDefault().language == "en") englishName else koreanName
     val description: String get() = if (canonical == NEUTRAL) {
-        if (java.util.Locale.getDefault().language == "en") "General use · No bonus for time spent"
-        else "일반 사용 · 사용시간 자체에 가점 없음"
+        if (java.util.Locale.getDefault().language == "en") "General use · Standard usage load"
+        else "일반 사용 · 기본 사용 부하"
+    } else if (canonical == EXEMPT) {
+        if (java.util.Locale.getDefault().language == "en") "Exempt tool · No score deduction or streak"
+        else "면제 도구 · 점수 감점 및 연속사용 시간 제외"
     } else if (java.util.Locale.getDefault().language == "en") englishDescription else koreanDescription
     val canonical: AppCategoryType
         get() = when (this) {
+            EXEMPT -> EXEMPT
             PRODUCTIVE, MILDLY_PRODUCTIVE -> NEUTRAL
             NEUTRAL -> NEUTRAL
             MILDLY_DISTRACTING, DISTRACTING -> DISTRACTING
         }
 
     companion object {
-        val orderedEntries: List<AppCategoryType> = listOf(NEUTRAL, DISTRACTING)
+        val orderedEntries: List<AppCategoryType> = listOf(EXEMPT, NEUTRAL, DISTRACTING)
 
-        /** DB v13 이하와 백업 v6 이하에 저장된 5단계 숫자를 새 3단계로 변환합니다. */
+        /** DB v13 이하와 백업 v6 이하에 저장된 5단계 숫자를 새 등급으로 변환합니다. */
         fun fromLegacyLevel(level: Int): Int = when (level) {
+            0 -> 0
             1, 2 -> 1
             3 -> 2
             else -> 3
         }
 
         fun normalizeLevel(level: Int): Int = when {
-            level <= 1 -> 1
+            level <= 0 -> 0
+            level == 1 -> 1
             level == 2 -> 2
             else -> 3
         }

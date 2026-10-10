@@ -63,7 +63,11 @@ data class UnlockInsights(
     val notificationCount: Int,
     val notificationEventsSupported: Boolean,
     val windowStartMillis: Long,
-    val windowEndMillis: Long
+    val windowEndMillis: Long,
+    val glanceUnlockCount: Int = 0,
+    val glanceThresholdSeconds: Int = 10,
+    val past14DaysLowestUnlock: Int = 0,
+    val past14DaysAverageUnlock: Int = 0
 )
 
 /** 한 번의 실제 앱 진입에 속한 여러 전면 조각을 세션 ID로 묶어 사용시간을 합칩니다. */
@@ -203,14 +207,10 @@ object UsageStatsHelper {
     internal fun defaultCategoryForPackage(
         packageName: String,
         applicationCategory: Int
-    ): AppCategoryType {
-        val normalizedPackage = packageName.lowercase()
-        return when {
-            EDUCATION_PACKAGE_PREFIXES.any(normalizedPackage::startsWith) -> AppCategoryType.NEUTRAL
-            SHOPPING_PACKAGE_PREFIXES.any(normalizedPackage::startsWith) -> AppCategoryType.NEUTRAL
-            else -> defaultCategoryForApplicationCategory(applicationCategory)
-        }
-    }
+    ): AppCategoryType = com.digitscore.app.model.AppCategoryPolicy.resolveDefaultCategory(
+        packageName = packageName,
+        applicationCategory = applicationCategory
+    )
 
     private fun resolveCategory(
         pm: PackageManager,
@@ -224,10 +224,15 @@ object UsageStatsHelper {
         } catch (_: Exception) {
             ApplicationInfo.CATEGORY_UNDEFINED
         }
-        val recommended = defaultCategoryForPackage(packageName, applicationCategory)
+        val recommended = com.digitscore.app.model.AppCategoryPolicy.resolveDefaultCategory(
+            packageName = packageName,
+            applicationCategory = applicationCategory
+        )
         if (applicationCategory != ApplicationInfo.CATEGORY_UNDEFINED ||
-            EDUCATION_PACKAGE_PREFIXES.any(packageName::startsWith) ||
-            SHOPPING_PACKAGE_PREFIXES.any(packageName::startsWith)) return recommended
+            com.digitscore.app.model.AppCategoryPolicy.NAVIGATION_PACKAGES.any(packageName.lowercase()::startsWith) ||
+            com.digitscore.app.model.AppCategoryPolicy.UTILITY_PACKAGES.any(packageName.lowercase()::startsWith) ||
+            com.digitscore.app.model.AppCategoryPolicy.EDUCATION_PACKAGES.any(packageName.lowercase()::startsWith) ||
+            com.digitscore.app.model.AppCategoryPolicy.SHOPPING_PACKAGES.any(packageName.lowercase()::startsWith)) return recommended
         return savedEntity?.categoryType?.canonical ?: recommended
     }
 
@@ -428,19 +433,30 @@ object UsageStatsHelper {
         context: Context,
         end: Long = System.currentTimeMillis()
     ): UnlockInsights {
+        val db = DigitsDatabase.getInstance(context)
+        val pastHistories = db.scoreDao().getRecentCoreIndexHistories(14)
+        val validHistories = pastHistories.filter { it.unlockCount > 0 }
+        val pastLowest = validHistories.minOfOrNull { it.unlockCount } ?: 0
+        val pastAvg = if (validHistories.isNotEmpty()) validHistories.map { it.unlockCount }.average().toInt() else 0
+
         return getUnlockInsights(
             context = context,
             start = end - 24 * 60 * 60_000L,
-            end = end
+            end = end,
+            pastLowest = pastLowest,
+            pastAvg = pastAvg
         )
     }
 
     private suspend fun getUnlockInsights(
         context: Context,
         start: Long,
-        end: Long
+        end: Long,
+        pastLowest: Int = 0,
+        pastAvg: Int = 0
     ): UnlockInsights {
-        val events = DigitsDatabase.getInstance(context).deviceInteractionEventDao()
+        val db = DigitsDatabase.getInstance(context)
+        val events = db.deviceInteractionEventDao()
             .getBetween(start, end)
         val unlockEvents = resolvedUnlockTimestamps(
             events
@@ -462,6 +478,21 @@ object UsageStatsHelper {
             it.eventType == DeviceInteractionEventEntity.NOTIFICATION_INTERRUPTION
         }
 
+        // 10초 이내 앱 미진입 무의미한 열람(Glance) 집계
+        val sessions = db.foregroundUsageSessionDao().getBetween(start, end)
+        val glanceThresholdMillis = 10_000L
+        var glanceCount = 0
+        unlockEvents.forEach { unlockTime ->
+            val hasAppStarted = sessions.any { s ->
+                s.startTimeMillis in unlockTime..(unlockTime + glanceThresholdMillis) &&
+                    s.packageName != "com.digitscore.app" &&
+                    !IGNORED_SYSTEM_PACKAGES.contains(s.packageName)
+            }
+            if (!hasAppStarted) {
+                glanceCount++
+            }
+        }
+
         return UnlockInsights(
             unlockCount = unlockEvents.size,
             hourlyUnlockCounts = hourly,
@@ -469,7 +500,11 @@ object UsageStatsHelper {
             notificationCount = notificationCount,
             notificationEventsSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P,
             windowStartMillis = start,
-            windowEndMillis = end
+            windowEndMillis = end,
+            glanceUnlockCount = glanceCount.coerceAtMost(unlockEvents.size),
+            glanceThresholdSeconds = 10,
+            past14DaysLowestUnlock = pastLowest,
+            past14DaysAverageUnlock = pastAvg
         )
     }
 

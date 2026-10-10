@@ -163,13 +163,13 @@ internal object ForegroundUsageAggregator {
                 .ifEmpty { listOf(packageName) }
             val effectiveApp = visiblePackages
                 .map { visiblePackage ->
-                    visiblePackage to categoryLevelResolver(visiblePackage).coerceIn(1, 3)
+                    visiblePackage to categoryLevelResolver(visiblePackage).coerceIn(0, 3)
                 }
                 .maxWithOrNull(
                     compareBy<Pair<String, Int>> { it.second }
                         .thenBy { if (it.first == packageName) 1 else 0 }
                 )
-                ?: (packageName to categoryLevelResolver(packageName).coerceIn(1, 3))
+                ?: (packageName to categoryLevelResolver(packageName).coerceIn(0, 3))
             val effectivePackageName = effectiveApp.first
             val effectiveCategoryLevel = effectiveApp.second
             val concurrentAppCount = visiblePackages.size.coerceAtLeast(1)

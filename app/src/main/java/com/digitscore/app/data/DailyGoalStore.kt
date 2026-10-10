@@ -45,8 +45,11 @@ object DailyGoalStore {
     private const val KEY_YESTERDAY_TOP_MINS = "y_top_mins"
     private const val KEY_YESTERDAY_UNLOCK = "y_unlock"
     private const val KEY_YESTERDAY_CANDIDATES = "y_candidates"
+    private const val KEY_YESTERDAY_LOWEST_UNLOCK = "y_lowest_unlock"
+    private const val KEY_YESTERDAY_AVG_UNLOCK = "y_avg_unlock"
 
     private const val KEY_BRIEFING_COMPLETED = "goal_briefing_completed"
+    private const val KEY_BRIEFING_DATE = "goal_briefing_completed_date"
 
     /**
      * 새벽 5시 이전(00:00~04:59)은 전날 밤의 연장(심야 활동)으로 취급하여
@@ -134,8 +137,10 @@ object DailyGoalStore {
         appLimitMinutes: Int,
         unlockLimitTarget: Int
     ) = synchronized(storeLock) {
-        val currentGoal = getGoal(context) ?: DailyGoal(dateString = getLogicalDateString())
+        val todayDate = getLogicalDateString()
+        val currentGoal = getGoal(context, todayDate) ?: DailyGoal(dateString = todayDate)
         val updated = currentGoal.copy(
+            dateString = todayDate,
             scoreTarget = scoreTarget,
             targetPackageName = targetPackageName,
             targetAppName = targetAppName,
@@ -144,7 +149,8 @@ object DailyGoalStore {
             isAutoAssigned = false
         )
         saveGoal(context, updated)
-        markBriefingCompleted(context)
+        markBriefingCompleted(context, todayDate)
+        ScoreRepository.updateDailyGoal(updated)
     }
 
     fun setDismissed(context: Context, dismissed: Boolean) = synchronized(storeLock) {
@@ -154,22 +160,24 @@ object DailyGoalStore {
 
     fun isBriefingCompleted(context: Context, todayDate: String = getLogicalDateString()): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val savedDate = prefs.getString(KEY_DATE, null)
-        return savedDate == todayDate && prefs.getBoolean(KEY_BRIEFING_COMPLETED, false)
+        val completedDate = prefs.getString(KEY_BRIEFING_DATE, null)
+        return completedDate == todayDate && prefs.getBoolean(KEY_BRIEFING_COMPLETED, false)
     }
 
     fun markBriefingCompleted(context: Context, todayDate: String = getLogicalDateString()) = synchronized(storeLock) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
-            .putString(KEY_DATE, todayDate)
+            .putString(KEY_BRIEFING_DATE, todayDate)
             .putBoolean(KEY_BRIEFING_COMPLETED, true)
             .apply()
     }
 
     fun setUserAccepted(context: Context) = synchronized(storeLock) {
+        val todayDate = getLogicalDateString()
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
             .putBoolean(KEY_AUTO_ASSIGNED, false)
+            .putString(KEY_BRIEFING_DATE, todayDate)
             .putBoolean(KEY_BRIEFING_COMPLETED, true)
             .apply()
     }
@@ -189,7 +197,9 @@ object DailyGoalStore {
             topAppName = prefs.getString(KEY_YESTERDAY_TOP_APP, "") ?: "",
             topAppUsageMinutes = prefs.getLong(KEY_YESTERDAY_TOP_MINS, 0L),
             unlockCount = prefs.getInt(KEY_YESTERDAY_UNLOCK, 0),
-            candidateApps = candidates
+            candidateApps = candidates,
+            past14DaysLowestUnlock = prefs.getInt(KEY_YESTERDAY_LOWEST_UNLOCK, 0),
+            past14DaysAverageUnlock = prefs.getInt(KEY_YESTERDAY_AVG_UNLOCK, 0)
         )
     }
 
@@ -205,6 +215,8 @@ object DailyGoalStore {
             .putLong(KEY_YESTERDAY_TOP_MINS, summary.topAppUsageMinutes)
             .putInt(KEY_YESTERDAY_UNLOCK, summary.unlockCount)
             .putString(KEY_YESTERDAY_CANDIDATES, candidatesJson)
+            .putInt(KEY_YESTERDAY_LOWEST_UNLOCK, summary.past14DaysLowestUnlock)
+            .putInt(KEY_YESTERDAY_AVG_UNLOCK, summary.past14DaysAverageUnlock)
             .apply()
     }
 
@@ -215,6 +227,7 @@ object DailyGoalStore {
             obj.put("pkg", c.packageName)
             obj.put("name", c.appName)
             obj.put("mins", c.yesterdayUsageMinutes)
+            obj.put("heavy", c.isRoutineHeavy)
             array.put(obj)
         }
         return array.toString()
@@ -234,7 +247,8 @@ object DailyGoalStore {
                         AppCandidate(
                             packageName = pkg,
                             appName = if (name.isNotBlank()) name else pkg,
-                            yesterdayUsageMinutes = obj.optLong("mins", 0L)
+                            yesterdayUsageMinutes = obj.optLong("mins", 0L),
+                            isRoutineHeavy = obj.optBoolean("heavy", true)
                         )
                     )
                 }
@@ -245,7 +259,7 @@ object DailyGoalStore {
 
 
     /**
-     * 어제 데이터를 기반으로 오늘의 맞춤형 복합 목표 세트(점수, 특정 앱, 언락)를 생성 및 반환합니다.
+     * 어제 및 과거 14일 트렌드를 기반으로 오늘의 맞춤형 복합 목표 세트(점수, 만성 과다 앱, 현실적 언락)를 생성 및 반환합니다.
      */
     suspend fun generateOrGetGoal(
         context: Context,
@@ -260,23 +274,42 @@ object DailyGoalStore {
 
         val yesterdayDate = getYesterdayLogicalDateString()
         val yesterdayScoreEntity = db.scoreDao().getScoreHistoryForDate(yesterdayDate)
-        val yesterdayApps = db.dailyAppUsageDao().getAll().filter { it.dateString == yesterdayDate }
+        val allAppUsage = db.dailyAppUsageDao().getAll()
+        val yesterdayApps = allAppUsage.filter { it.dateString == yesterdayDate }
+
+        val pastHistories = db.scoreDao().getRecentCoreIndexHistories(14)
+        val validHistories = pastHistories.filter { it.unlockCount > 0 }
+        val pastLowestUnlock = validHistories.minOfOrNull { it.unlockCount } ?: 0
+        val pastAvgUnlock = if (validHistories.isNotEmpty()) validHistories.map { it.unlockCount }.average().toInt() else 0
 
         val yesterdayScore = yesterdayScoreEntity?.finalScore ?: 80
         val yesterdayScreenTimeMins = yesterdayScoreEntity?.totalScreenTimeMinutes
             ?: (yesterdayApps.sumOf { it.usageMillis } / 60_000L)
         val yesterdayUnlock = yesterdayScoreEntity?.unlockCount ?: 0
 
-        // 어제 사용량 상위 앱들 추출 (5분 이상 사용된 앱, 최대 6개)
+        // 최근 14일간 앱별 사용 일수 집계 (만성 과다 사용 vs 1회성 일시 급증 구분)
+        val appDayCounts = allAppUsage
+            .filter { it.usageMillis >= 5 * 60_000L }
+            .groupBy { it.packageName }
+            .mapValues { entry -> entry.value.map { it.dateString }.distinct().size }
+
+        // 어제 사용량 상위 앱들 추출 (만성 과다 앱 우선 정렬)
         val candidateApps = yesterdayApps
             .filter { it.usageMillis >= 5 * 60_000L }
-            .sortedByDescending { it.usageMillis }
+            .sortedWith(
+                compareByDescending<com.digitscore.app.data.entity.DailyAppUsageEntity> {
+                    val days = appDayCounts[it.packageName] ?: 1
+                    if (days >= 3) 1 else 0
+                }.thenByDescending { it.usageMillis }
+            )
             .take(6)
             .map { app ->
+                val days = appDayCounts[app.packageName] ?: 1
                 AppCandidate(
                     packageName = app.packageName,
                     appName = app.appName.ifBlank { app.packageName.substringAfterLast('.') },
-                    yesterdayUsageMinutes = app.usageMillis / 60_000L
+                    yesterdayUsageMinutes = app.usageMillis / 60_000L,
+                    isRoutineHeavy = days >= 2
                 )
             }
 
@@ -288,22 +321,33 @@ object DailyGoalStore {
             topAppName = topApp?.appName ?: "",
             topAppUsageMinutes = topApp?.yesterdayUsageMinutes ?: 0L,
             unlockCount = yesterdayUnlock,
-            candidateApps = candidateApps
+            candidateApps = candidateApps,
+            past14DaysLowestUnlock = pastLowestUnlock,
+            past14DaysAverageUnlock = pastAvgUnlock
         )
         saveYesterdaySummary(context, summary)
 
         // 1. 코어 지수 목표 기본값 (어제 점수가 85 이상이면 75점, 그 외는 70점 방어)
         val recommendedScoreTarget = if (yesterdayScore >= 85) 75 else 70
 
-        // 2. 특정 앱 목표 기본값 (어제 1위 앱의 70% 수준 시간으로 제안)
+        // 2. 특정 앱 목표 기본값 (어제 사용량의 70% 수준 시간으로 제안)
         val defaultAppLimit = if (topApp != null && topApp.yesterdayUsageMinutes >= 15) {
             ((topApp.yesterdayUsageMinutes * 0.7f).toInt().coerceAtLeast(15) / 5) * 5
         } else 30
 
-        // 3. 잠금해제 목표 기본값 (어제 언락이 30 이상이면 어제보다 5회 줄인 값, 기본 40회)
-        val recommendedUnlockTarget = if (yesterdayUnlock >= 30) {
-            ((yesterdayUnlock - 5).coerceIn(20, 60) / 5) * 5
-        } else 40
+        // 3. 잠금해제 목표 기본값:
+        // 어제 언락 또는 과거 평균 기준 현실적 10% 감축값 권장 (과거 최저치 이상으로 가이드)
+        val recommendedUnlockTarget = when {
+            yesterdayUnlock >= 40 -> {
+                val reduced = (yesterdayUnlock * 0.9f).toInt()
+                val target = if (pastLowestUnlock in 20..reduced) {
+                    reduced.coerceAtLeast(pastLowestUnlock)
+                } else reduced
+                ((target / 10) * 10).coerceIn(40, 200)
+            }
+            pastAvgUnlock >= 40 -> ((pastAvgUnlock * 0.9f).toInt() / 10 * 10).coerceIn(40, 200)
+            else -> 100
+        }
 
         val generatedGoal = DailyGoal(
             dateString = todayDate,

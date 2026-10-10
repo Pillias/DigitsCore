@@ -2,7 +2,13 @@ package com.digitscore.app.ui
 
 import android.os.Bundle
 import android.content.Context
+import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
@@ -53,6 +59,41 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
+    companion object {
+        const val EXTRA_SHOW_MORNING_BRIEFING = "com.digitscore.app.extra.SHOW_MORNING_BRIEFING"
+    }
+
+    private var forceShowMorningBriefing by mutableStateOf(false)
+
+    private val activityRecognitionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            TrackerForegroundService.refreshNotification(this)
+        }
+    }
+
+    private fun checkActivityRecognitionPermission() {
+        if (Build.VERSION.SDK_INT >= 29) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACTIVITY_RECOGNITION)
+                != PackageManager.PERMISSION_GRANTED) {
+                activityRecognitionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_SHOW_MORNING_BRIEFING, false) == true) {
+            forceShowMorningBriefing = true
+        }
+    }
+
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(AppLocale.wrap(newBase))
     }
@@ -60,6 +101,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        handleIntent(intent)
+        checkActivityRecognitionPermission()
 
         val hasPermission = UsageStatsHelper.hasUsageStatsPermission(this)
         val startDestination = if (hasPermission) {
@@ -124,6 +167,10 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onNavigateToPresetSettings = {
                                             navController.navigate(Screen.PresetSettings.route)
+                                        },
+                                        forceShowMorningBriefing = forceShowMorningBriefing,
+                                        onMorningBriefingHandled = {
+                                            forceShowMorningBriefing = false
                                         }
                                     )
                                 }

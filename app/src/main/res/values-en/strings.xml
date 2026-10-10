@@ -55,7 +55,7 @@
     <string name="database_preserved_message">Your existing records were not deleted.\n%1$s</string>
     <string name="retry">Try again</string>
     <string name="notification_title">Core Index %1$d · %2$s</string>
-    <string name="notification_content">Managed %3$s · Screen %1$s · %2$d unlocks</string>
+    <string name="notification_content">Managed %3$s · Screen %1$s · Unlocks %2$dx</string>
     <string name="notification_key_label">Key message</string>
     <string name="notification_action_keep_balance">Keep your current balance.</string>
     <string name="notification_action_ten_minute_break">Put the screen down for 10 minutes now.</string>
@@ -66,6 +66,13 @@
     <string name="notification_goal_app_exceeded">Today %1$s: Over %3$d min target (%2$d min used)</string>
     <string name="notification_goal_score_good">Defending %2$d+ target score (Current %1$d)</string>
     <string name="notification_goal_score_warning">Below %2$d defense line (Current %1$d)</string>
+    <string name="notification_progressive_goal_summary">Next step %1$d (+%2$d pts) · %3$s</string>
+    <string name="notification_progressive_goal_title">Achievable target: %1$d pts (Current %2$d · +%3$d pts needed)</string>
+    <string name="notification_progressive_goal_how">How to reach: %1$s</string>
+    <string name="notification_progressive_goal_defense_ref">Defense line: %1$d pts (Step-by-step recovery in progress)</string>
+    <string name="action_rest_recovery">Take ~%1$d min screen break</string>
+    <string name="action_rest_recovery_long">Take ~%1$d min screen break to recover to %2$d pts</string>
+    <string name="action_reduce_managed_apps">Rest screen and ease off managed apps</string>
     <string name="notification_goal_unlock_pace">Unlocks: %1$d / Limit %2$d</string>
     <string name="notification_goal_unlock_exceeded">Unlocks: %1$d (Exceeded %2$d limit)</string>
     <string name="notification_cause_calibrating">More usage data will make guidance more personal.</string>
@@ -78,10 +85,10 @@
     <string name="tracking_stop">Stop tracking</string>
     <string name="tracking_active">DigitsCore tracking active</string>
     <string name="unlock_for_details">Unlock your device to see details.</string>
-    <string name="format_hours_minutes">%1$d hr %2$d min</string>
-    <string name="format_hours">%1$d hr</string>
-    <string name="format_minutes">%1$d min</string>
-    <string name="unlock_count_short">%1$d unlocks</string>
+    <string name="format_hours_minutes">%1$dh %2$dm</string>
+    <string name="format_hours">%1$dh</string>
+    <string name="format_minutes">%1$dm</string>
+    <string name="unlock_count_short">%1$dx</string>
     <string name="grade_label">Grade %1$s</string>
     <string name="widget_index">Core Index</string>
     <string name="widget_index_24h">Core Index · 24H</string>
@@ -154,5 +161,8 @@
     <string name="goal_milestone_title">Daily Goal Approaching 80%</string>
     <string name="goal_milestone_content_app">%1$s %2$d min / Target %3$d min (80%%)</string>
     <string name="goal_milestone_content_score">Current Core Index %1$d / Defense %2$d</string>
+    <string name="morning_briefing_prompt_title">☀️ Set Today\'s Goals</string>
+    <string name="morning_briefing_prompt_content">Tap to review today\'s Core Index defense line and app limit</string>
+    <string name="morning_briefing_prompt_action">Set Goals</string>
     <string name="confirm">OK</string>
 </resources>

@@ -193,8 +193,27 @@ object UiTranslator {
             "The last \$1-day average decreased \$2% from the previous period.",
         Regex("최근 (\\d+)일에 새 사용 기록이 생겼습니다\\.") to
             "New usage was recorded within the last \$1 days.",
-        Regex("🌙 심야 사용 (-?\\d+(?:\\.\\d+)?)분") to "🌙 Late-night use: \$1 min",
-        Regex("심야 사용 (-?\\d+(?:\\.\\d+)?)분") to "Late-night use: \$1 min"
+        Regex("🌙 심야 사용 (-?\\d+(?:\\.\\d+)?)분") to "🌙 Late-night use: $1 min",
+        Regex("심야 사용 (-?\\d+(?:\\.\\d+)?)분") to "Late-night use: $1 min",
+        Regex("나머지 (\\d+)개 앱 모두 보기") to "View remaining $1 apps",
+        Regex("전체 (\\d+)개") to "All $1",
+        Regex("전체 (\\d+)개 앱") to "All $1 Apps",
+        Regex("전체 앱 목록 \\((\\d+)개\\)") to "All Installed Apps ($1)",
+        Regex("현재 (\\d+)P / 목표 (\\d+)P \\(\\+([\\d]+)P 필요\\)") to "Current $1P / Target $2P (+$3P needed)",
+        Regex("현재 (\\d+)P / 목표 (\\d+)P \\(달성 🎉\\)") to "Current $1P / Target $2P (Achieved 🎉)",
+        Regex("(\\d+) / (\\d+)분 \\((\\d+)분 초과 ⚠️\\)") to "$1 / $2 min ($3 min over ⚠️)",
+        Regex("(\\d+) / (\\d+)분 \\((\\d+)%\\)") to "$1 / $2 min ($3%)",
+        Regex("(\\d+) / (\\d+)회 \\((\\d+)회 초과 ⚠️\\)") to "$1 / $2 unlocks ($3 over ⚠️)",
+        Regex("(\\d+) / (\\d+)회 \\((\\d+)%\\)") to "$1 / $2 unlocks ($3%)",
+        Regex("(\\d+)시간 전 (\\d+)점 → 현재 (\\d+)점 \\((.+)\\) · 최고 (\\d+)점") to "$1h ago: $2 pts → Now: $3 pts ($4) · High: $5 pts",
+        Regex("현재 (\\d+)점 · (.+) \\((.+)\\)") to "Current $1 pts · $2 ($3)",
+        Regex("현재 \\((.+)\\)") to "Now ($1)",
+        Regex("(\\d+)\\s*회 초과") to "$1 over",
+        Regex("(\\d+)\\s*분 초과") to "$1 min over",
+        Regex("최근 (\\d+)분 사용 → 목표 (\\d+)분 \\((\\d+)% 절감 제안\\)") to "Recent $1m used → Target $2m ($3% reduction)",
+        Regex("어제 (\\d+)분 사용 → 오늘 목표 (\\d+)분 \\((\\d+)% 절감 제안\\)") to "Yesterday $1m used → Target $2m ($3% reduction)",
+        Regex("어제 (\\d+)회 · 14일 최저 (\\d+)회 기반 점진적 감축") to "Step-down target based on yesterday's $1 & 14d-low of $2",
+        Regex("어제 (\\d+)회 언락 기반 점진적 감축") to "Step-down target based on yesterday's $1 unlocks"
     )
 
     private val replacements = listOf(
@@ -764,7 +783,41 @@ object UiTranslator {
             "Recommends only one actionable step for the current pattern.",
         "사용자 자신의 과거와 비교" to "Comparison with Personal History",
         "고정 타인 평균 대신 사용자의 최근 기록을 기준선으로 사용합니다." to
-            "Uses the user's recent history as the baseline instead of a fixed population average."
+            "Uses the user's recent history as the baseline instead of a fixed population average.",
+        "오늘의 3대 실천 목표" to "Today's 3 Key Goals",
+        "오늘의 3대 실천 목표 안내" to "Today's 3 Key Goals Guide",
+        "오늘 3대 실천 목표 설정" to "Set Today's 3 Key Goals",
+        "오늘의 3대 맞춤 목표" to "Today's 3-in-1 Goals",
+        "목표 설정/수정" to "Set / Edit Goals",
+        "목표 저장" to "Save Goals",
+        "1. 코어 지수 목표" to "1. Core Index Target",
+        "2. 집중 관리할 앱 1개" to "2. Managed App Limit",
+        "3. 일일 잠금 해제 조절" to "3. Daily Unlock Limit",
+        "1. 코어 지수" to "1. Core Index",
+        "2. 관리 앱" to "2. Managed App",
+        "3. 일일 언락" to "3. Daily Unlocks",
+        "1. 코어 지수 방어선" to "1. Core Index Defense",
+        "2. 집중 관리 앱 제한" to "2. Focus App Limit",
+        "앱 선택 필요" to "Select an app",
+        "선택 안 함" to "None",
+        "최근 7일 코어 지수 변화" to "Core Index Trend · Last 7 Days",
+        "코어 지수 변화 차트 안내" to "Core Index Trend Guide",
+        "코어 지수 변화" to "Core Index Trend",
+        "코어지수 변화" to "Core Index Trend",
+        "지수 변화" to "Index Trend",
+        "상세 통계" to "Full Stats",
+        "상세통계" to "Full Stats",
+        "목표 언락 횟수 설정" to "Set Unlock Target",
+        "⭐ 주요 관리 대상 (하일라이트 앱)" to "⭐ Key Highlight Apps",
+        "📱 전체 앱 목록" to "📱 All Installed Apps",
+        "최근 24시간 전체 앱 목록" to "All Apps · Last 24 Hours",
+        "안정 구간" to "Stable",
+        "보통 구간" to "Moderate",
+        "주의 구간" to "Caution",
+        "하위 위험 구간" to "Critical",
+        "최상위 균형" to "Optimal",
+        "전체 보기" to "View All",
+        "실천 목표 안내" to "Daily Goals Guide"
     )
 
     fun translate(source: String): String {
@@ -776,18 +829,26 @@ object UiTranslator {
         }
         replacements.forEach { (ko, en) -> result = result.replace(ko, en) }
         result = result
-            .replace(Regex("(-?\\d+(?:\\.\\d+)?)시간"), "$1 hr")
-            .replace(Regex("(-?\\d+(?:\\.\\d+)?)분"), "$1 min")
-            .replace(Regex("(-?\\d+(?:\\.\\d+)?)초"), "$1 sec")
-            .replace(Regex("(-?\\d+(?:\\.\\d+)?)회"), "$1 times")
-            .replace(Regex("(-?\\d+(?:\\.\\d+)?)점"), "$1 pts")
-            .replace(Regex("(-?\\d+(?:\\.\\d+)?)건"), "$1")
-            .replace(Regex("(-?\\d+(?:\\.\\d+)?)배"), "$1×")
-            .replace(Regex("(\\d+)일"), "$1 days")
-            .replace(Regex("(\\d+)시"), "$1:00")
+            .replace(Regex("(-?\\d+(?:\\.\\d+)?)\\s*시간"), "$1 hr")
+            .replace(Regex("(-?\\d+(?:\\.\\d+)?)\\s*분"), "$1 min")
+            .replace(Regex("(-?\\d+(?:\\.\\d+)?)\\s*초"), "$1 sec")
+            .replace(Regex("(-?\\d+(?:\\.\\d+)?)\\s*회"), "$1 unlocks")
+            .replace(Regex("(-?\\d+(?:\\.\\d+)?)\\s*점"), "$1 pts")
+            .replace(Regex("(-?\\d+(?:\\.\\d+)?)\\s*개"), "$1 apps")
+            .replace(Regex("(-?\\d+(?:\\.\\d+)?)\\s*건"), "$1")
+            .replace(Regex("(-?\\d+(?:\\.\\d+)?)\\s*배"), "$1×")
+            .replace(Regex("(\\d+)\\s*일"), "$1 days")
+            .replace(Regex("(\\d+)\\s*시"), "$1:00")
+            .replace("오늘의", "Today's")
             .replace("오늘", "Today")
             .replace("심야", "Late night")
             .replace("최근", "Recent")
+            .replace("현재", "Current")
+            .replace("최고", "High")
+            .replace("최저", "Low")
+            .replace("전체", "All")
+            .replace("나머지", "Remaining")
+            .replace("모두 보기", "View all")
             .replace("화면", "Screen")
             .replace("방해", "Managed")
             .replace("생산성", "Growth")
@@ -801,9 +862,17 @@ object UiTranslator {
             .replace("최장", "Longest")
             .replace("비교", "comparison")
             .replace("보정", "calibration")
+            .replace("실천 목표", "Key Goals")
+            .replace("실천목표", "Key Goals")
             .replace("목표", "target")
             .replace("미만", "below")
             .replace("측정", "measured")
+            .replace("상세 통계", "Full Stats")
+            .replace("상세통계", "Full Stats")
+            .replace("지수 변화", "Index Trend")
+            .replace("코어지수", "Core Index")
+            .replace("코어 지수", "Core Index")
+            .replace("설정/수정", "Set/Edit")
             .replace("입니다.", ".")
             .replace("총 ", "Total ")
             .replace("월요일", "Monday")

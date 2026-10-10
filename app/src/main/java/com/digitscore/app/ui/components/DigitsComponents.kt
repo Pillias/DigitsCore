@@ -112,8 +112,9 @@ fun InformationDetailDialog(
             }
         },
         confirmButton = {
+            val isEn = java.util.Locale.getDefault().language == "en"
             TextButton(onClick = onDismiss) {
-                Text("닫기", fontWeight = FontWeight.SemiBold)
+                Text(if (isEn) "Close" else "닫기", fontWeight = FontWeight.SemiBold)
             }
         }
     )

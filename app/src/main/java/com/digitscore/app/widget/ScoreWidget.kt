@@ -213,7 +213,7 @@ private fun MediumWidget(
             Gauge(gaugeBitmap, accessibility, 34)
             Spacer(GlanceModifier.height(1.dp))
             Text(
-                text = "${score}점",
+                text = "${score}P",
                 style = widgetTextStyle(palette.accent, 14, FontWeight.Bold),
                 maxLines = 1
             )
@@ -240,7 +240,7 @@ private fun MediumWidget(
                 Gauge(gaugeBitmap, accessibility, 32)
                 Spacer(GlanceModifier.height(1.dp))
                 Text(
-                    text = "${score}점",
+                    text = "${score}P",
                     style = widgetTextStyle(palette.accent, 11, FontWeight.Bold),
                     maxLines = 1
                 )
@@ -299,7 +299,7 @@ private fun LargeWidget(
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "${score}점",
+                    text = "${score}P",
                     style = widgetTextStyle(palette.accent, 18, FontWeight.Bold),
                     maxLines = 1
                 )
