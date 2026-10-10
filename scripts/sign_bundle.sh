@@ -20,7 +20,7 @@ fi
 export PATH="/opt/homebrew/opt/openjdk@17/bin:$PATH"
 
 SOURCE_AAB="app/build/outputs/bundle/release/app-release.aab"
-OUTPUT_AAB="${3:-DigitsCore-v3.3.6-release.aab}"
+OUTPUT_AAB="${3:-DigitsCore-v3.3.7-release.aab}"
 
 if [[ ! -f "$SOURCE_AAB" ]]; then
   echo "안내: 릴리스 번들이 없습니다. 새로 빌드합니다..."

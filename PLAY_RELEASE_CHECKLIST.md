@@ -40,7 +40,7 @@
 - [ ] GitHub Actions secret `DIGITSCORE_UPLOAD_STORE_PASSWORD`
 - [ ] GitHub Actions secret `DIGITSCORE_UPLOAD_KEY_ALIAS`
 - [ ] GitHub Actions secret `DIGITSCORE_UPLOAD_KEY_PASSWORD`
-- [x] `PRIVACY_POLICY.md`의 개발자명(DsCore)·지원 이메일(DigitsCore@gmail.com) 확정
+- [x] `PRIVACY_POLICY.md`의 개발자명(4J Studio)·지원 이메일(DigitsCore@gmail.com) 확정
 - [x] 개인정보처리방침을 공개 HTTPS URL에 게시 (https://pillias.github.io/DigitsCore/privacy.html)
 - [ ] 실사용 debug APK와 별도로 Play 업로드용 release AAB 최종 서명 확인
 - [ ] Samsung·Pixel·Xiaomi에서 2~4주 전면 앱 시간·실제 언락 비교

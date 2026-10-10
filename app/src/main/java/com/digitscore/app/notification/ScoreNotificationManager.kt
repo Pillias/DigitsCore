@@ -124,7 +124,9 @@ object ScoreNotificationManager {
                 goal.appLimitMinutes
             )
         } else if (goal.unlockProgressRatio >= 0.8f) {
-            "${goal.currentUnlockCount}회 / 목표 ${goal.unlockLimitTarget}회 (80% 도달)"
+            val isEn = Locale.getDefault().language == "en"
+            if (isEn) "Unlocks: ${goal.currentUnlockCount} / ${goal.unlockLimitTarget}x (80% reached)"
+            else "언락: ${goal.currentUnlockCount} / ${goal.unlockLimitTarget}x (80% 도달)"
         } else {
             strings.getString(
                 R.string.goal_milestone_content_score,
@@ -405,12 +407,12 @@ object ScoreNotificationManager {
                     val appLimit = dailyGoal.appLimitMinutes
                     val appPercent = if (appLimit > 0) (appMins * 100 / appLimit) else 0
                     val warn = if (appMins > appLimit) (if (isEn) " [Over!]" else " [초과!]") else ""
-                    add(if (isEn) "• ${dailyGoal.targetAppName}: ${appMins} / ${appLimit}m (${appPercent}%)$warn" else "• ${dailyGoal.targetAppName}: ${appMins} / ${appLimit}분 (${appPercent}%)$warn")
+                    add("• ${dailyGoal.targetAppName}: ${appMins} / ${appLimit}m (${appPercent}%)$warn")
                 }
                 val unlockTarget = dailyGoal.unlockLimitTarget
                 val unlockPercent = if (unlockTarget > 0) (unlockCount * 100 / unlockTarget) else 0
                 val warn = if (unlockCount > unlockTarget) (if (isEn) " [Over!]" else " [초과!]") else ""
-                add(if (isEn) "• Unlocks: ${unlockCount} / ${unlockTarget} (${unlockPercent}%)$warn" else "• 잠금 해제: ${unlockCount} / ${unlockTarget}회 (${unlockPercent}%)$warn")
+                add(if (isEn) "• Unlocks: ${unlockCount} / ${unlockTarget}x (${unlockPercent}%)$warn" else "• 언락: ${unlockCount} / ${unlockTarget}x (${unlockPercent}%)$warn")
                 add("")
                 add(contentText)
             } else {
@@ -511,34 +513,26 @@ object ScoreNotificationManager {
         // 1. 오늘의 설정/배정된 3대 목표(코어 지수, 앱 1개 제한, 잠금해제 횟수) 진행 상태 안내
         if (dailyGoal != null && !dailyGoal.isDismissed) {
             val isEn = Locale.getDefault().language == "en"
-            val isBelowDefense = dailyGoal.currentScore < dailyGoal.scoreTarget
-            val scorePart = if (isBelowDefense) {
-                val stepTarget = guidance?.recoveryTargetScore?.takeIf { it > dailyGoal.currentScore && it <= dailyGoal.scoreTarget }
-                    ?: when {
-                        dailyGoal.currentScore < 40 -> (dailyGoal.currentScore + 3).coerceAtLeast(40).coerceAtMost(45)
-                        dailyGoal.currentScore < 50 -> (dailyGoal.currentScore + 4).coerceAtLeast(45).coerceAtMost(50)
-                        dailyGoal.currentScore < 60 -> (dailyGoal.currentScore + 5).coerceAtLeast(55).coerceAtMost(60)
-                        dailyGoal.currentScore < 70 -> (dailyGoal.currentScore + 5).coerceAtLeast(65).coerceAtMost(70)
-                        else -> dailyGoal.scoreTarget
-                    }.coerceAtMost(dailyGoal.scoreTarget)
-                val diff = (stepTarget - dailyGoal.currentScore).coerceAtLeast(1)
-                if (isEn) "Target ${stepTarget}P (+${diff})" else "목표 ${stepTarget}점(+${diff})"
+            val diff = (dailyGoal.scoreTarget - score).coerceAtLeast(0)
+            val scorePart = if (diff > 0) {
+                if (isEn) "Target ${dailyGoal.scoreTarget}P (+${diff}P)"
+                else "목표 ${dailyGoal.scoreTarget}P (+${diff}P)"
             } else {
-                if (isEn) "Defending ${dailyGoal.scoreTarget}P" else "목표 ${dailyGoal.scoreTarget}점 방어"
+                if (isEn) "Target ${dailyGoal.scoreTarget}P (Achieved 🎉)"
+                else "목표 ${dailyGoal.scoreTarget}P (달성 🎉)"
             }
 
             val appPart = if (dailyGoal.targetPackageName != null) {
                 val appName = dailyGoal.targetAppName.ifBlank { if (isEn) "App" else "앱" }
                 val isOver = dailyGoal.currentAppUsageMinutes > dailyGoal.appLimitMinutes
-                val marker = if (isOver) "⚠️" else ""
-                if (isEn) "$marker$appName ${dailyGoal.currentAppUsageMinutes}/${dailyGoal.appLimitMinutes}m"
-                else "$marker$appName ${dailyGoal.currentAppUsageMinutes}/${dailyGoal.appLimitMinutes}분"
+                val marker = if (isOver) "⚠️ " else ""
+                "$marker$appName ${dailyGoal.currentAppUsageMinutes}/${dailyGoal.appLimitMinutes}m"
             } else null
 
             val isUnlockOver = dailyGoal.currentUnlockCount > dailyGoal.unlockLimitTarget
-            val unlockMarker = if (isUnlockOver) "⚠️" else ""
-            val unlockPart = if (isEn) "${unlockMarker}Opens ${dailyGoal.currentUnlockCount}/${dailyGoal.unlockLimitTarget}"
-            else "${unlockMarker}오픈 ${dailyGoal.currentUnlockCount}/${dailyGoal.unlockLimitTarget}회"
+            val unlockMarker = if (isUnlockOver) "⚠️ " else ""
+            val unlockPart = if (isEn) "${unlockMarker}Unlocks ${dailyGoal.currentUnlockCount}/${dailyGoal.unlockLimitTarget}x"
+            else "${unlockMarker}언락 ${dailyGoal.currentUnlockCount}/${dailyGoal.unlockLimitTarget}x"
 
             return listOfNotNull(scorePart, appPart, unlockPart).joinToString(" · ")
         }

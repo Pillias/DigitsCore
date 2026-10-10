@@ -56,7 +56,7 @@ DigitsCore는 사용자 계정을 만들거나 생년월일을 수집하지 않�
 
 ## 7. 문의
 
-- 개발자: DsCore
+- 개발자: 4J Studio
 - 이메일: DigitsCore@gmail.com
 - 공개 개인정보처리방침: https://pillias.github.io/DigitsCore/privacy.html
 

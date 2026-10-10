@@ -159,8 +159,8 @@
     <string name="goal_channel_name">DigitsCore Goal Coaching</string>
     <string name="goal_channel_description">Notifies daily goal progress and milestones.</string>
     <string name="goal_milestone_title">Daily Goal Approaching 80%</string>
-    <string name="goal_milestone_content_app">%1$s %2$d min / Target %3$d min (80%%)</string>
-    <string name="goal_milestone_content_score">Current Core Index %1$d / Defense %2$d</string>
+    <string name="goal_milestone_content_app">%1$s %2$dm / Target %3$dm (80%%)</string>
+    <string name="goal_milestone_content_score">Core Index %1$dP / Target %2$dP</string>
     <string name="morning_briefing_prompt_title">☀️ Set Today\'s Goals</string>
     <string name="morning_briefing_prompt_content">Tap to review today\'s Core Index defense line and app limit</string>
     <string name="morning_briefing_prompt_action">Set Goals</string>
