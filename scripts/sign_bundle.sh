@@ -17,14 +17,14 @@ if [[ ! -f "$KEYSTORE_PATH" ]]; then
   exit 1
 fi
 
-export PATH="/opt/homebrew/opt/openjdk@17/bin:$PATH"
+export PATH="/opt/homebrew/Cellar/openjdk@17/17.0.20.1/bin:/opt/homebrew/opt/openjdk@17/bin:$PATH"
 
 SOURCE_AAB="app/build/outputs/bundle/release/app-release.aab"
-OUTPUT_AAB="${3:-DigitsCore-v3.3.7-release.aab}"
+OUTPUT_AAB="${3:-DigitsCore-v0.9.2-release.aab}"
 
 if [[ ! -f "$SOURCE_AAB" ]]; then
   echo "안내: 릴리스 번들이 없습니다. 새로 빌드합니다..."
-  JAVA_HOME=/opt/homebrew/opt/openjdk@17 ANDROID_HOME=$HOME/Library/Android/sdk gradle :app:bundleRelease
+  JAVA_HOME=/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home ANDROID_HOME=$HOME/Library/Android/sdk gradle :app:bundleRelease
 fi
 
 echo ">> AAB 복사: $OUTPUT_AAB"
