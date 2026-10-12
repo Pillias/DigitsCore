@@ -162,8 +162,8 @@ enum class CoreIndexPreset(
 
     val sensitivitySummary: String
         get() = if (this == BALANCED) {
-            if (Locale.getDefault().language == "en") "Cumulative · 30-minute acceleration · Sleep holds recovery"
-            else "누적 점수 · 30분부터 가속 · 수면 중 회복 보류"
+            if (Locale.getDefault().language == "en") "Cumulative · 30-minute acceleration · Screen-off natural recovery"
+            else "누적 점수 · 30분부터 가속 · 화면 휴식 시 자연 회복"
         } else if (Locale.getDefault().language == "en") {
             "Overall ${overallSensitivity.label} · Continuous ${continuousSensitivity.label} · " +
                 "Night ${lateNightSensitivity.label} · Unlocks ${unlockSensitivity.label}"

@@ -1,4 +1,5 @@
 import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -22,23 +23,43 @@ android {
         }
     }
 
-    val versionMajor = versionProps.getProperty("MAJOR", "3").toIntOrNull() ?: 3
-    val versionMinor = versionProps.getProperty("MINOR", "3").toIntOrNull() ?: 3
-    val versionPatch = versionProps.getProperty("PATCH", "0").toIntOrNull() ?: 0
-    val defaultVersion = "$versionMajor.$versionMinor.$versionPatch"
-
     val tagVersion = System.getenv("GITHUB_REF_NAME")
         ?.takeIf { System.getenv("GITHUB_REF_TYPE") == "tag" && it.startsWith("v") }
         ?.removePrefix("v")
 
-    val finalVersionName = tagVersion ?: defaultVersion
-
-    val versionParts = finalVersionName.split(".").mapNotNull { it.toIntOrNull() }
-    val calculatedVersionCode = if (versionParts.size >= 3) {
-        versionParts[0] * 100 + versionParts[1] * 10 + versionParts[2]
-    } else {
-        versionMajor * 100 + versionMinor * 10 + versionPatch
+    val isAssemble = gradle.startParameter.taskNames.any {
+        it.contains("assemble", ignoreCase = true) || it.contains("bundle", ignoreCase = true)
     }
+
+    // CI 태그 빌드가 아니고, APK/AAB 어셈블 작업을 수행할 때 자동으로 PATCH 버전을 1 올리고 파일에 저장합니다.
+    val alreadyBumpedKey = "DIGITSCORE_VERSION_BUMPED"
+    val alreadyBumped = rootProject.extra.has(alreadyBumpedKey)
+    val shouldAutoBump = isAssemble && tagVersion == null && !project.hasProperty("noAutoBump") && !alreadyBumped
+
+    val versionMajor = versionProps.getProperty("MAJOR", "0").toIntOrNull() ?: 0
+    val versionMinor = versionProps.getProperty("MINOR", "9").toIntOrNull() ?: 9
+    var versionPatch = versionProps.getProperty("PATCH", "0").toIntOrNull() ?: 0
+    var versionCodeVal = versionProps.getProperty("VERSION_CODE", "1000").toIntOrNull() ?: 1000
+
+    if (shouldAutoBump) {
+        rootProject.extra.set(alreadyBumpedKey, true)
+        versionPatch += 1
+        versionCodeVal += 1
+        versionProps.setProperty("PATCH", versionPatch.toString())
+        versionProps.setProperty("VERSION_CODE", versionCodeVal.toString())
+        try {
+            FileOutputStream(versionPropsFile).use { fos ->
+                versionProps.store(fos, "DigitsCore Version Configuration")
+            }
+            logger.lifecycle(">> [Auto-Versioning] Automatically bumped to $versionMajor.$versionMinor.$versionPatch (code: $versionCodeVal) in version.properties")
+        } catch (e: Exception) {
+            logger.warn(">> [Auto-Versioning] Failed to auto-bump version.properties: ${e.message}")
+        }
+    }
+
+    val defaultVersion = "$versionMajor.$versionMinor.$versionPatch"
+    val finalVersionName = tagVersion ?: defaultVersion
+    val calculatedVersionCode = versionCodeVal
 
     val buildDate = SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(Date())
 

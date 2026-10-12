@@ -88,25 +88,17 @@ object CumulativeScoreStore {
                 "${it.packageName}:${it.sessionStartTimeMillis}", it.sessionStartTimeMillis,
                 it.packageName, it.effectivePackageName,
                 exempt = (it.effectiveCategoryLevel <= 0))
-        val dayKey = "${java.time.Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDate()}:$zone"
-        val cached = windowCache
-        val window = if (cached?.first === db && cached.second == dayKey) cached.third else {
-            RestPhasePolicy.learn(db.foregroundUsageSessionDao().getSince(nowMillis - 8 * 24 * 3_600_000L)
-                .map(::asUse), zone).also { windowCache = Triple(db, dayKey, it) }
-        }
         // Incremental scoring query: only cursor look-behind, not a fresh full-day/full-week score replay.
         val uses = db.foregroundUsageSessionDao().getSince(processStart - 5 * 60_000L).map(::asUse)
-        val lateSleepAnchor = maxOf(record.lateSleepAnchorAt, RestPhasePolicy.lateSleepAnchor(uses, zone) ?: 0L)
         val movements = mutableListOf<ScoreMovement>()
-        val next = CumulativeTimeline.advance(start, settledEnd, uses, { timestamp ->
-            RestPhasePolicy.activityAt(timestamp, window, zone, record.wakeConfirmedAt, record.restingConfirmedUntil, lateSleepAnchor)
+        val next = CumulativeTimeline.advance(start, settledEnd, uses, { _ ->
+            CumulativeActivity.AWAKE_REST
         }, onMovement = { movements.add(it) })
         // Attribution and cursor commit together: re-polling/restarting cannot charge twice.
         StatisticsStore.recordMovements(db, movements)
-        val updated = record.copy(checkpoint = next, lateSleepAnchorAt = lateSleepAnchor)
+        val updated = record.copy(checkpoint = next)
         dao.put(CumulativeScoreStateEntity(payload = updated.encode()))
-        updated to detail(updated, RestPhasePolicy.activityAt(next.timestamp, window, zone,
-            record.wakeConfirmedAt, record.restingConfirmedUntil, lateSleepAnchor) == CumulativeActivity.SLEEP)
+        updated to detail(updated, sleeping = false)
     }
 
     fun detail(record: CumulativeRecord, sleeping: Boolean = false): RollingScoreDetail {

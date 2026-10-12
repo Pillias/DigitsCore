@@ -10,7 +10,7 @@ import kotlin.math.pow
  * - 하루 최대 변동폭 (M = 10점):
  *   - 상방 가동폭: (100 - S) * 40% (75점일 때 +10점, 30점일 때 +28점)
  *   - 하방 가동폭: S * 13.3% (75점일 때 -10점, 90점일 때 -12점)
- * - 수면 복원력: 75점 미만인 경우 밤새 약 15~20% 복원하여 30점대 고착 탈출 보장
+ * - 단일 휴식 모델: 화면 꺼짐/미사용 시 speedUp() 스케일러에 따른 자연 회복 단일화
  */
 data class CumulativeScoreConfig(
     val version: Int = 2,
@@ -106,22 +106,12 @@ object CumulativeScoreEngine {
                     q += dt
                     r = 0.0
                 }
-                CumulativeActivity.AWAKE_REST -> {
+                CumulativeActivity.AWAKE_REST, CumulativeActivity.SLEEP -> {
                     b *= 0.5.pow(dt / (config.burdenHalfLifeAwakeHours * 60.0))
                     q = (q - dt).coerceAtLeast(0.0)
                     val effectiveRest = (config.baseRestPerMinute / (1.0 + b / config.burdenRecoveryDivisor)) * speedUp()
                     s += effectiveRest * dt
                     r += dt
-                }
-                CumulativeActivity.SLEEP -> {
-                    q = (q - dt).coerceAtLeast(0.0)
-                    b *= 0.5.pow(dt / (4.0 * 60.0))
-                    r = 0.0
-                    if (s < config.targetEquilibriumScore) {
-                        s += (config.targetEquilibriumScore - s) * config.sleepRestorationRate * dt
-                    } else {
-                        s -= (s - config.targetEquilibriumScore) * 0.00005 * dt
-                    }
                 }
                 CumulativeActivity.UNKNOWN -> {
                     r = 0.0

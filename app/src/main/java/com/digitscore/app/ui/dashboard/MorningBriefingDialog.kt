@@ -278,16 +278,24 @@ fun MorningBriefingDialog(
                                 )
 
                                 yesterdaySummary.candidateApps.forEach { candidate ->
+                                    val chipLabel = if (candidate.yesterdayUsageMinutes > 0) {
+                                        "${candidate.appName} (${candidate.yesterdayUsageMinutes}m)"
+                                    } else if (candidate.recentAvgMinutes > 0) {
+                                        "${candidate.appName} (평균 ${candidate.recentAvgMinutes}m)"
+                                    } else {
+                                        candidate.appName
+                                    }
                                     FilterChip(
                                         selected = selectedAppPkg == candidate.packageName,
                                         onClick = {
                                             selectedAppPkg = candidate.packageName
                                             selectedAppName = candidate.appName
-                                            selectedAppLimit = ((candidate.yesterdayUsageMinutes * 0.7f).toInt().coerceAtLeast(15) / 5) * 5
+                                            val baseMins = if (candidate.yesterdayUsageMinutes > 0) candidate.yesterdayUsageMinutes else candidate.recentAvgMinutes
+                                            selectedAppLimit = ((baseMins * 0.75f).toInt().coerceAtLeast(15) / 5) * 5
                                         },
                                         label = {
                                             Text(
-                                                "${candidate.appName} (${candidate.yesterdayUsageMinutes}m)",
+                                                chipLabel,
                                                 fontSize = 11.sp
                                             )
                                         }
@@ -299,11 +307,21 @@ fun MorningBriefingDialog(
                             if (selectedAppPkg != null) {
                                 val currentCandidate = yesterdaySummary.candidateApps.firstOrNull { it.packageName == selectedAppPkg }
                                 val yMins = currentCandidate?.yesterdayUsageMinutes ?: 0L
+                                val recentAvg = currentCandidate?.recentAvgMinutes ?: 0L
                                 if (yMins > 0) {
                                     val reduction = ((yMins - selectedAppLimit).toFloat() / yMins.toFloat() * 100).toInt().coerceAtLeast(0)
                                     Text(
                                         text = if (english) "💡 Yesterday ${yMins}m → Target ${selectedAppLimit}m today (-${reduction}%)"
                                         else "💡 어제 ${yMins}분 사용 → 오늘 목표 ${selectedAppLimit}분 (${reduction}% 절감 제안)",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                } else if (recentAvg > 0) {
+                                    val reduction = ((recentAvg - selectedAppLimit).toFloat() / recentAvg.toFloat() * 100).toInt().coerceAtLeast(0)
+                                    Text(
+                                        text = if (english) "💡 Recent avg ${recentAvg}m → Target ${selectedAppLimit}m today (-${reduction}%)"
+                                        else "💡 최근 일평균 ${recentAvg}분 → 오늘 목표 ${selectedAppLimit}분 (${reduction}% 절감 제안)",
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.Medium
@@ -342,22 +360,27 @@ fun MorningBriefingDialog(
                                 )
                             }
                             val yUnlock = yesterdaySummary.unlockCount
-                            val baseLowest = yesterdaySummary.past14DaysLowestUnlock
-                            val unlockContextText = if (yUnlock > 0 && baseLowest > 0) {
-                                if (english) "💡 Gradual reduction based on yesterday (${yUnlock}x) & 14-day low (${baseLowest}x)"
-                                else "💡 어제 ${yUnlock}x · 14일 최저 ${baseLowest}x 기반 점진적 감축"
-                            } else if (yUnlock > 0) {
-                                if (english) "💡 Gradual reduction based on yesterday (${yUnlock}x)"
-                                else "💡 어제 ${yUnlock}x 언락 기반 점진적 감축"
-                            } else null
-                            if (unlockContextText != null) {
-                                Text(
-                                    text = unlockContextText,
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.secondary,
-                                    fontWeight = FontWeight.Medium
-                                )
+                            val avgUnlock = yesterdaySummary.past14DaysAverageUnlock
+                            val unlockContextText = when {
+                                yUnlock > 0 && yUnlock > selectedUnlockTarget -> {
+                                    if (english) "💡 Gradual reduction from yesterday (${yUnlock}x → ${selectedUnlockTarget}x)"
+                                    else "💡 어제 ${yUnlock}회 사용 대비 절제 제안 (${selectedUnlockTarget}회)"
+                                }
+                                avgUnlock > 0 && avgUnlock > selectedUnlockTarget -> {
+                                    if (english) "💡 Gradual reduction based on recent avg (${avgUnlock}x → ${selectedUnlockTarget}x)"
+                                    else "💡 최근 평균 ${avgUnlock}회 대비 절제 제안 (${selectedUnlockTarget}회)"
+                                }
+                                else -> {
+                                    if (english) "💡 Suggested healthy daily maintenance target (${selectedUnlockTarget}x)"
+                                    else "💡 일상적인 적정 수준 유지 제안 (${selectedUnlockTarget}회)"
+                                }
                             }
+                            Text(
+                                text = unlockContextText,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.secondary,
+                                fontWeight = FontWeight.Medium
+                            )
                             Slider(
                                 value = selectedUnlockTarget.toFloat(),
                                 onValueChange = { selectedUnlockTarget = (Math.round(it / 10f) * 10).toInt() },

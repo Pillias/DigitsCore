@@ -111,6 +111,20 @@ class DailyGoalTest {
         assertTrue(yesterdayLogical.matches(Regex("\\d{4}-\\d{2}-\\d{2}")))
         assertNotEquals(logicalDate, yesterdayLogical)
     }
+
+    @Test
+    fun testAppCandidateRecentAverageSupport() {
+        val candidate = AppCandidate(
+            packageName = "com.google.android.youtube",
+            appName = "YouTube",
+            yesterdayUsageMinutes = 0L,
+            isRoutineHeavy = true,
+            recentAvgMinutes = 64L
+        )
+        assertEquals(0L, candidate.yesterdayUsageMinutes)
+        assertEquals(64L, candidate.recentAvgMinutes)
+        assertTrue(candidate.isRoutineHeavy)
+    }
 }
 
 

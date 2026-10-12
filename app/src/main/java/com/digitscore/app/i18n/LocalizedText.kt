@@ -517,8 +517,13 @@ object UiTranslator {
         "아직 앱 실행 기록이 없습니다." to "No app-open records yet.",
         "최근 14일 앱 실행 횟수와 1분 미만 실행 그래프" to
             "Chart of app opens and under-one-minute opens over the last 14 days",
+        "최근 14일 앱 실행 횟수와 습관성 확인 그래프" to
+            "Recent 14-day app opens and habitual checks chart",
         "전체 실행" to "All opens",
         "주황색 · 1분 미만" to "Orange · under one minute",
+        "주황색 · 습관성 확인" to "Orange · Habitual checks",
+        "습관성 확인" to "Habitual checks",
+        "일 평균 습관성 확인" to "Daily habitual checks",
         "최근 앱 사용 세션 길이 그래프" to "Recent Session Length Chart",
         "최근 세션" to "Recent Sessions",
         "30분 이상은 주황색" to "30+ minutes shown in orange",

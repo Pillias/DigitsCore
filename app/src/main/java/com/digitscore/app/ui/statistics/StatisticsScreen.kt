@@ -286,7 +286,7 @@ internal fun PreviousStatisticsScreen(
                                 } else {
                                     "최저 ${visible.minOf { it.score }}점, 최고 ${visible.maxOf { it.score }}점이며 ${visible.size}개 구간을 표시합니다."
                                 },
-                                supportingText = "점수는 누적 상태입니다. 예상 수면 구간에서는 회복하지 않고, 깨어서 쉬는 구간에 회복합니다. 기록이 없는 구간은 다음 표본과 선으로 연결합니다."
+                                supportingText = "점수는 누적 상태입니다. 화면을 끄고 쉬는 동안 점수가 완만하게 회복됩니다. 기록이 없는 구간은 다음 표본과 선으로 연결합니다."
                             )
                         }
                     )
@@ -870,8 +870,8 @@ private fun RollingMarketChartCard(
             }
             Text(
                 if (Locale.getDefault().language == "en")
-                    "Tap or drag for a reading. Unrecorded intervals join the next point; they do not imply recovery. Sleep pauses score recovery."
-                else "차트를 누르거나 드래그해 시점별 기록을 확인하세요. 기록이 없는 구간은 다음 점과 연결하며 회복을 뜻하지 않습니다. 수면 중에는 회복이 멈춥니다.",
+                    "Tap or drag for a reading. Unrecorded intervals join the next point; score steadily recovers while screen is off."
+                else "차트를 누르거나 드래그해 시점별 기록을 확인하세요. 기록이 없는 구간은 다음 점과 연결하며, 화면을 끄고 쉬는 동안 점수가 완만하게 회복됩니다.",
                 modifier = Modifier.padding(top = 8.dp),
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.outline
@@ -1765,8 +1765,8 @@ private fun IntradayCoreIndexDialog(
                         Text("24:00", fontSize = 11.sp, color = axisColor)
                     }
                     Text(
-                        if (english) "Tap or drag for a reading. Gaps join recorded points; sleep pauses score recovery."
-                        else "차트를 누르거나 드래그해 시점별 점수를 확인하세요. 기록이 없는 구간은 다음 점과 연결하며 수면 중에는 회복하지 않습니다.",
+                        if (english) "Tap or drag for a reading. Gaps join recorded points; score steadily recovers while screen is off."
+                        else "차트를 누르거나 드래그해 시점별 점수를 확인하세요. 기록이 없는 구간은 다음 점과 연결하며 화면을 끄고 쉬는 동안 점수가 완만하게 회복됩니다.",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.outline
                     )

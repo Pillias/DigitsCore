@@ -228,6 +228,7 @@ object DailyGoalStore {
             obj.put("name", c.appName)
             obj.put("mins", c.yesterdayUsageMinutes)
             obj.put("heavy", c.isRoutineHeavy)
+            obj.put("recent_avg", c.recentAvgMinutes)
             array.put(obj)
         }
         return array.toString()
@@ -248,7 +249,8 @@ object DailyGoalStore {
                             packageName = pkg,
                             appName = if (name.isNotBlank()) name else pkg,
                             yesterdayUsageMinutes = obj.optLong("mins", 0L),
-                            isRoutineHeavy = obj.optBoolean("heavy", true)
+                            isRoutineHeavy = obj.optBoolean("heavy", true),
+                            recentAvgMinutes = obj.optLong("recent_avg", 0L)
                         )
                     )
                 }
@@ -259,7 +261,9 @@ object DailyGoalStore {
 
 
     /**
-     * 어제 및 과거 14일 트렌드를 기반으로 오늘의 맞춤형 복합 목표 세트(점수, 만성 과다 앱, 현실적 언락)를 생성 및 반환합니다.
+     * 어제 및 최근 14일 사용 트렌드를 종합 분석하여
+     * 어제 특이사항이 없더라도 최근 과다 사용 앱, 도달 가능한 현실적 코어 지수 목표,
+     * 적정 유지선 기반의 일일 잠금 해제 목표를 생성합니다.
      */
     suspend fun generateOrGetGoal(
         context: Context,
@@ -279,47 +283,82 @@ object DailyGoalStore {
 
         val pastHistories = db.scoreDao().getRecentCoreIndexHistories(14)
         val validHistories = pastHistories.filter { it.unlockCount > 0 }
-        val pastLowestUnlock = validHistories.minOfOrNull { it.unlockCount } ?: 0
-        val pastAvgUnlock = if (validHistories.isNotEmpty()) validHistories.map { it.unlockCount }.average().toInt() else 0
+        // 15회 미만의 극단적 이상치(설치 당일, 미사용일 등)를 제외한 정상 사용일 기준 통계
+        val normalHistories = validHistories.filter { it.unlockCount >= 15 }
+        val pastLowestUnlock = normalHistories.minOfOrNull { it.unlockCount }
+            ?: validHistories.minOfOrNull { it.unlockCount } ?: 0
+        val pastAvgUnlock = if (normalHistories.isNotEmpty()) {
+            normalHistories.map { it.unlockCount }.average().toInt()
+        } else if (validHistories.isNotEmpty()) {
+            validHistories.map { it.unlockCount }.average().toInt()
+        } else 0
 
         val yesterdayScore = yesterdayScoreEntity?.finalScore ?: 80
         val yesterdayScreenTimeMins = yesterdayScoreEntity?.totalScreenTimeMinutes
             ?: (yesterdayApps.sumOf { it.usageMillis } / 60_000L)
         val yesterdayUnlock = yesterdayScoreEntity?.unlockCount ?: 0
 
-        // 최근 14일간 앱별 사용 일수 집계 (만성 과다 사용 vs 1회성 일시 급증 구분)
-        val appDayCounts = allAppUsage
-            .filter { it.usageMillis >= 5 * 60_000L }
-            .groupBy { it.packageName }
-            .mapValues { entry -> entry.value.map { it.dateString }.distinct().size }
+        // 최근 14일간 앱별 통계 종합 (사용 일수, 총 사용량, 일평균, 카테고리 등)
+        val recentDateCutoff = java.time.LocalDate.now().minusDays(14)
+            .format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+        val recent14DayUsage = allAppUsage.filter { it.dateString >= recentDateCutoff }
 
-        // 어제 사용량 상위 앱들 추출 (만성 과다 앱 우선 정렬)
-        val candidateApps = yesterdayApps
-            .filter { it.usageMillis >= 5 * 60_000L }
-            .sortedWith(
-                compareByDescending<com.digitscore.app.data.entity.DailyAppUsageEntity> {
-                    val days = appDayCounts[it.packageName] ?: 1
-                    if (days >= 3) 1 else 0
-                }.thenByDescending { it.usageMillis }
-            )
-            .take(6)
-            .map { app ->
-                val days = appDayCounts[app.packageName] ?: 1
-                AppCandidate(
-                    packageName = app.packageName,
-                    appName = app.appName.ifBlank { app.packageName.substringAfterLast('.') },
-                    yesterdayUsageMinutes = app.usageMillis / 60_000L,
-                    isRoutineHeavy = days >= 2
-                )
+        val appStatsByPkg = recent14DayUsage
+            .groupBy { it.packageName }
+            .mapValues { (_, records) ->
+                val activeDays = records.count { it.usageMillis >= 3 * 60_000L }.coerceAtLeast(1)
+                val totalMillis = records.sumOf { it.usageMillis }
+                val avgMins = (totalMillis / (14 * 60_000L)).coerceAtLeast(0L)
+                val isHeavyCategory = records.any { it.categoryLevel >= 2 }
+                val latestName = records.lastOrNull { it.appName.isNotBlank() }?.appName ?: ""
+                Triple(activeDays, avgMins, isHeavyCategory) to latestName
             }
 
+        // 어제 사용 앱을 우선으로 하되, 최근 14일간 고사용/몰입관리 앱도 반드시 후보군으로 포괄
+        val allTargetPackages = (yesterdayApps.map { it.packageName } + appStatsByPkg.keys).distinct()
+
+        val candidateApps = allTargetPackages.mapNotNull { pkg ->
+            val yApp = yesterdayApps.firstOrNull { it.packageName == pkg }
+            val yMins = (yApp?.usageMillis ?: 0L) / 60_000L
+            val statsPair = appStatsByPkg[pkg]
+            val activeDays = statsPair?.first?.first ?: 1
+            val recentAvgMins = statsPair?.first?.second ?: 0L
+            val isHeavyCategory = statsPair?.first?.third ?: false
+            val appName = yApp?.appName?.ifBlank { null }
+                ?: statsPair?.second?.ifBlank { null }
+                ?: pkg.substringAfterLast('.')
+
+            // 어제 5분 이상 썼거나, 최근 14일 일평균 5분 이상인 의미 있는 앱만 후보 편입
+            if (yMins < 5 && recentAvgMins < 5) return@mapNotNull null
+
+            AppCandidate(
+                packageName = pkg,
+                appName = appName,
+                yesterdayUsageMinutes = yMins,
+                isRoutineHeavy = activeDays >= 3 || isHeavyCategory,
+                recentAvgMinutes = recentAvgMins
+            )
+        }.sortedWith(
+            // 1순위: 어제 10분 이상 쓴 앱 (어제 실제 부하)
+            // 2순위: 최근 일평균이 높은 앱 (평소 자주 쓰는 특이사항 앱)
+            // 3순위: 몰입 관리 대상 앱
+            compareByDescending<AppCandidate> { it.yesterdayUsageMinutes >= 10 }
+                .thenByDescending { it.isRoutineHeavy }
+                .thenByDescending { if (it.yesterdayUsageMinutes > 0) it.yesterdayUsageMinutes else it.recentAvgMinutes }
+        ).take(6)
+
         val topApp = candidateApps.firstOrNull()
+        val summaryTopAppName = topApp?.appName ?: ""
+        val summaryTopAppMins = if (topApp != null) {
+            if (topApp.yesterdayUsageMinutes > 0) topApp.yesterdayUsageMinutes else topApp.recentAvgMinutes
+        } else 0L
+
         val summary = YesterdayBriefingSummary(
             score = yesterdayScore,
             totalScreenTimeMinutes = yesterdayScreenTimeMins,
             topAppPackageName = topApp?.packageName,
-            topAppName = topApp?.appName ?: "",
-            topAppUsageMinutes = topApp?.yesterdayUsageMinutes ?: 0L,
+            topAppName = summaryTopAppName,
+            topAppUsageMinutes = summaryTopAppMins,
             unlockCount = yesterdayUnlock,
             candidateApps = candidateApps,
             past14DaysLowestUnlock = pastLowestUnlock,
@@ -327,27 +366,44 @@ object DailyGoalStore {
         )
         saveYesterdaySummary(context, summary)
 
-        // 1. 코어 지수 목표 기본값 (어제 점수가 85 이상이면 75점, 그 외는 70점 방어)
-        val recommendedScoreTarget = if (yesterdayScore >= 85) 75 else 70
+        // 1. 코어 지수 목표 기본값 (현실적으로 도달 가능한 점진적 목표 프리셋)
+        // 코어 지수는 최근 24시간 롤링 지수이므로 어제 40~50점대인 사용자에게 70점 고정은 불가능함.
+        // 어제 점수를 기준으로 오늘 하루 절제 시 달성 가능한 현실적인 목표(+5~8점, 5점 단위)를 제시합니다.
+        val baseScore = yesterdayScore.coerceIn(0, 100)
+        val recommendedScoreTarget = when {
+            baseScore < 45 -> 50
+            baseScore < 50 -> 55 // 예: 어제 47점 -> 오늘 55점 목표
+            baseScore < 60 -> ((baseScore + 6) / 5) * 5 // 예: 52점 -> 55점, 56점 -> 60점
+            baseScore < 70 -> ((baseScore + 5) / 5) * 5 // 예: 62점 -> 65점, 67점 -> 70점
+            baseScore < 80 -> 75 // 70점대 -> 75점 방어
+            baseScore < 90 -> 80 // 80점대 -> 80점 유지
+            else -> 85           // 90점대 -> 85점 유지
+        }.coerceIn(40, 90)
 
-        // 2. 특정 앱 목표 기본값 (어제 사용량의 70% 수준 시간으로 제안)
-        val defaultAppLimit = if (topApp != null && topApp.yesterdayUsageMinutes >= 15) {
-            ((topApp.yesterdayUsageMinutes * 0.7f).toInt().coerceAtLeast(15) / 5) * 5
+        // 2. 특정 앱 목표 기본값: 어제 사용량 또는 최근 일평균의 75% 수준으로 제안
+        val baseAppMins = if (topApp != null) {
+            if (topApp.yesterdayUsageMinutes >= 15) topApp.yesterdayUsageMinutes
+            else topApp.recentAvgMinutes
+        } else 0L
+
+        val defaultAppLimit = if (baseAppMins >= 15) {
+            ((baseAppMins * 0.75f).toInt().coerceAtLeast(15) / 5) * 5
         } else 30
 
         // 3. 잠금해제 목표 기본값:
-        // 어제 언락 또는 과거 평균 기준 현실적 10% 감축값 권장 (과거 최저치 이상으로 가이드)
-        val recommendedUnlockTarget = when {
-            yesterdayUnlock >= 40 -> {
-                val reduced = (yesterdayUnlock * 0.9f).toInt()
-                val target = if (pastLowestUnlock in 20..reduced) {
-                    reduced.coerceAtLeast(pastLowestUnlock)
-                } else reduced
-                ((target / 10) * 10).coerceIn(40, 200)
-            }
-            pastAvgUnlock >= 40 -> ((pastAvgUnlock * 0.9f).toInt() / 10 * 10).coerceIn(40, 200)
-            else -> 100
+        // 매일 계속 0.9배로 감축되어 비현실적인 1회로 수렴하지 않도록,
+        // 정상적인 일상 사용을 보장하는 적정 밴드(50~70회 유지선)를 기준점으로 프리셋합니다.
+        val baseUnlock = when {
+            yesterdayUnlock >= 20 -> yesterdayUnlock
+            pastAvgUnlock >= 20 -> pastAvgUnlock
+            else -> 65
         }
+
+        val recommendedUnlockTarget = when {
+            baseUnlock > 85 -> ((baseUnlock * 0.88f) / 5).toInt() * 5 // 과다 사용 시 점진적 10~15% 절제
+            baseUnlock in 55..85 -> (baseUnlock / 5) * 5              // 적정 범위(55~85회)는 안정적 유지선
+            else -> 50                                                // 이미 55회 미만인 경우 50회 하한 유지선
+        }.coerceIn(45, 150)
 
         val generatedGoal = DailyGoal(
             dateString = todayDate,

@@ -82,8 +82,7 @@ class TrackerForegroundService : Service() {
     private var cachedTodaySnapshot: TodayUsageSnapshot? = null
     private var lastUsageQueryEndMillis: Long = 0L
     private var interactionBootstrapDone = false
-    private var pendingWakeTimestamp: Long = 0L
-    private var pendingWakeBaseUsageMillis: Long = 0L
+    private var sessionBootstrapDone = false
 
     private val wakeSteps by lazy { WakeStepEvidence(this) { timestamp ->
         serviceScope.launch(Dispatchers.IO) {
@@ -92,7 +91,6 @@ class TrackerForegroundService : Service() {
             com.digitscore.app.data.CumulativeScoreStore.confirmActivity(
                 db, timestamp, awake = true, acknowledge = true
             )
-            pendingWakeTimestamp = 0L
             ScoreNotificationManager.cancelMorningWakePromptNotification(applicationContext)
             recalculateAndNotify(immediate = true)
 
@@ -524,6 +522,49 @@ class TrackerForegroundService : Service() {
                     db.foregroundUsageSessionDao().replaceDay(currentDateString, sessionRecords)
                 }
 
+                // 앱 기동 또는 업데이트 시 어제 구간(24시간 전 ~ 오늘 자정)의 세션이 DB에 없으면
+                // UsageStatsManager에서 복원하여 어제 저녁 화면 시간 및 오픈 횟수가 0으로 표시되는 현상을 방지합니다.
+                if (!sessionBootstrapDone) {
+                    val rollingWindowStart = now - ROLLING_WINDOW_MILLIS
+                    if (rollingWindowStart < todayStart) {
+                        val existingYesterdaySessions = db.foregroundUsageSessionDao().getBetween(rollingWindowStart, todayStart)
+                        if (existingYesterdaySessions.isEmpty()) {
+                            val yesterdaySnapshot = UsageStatsHelper.getUsageSnapshotForRange(
+                                applicationContext,
+                                weightMap,
+                                rollingWindowStart,
+                                todayStart
+                            )
+                            val yesterdayDateString = getYesterdayDateString()
+                            val pm = applicationContext.packageManager
+                            val yesterdaySessions = yesterdaySnapshot.foregroundSegments.map { segment ->
+                                val segHour = Calendar.getInstance().apply { timeInMillis = segment.startTimeMillis }.get(Calendar.HOUR_OF_DAY)
+                                val appName = runCatching {
+                                    pm.getApplicationLabel(pm.getApplicationInfo(segment.packageName, 0)).toString()
+                                }.getOrDefault(segment.packageName)
+                                ForegroundUsageSessionEntity(
+                                    packageName = segment.packageName,
+                                    startTimeMillis = segment.startTimeMillis,
+                                    endTimeMillis = segment.endTimeMillis,
+                                    dateString = yesterdayDateString,
+                                    appName = appName,
+                                    categoryLevel = segment.effectiveCategoryLevel,
+                                    effectivePackageName = segment.effectivePackageName,
+                                    effectiveCategoryLevel = segment.effectiveCategoryLevel,
+                                    concurrentAppCount = segment.concurrentAppCount,
+                                    sessionStartTimeMillis = segment.sessionStartTimeMillis,
+                                    isLateNight = segHour >= 23 || segHour < 5,
+                                    lastUpdatedTimestamp = now
+                                )
+                            }
+                            if (yesterdaySessions.isNotEmpty()) {
+                                db.foregroundUsageSessionDao().insertAll(yesterdaySessions)
+                            }
+                        }
+                    }
+                    sessionBootstrapDone = true
+                }
+
                 // 최근 24시간 최초 복원은 프로세스당 한 번만 하고, 이후에는 위의 증분 조회에서 나온
                 // 화면 활성화/키가드 해제 이벤트만 추가합니다. 두 이벤트가 연달아 오는 경우 한 건으로 합칩니다.
                 val interactionDao = db.deviceInteractionEventDao()
@@ -640,28 +681,6 @@ class TrackerForegroundService : Service() {
                 val rollingScoreDetail = cumulativeDetail.copy(
                     recentUsageMinutes = rollingUsageSummary.totalScreenTimeMillis / 60_000L)
                 ScoreRepository.updateRollingScoreDetail(rollingScoreDetail)
-
-                // 아침 기상 알림 무응답 시 자동 판정 (관찰 윈도우 15~30분)
-                if (pendingWakeTimestamp > 0L) {
-                    val wakeElapsed = now - pendingWakeTimestamp
-                    val currentAssigned = cachedTodaySnapshot?.assignedUsageMillis ?: 0L
-                    val usageDelta = currentAssigned - pendingWakeBaseUsageMillis
-                    if (wakeElapsed >= 15 * 60_000L && usageDelta >= 2 * 60_000L) {
-                        // 15분 경과 + 전면 앱 2분 이상 지속 사용: 기상 명백함 -> 기상 자동 확정
-                        com.digitscore.app.data.CumulativeScoreStore.confirmActivity(
-                            db, pendingWakeTimestamp, awake = true, acknowledge = true
-                        )
-                        ScoreNotificationManager.cancelMorningWakePromptNotification(applicationContext)
-                        pendingWakeTimestamp = 0L
-                    } else if (wakeElapsed >= 30 * 60_000L && usageDelta < 30_000L) {
-                        // 30분 경과 + 폰 사용 없음: 잠결 뒤척임 또는 오인식 -> 수면 복귀 보호(Sleep Rollback)
-                        com.digitscore.app.data.CumulativeScoreStore.confirmActivity(
-                            db, now, awake = false, acknowledge = true
-                        )
-                        ScoreNotificationManager.cancelMorningWakePromptNotification(applicationContext)
-                        pendingWakeTimestamp = 0L
-                    }
-                }
 
                 val previousSample = db.coreIndexSampleDao().getLatestBefore(now)
                 val guidance = CoreIndexCoach.create(
@@ -974,7 +993,6 @@ class TrackerForegroundService : Service() {
                     DigitsDatabase.getInstance(applicationContext), ts, awake = true, acknowledge = true
                 )
                 ScoreNotificationManager.cancelMorningWakePromptNotification(applicationContext)
-                pendingWakeTimestamp = 0L
                 recalculateAndNotify()
             }
             return START_STICKY
@@ -986,7 +1004,6 @@ class TrackerForegroundService : Service() {
                     DigitsDatabase.getInstance(applicationContext), ts, awake = false, acknowledge = true
                 )
                 ScoreNotificationManager.cancelMorningWakePromptNotification(applicationContext)
-                pendingWakeTimestamp = 0L
                 recalculateAndNotify()
             }
             return START_STICKY

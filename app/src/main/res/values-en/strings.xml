@@ -32,9 +32,9 @@
     <string name="rolling_load">Accumulated recovery burden</string>
     <string name="late_night_carryover_load">Night carryover included</string>
     <string name="acute_load">Use momentum (minutes)</string>
-    <string name="score_method_note">The index accumulates use and awake rest. Usage penalties accelerate every 15 minutes after 30 minutes; 15 minutes of rest removes one acceleration stage. Estimated sleep holds both the index and recovery burden. Checks lasting up to one minute only incur an opening penalty. Results settle about two minutes later to identify brief checks. This is not a sleep measurement.</string>
-    <string name="sleep_rest_time">Overnight rest (estimated sleep)</string>
-    <string name="post_wake_rest_time">Rest after estimated waking</string>
+    <string name="score_method_note">The index accumulates use and screen-off rest. Usage penalties accelerate every 15 minutes after 30 minutes; 15 minutes of rest removes one acceleration stage. The index steadily recovers while the screen is off. Habitual checks only incur an opening penalty. Results settle about two minutes later to identify brief checks.</string>
+    <string name="sleep_rest_time">Overnight screen-off</string>
+    <string name="post_wake_rest_time">Daytime screen break</string>
     <string name="effective_recovery_time">Recovery equivalent</string>
     <string name="view_statistics">View all statistics</string>
     <string name="close">Close</string>
@@ -81,7 +81,7 @@
     <string name="notification_cause_unlocks">You unlocked %1$d times in 24 hours, with %2$d short app checks.</string>
     <string name="notification_cause_recovering">Continuous-use load is easing while the screen is down.</string>
     <string name="notification_cause_steady">There is no major change in your recent usage pattern.</string>
-    <string name="notification_recovery_forecast">About %1$d minutes of awake rest may bring the index to %2$d; sleep is excluded.</string>
+    <string name="notification_recovery_forecast">About %1$d minutes of screen break may bring the index to %2$d.</string>
     <string name="tracking_stop">Stop tracking</string>
     <string name="tracking_active">DigitsCore tracking active</string>
     <string name="unlock_for_details">Unlock your device to see details.</string>

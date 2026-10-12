@@ -90,7 +90,7 @@ internal fun sessionSummariesByPackage(
     AppSessionSummary(
         sessionCount = durations.size,
         longestSessionMillis = durations.maxOrNull() ?: 0L,
-        shortSessionCount = durations.count { it < 60_000L }
+        shortSessionCount = durations.count { it < HABITUAL_CHECK_THRESHOLD_MILLIS }
     )
 }
 
@@ -517,11 +517,31 @@ object UsageStatsHelper {
         appWeightMap: Map<String, AppWeightEntity>,
         endTime: Long = System.currentTimeMillis()
     ): TodayUsageSnapshot {
+        return getUsageSnapshotForRange(
+            context = context,
+            appWeightMap = appWeightMap,
+            startTime = getStartOfTodayMillis(),
+            endTime = endTime
+        )
+    }
+
+    /**
+     * 임의의 구간(예: 어제 24시간 전 ~ 오늘 자정)의 전면 앱 사용 세그먼트와 이벤트를 집계합니다.
+     * 프로세스 재시작 또는 앱 업데이트 시 누락된 최근 24시간 세션을 완벽히 복원할 수 있습니다.
+     */
+    fun getUsageSnapshotForRange(
+        context: Context,
+        appWeightMap: Map<String, AppWeightEntity>,
+        startTime: Long,
+        endTime: Long
+    ): TodayUsageSnapshot {
         val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
             ?: return TodayUsageSnapshot(emptyList(), 0, 0L, false)
+        if (endTime <= startTime) {
+            return TodayUsageSnapshot(emptyList(), 0, 0L, false)
+        }
 
-        val startTime = getStartOfTodayMillis()
-        val lateNightEndTime = startTime + (5 * 60 * 60 * 1000L) // 오늘 새벽 5시
+        val lateNightEndTime = startTime + (5 * 60 * 60 * 1000L) // 해당 날짜 새벽 5시
         val queryStart = (startTime - FOREGROUND_STATE_LOOKBACK_MILLIS).coerceAtLeast(0L)
         val queried = queryUsageEvents(usageStatsManager, queryStart, endTime)
         val categoryLevelResolver = categoryLevelResolver(context, appWeightMap)

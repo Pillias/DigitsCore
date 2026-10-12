@@ -21,13 +21,13 @@ class StatisticsAggregationTest {
         assertEquals(0, device.single { it.hour == 24*h }.opens)
     }
 
-    @Test fun shortChecksIncludeExactlyOneMinuteButNotAnUnsettledOpening() {
-        val rows = aggregateUsageHours(listOf(session(0, 60_000), session(120_000, 121_000),
+    @Test fun habitualChecksIncludeExactlyFifteenSecondsButNotAnUnsettledOpening() {
+        val rows = aggregateUsageHours(listOf(session(0, 15_000), session(120_000, 121_000),
             session(299_000, 300_000)), 0, 300_000, 240_000)
         val total = rows.single { it.packageName.isEmpty() }
         assertEquals(3, total.opens)
         assertEquals(2, total.shortOpens)
-        assertEquals(62_000L, total.usageMillis)
+        assertEquals(17_000L, total.usageMillis)
     }
 
     @Test fun overlappingPipIsNotDoubleCountedAndRangeIsClipped() {

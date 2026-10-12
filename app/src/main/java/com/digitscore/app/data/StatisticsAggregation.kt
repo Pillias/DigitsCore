@@ -3,6 +3,7 @@ package com.digitscore.app.data
 import com.digitscore.app.data.entity.*
 
 const val STAT_HOUR = 3_600_000L
+const val HABITUAL_CHECK_THRESHOLD_MILLIS = 15_000L
 fun statisticHour(time: Long): Long = time - Math.floorMod(time, STAT_HOUR)
 
 /** Splits intervals at real hour boundaries. A session's opening belongs only to its original hour. */
@@ -51,7 +52,7 @@ internal fun aggregateUsageHours(
             duration += (it.endTimeMillis - maxOf(lastEnd, it.startTimeMillis)).coerceAtLeast(0L)
             lastEnd = maxOf(lastEnd, it.endTimeMillis)
         }
-        val short = if (duration <= 60_000 && lastEnd - opened <= 60_000 && opened + 60_000 <= settledThrough) 1 else 0
+        val short = if (duration <= HABITUAL_CHECK_THRESHOLD_MILLIS && lastEnd - opened <= HABITUAL_CHECK_THRESHOLD_MILLIS && opened + HABITUAL_CHECK_THRESHOLD_MILLIS <= settledThrough) 1 else 0
         for ((pkg, name) in listOf("" to "", key.first to parts.first().appName)) {
             update(statisticHour(opened), pkg, name) { it.copy(opens = it.opens + 1, shortOpens = it.shortOpens + short) }
         }

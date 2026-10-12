@@ -16,7 +16,8 @@ data class AppCandidate(
     val packageName: String,
     val appName: String,
     val yesterdayUsageMinutes: Long,
-    val isRoutineHeavy: Boolean = true
+    val isRoutineHeavy: Boolean = true,
+    val recentAvgMinutes: Long = 0L
 )
 
 /**

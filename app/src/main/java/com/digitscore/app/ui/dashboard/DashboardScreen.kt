@@ -1434,17 +1434,17 @@ private fun GuidanceDetailDialog(
                 InsightCard(if (isEn) "Estimated Recovery" else "회복 예상") {
                     Text(
                         guidance.recoveryMinutes?.let {
-                            if (isEn) "About $it minutes of awake rest may reach ${guidance.recoveryTargetScore}. Sleep is excluded."
-                            else "깨어 있는 상태로 약 ${it}분 쉬면 ${guidance.recoveryTargetScore}점으로 예상됩니다. 수면은 제외한 추정입니다."
-                        } ?: if (isEn) "Recovery depends on accumulated use and awake rest; a near-term target is not available."
-                            else "회복 속도는 누적 사용과 활동 중 휴식에 따라 달라집니다. 가까운 회복 시점은 아직 예측하기 어렵습니다.",
+                            if (isEn) "About $it minutes of screen break may reach ${guidance.recoveryTargetScore}."
+                            else "약 ${it}분 화면을 쉬면 ${guidance.recoveryTargetScore}점으로 예상됩니다."
+                        } ?: if (isEn) "Recovery depends on accumulated use and screen-off rest; a near-term target is not available."
+                            else "회복 속도는 누적 사용과 화면 휴식에 따라 달라집니다. 가까운 회복 시점은 아직 예측하기 어렵습니다.",
                         fontSize = 12.sp
                     )
                 }
                 InsightCard(if (isEn) "Last 24 Hours Summary" else "최근 24시간 요약") {
                     Text(
-                        if (isEn) "Screen ${formatMinutesToHoursAndMinutes(guidance.rollingUsageMinutes)} · ${guidance.rollingOpenCount}x · ≤1m ${guidance.shortOpenCount}x"
-                        else "화면 ${formatMinutesToHoursAndMinutes(guidance.rollingUsageMinutes)} · 앱 ${guidance.rollingOpenCount}x · 1분 미만 ${guidance.shortOpenCount}x",
+                        if (isEn) "Screen ${formatMinutesToHoursAndMinutes(guidance.rollingUsageMinutes)} · ${guidance.rollingOpenCount}x · Habitual ${guidance.shortOpenCount}x"
+                        else "화면 ${formatMinutesToHoursAndMinutes(guidance.rollingUsageMinutes)} · 앱 ${guidance.rollingOpenCount}x · 습관성 확인 ${guidance.shortOpenCount}x",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -2314,8 +2314,8 @@ fun DistractingDetailDialog(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(text = app.appName, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                 Text(
-                                    text = if (isEn) "24h ${app.sessionCount}x · ≤1m ${app.shortSessionCount}x"
-                                    else "24시간 ${app.sessionCount}x · 1분 미만 ${app.shortSessionCount}x",
+                                    text = if (isEn) "24h ${app.sessionCount}x · Habitual ${app.shortSessionCount}x"
+                                    else "24시간 ${app.sessionCount}x · 습관성 확인 ${app.shortSessionCount}x",
                                     fontSize = 10.sp,
                                     color = MaterialTheme.colorScheme.outline
                                 )
@@ -2594,7 +2594,7 @@ private fun AppSessionInsight(insights: AppUsageInsights) {
     val sessions = insights.sessionDurationsMillis
     val average = sessions.takeIf { it.isNotEmpty() }?.average()?.toLong() ?: 0L
     val longest = sessions.maxOrNull() ?: 0L
-    val shortOpens = sessions.count { it in 1 until 60_000L }
+    val shortOpens = sessions.count { it in 1 until com.digitscore.app.data.HABITUAL_CHECK_THRESHOLD_MILLIS }
     val assessment = if (isEn) {
         when {
             longest >= 30 * 60_000L -> "Sessions exceeding 30 min detected."
@@ -2631,8 +2631,8 @@ private fun AppSessionInsight(insights: AppUsageInsights) {
         )
         if (sessions.isNotEmpty()) {
             Text(
-                if (isEn) "Opened ${sessions.size} times in 24h, with ${shortOpens} under 1 min."
-                else "최근 24시간 ${sessions.size}회 열었고, 그중 1분 미만은 ${shortOpens}회입니다.",
+                if (isEn) "Opened ${sessions.size} times in 24h, with ${shortOpens} habitual checks."
+                else "최근 24시간 ${sessions.size}회 열었고, 그중 습관성 확인은 ${shortOpens}회입니다.",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -2651,10 +2651,10 @@ private fun AppOpenTrendInsight(insights: AppUsageInsights) {
     val days = insights.dailyUsage.takeLast(14)
     InsightCard(if (isEn) "How often was it opened by date?" else "날짜별로 몇 번 열었나요?") {
         val rollingSessions = insights.sessionDurationsMillis
-        val rollingShortCount = rollingSessions.count { it in 1 until 60_000L }
+        val rollingShortCount = rollingSessions.count { it in 1 until com.digitscore.app.data.HABITUAL_CHECK_THRESHOLD_MILLIS }
         Text(
-            if (isEn) "Last 24h: ${rollingSessions.size} opens · ${rollingShortCount} under 1 min"
-            else "최근 24시간 ${rollingSessions.size}회 · 1분 미만 ${rollingShortCount}회",
+            if (isEn) "Last 24h: ${rollingSessions.size} opens · ${rollingShortCount} habitual checks"
+            else "최근 24시간 ${rollingSessions.size}회 · 습관성 확인 ${rollingShortCount}회",
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold
         )
@@ -2662,8 +2662,8 @@ private fun AppOpenTrendInsight(insights: AppUsageInsights) {
             val shortRatio = (rollingShortCount * 100f / rollingSessions.size).roundToInt()
             if (shortRatio >= 60) {
                 Text(
-                    if (isEn) "Brief checks account for ${shortRatio}% of opens. Mindful habit check recommended."
-                    else "짧은 확인이 전체 실행의 ${shortRatio}%입니다. 습관적으로 여는 흐름인지 살펴보세요.",
+                    if (isEn) "Habitual checks account for ${shortRatio}% of opens. Mindful habit check recommended."
+                    else "습관성 확인이 전체 실행의 ${shortRatio}%입니다. 무의식적 실행 흐름인지 살펴보세요.",
                     fontSize = 11.sp,
                     color = ScoreOrange
                 )
@@ -2680,7 +2680,7 @@ private fun AppOpenTrendInsight(insights: AppUsageInsights) {
                 .fillMaxWidth()
                 .height(82.dp)
                 .semantics {
-                    contentDescription = UiTranslator.translate("최근 14일 앱 실행 횟수와 1분 미만 실행 그래프")
+                    contentDescription = UiTranslator.translate("최근 14일 앱 실행 횟수와 습관성 확인 그래프")
                 }
         ) {
             val slot = size.width / days.size.coerceAtLeast(1)
@@ -2708,7 +2708,7 @@ private fun AppOpenTrendInsight(insights: AppUsageInsights) {
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(if (isEn) "Total opens" else "전체 실행", fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
-            Text(if (isEn) "Orange: <1 min" else "주황색 · 1분 미만", fontSize = 10.sp, color = ScoreOrange)
+            Text(if (isEn) "Orange: Habitual" else "주황색 · 습관성 확인", fontSize = 10.sp, color = ScoreOrange)
         }
     }
 }
