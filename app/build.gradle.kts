@@ -59,7 +59,16 @@ android {
 
     val defaultVersion = "$versionMajor.$versionMinor.$versionPatch"
     val finalVersionName = tagVersion ?: defaultVersion
-    val calculatedVersionCode = versionCodeVal
+    val versionParts = finalVersionName.split(".").mapNotNull { it.toIntOrNull() }
+    val calculatedVersionCode = if (versionParts.size >= 3 && versionParts[0] == 0) {
+        // 0.9.x 베타 트랙: 1000 안쪽 (900 + patch)
+        versionParts[1] * 100 + versionParts[2]
+    } else if (versionParts.size >= 3) {
+        // 1.0.0+ 정식 출시 트랙: 1000부터 시작
+        versionParts[0] * 1000 + versionParts[1] * 100 + versionParts[2]
+    } else {
+        versionCodeVal
+    }
 
     val buildDate = SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(Date())
 
