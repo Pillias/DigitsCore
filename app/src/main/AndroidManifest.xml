@@ -9,7 +9,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <!-- Android 11+에서 사용 기록에 등장한 런처 앱의 이름과 분류를 조회합니다. -->
     <queries>
@@ -48,7 +47,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="User-started on-device foreground app and unlock tracking for the cumulative Core Index; optional hardware step evidence supports waking estimates" />
+                android:value="User-started on-device foreground app and unlock tracking for the cumulative 24-hour Core Index" />
         </service>
 
         <receiver

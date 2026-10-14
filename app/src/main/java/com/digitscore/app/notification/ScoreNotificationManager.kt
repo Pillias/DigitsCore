@@ -248,7 +248,6 @@ object ScoreNotificationManager {
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
-            .setFullScreenIntent(pendingIntent, true)
             .addAction(
                 android.R.drawable.ic_menu_edit,
                 actionText,
