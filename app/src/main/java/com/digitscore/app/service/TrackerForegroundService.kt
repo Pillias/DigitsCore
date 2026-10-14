@@ -84,29 +84,6 @@ class TrackerForegroundService : Service() {
     private var interactionBootstrapDone = false
     private var sessionBootstrapDone = false
 
-    private val wakeSteps by lazy { WakeStepEvidence(this) { timestamp ->
-        serviceScope.launch(Dispatchers.IO) {
-            val db = DigitsDatabase.getInstance(applicationContext)
-            // 50보 이상 걸음 발생 시 자체 일어난 것으로 자동 확정
-            com.digitscore.app.data.CumulativeScoreStore.confirmActivity(
-                db, timestamp, awake = true, acknowledge = true
-            )
-            ScoreNotificationManager.cancelMorningWakePromptNotification(applicationContext)
-            recalculateAndNotify(immediate = true)
-
-            // 오늘 아직 브리핑을 완료하지 않았다면 목표 팝업 또는 알림 준비
-            val isCompleted = com.digitscore.app.data.DailyGoalStore.isBriefingCompleted(applicationContext)
-            if (!isCompleted) {
-                withContext(Dispatchers.Main) {
-                    if (isScreenInteractive()) {
-                        triggerMorningBriefingPopup()
-                    } else {
-                        ScoreNotificationManager.showMorningBriefingHeadsUpNotification(applicationContext)
-                    }
-                }
-            }
-        }
-    } }
     private var cumulativeCoverageStart = UsageStatsHelper.getStartOfTodayMillis()
     private var lastAppWeightSignature: Int? = null
 
@@ -408,7 +385,6 @@ class TrackerForegroundService : Service() {
 
                 val db = DigitsDatabase.getInstance(applicationContext)
                 val settings = db.settingsDao().getSettings()
-                withContext(Dispatchers.Main) { wakeSteps.refresh() }
                 if (settings?.isTrackingEnabled == false) {
                     stopSelf()
                     return@withLock
@@ -765,6 +741,8 @@ class TrackerForegroundService : Service() {
                         applicationContext, db, com.digitscore.app.data.DailyGoalStore.getLogicalDateString()
                     )
                     ScoreRepository.updateYesterdaySummary(ySummary)
+                    ScoreRepository.updateYesterdayGoalResult(com.digitscore.app.data.DailyGoalStore.getYesterdayGoalResult(applicationContext))
+                    ScoreRepository.updateRewardState(com.digitscore.app.data.DailyGoalStore.getRewardState(applicationContext))
 
                     val todayApp = currentGoal.targetPackageName?.let { pkg ->
                         todayAppsUsage.firstOrNull { it.packageName == pkg }
@@ -825,8 +803,9 @@ class TrackerForegroundService : Service() {
                     // 단순 notify 갱신 대신 foreground 연결을 다시 확인해 OEM 재시작이나
                     // 일시적인 알림 제거 뒤에도 상태 아이콘이 복원되도록 합니다.
                     startForeground(ScoreNotificationManager.NOTIFICATION_ID, notification)
+                    val isFreePass = com.digitscore.app.data.DailyGoalStore.isFreePassActive(applicationContext)
                     maybeShowRapidUsageNotification(
-                        enabled = settings?.isRapidUsageAlertEnabled != false,
+                        enabled = settings?.isRapidUsageAlertEnabled != false && !isFreePass,
                         config = rapidUsageAlertConfig,
                         currentScore = rollingScoreDetail.finalScore,
                         continuousUsageMinutes = rollingScoreDetail.continuousUsageMinutes,
@@ -1013,7 +992,6 @@ class TrackerForegroundService : Service() {
     }
 
     override fun onDestroy() {
-        wakeSteps.stop()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } else {

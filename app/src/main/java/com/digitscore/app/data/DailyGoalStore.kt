@@ -4,7 +4,10 @@ import android.content.Context
 import com.digitscore.app.model.AppCandidate
 import com.digitscore.app.model.DailyGoal
 import com.digitscore.app.model.DailyGoalType
+import com.digitscore.app.model.GoalDifficulty
+import com.digitscore.app.model.GoalRewardState
 import com.digitscore.app.model.YesterdayBriefingSummary
+import com.digitscore.app.model.YesterdayGoalResult
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import org.json.JSONArray
@@ -50,6 +53,26 @@ object DailyGoalStore {
 
     private const val KEY_BRIEFING_COMPLETED = "goal_briefing_completed"
     private const val KEY_BRIEFING_DATE = "goal_briefing_completed_date"
+
+    // 어제 목표 아카이브 키
+    private const val KEY_Y_GOAL_DATE = "y_goal_date"
+    private const val KEY_Y_GOAL_SCORE_TARGET = "y_goal_score_target"
+    private const val KEY_Y_GOAL_TARGET_PKG = "y_goal_target_pkg"
+    private const val KEY_Y_GOAL_TARGET_APP = "y_goal_target_app"
+    private const val KEY_Y_GOAL_APP_LIMIT = "y_goal_app_limit"
+    private const val KEY_Y_GOAL_UNLOCK_TARGET = "y_goal_unlock_target"
+    private const val KEY_Y_GOAL_EXISTS = "y_goal_exists"
+
+    // 어제 목표 결과 스냅샷 캐시
+    private const val KEY_Y_RESULT_JSON = "y_result_json"
+
+    // 스트릭 & 자유권 보상 키
+    private const val KEY_REWARD_STREAK = "reward_current_streak"
+    private const val KEY_REWARD_PERFECT_STAMPS = "reward_perfect_stamps"
+    private const val KEY_REWARD_FREE_PASSES = "reward_free_passes"
+    private const val KEY_REWARD_ACTIVE_UNTIL = "reward_active_until"
+    private const val KEY_REWARD_LAST_PROCESSED_DATE = "reward_last_processed_date"
+
 
     /**
      * 새벽 5시 이전(00:00~04:59)은 전날 밤의 연장(심야 활동)으로 취급하여
@@ -260,6 +283,156 @@ object DailyGoalStore {
     }
 
 
+    // -----------------------------------------------------------------------------------------
+    // 스트릭 및 15분 자유권(Free Pass) 보상 엔진
+    // -----------------------------------------------------------------------------------------
+
+    fun getRewardState(context: Context): GoalRewardState {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return GoalRewardState(
+            currentStreak = prefs.getInt(KEY_REWARD_STREAK, 0),
+            perfectStamps = prefs.getInt(KEY_REWARD_PERFECT_STAMPS, 0),
+            availableFreePasses = prefs.getInt(KEY_REWARD_FREE_PASSES, 0),
+            activeFreePassUntil = prefs.getLong(KEY_REWARD_ACTIVE_UNTIL, 0L),
+            lastProcessedDate = prefs.getString(KEY_REWARD_LAST_PROCESSED_DATE, null)
+        )
+    }
+
+    fun saveRewardState(context: Context, state: GoalRewardState) = synchronized(storeLock) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putInt(KEY_REWARD_STREAK, state.currentStreak)
+            .putInt(KEY_REWARD_PERFECT_STAMPS, state.perfectStamps)
+            .putInt(KEY_REWARD_FREE_PASSES, state.availableFreePasses)
+            .putLong(KEY_REWARD_ACTIVE_UNTIL, state.activeFreePassUntil)
+            .putString(KEY_REWARD_LAST_PROCESSED_DATE, state.lastProcessedDate)
+            .apply()
+        ScoreRepository.updateRewardState(state)
+    }
+
+    /**
+     * 15분 자유권 사용 활성화
+     * (보유 1장 차감, 지금부터 15분간 부하 면제 적용)
+     */
+    fun activateFreePass(context: Context): Boolean = synchronized(storeLock) {
+        val state = getRewardState(context)
+        if (state.availableFreePasses <= 0 || state.isFreePassActive) return false
+        val newState = state.copy(
+            availableFreePasses = (state.availableFreePasses - 1).coerceAtLeast(0),
+            activeFreePassUntil = System.currentTimeMillis() + 15 * 60 * 1000L
+        )
+        saveRewardState(context, newState)
+        return true
+    }
+
+    fun isFreePassActive(context: Context): Boolean {
+        return getRewardState(context).isFreePassActive
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // 어제 목표 아카이브 및 결과 스냅샷 관리
+    // -----------------------------------------------------------------------------------------
+
+    fun archiveYesterdayGoal(context: Context, goal: DailyGoal) = synchronized(storeLock) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString(KEY_Y_GOAL_DATE, goal.dateString)
+            .putInt(KEY_Y_GOAL_SCORE_TARGET, goal.scoreTarget)
+            .putString(KEY_Y_GOAL_TARGET_PKG, goal.targetPackageName)
+            .putString(KEY_Y_GOAL_TARGET_APP, goal.targetAppName)
+            .putInt(KEY_Y_GOAL_APP_LIMIT, goal.appLimitMinutes)
+            .putInt(KEY_Y_GOAL_UNLOCK_TARGET, goal.unlockLimitTarget)
+            .putBoolean(KEY_Y_GOAL_EXISTS, true)
+            .apply()
+    }
+
+    fun getYesterdayGoal(context: Context, yesterdayDate: String = getYesterdayLogicalDateString()): DailyGoal? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val savedDate = prefs.getString(KEY_Y_GOAL_DATE, null)
+        val exists = prefs.getBoolean(KEY_Y_GOAL_EXISTS, false)
+        if (!exists || savedDate != yesterdayDate) return null
+
+        return DailyGoal(
+            dateString = savedDate,
+            scoreTarget = prefs.getInt(KEY_Y_GOAL_SCORE_TARGET, 70),
+            targetPackageName = prefs.getString(KEY_Y_GOAL_TARGET_PKG, null),
+            targetAppName = prefs.getString(KEY_Y_GOAL_TARGET_APP, "") ?: "",
+            appLimitMinutes = prefs.getInt(KEY_Y_GOAL_APP_LIMIT, 30),
+            unlockLimitTarget = prefs.getInt(KEY_Y_GOAL_UNLOCK_TARGET, 40)
+        )
+    }
+
+    fun getYesterdayGoalResult(context: Context): YesterdayGoalResult? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val jsonStr = prefs.getString(KEY_Y_RESULT_JSON, null) ?: return null
+        return runCatching {
+            val obj = JSONObject(jsonStr)
+            YesterdayGoalResult(
+                dateString = obj.optString("date"),
+                hasGoal = obj.optBoolean("has_goal"),
+                scoreTarget = obj.optInt("score_target"),
+                finalScore = obj.optInt("final_score"),
+                isScoreAchieved = obj.optBoolean("score_achieved"),
+                targetPackageName = if (obj.has("target_pkg") && !obj.isNull("target_pkg")) obj.optString("target_pkg") else null,
+                targetAppName = obj.optString("target_app"),
+                appLimitMinutes = obj.optInt("app_limit"),
+                finalAppUsageMinutes = obj.optInt("final_app_mins"),
+                isAppLimitAchieved = obj.optBoolean("app_achieved"),
+                unlockLimitTarget = obj.optInt("unlock_target"),
+                finalUnlockCount = obj.optInt("final_unlock"),
+                isUnlockLimitAchieved = obj.optBoolean("unlock_achieved"),
+                achievedCount = obj.optInt("achieved_count"),
+                totalGoalCount = obj.optInt("total_count"),
+                isStreakMaintained = obj.optBoolean("streak_maintained"),
+                isPerfectDay = obj.optBoolean("perfect_day")
+            )
+        }.getOrNull()
+    }
+
+    fun saveYesterdayGoalResult(context: Context, result: YesterdayGoalResult) = synchronized(storeLock) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val obj = JSONObject().apply {
+            put("date", result.dateString)
+            put("has_goal", result.hasGoal)
+            put("score_target", result.scoreTarget)
+            put("final_score", result.finalScore)
+            put("score_achieved", result.isScoreAchieved)
+            if (result.targetPackageName != null) put("target_pkg", result.targetPackageName)
+            put("target_app", result.targetAppName)
+            put("app_limit", result.appLimitMinutes)
+            put("final_app_mins", result.finalAppUsageMinutes)
+            put("app_achieved", result.isAppLimitAchieved)
+            put("unlock_target", result.unlockLimitTarget)
+            put("final_unlock", result.finalUnlockCount)
+            put("unlock_achieved", result.isUnlockLimitAchieved)
+            put("achieved_count", result.achievedCount)
+            put("total_count", result.totalGoalCount)
+            put("streak_maintained", result.isStreakMaintained)
+            put("perfect_day", result.isPerfectDay)
+        }
+        prefs.edit().putString(KEY_Y_RESULT_JSON, obj.toString()).apply()
+        ScoreRepository.updateYesterdayGoalResult(result)
+    }
+
+    /**
+     * 난이도에 따른 목표치 동적 변환
+     */
+    fun applyDifficulty(baseGoal: DailyGoal, difficulty: GoalDifficulty): DailyGoal {
+        return when (difficulty) {
+            GoalDifficulty.EASY -> baseGoal.copy(
+                scoreTarget = (baseGoal.scoreTarget - 5).coerceAtLeast(40),
+                appLimitMinutes = baseGoal.appLimitMinutes + 10,
+                unlockLimitTarget = baseGoal.unlockLimitTarget + 10
+            )
+            GoalDifficulty.NORMAL -> baseGoal
+            GoalDifficulty.HARD -> baseGoal.copy(
+                scoreTarget = (baseGoal.scoreTarget + 5).coerceAtMost(90),
+                appLimitMinutes = (baseGoal.appLimitMinutes - 10).coerceAtLeast(15),
+                unlockLimitTarget = (baseGoal.unlockLimitTarget - 10).coerceAtLeast(40)
+            )
+        }
+    }
+
     /**
      * 어제 및 최근 14일 사용 트렌드를 종합 분석하여
      * 어제 특이사항이 없더라도 최근 과다 사용 앱, 도달 가능한 현실적 코어 지수 목표,
@@ -273,10 +446,34 @@ object DailyGoalStore {
         val existingGoal = getGoal(context, todayDate)
         val existingSummary = getYesterdaySummary(context, todayDate)
         if (existingGoal != null && existingSummary != null) {
+            val yResult = getYesterdayGoalResult(context)
+            if (yResult != null) {
+                ScoreRepository.updateYesterdayGoalResult(yResult)
+            }
+            ScoreRepository.updateRewardState(getRewardState(context))
             return existingSummary to existingGoal
         }
 
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val savedDate = prefs.getString(KEY_DATE, null)
         val yesterdayDate = getYesterdayLogicalDateString()
+
+        // 1. 만약 오늘 날짜로 바뀌기 전, 이전 날짜의 goal이 저장되어 있었다면 어제 목표로 아카이브
+        if (savedDate != null && savedDate != todayDate) {
+            val previousGoal = DailyGoal(
+                dateString = savedDate,
+                scoreTarget = prefs.getInt(KEY_SCORE_TARGET, 70),
+                currentScore = prefs.getInt(KEY_CURRENT_SCORE, 80),
+                targetPackageName = prefs.getString(KEY_TARGET_PKG, null),
+                targetAppName = prefs.getString(KEY_TARGET_APP, "") ?: "",
+                appLimitMinutes = prefs.getInt(KEY_APP_LIMIT, 30),
+                currentAppUsageMinutes = prefs.getInt(KEY_CURRENT_APP, 0),
+                unlockLimitTarget = prefs.getInt(KEY_UNLOCK_TARGET, 40),
+                currentUnlockCount = prefs.getInt(KEY_CURRENT_UNLOCK, 0)
+            )
+            archiveYesterdayGoal(context, previousGoal)
+        }
+
         val yesterdayScoreEntity = db.scoreDao().getScoreHistoryForDate(yesterdayDate)
         val allAppUsage = db.dailyAppUsageDao().getAll()
         val yesterdayApps = allAppUsage.filter { it.dateString == yesterdayDate }
@@ -297,6 +494,79 @@ object DailyGoalStore {
         val yesterdayScreenTimeMins = yesterdayScoreEntity?.totalScreenTimeMinutes
             ?: (yesterdayApps.sumOf { it.usageMillis } / 60_000L)
         val yesterdayUnlock = yesterdayScoreEntity?.unlockCount ?: 0
+
+        // 2. 어제 목표 달성 여부 평가 (YesterdayGoalResult 생성)
+        val yGoal = getYesterdayGoal(context, yesterdayDate)
+        val yTargetApp = yGoal?.targetPackageName?.let { pkg -> yesterdayApps.firstOrNull { it.packageName == pkg } }
+        val yAppMins = ((yTargetApp?.usageMillis ?: 0L) / 60_000L).toInt()
+
+        val yGoalResult = if (yGoal != null) {
+            val isScoreAchieved = yesterdayScore >= yGoal.scoreTarget
+            val isAppAchieved = if (yGoal.targetPackageName != null) yAppMins <= yGoal.appLimitMinutes else true
+            val isUnlockAchieved = yesterdayUnlock <= yGoal.unlockLimitTarget
+            val totalCount = if (yGoal.targetPackageName != null) 3 else 2
+            val achieved = (if (isScoreAchieved) 1 else 0) +
+                (if (yGoal.targetPackageName != null && isAppAchieved) 1 else 0) +
+                (if (isUnlockAchieved) 1 else 0)
+            val isStreakMaintained = achieved >= 2
+            val isPerfectDay = achieved == totalCount
+
+            YesterdayGoalResult(
+                dateString = yesterdayDate,
+                hasGoal = true,
+                scoreTarget = yGoal.scoreTarget,
+                finalScore = yesterdayScore,
+                isScoreAchieved = isScoreAchieved,
+                targetPackageName = yGoal.targetPackageName,
+                targetAppName = yGoal.targetAppName,
+                appLimitMinutes = yGoal.appLimitMinutes,
+                finalAppUsageMinutes = yAppMins,
+                isAppLimitAchieved = isAppAchieved,
+                unlockLimitTarget = yGoal.unlockLimitTarget,
+                finalUnlockCount = yesterdayUnlock,
+                isUnlockLimitAchieved = isUnlockAchieved,
+                achievedCount = achieved,
+                totalGoalCount = totalCount,
+                isStreakMaintained = isStreakMaintained,
+                isPerfectDay = isPerfectDay
+            )
+        } else {
+            YesterdayGoalResult(
+                dateString = yesterdayDate,
+                hasGoal = false,
+                finalScore = yesterdayScore,
+                finalUnlockCount = yesterdayUnlock
+            )
+        }
+        saveYesterdayGoalResult(context, yGoalResult)
+
+        // 3. 스트릭 및 자유권 보상 정산 (해당 날짜 1회만 처리)
+        val currentRewardState = getRewardState(context)
+        if (currentRewardState.lastProcessedDate != yesterdayDate) {
+            if (yGoalResult.hasGoal) {
+                val newStreak = if (yGoalResult.isStreakMaintained) currentRewardState.currentStreak + 1 else 0
+                var newStamps = currentRewardState.perfectStamps
+                var newPasses = currentRewardState.availableFreePasses
+                if (yGoalResult.isPerfectDay) {
+                    newStamps += 1
+                    if (newStamps >= 3) {
+                        newStamps = 0
+                        newPasses = minOf(newPasses + 1, 2) // 최대 2장 스택
+                    }
+                }
+                val updatedReward = currentRewardState.copy(
+                    currentStreak = newStreak,
+                    perfectStamps = newStamps,
+                    availableFreePasses = newPasses,
+                    lastProcessedDate = yesterdayDate
+                )
+                saveRewardState(context, updatedReward)
+            } else {
+                saveRewardState(context, currentRewardState.copy(lastProcessedDate = yesterdayDate))
+            }
+        } else {
+            ScoreRepository.updateRewardState(currentRewardState)
+        }
 
         // 최근 14일간 앱별 통계 종합 (사용 일수, 총 사용량, 일평균, 카테고리 등)
         val recentDateCutoff = java.time.LocalDate.now().minusDays(14)
@@ -339,9 +609,6 @@ object DailyGoalStore {
                 recentAvgMinutes = recentAvgMins
             )
         }.sortedWith(
-            // 1순위: 어제 10분 이상 쓴 앱 (어제 실제 부하)
-            // 2순위: 최근 일평균이 높은 앱 (평소 자주 쓰는 특이사항 앱)
-            // 3순위: 몰입 관리 대상 앱
             compareByDescending<AppCandidate> { it.yesterdayUsageMinutes >= 10 }
                 .thenByDescending { it.isRoutineHeavy }
                 .thenByDescending { if (it.yesterdayUsageMinutes > 0) it.yesterdayUsageMinutes else it.recentAvgMinutes }
@@ -367,17 +634,15 @@ object DailyGoalStore {
         saveYesterdaySummary(context, summary)
 
         // 1. 코어 지수 목표 기본값 (현실적으로 도달 가능한 점진적 목표 프리셋)
-        // 코어 지수는 최근 24시간 롤링 지수이므로 어제 40~50점대인 사용자에게 70점 고정은 불가능함.
-        // 어제 점수를 기준으로 오늘 하루 절제 시 달성 가능한 현실적인 목표(+5~8점, 5점 단위)를 제시합니다.
         val baseScore = yesterdayScore.coerceIn(0, 100)
         val recommendedScoreTarget = when {
             baseScore < 45 -> 50
-            baseScore < 50 -> 55 // 예: 어제 47점 -> 오늘 55점 목표
-            baseScore < 60 -> ((baseScore + 6) / 5) * 5 // 예: 52점 -> 55점, 56점 -> 60점
-            baseScore < 70 -> ((baseScore + 5) / 5) * 5 // 예: 62점 -> 65점, 67점 -> 70점
-            baseScore < 80 -> 75 // 70점대 -> 75점 방어
-            baseScore < 90 -> 80 // 80점대 -> 80점 유지
-            else -> 85           // 90점대 -> 85점 유지
+            baseScore < 50 -> 55
+            baseScore < 60 -> ((baseScore + 6) / 5) * 5
+            baseScore < 70 -> ((baseScore + 5) / 5) * 5
+            baseScore < 80 -> 75
+            baseScore < 90 -> 80
+            else -> 85
         }.coerceIn(40, 90)
 
         // 2. 특정 앱 목표 기본값: 어제 사용량 또는 최근 일평균의 75% 수준으로 제안
@@ -391,8 +656,6 @@ object DailyGoalStore {
         } else 30
 
         // 3. 잠금해제 목표 기본값:
-        // 매일 계속 0.9배로 감축되어 비현실적인 1회로 수렴하지 않도록,
-        // 정상적인 일상 사용을 보장하는 적정 밴드(50~70회 유지선)를 기준점으로 프리셋합니다.
         val baseUnlock = when {
             yesterdayUnlock >= 20 -> yesterdayUnlock
             pastAvgUnlock >= 20 -> pastAvgUnlock
@@ -400,9 +663,9 @@ object DailyGoalStore {
         }
 
         val recommendedUnlockTarget = when {
-            baseUnlock > 85 -> ((baseUnlock * 0.88f) / 5).toInt() * 5 // 과다 사용 시 점진적 10~15% 절제
-            baseUnlock in 55..85 -> (baseUnlock / 5) * 5              // 적정 범위(55~85회)는 안정적 유지선
-            else -> 50                                                // 이미 55회 미만인 경우 50회 하한 유지선
+            baseUnlock > 85 -> ((baseUnlock * 0.88f) / 5).toInt() * 5
+            baseUnlock in 55..85 -> (baseUnlock / 5) * 5
+            else -> 50
         }.coerceIn(45, 150)
 
         val generatedGoal = DailyGoal(
@@ -423,3 +686,4 @@ object DailyGoalStore {
         return summary to generatedGoal
     }
 }
+

@@ -157,6 +157,8 @@ fun DashboardScreen(
     val guidance by viewModel.coreIndexGuidance.collectAsState()
     val dailyGoal by viewModel.dailyGoal.collectAsState()
     val yesterdaySummary by viewModel.yesterdaySummary.collectAsState()
+    val yesterdayGoalResult by viewModel.yesterdayGoalResult.collectAsState()
+    val rewardState by viewModel.rewardState.collectAsState()
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -294,6 +296,7 @@ fun DashboardScreen(
                         dailyGoal = dailyGoal,
                         unlockCount = unlockCount,
                         appsUsage = appsUsage,
+                        rewardState = rewardState,
                         onUnlockClick = { showUnlockModal = true }
                     )
                 }
@@ -505,7 +508,9 @@ fun DashboardScreen(
     if (showMorningDialog && dailyGoal != null && yesterdaySummary != null) {
         MorningBriefingDialog(
             yesterdaySummary = requireNotNull(yesterdaySummary),
+            yesterdayGoalResult = yesterdayGoalResult,
             dailyGoal = requireNotNull(dailyGoal),
+            rewardState = rewardState,
             onAcceptGoals = { scoreTarget, targetPkg, targetAppName, appLimitMins, unlockLimit ->
                 scope.launch {
                     com.digitscore.app.data.DailyGoalStore.setCustomGoal(
@@ -547,6 +552,7 @@ private fun ThreeGoalsDashboardCard(
     dailyGoal: com.digitscore.app.model.DailyGoal?,
     unlockCount: Int,
     appsUsage: List<AppUsage> = emptyList(),
+    rewardState: com.digitscore.app.model.GoalRewardState = com.digitscore.app.model.GoalRewardState(),
     onUnlockClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -625,6 +631,84 @@ private fun ThreeGoalsDashboardCard(
                     Text(if (isEn) "Set / Edit Goals" else "목표 설정/수정", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
+
+            // 스트릭 & 퍼펙트 스탬프 현황 바
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (rewardState.currentStreak > 0) "🔥 ${rewardState.currentStreak}일 연속 방어 중"
+                    else (if (isEn) "Start your streak today!" else "새로운 스트릭에 도전하세요!"),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (rewardState.currentStreak > 0) ScoreOrange else MaterialTheme.colorScheme.outline
+                )
+                Text(
+                    text = "🌟 스탬프 ${rewardState.perfectStamps}/3",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            // 15분 자유권(Free Pass) 활성화 또는 사용 UI
+            if (rewardState.isFreePassActive) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = ScoreGreen.copy(alpha = 0.15f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = if (isEn) "🎟️ Free Pass Active (${rewardState.remainingFreePassSeconds / 60}m left) — Zero Load"
+                            else "🎟️ 15분 자유 시간 진행 중 (${rewardState.remainingFreePassSeconds / 60}분 남음) — 부하 면제",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = ScoreGreen
+                        )
+                    }
+                }
+            } else if (rewardState.availableFreePasses > 0) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (isEn) "🎟️ 15-Min Free Pass (${rewardState.availableFreePasses} available)"
+                            else "🎟️ 15분 자유권 (${rewardState.availableFreePasses}장 보유)",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Button(
+                            onClick = {
+                                com.digitscore.app.data.DailyGoalStore.activateFreePass(context)
+                            },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            modifier = Modifier.height(26.dp),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(if (isEn) "Use Now" else "지금 사용", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
 
             // --- 목표 1: 코어 지수 점수 (수평 게이지 바) ---
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

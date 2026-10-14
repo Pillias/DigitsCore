@@ -65,23 +65,6 @@ class MainActivity : ComponentActivity() {
 
     private var forceShowMorningBriefing by mutableStateOf(false)
 
-    private val activityRecognitionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            TrackerForegroundService.refreshNotification(this)
-        }
-    }
-
-    private fun checkActivityRecognitionPermission() {
-        if (Build.VERSION.SDK_INT >= 29) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACTIVITY_RECOGNITION)
-                != PackageManager.PERMISSION_GRANTED) {
-                activityRecognitionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
-            }
-        }
-    }
-
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -102,7 +85,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         handleIntent(intent)
-        checkActivityRecognitionPermission()
 
         val hasPermission = UsageStatsHelper.hasUsageStatsPermission(this)
         val startDestination = if (hasPermission) {

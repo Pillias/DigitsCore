@@ -143,3 +143,57 @@ data class YesterdayBriefingSummary(
     val past14DaysLowestUnlock: Int = 0,
     val past14DaysAverageUnlock: Int = 0
 )
+
+/**
+ * 목표 설정 난이도 프리셋
+ */
+enum class GoalDifficulty {
+    EASY,   // 여유
+    NORMAL, // 표준 (시스템 추천 기본값)
+    HARD    // 도전
+}
+
+/**
+ * 어제의 3대 목표 달성 결과 상세 스냅샷
+ */
+data class YesterdayGoalResult(
+    val dateString: String,
+    val hasGoal: Boolean = false,
+    // 1. 코어 지수 방어 목표
+    val scoreTarget: Int = 70,
+    val finalScore: Int = 80,
+    val isScoreAchieved: Boolean = true,
+    // 2. 특정 앱 사용 제한 목표
+    val targetPackageName: String? = null,
+    val targetAppName: String = "",
+    val appLimitMinutes: Int = 30,
+    val finalAppUsageMinutes: Int = 0,
+    val isAppLimitAchieved: Boolean = true,
+    // 3. 잠금해제 조절 목표
+    val unlockLimitTarget: Int = 40,
+    val finalUnlockCount: Int = 0,
+    val isUnlockLimitAchieved: Boolean = true,
+    // 종합 달성 계산
+    val achievedCount: Int = 0,
+    val totalGoalCount: Int = 3,
+    val isStreakMaintained: Boolean = false, // 2개 이상 달성 시 메인 스트릭 유지
+    val isPerfectDay: Boolean = false        // 유효 목표 모두 달성 시
+)
+
+/**
+ * 스트릭 및 자유권 보상 관리 상태
+ */
+data class GoalRewardState(
+    val currentStreak: Int = 0,              // 연속 방어 스트릭 일수 (2개 이상 달성 시 유지)
+    val perfectStamps: Int = 0,              // 퍼펙트 데이 스탬프 (0..2, 3개 모이면 자유권 1장 지급)
+    val availableFreePasses: Int = 0,        // 보유 중인 15분 자유권 (최대 2장)
+    val activeFreePassUntil: Long = 0L,      // 현재 활성화된 자유권 만료 시각 (Epoch millis)
+    val lastProcessedDate: String? = null    // 보상이 정산된 마지막 활동일 (yyyy-MM-dd)
+) {
+    val isFreePassActive: Boolean
+        get() = activeFreePassUntil > System.currentTimeMillis()
+
+    val remainingFreePassSeconds: Long
+        get() = if (isFreePassActive) ((activeFreePassUntil - System.currentTimeMillis()) / 1000L).coerceAtLeast(0L) else 0L
+}
+

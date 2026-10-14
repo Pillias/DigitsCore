@@ -125,6 +125,105 @@ class DailyGoalTest {
         assertEquals(64L, candidate.recentAvgMinutes)
         assertTrue(candidate.isRoutineHeavy)
     }
+
+    @Test
+    fun testGoalDifficultyAdjustment() {
+        val baseGoal = DailyGoal(
+            dateString = "2026-10-14",
+            scoreTarget = 70,
+            appLimitMinutes = 30,
+            unlockLimitTarget = 50
+        )
+
+        // NORMAL: unchanged
+        val normal = com.digitscore.app.data.DailyGoalStore.applyDifficulty(baseGoal, GoalDifficulty.NORMAL)
+        assertEquals(70, normal.scoreTarget)
+        assertEquals(30, normal.appLimitMinutes)
+        assertEquals(50, normal.unlockLimitTarget)
+
+        // EASY: score -5, app +10m, unlock +10x
+        val easy = com.digitscore.app.data.DailyGoalStore.applyDifficulty(baseGoal, GoalDifficulty.EASY)
+        assertEquals(65, easy.scoreTarget)
+        assertEquals(40, easy.appLimitMinutes)
+        assertEquals(60, easy.unlockLimitTarget)
+
+        // HARD: score +5, app -10m, unlock -10x
+        val hard = com.digitscore.app.data.DailyGoalStore.applyDifficulty(baseGoal, GoalDifficulty.HARD)
+        assertEquals(75, hard.scoreTarget)
+        assertEquals(20, hard.appLimitMinutes)
+        assertEquals(40, hard.unlockLimitTarget)
+    }
+
+    @Test
+    fun testYesterdayGoalResultEvaluation() {
+        val resultPerfect = YesterdayGoalResult(
+            dateString = "2026-10-13",
+            hasGoal = true,
+            scoreTarget = 70,
+            finalScore = 74,
+            isScoreAchieved = true,
+            targetPackageName = "com.google.android.youtube",
+            targetAppName = "YouTube",
+            appLimitMinutes = 45,
+            finalAppUsageMinutes = 38,
+            isAppLimitAchieved = true,
+            unlockLimitTarget = 60,
+            finalUnlockCount = 55,
+            isUnlockLimitAchieved = true,
+            achievedCount = 3,
+            totalGoalCount = 3,
+            isStreakMaintained = true,
+            isPerfectDay = true
+        )
+        assertTrue(resultPerfect.isStreakMaintained)
+        assertTrue(resultPerfect.isPerfectDay)
+        assertEquals(3, resultPerfect.achievedCount)
+
+        // 2 out of 3 achieved: Streak maintained, but not perfect day
+        val resultPartial = resultPerfect.copy(
+            finalUnlockCount = 65,
+            isUnlockLimitAchieved = false,
+            achievedCount = 2,
+            isPerfectDay = false
+        )
+        assertTrue(resultPartial.isStreakMaintained)
+        assertFalse(resultPartial.isPerfectDay)
+
+        // 1 out of 3 achieved: Streak lost
+        val resultFailed = resultPerfect.copy(
+            finalScore = 65,
+            isScoreAchieved = false,
+            finalUnlockCount = 70,
+            isUnlockLimitAchieved = false,
+            achievedCount = 1,
+            isStreakMaintained = false,
+            isPerfectDay = false
+        )
+        assertFalse(resultFailed.isStreakMaintained)
+        assertFalse(resultFailed.isPerfectDay)
+    }
+
+    @Test
+    fun testGoalRewardStateAndFreePass() {
+        val now = System.currentTimeMillis()
+        val rewardState = GoalRewardState(
+            currentStreak = 5,
+            perfectStamps = 2,
+            availableFreePasses = 1,
+            activeFreePassUntil = now + 10 * 60 * 1000L // 10 minutes from now
+        )
+
+        assertTrue(rewardState.isFreePassActive)
+        assertTrue(rewardState.remainingFreePassSeconds > 0)
+        assertEquals(5, rewardState.currentStreak)
+        assertEquals(2, rewardState.perfectStamps)
+        assertEquals(1, rewardState.availableFreePasses)
+
+        val expiredState = rewardState.copy(activeFreePassUntil = now - 1000L)
+        assertFalse(expiredState.isFreePassActive)
+        assertEquals(0L, expiredState.remainingFreePassSeconds)
+    }
 }
+
 
 

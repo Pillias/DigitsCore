@@ -29,7 +29,6 @@ TrackerForegroundService — 화면 켜짐 중 주기 갱신 및 경계 처리
 
 - `CumulativeScoreEngine`: 누적 점수의 순수 전이 함수. 75점 타겟 중심 피벗 모델, 일반/관리 사용 가속, 화면 OFF 자연 회복을 단일 휴식 모델로 처리합니다.
 - `CumulativeScoreStore`: 암호화 DB에 상태와 처리 커서를 함께 확정합니다. 설정 버전과 이전 점수를 보존하며, UI/예측 계산은 커서를 전진시키지 않습니다.
-- `WakeStepEvidence`: 아침 브리핑 및 목표 수립 팝업 노출을 위한 보조 걸음 감지. 점수 계산을 인위적으로 왜곡하지 않습니다.
 - `RollingScoreCalculator`: 이전 모델 기록의 호환·검증용이며 현재 서비스의 점수를 계산하지 않습니다.
 - `ScoreCalculator`: 기존 자정 기준 계산. 저장 데이터와 기존 설정 호환을 위해 내부에만 남아 있으며 UI에는 노출하지 않습니다.
 - `ScoreRepository`: 서비스가 계산한 누적 점수와 최근 24시간 앱별 사용·화면/관리 시간·언락을 Compose 화면·알림·위젯에 전달하는 프로세스 내 `StateFlow` 저장소입니다.

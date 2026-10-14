@@ -1,12 +1,5 @@
 package com.digitscore.app.ui.dashboard
 
-import android.Manifest
-import android.content.Context
-import android.hardware.Sensor
-import android.hardware.SensorManager
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -29,59 +22,6 @@ import java.time.ZoneId
 import java.util.Locale
 
 @Composable
-fun WakeEvidenceSettings() {
-    val context = LocalContext.current
-    val english = Locale.getDefault().language == "en"
-    val prefs = remember { context.getSharedPreferences("habit_sensor_settings", Context.MODE_PRIVATE) }
-    var enabled by remember { mutableStateOf(prefs.getBoolean("steps_enabled", false)) }
-    val available = remember { (context.getSystemService(Context.SENSOR_SERVICE) as SensorManager)
-        .getDefaultSensor(Sensor.TYPE_STEP_COUNTER) != null }
-    val threshold = remember(enabled) { com.digitscore.app.service.WakeStepAdaptiveManager.getThreshold(context) }
-    val samples = remember(enabled) { com.digitscore.app.service.WakeStepAdaptiveManager.getSampleCount(context) }
-    fun save(value: Boolean) {
-        enabled = value
-        prefs.edit().putBoolean("steps_enabled", value).apply()
-        TrackerForegroundService.refreshNotification(context)
-    }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { save(it) }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (english) "Wake detection · Adaptive steps" else "기상 판단 · 적응형 걸음 보조",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
-                Switch(enabled = available, checked = enabled, onCheckedChange = { value ->
-                    if (value && Build.VERSION.SDK_INT >= 29) permission.launch(Manifest.permission.ACTIVITY_RECOGNITION)
-                    else save(value)
-                })
-            }
-            Text(
-                text = if (!available) {
-                    if (english) "No step counter available. Usage-pattern detection still works." else "걸음 센서가 없습니다. 사용 패턴 기준 판단은 계속 동작합니다."
-                } else if (english) {
-                    "Waking is detected when reaching $threshold steps in 15 minutes (auto-calibrated to 2/3 of your pattern; $samples day(s) recorded). No location or raw step history is stored."
-                } else {
-                    "아침 15분 내 ${threshold}걸음 감지 시 기상 보조 근거로 사용합니다. (3일 이상 측정 시 평소 기상 걸음의 2/3으로 자동 최적화, 현재 ${samples}일 학습됨) 위치나 이동 궤적은 일절 저장하지 않습니다."
-                },
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.outline,
-                lineHeight = 16.sp
-            )
-        }
-    }
-}
-
-@Composable
 fun HabitReviewCard(
     score: Int,
     apps: List<AppUsage>,
@@ -95,18 +35,6 @@ fun HabitReviewCard(
     var morning by remember { mutableStateOf(false) }
     var suggestion by remember { mutableStateOf<AppUsage?>(null) }
     var revision by remember { mutableIntStateOf(0) }
-    val prefs = remember { context.getSharedPreferences("habit_sensor_settings", Context.MODE_PRIVATE) }
-    var steps by remember { mutableStateOf(prefs.getBoolean("steps_enabled", false)) }
-    val hasStepSensor = remember {
-        (context.getSystemService(Context.SENSOR_SERVICE) as SensorManager)
-            .getDefaultSensor(Sensor.TYPE_STEP_COUNTER) != null
-    }
-    fun setSteps(enabled: Boolean) {
-        prefs.edit().putBoolean("steps_enabled", enabled).apply()
-        steps = enabled
-        TrackerForegroundService.refreshNotification(context)
-    }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { setSteps(it) }
 
     LaunchedEffect(score, apps.map { it.packageName }, revision) {
         val record = db.cumulativeScoreStateDao().get()?.let { CumulativeRecord.decode(it.payload) }
