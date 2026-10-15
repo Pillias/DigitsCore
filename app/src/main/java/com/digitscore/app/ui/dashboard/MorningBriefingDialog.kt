@@ -11,12 +11,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.digitscore.app.data.DailyGoalStore
+import com.digitscore.app.i18n.AppLocale
 import com.digitscore.app.model.DailyGoal
 import com.digitscore.app.model.GoalDifficulty
 import com.digitscore.app.model.GoalRewardState
@@ -43,7 +45,8 @@ fun MorningBriefingDialog(
     onSkipGoal: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val english = Locale.getDefault().language == "en"
+    val context = LocalContext.current
+    val english = AppLocale.currentLanguage(context) == AppLocale.ENGLISH
     val yHours = yesterdaySummary.totalScreenTimeMinutes / 60
     val yMins = yesterdaySummary.totalScreenTimeMinutes % 60
     val yTimeStr = if (yHours > 0) "${yHours}h ${yMins}m" else "${yMins}m"
@@ -122,7 +125,7 @@ fun MorningBriefingDialog(
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
-                                text = if (rewardState.currentStreak > 0) "🔥 ${rewardState.currentStreak}일 스트릭"
+                                text = if (rewardState.currentStreak > 0) (if (english) "🔥 ${rewardState.currentStreak}-Day Streak" else "🔥 ${rewardState.currentStreak}일 스트릭")
                                 else (if (english) "DAY START" else "기상 감지"),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
@@ -152,7 +155,7 @@ fun MorningBriefingDialog(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = if (rewardState.currentStreak > 0) "🔥 ${rewardState.currentStreak}일 연속 방어 중"
+                                text = if (rewardState.currentStreak > 0) (if (english) "🔥 ${rewardState.currentStreak}-Day Streak Active" else "🔥 ${rewardState.currentStreak}일 연속 방어 중")
                                 else (if (english) "New Streak Starting" else "새로운 스트릭 도전"),
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
@@ -163,7 +166,7 @@ fun MorningBriefingDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "🌟 스탬프 ${rewardState.perfectStamps}/3",
+                                    text = if (english) "🌟 Stamps ${rewardState.perfectStamps}/3" else "🌟 스탬프 ${rewardState.perfectStamps}/3",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.primary
@@ -174,7 +177,7 @@ fun MorningBriefingDialog(
                                         color = MaterialTheme.colorScheme.primaryContainer
                                     ) {
                                         Text(
-                                            text = "🎟️ 자유권 ${rewardState.availableFreePasses}장",
+                                            text = if (english) "🎟️ Free Pass x${rewardState.availableFreePasses}" else "🎟️ 자유권 ${rewardState.availableFreePasses}장",
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -432,7 +435,7 @@ fun MorningBriefingDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = if (selectedAppPkg != null) "📱 ${selectedAppName} 절제" else (if (english) "📱 Focus App" else "📱 집중 관리 앱"),
+                                    text = if (selectedAppPkg != null) (if (english) "📱 Limit $selectedAppName" else "📱 ${selectedAppName} 절제") else (if (english) "📱 Focus App" else "📱 집중 관리 앱"),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium
                                 )

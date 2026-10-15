@@ -88,10 +88,16 @@ fun OnboardingScreen(
     }
     var showPrivacyPolicy by remember { mutableStateOf(false) }
 
+    var pendingDashboardNavigation by remember { mutableStateOf(false) }
+
     val notificationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { isGranted ->
             hasNotificationPermission = isGranted
+            if (pendingDashboardNavigation) {
+                pendingDashboardNavigation = false
+                onNavigateToDashboard()
+            }
         }
     )
 
@@ -246,21 +252,22 @@ fun OnboardingScreen(
                         modifier = Modifier.padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
                         Text(
-                            text = if (Locale.getDefault().language == "en") "How DigitsCore Works" else "DigitsCore의 핵심 방식",
+                            text = if (isEn) "How DigitsCore Works" else "DigitsCore의 핵심 방식",
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
                         FeatureItem(
                             icon = "🔄",
-                            title = if (Locale.getDefault().language == "en") "24h Continuous Index" else "자정 리셋 없는 24시간 지수",
-                            desc = if (Locale.getDefault().language == "en") "Reflects continuous rolling 24h habit without midnight reset." else "자정에 초기화되지 않고 최근 24시간의 사용 흐름을 반영합니다."
+                            title = if (isEn) "24h Continuous Index" else "자정 리셋 없는 24시간 지수",
+                            desc = if (isEn) "Reflects continuous rolling 24h habit without midnight reset." else "자정에 초기화되지 않고 최근 24시간의 사용 흐름을 반영합니다."
                         )
                         FeatureItem(
                             icon = "⏱️",
-                            title = if (Locale.getDefault().language == "en") "Rest Recovery" else "연속 사용 관리와 휴식 회복",
-                            desc = if (Locale.getDefault().language == "en") "30+ min continuous use accelerates load; screen-off breaks recover." else "30분 이상 연속 사용 시 부하가 커지며, 폰을 끄고 쉴 때 점수가 회복됩니다."
+                            title = if (isEn) "Rest Recovery" else "연속 사용 관리와 휴식 회복",
+                            desc = if (isEn) "30+ min continuous use accelerates load; screen-off breaks recover." else "30분 이상 연속 사용 시 부하가 커지며, 폰을 끄고 쉴 때 점수가 회복됩니다."
                         )
                     }
                 }
@@ -273,6 +280,9 @@ fun OnboardingScreen(
                 onClick = {
                     if (!hasUsagePermission) {
                         launchUsageAccessSettings(context)
+                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission && !pendingDashboardNavigation) {
+                        pendingDashboardNavigation = true
+                        notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                     } else {
                         onNavigateToDashboard()
                     }

@@ -279,27 +279,11 @@ class TrackerForegroundService : Service() {
                     db, System.currentTimeMillis(), awake = true, acknowledge = true
                 )
 
-                withContext(Dispatchers.Main) {
-                    triggerMorningBriefingPopup()
-                }
+                // 비침해적 사용자 경험을 위해 백그라운드 startActivity 대신 고우선순위 헤드업 알림을 표시합니다.
+                // 사용자가 알림을 탭하거나 앱을 직접 열 때 대시보드에서 아침 브리핑 다이얼로그가 자동 실행됩니다.
+                ScoreNotificationManager.showMorningBriefingHeadsUpNotification(applicationContext)
             }
         }
-    }
-
-    private fun triggerMorningBriefingPopup() {
-        try {
-            val launchIntent = Intent(applicationContext, com.digitscore.app.ui.MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP
-                putExtra(com.digitscore.app.ui.MainActivity.EXTRA_SHOW_MORNING_BRIEFING, true)
-            }
-            applicationContext.startActivity(launchIntent)
-        } catch (e: Exception) {
-            android.util.Log.w("TrackerService", "Direct activity start failed: ${e.message}")
-        }
-        // OS 백그라운드 시작 제약 대응을 위해 고우선순위 헤드업 알림을 함께 표시
-        ScoreNotificationManager.showMorningBriefingHeadsUpNotification(applicationContext)
     }
 
     private fun startPeriodicTracking() {

@@ -642,14 +642,14 @@ private fun ThreeGoalsDashboardCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (rewardState.currentStreak > 0) "🔥 ${rewardState.currentStreak}일 연속 방어 중"
+                    text = if (rewardState.currentStreak > 0) (if (isEn) "🔥 ${rewardState.currentStreak}-Day Streak" else "🔥 ${rewardState.currentStreak}일 연속 방어 중")
                     else (if (isEn) "Start your streak today!" else "새로운 스트릭에 도전하세요!"),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = if (rewardState.currentStreak > 0) ScoreOrange else MaterialTheme.colorScheme.outline
                 )
                 Text(
-                    text = "🌟 스탬프 ${rewardState.perfectStamps}/3",
+                    text = if (isEn) "🌟 Stamps ${rewardState.perfectStamps}/3" else "🌟 스탬프 ${rewardState.perfectStamps}/3",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary
@@ -1110,7 +1110,7 @@ private fun TodayCoreIndexSparklineCard(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        val isEn = Locale.getDefault().language == "en"
+                        val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
                         Text(
                             text = if (isEn) "Core Index Trend (Last 7 Days)" else "최근 7일 코어 지수 변화",
                             style = MaterialTheme.typography.titleMedium,
@@ -1128,7 +1128,7 @@ private fun TodayCoreIndexSparklineCard(
                             )
                         }
                     }
-                    val isEn = Locale.getDefault().language == "en"
+                    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
                     val nowMillis = System.currentTimeMillis()
                     val target24hAgo = nowMillis - 24 * 3600_000L
                     val sample24hAgo = samples.minByOrNull { kotlin.math.abs(it.timestampMillis - target24hAgo) }?.score ?: currentScore
@@ -1140,9 +1140,15 @@ private fun TodayCoreIndexSparklineCard(
                     }
                     val minScore = samples.minOfOrNull { it.score } ?: currentScore
                     val maxScore = samples.maxOfOrNull { it.score } ?: currentScore
+                    val summaryText = if (samples.size < 2) {
+                        if (isEn) "Live tracking started · Current score: ${currentScore} pts"
+                        else "실시간 추적 시작 · 현재 코어 지수 ${currentScore}점"
+                    } else {
+                        if (isEn) "24h ago: ${sample24hAgo} pts → Now: ${currentScore} pts (${diffStr}) · High: ${maxScore} pts"
+                        else "24시간 전 ${sample24hAgo}점 → 현재 ${currentScore}점 (${diffStr}) · 최고 ${maxScore}점"
+                    }
                     Text(
-                        text = if (isEn) "24h ago: ${sample24hAgo} pts → Now: ${currentScore} pts (${diffStr}) · High: ${maxScore} pts"
-                        else "24시간 전 ${sample24hAgo}점 → 현재 ${currentScore}점 (${diffStr}) · 최고 ${maxScore}점",
+                        text = summaryText,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1183,7 +1189,7 @@ private fun TodayCoreIndexSparklineCard(
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    val isEn = Locale.getDefault().language == "en"
+                    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
                     Text(
                         text = if (isEn) "Full Stats" else "상세 통계",
                         style = MaterialTheme.typography.labelSmall,
@@ -1204,8 +1210,43 @@ private fun TodayCoreIndexSparklineCard(
                 }
             }
 
-            val timelineDays = 7
-            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            if (samples.size < 2) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = "🌱",
+                            fontSize = 20.sp
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
+                            Text(
+                                text = if (isEn) "Live tracking started" else "실시간 추적을 시작했습니다",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (isEn) "Score trend graph will appear after 5 minutes of usage."
+                                else "5분 뒤부터 점수 변화 그래프가 기록됩니다.",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
+                }
+            } else {
+                val timelineDays = 7
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                 val viewportWidth = maxWidth
                 val chartWidth = maxOf(viewportWidth, viewportWidth * timelineDays)
 
@@ -1377,7 +1418,7 @@ private fun TodayCoreIndexSparklineCard(
                                 val paintRed = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                                     color = ScoreRed.toArgb(); textSize = 9.sp.toPx(); isFakeBoldText = true
                                 }
-                                val isEn = Locale.getDefault().language == "en"
+                                val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
                                 maxSample?.let { s ->
                                     val mx = xPos(s.timestampMillis)
                                     val my = yPos(s.exactScore)
@@ -1436,7 +1477,7 @@ private fun TodayCoreIndexSparklineCard(
                             .padding(top = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        val isEn = Locale.getDefault().language == "en"
+                        val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
                         (6 downTo 1).forEach { daysAgo ->
                             val t = nowInstant.minusSeconds(daysAgo * 86400L).atZone(zone)
                             val isYesterday = daysAgo == 1
@@ -1459,9 +1500,10 @@ private fun TodayCoreIndexSparklineCard(
             }
         }
     }
+}
 
     if (showChartHelp) {
-        val isEn = Locale.getDefault().language == "en"
+        val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
         AlertDialog(
             onDismissRequest = { showChartHelp = false },
             title = { Text(if (isEn) "Core Index Trend Guide" else "코어 지수 변화 차트 안내", fontWeight = FontWeight.Bold, fontSize = 16.sp) },

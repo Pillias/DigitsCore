@@ -124,7 +124,7 @@ object ScoreNotificationManager {
                 goal.appLimitMinutes
             )
         } else if (goal.unlockProgressRatio >= 0.8f) {
-            val isEn = Locale.getDefault().language == "en"
+            val isEn = AppLocale.currentLanguage(context) == AppLocale.ENGLISH
             if (isEn) "Unlocks: ${goal.currentUnlockCount} / ${goal.unlockLimitTarget}x (80% reached)"
             else "언락: ${goal.currentUnlockCount} / ${goal.unlockLimitTarget}x (80% 도달)"
         } else {
@@ -379,7 +379,7 @@ object ScoreNotificationManager {
             defenseLine
         }
         val pointsNeeded = (stepTarget - score).coerceAtLeast(1)
-        val isEn = Locale.getDefault().language == "en"
+        val isEn = AppLocale.currentLanguage(context) == AppLocale.ENGLISH
         val recMinutes = guidance?.recoveryMinutes
         val recoveryActionLong = if (recMinutes != null && recMinutes > 0) {
             strings.getString(R.string.action_rest_recovery_long, recMinutes, stepTarget)
@@ -511,7 +511,7 @@ object ScoreNotificationManager {
     ): String {
         // 1. 오늘의 설정/배정된 3대 목표(코어 지수, 앱 1개 제한, 잠금해제 횟수) 진행 상태 안내
         if (dailyGoal != null && !dailyGoal.isDismissed) {
-            val isEn = Locale.getDefault().language == "en"
+            val isEn = AppLocale.currentLanguage(strings) == AppLocale.ENGLISH
             val diff = (dailyGoal.scoreTarget - score).coerceAtLeast(0)
             val scorePart = if (diff > 0) {
                 if (isEn) "Target ${dailyGoal.scoreTarget}P (+${diff}P)"
