@@ -102,8 +102,8 @@ enum class PresetMode(
         scoreRule = ScoreRule()
     );
 
-    val title: String get() = if (java.util.Locale.getDefault().language == "en") englishTitle else koreanTitle
-    val description: String get() = if (java.util.Locale.getDefault().language == "en") englishDescription else koreanDescription
+    val title: String get() = if (com.digitscore.app.i18n.AppLocale.isCurrentEnglish) englishTitle else koreanTitle
+    val description: String get() = if (com.digitscore.app.i18n.AppLocale.isCurrentEnglish) englishDescription else koreanDescription
 
     companion object {
         fun fromId(id: String): PresetMode {

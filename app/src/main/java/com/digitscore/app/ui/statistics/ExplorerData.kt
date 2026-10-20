@@ -55,6 +55,81 @@ internal fun explorerBuckets(
     return result
 }
 
+internal fun explorerWeekdayBuckets(
+    dailyBuckets: List<ExplorerBucket>,
+    zone: ZoneId = ZoneId.systemDefault()
+): List<ExplorerBucket> {
+    val byDayOfWeek = (1..7).associateWith { dayVal ->
+        dailyBuckets.filter { b ->
+            Instant.ofEpochMilli(b.start).atZone(zone).dayOfWeek.value == dayVal
+        }
+    }
+    return (1..7).map { dayVal ->
+        val days = byDayOfWeek[dayVal].orEmpty()
+        val scoredDays = days.filter { it.score != null }
+        val score = if (scoredDays.isNotEmpty()) {
+            val model = scoredDays.last().score?.model ?: 5
+            val avgFirst = scoredDays.mapNotNull { it.score?.first }.average()
+            val avgLast = scoredDays.mapNotNull { it.score?.last }.average()
+            val minLow = scoredDays.mapNotNull { it.score?.low }.minOrNull() ?: avgFirst
+            val maxHigh = scoredDays.mapNotNull { it.score?.high }.maxOrNull() ?: avgLast
+            ScoreHourEntity(
+                hour = (dayVal - 1).toLong(),
+                model = model,
+                firstAt = (dayVal - 1).toLong(),
+                lastAt = (dayVal - 1).toLong(),
+                first = avgFirst,
+                last = avgLast,
+                low = minLow,
+                high = maxHigh
+            )
+        } else null
+
+        val usageDays = days.filter { it.usage != null }
+        val avgUsage = if (usageDays.isNotEmpty()) {
+            usageDays.mapNotNull { it.usage }.sum() / usageDays.size
+        } else null
+
+        val avgManaged = if (usageDays.isNotEmpty()) {
+            usageDays.sumOf { it.managed } / usageDays.size
+        } else 0L
+
+        val unlockDays = days.filter { it.unlocks != null }
+        val avgUnlocks = if (unlockDays.isNotEmpty()) {
+            kotlin.math.round((unlockDays.mapNotNull { it.unlocks }.sum().toFloat() / unlockDays.size)).toInt()
+        } else null
+
+        val activeDays = days.filter { it.usage != null || it.unlocks != null || it.score != null }
+        val avgShortOpens = if (activeDays.isNotEmpty()) {
+            kotlin.math.round((activeDays.sumOf { it.shortOpens }.toFloat() / activeDays.size)).toInt()
+        } else 0
+
+        val lossDays = days.filter { it.loss != null }
+        val avgLoss = if (lossDays.isNotEmpty()) {
+            lossDays.mapNotNull { it.loss }.average()
+        } else null
+
+        val recoveryDays = days.filter { it.recovery != null }
+        val avgRecovery = if (recoveryDays.isNotEmpty()) {
+            days.mapNotNull { it.recovery }.average()
+        } else null
+
+        val weekdayIndex = (dayVal - 1).toLong() // 0 = Mon, 6 = Sun
+        ExplorerBucket(
+            start = weekdayIndex,
+            end = weekdayIndex + 1L,
+            score = score,
+            usage = avgUsage,
+            managed = avgManaged,
+            opens = null,
+            shortOpens = avgShortOpens,
+            unlocks = avgUnlocks,
+            loss = avgLoss,
+            recovery = avgRecovery
+        )
+    }
+}
+
 internal data class ExplorerApp(
     val pkg: String, val name: String, val usage: Long, val opens: Int, val shortOpens: Int,
     val loss: Double?, val impactFrom: Long?, val impactUntil: Long?

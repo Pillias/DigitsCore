@@ -10,8 +10,10 @@ enum class PresetSensitivity(
     STANDARD("표준", "Standard"),
     SENSITIVE("강화", "Sensitive");
 
+    fun label(isEn: Boolean): String = if (isEn) englishLabel else koreanLabel
+
     val label: String
-        get() = if (Locale.getDefault().language == "en") englishLabel else koreanLabel
+        get() = label(com.digitscore.app.i18n.AppLocale.isCurrentEnglish)
 }
 
 /** 최근 24시간 코어 지수에 직접 적용되는 프리셋입니다. */
@@ -154,23 +156,29 @@ enum class CoreIndexPreset(
         sleepRecoveryMaxEquivalentMinutes = 75L
     );
 
+    fun title(isEn: Boolean): String = if (isEn) englishTitle else koreanTitle
+
+    fun description(isEn: Boolean): String = if (isEn) englishDescription else koreanDescription
+
+    fun sensitivitySummary(isEn: Boolean): String = if (this == BALANCED) {
+        if (isEn) "Cumulative · 30-minute acceleration · Screen-off natural recovery"
+        else "누적 점수 · 30분부터 가속 · 화면 휴식 시 자연 회복"
+    } else if (isEn) {
+        "Overall ${overallSensitivity.label(true)} · Continuous ${continuousSensitivity.label(true)} · " +
+            "Night ${lateNightSensitivity.label(true)} · Unlocks ${unlockSensitivity.label(true)}"
+    } else {
+        "전체 사용 ${overallSensitivity.label(false)} · 연속 사용 ${continuousSensitivity.label(false)} · " +
+            "심야 ${lateNightSensitivity.label(false)} · 언락 ${unlockSensitivity.label(false)}"
+    }
+
     val title: String
-        get() = if (Locale.getDefault().language == "en") englishTitle else koreanTitle
+        get() = title(com.digitscore.app.i18n.AppLocale.isCurrentEnglish)
 
     val description: String
-        get() = if (Locale.getDefault().language == "en") englishDescription else koreanDescription
+        get() = description(com.digitscore.app.i18n.AppLocale.isCurrentEnglish)
 
     val sensitivitySummary: String
-        get() = if (this == BALANCED) {
-            if (Locale.getDefault().language == "en") "Cumulative · 30-minute acceleration · Screen-off natural recovery"
-            else "누적 점수 · 30분부터 가속 · 화면 휴식 시 자연 회복"
-        } else if (Locale.getDefault().language == "en") {
-            "Overall ${overallSensitivity.label} · Continuous ${continuousSensitivity.label} · " +
-                "Night ${lateNightSensitivity.label} · Unlocks ${unlockSensitivity.label}"
-        } else {
-            "전체 사용 ${overallSensitivity.label} · 연속 사용 ${continuousSensitivity.label} · " +
-                "심야 ${lateNightSensitivity.label} · 언락 ${unlockSensitivity.label}"
-        }
+        get() = sensitivitySummary(com.digitscore.app.i18n.AppLocale.isCurrentEnglish)
 
     companion object {
         fun fromId(id: String): CoreIndexPreset = entries.firstOrNull { it.id == id } ?: BALANCED

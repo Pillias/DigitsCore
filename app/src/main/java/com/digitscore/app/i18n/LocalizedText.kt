@@ -4,14 +4,19 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.sp
 import java.util.Locale
 
 /** 기존 Compose 문구도 앱 언어 전환에 즉시 참여시키는 공통 Text입니다. */
@@ -37,6 +42,47 @@ fun Text(
 ) {
     androidx.compose.material3.Text(
         text = UiTranslator.translate(text),
+        modifier = modifier,
+        color = color,
+        fontSize = fontSize,
+        fontStyle = fontStyle,
+        fontWeight = fontWeight,
+        fontFamily = fontFamily,
+        letterSpacing = letterSpacing,
+        textDecoration = textDecoration,
+        textAlign = textAlign,
+        lineHeight = lineHeight,
+        overflow = overflow,
+        softWrap = softWrap,
+        maxLines = maxLines,
+        minLines = minLines,
+        onTextLayout = onTextLayout,
+        style = style
+    )
+}
+
+@Composable
+fun Text(
+    text: AnnotatedString,
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified,
+    fontSize: TextUnit = TextUnit.Unspecified,
+    fontStyle: FontStyle? = null,
+    fontWeight: FontWeight? = null,
+    fontFamily: FontFamily? = null,
+    letterSpacing: TextUnit = TextUnit.Unspecified,
+    textDecoration: TextDecoration? = null,
+    textAlign: TextAlign? = null,
+    lineHeight: TextUnit = TextUnit.Unspecified,
+    overflow: TextOverflow = TextOverflow.Clip,
+    softWrap: Boolean = true,
+    maxLines: Int = Int.MAX_VALUE,
+    minLines: Int = 1,
+    onTextLayout: (TextLayoutResult) -> Unit = {},
+    style: androidx.compose.ui.text.TextStyle = LocalTextStyle.current
+) {
+    androidx.compose.material3.Text(
+        text = text,
         modifier = modifier,
         color = color,
         fontSize = fontSize,
@@ -193,17 +239,16 @@ object UiTranslator {
             "The last \$1-day average decreased \$2% from the previous period.",
         Regex("최근 (\\d+)일에 새 사용 기록이 생겼습니다\\.") to
             "New usage was recorded within the last \$1 days.",
-        Regex("🌙 심야 사용 (-?\\d+(?:\\.\\d+)?)분") to "🌙 Late-night use: $1 min",
         Regex("심야 사용 (-?\\d+(?:\\.\\d+)?)분") to "Late-night use: $1 min",
         Regex("나머지 (\\d+)개 앱 모두 보기") to "View remaining $1 apps",
         Regex("전체 (\\d+)개") to "All $1",
         Regex("전체 (\\d+)개 앱") to "All $1 Apps",
         Regex("전체 앱 목록 \\((\\d+)개\\)") to "All Installed Apps ($1)",
         Regex("현재 (\\d+)P / 목표 (\\d+)P \\(\\+([\\d]+)P 필요\\)") to "Current $1P / Target $2P (+$3P needed)",
-        Regex("현재 (\\d+)P / 목표 (\\d+)P \\(달성 🎉\\)") to "Current $1P / Target $2P (Achieved 🎉)",
-        Regex("(\\d+) / (\\d+)분 \\((\\d+)분 초과 ⚠️\\)") to "$1 / $2 min ($3 min over ⚠️)",
+        Regex("현재 (\\d+)P / 목표 (\\d+)P \\(달성 ✓\\)") to "Current $1P / Target $2P (Achieved ✓)",
+        Regex("(\\d+) / (\\d+)분 \\((\\d+)분 초과 !\\)") to "$1 / $2 min ($3 min over !)",
         Regex("(\\d+) / (\\d+)분 \\((\\d+)%\\)") to "$1 / $2 min ($3%)",
-        Regex("(\\d+) / (\\d+)회 \\((\\d+)회 초과 ⚠️\\)") to "$1 / $2 unlocks ($3 over ⚠️)",
+        Regex("(\\d+) / (\\d+)회 \\((\\d+)회 초과 !\\)") to "$1 / $2 unlocks ($3 over !)",
         Regex("(\\d+) / (\\d+)회 \\((\\d+)%\\)") to "$1 / $2 unlocks ($3%)",
         Regex("(\\d+)시간 전 (\\d+)점 → 현재 (\\d+)점 \\((.+)\\) · 최고 (\\d+)점") to "$1h ago: $2 pts → Now: $3 pts ($4) · High: $5 pts",
         Regex("현재 (\\d+)점 · (.+) \\((.+)\\)") to "Current $1 pts · $2 ($3)",
@@ -222,6 +267,7 @@ object UiTranslator {
         "화면 휴식" to "Screen Rest",
         "심야 균형" to "Night Balance",
         "가족 보호" to "Family Guard",
+        "충분한 데이터 축적 후 추후 제공 예정" to "Coming in a future update after data collection",
         "지금의 한 가지 제안" to "One suggestion now",
         "오늘의 사용 흐름" to "Today's Usage Pattern",
         "지수가 움직인 이유" to "Why the index moved",
@@ -565,12 +611,20 @@ object UiTranslator {
         "숫자 분리형" to "Separated Number",
         "상단 스템을 컴팩트하게 올리고, 굵은 아웃라인 숫자를 중앙에 크게 표시합니다." to
             "Moves the top stem up and shows a large bold outlined score in the center.",
+        "전원 링 안에 현재 점수를 크게 표시합니다." to
+            "Shows large score digits inside the power ring.",
         "여백을 최소화한 볼드 전원 심볼에 점수 비율(빨강 바탕+녹색 호)을 채웁니다." to
             "Fills the full-bleed bold power symbol with the score ratio (red base + green arc).",
+        "전원 링의 채움 비율로 점수를 표시합니다." to
+            "Fills the power ring proportionally with your score.",
         "여백을 최소화한 볼드 전원 심볼 전체가 점수 구간색으로 표시됩니다." to
             "Displays the full-bleed bold power symbol in the score tier color.",
+        "전원 링 전체를 점수 구간 색상으로 표시합니다." to
+            "Shows the entire power ring in your score tier color.",
         "볼드 전원 심볼 옆에 고대비 외곽선 숫자를 분리하여 표시합니다." to
             "Displays a high-contrast outlined score beside a bold power symbol.",
+        "전원 아이콘 옆에 점수 숫자를 나란히 표시합니다." to
+            "Shows score digits right next to the power icon.",
         "큰 점수 크기는 유지하고, 점수 구간에 맞는 고대비 단색으로 숫자와 전원 원호를 표시합니다." to
             "Keeps the large score and uses one high-contrast tier color for both the number and power arc.",
         "빨간 원호 위를 현재 점수만큼 녹색이 채웁니다. 중앙 막대는 점수 구간색으로 바뀝니다." to
@@ -581,6 +635,9 @@ object UiTranslator {
             "Shows a large outlined score beside a small power symbol.",
         "점수 구간: 0–39 빨강 · 40–59 주황 · 60–79 노랑 · 80–100 초록" to
             "Score tiers: 0–39 red · 40–59 orange · 60–79 yellow · 80–100 green",
+        "오늘의 시작" to "Today's Start",
+        "최다 사용" to "Most Used",
+        "오늘의 추천 목표" to "TODAY'S GOALS",
         "개인 목표 방어선" to "Personal Score Target",
         "개인 목표 기준선" to "Personal Targets",
         "점수 안내와 언락 기준을 본인의 생활 패턴에 맞춥니다." to
@@ -813,8 +870,8 @@ object UiTranslator {
         "상세 통계" to "Full Stats",
         "상세통계" to "Full Stats",
         "목표 언락 횟수 설정" to "Set Unlock Target",
-        "⭐ 주요 관리 대상 (하일라이트 앱)" to "⭐ Key Highlight Apps",
-        "📱 전체 앱 목록" to "📱 All Installed Apps",
+        "주요 관리 대상 (하이라이트 앱)" to "Key Highlight Apps",
+        "전체 앱 목록" to "All Installed Apps",
         "최근 24시간 전체 앱 목록" to "All Apps · Last 24 Hours",
         "안정 구간" to "Stable",
         "보통 구간" to "Moderate",
@@ -826,7 +883,7 @@ object UiTranslator {
     )
 
     fun translate(source: String): String {
-        if (Locale.getDefault().language != "en") return source
+        if (!AppLocale.isCurrentEnglish && Locale.getDefault().language != "en") return source
         exactReplacements[source]?.let { return it }
         var result = source
         dynamicEnglishReplacements.forEach { (pattern, replacement) ->
@@ -891,3 +948,41 @@ object UiTranslator {
         return result
     }
 }
+
+/**
+ * 분(Minutes) 단위를 직관적이고 가독성 높은 영문 단위 문자열("Xmin")로 변환합니다.
+ */
+fun formatReadableMinutes(
+    minutes: Long,
+    isEn: Boolean = true,
+    compact: Boolean = false
+): String = "${minutes.coerceAtLeast(0L)}min"
+
+/**
+ * 숫자는 본래 크기·굵기로, 뒤의 "min" 단위만 작은 글씨로 렌더링하는 AnnotatedString 헬퍼입니다.
+ */
+fun formatMinutesSmallUnit(minutes: Long, unitSize: TextUnit = 9.sp): AnnotatedString = buildAnnotatedString {
+    append("${minutes.coerceAtLeast(0L)}")
+    withStyle(SpanStyle(fontSize = unitSize, fontWeight = FontWeight.Medium)) {
+        append("min")
+    }
+}
+
+/**
+ * 목표치 대비 분("현재/목표min [suffix]")을 렌더링하는 AnnotatedString 헬퍼입니다.
+ */
+fun formatGoalMinutesSmallUnit(
+    currentMins: Int,
+    limitMins: Int,
+    suffix: String = "",
+    unitSize: TextUnit = 8.5.sp
+): AnnotatedString = buildAnnotatedString {
+    append("${currentMins.coerceAtLeast(0)}/${limitMins.coerceAtLeast(0)}")
+    withStyle(SpanStyle(fontSize = unitSize, fontWeight = FontWeight.Medium)) {
+        append("min")
+    }
+    if (suffix.isNotEmpty()) {
+        append(suffix)
+    }
+}
+

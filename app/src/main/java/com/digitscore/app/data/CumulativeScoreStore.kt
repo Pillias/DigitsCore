@@ -25,6 +25,7 @@ data class CumulativeRecord(
         put("momentum", checkpoint.state.useMomentumMinutes)
         put("rest", checkpoint.state.awakeRestMinutes)
         put("burden", checkpoint.state.recoveryBurden)
+        put("exemptMomentum", checkpoint.state.exemptMomentumMinutes)
         put("wake", wakeConfirmedAt)
         put("restingUntil", restingConfirmedUntil)
         put("briefing", briefingHandledAt)
@@ -43,9 +44,10 @@ data class CumulativeRecord(
             val q = obj.getDouble("momentum")
             val r = obj.getDouble("rest")
             val b = obj.getDouble("burden")
+            val em = obj.optDouble("exemptMomentum", 0.0)
             require(s.isFinite() && s in 0.0..100.0)
-            require(listOf(q, r, b).all { it.isFinite() && it >= 0.0 })
-            return CumulativeRecord(CumulativeCheckpoint(timestamp, CumulativeScoreState(s, q, r, b)),
+            require(listOf(q, r, b, em).all { it.isFinite() && it >= 0.0 })
+            return CumulativeRecord(CumulativeCheckpoint(timestamp, CumulativeScoreState(s, q, r, b, em)),
                 ver, obj.getLong("startedAt"), obj.optLong("wake"),
                 obj.optLong("restingUntil"), obj.optLong("briefing"),
                 obj.optJSONObject("suggestions")?.let { map ->
@@ -84,19 +86,36 @@ object CumulativeScoreStore {
         }).coerceAtMost(maxOf(settledEnd, record.checkpoint.timestamp))
         val start = record.checkpoint.copy(timestamp = processStart)
         fun asUse(it: com.digitscore.app.data.entity.ForegroundUsageSessionEntity) =
-            CumulativeUse(it.startTimeMillis, it.endTimeMillis, it.effectiveCategoryLevel >= 3,
-                "${it.packageName}:${it.sessionStartTimeMillis}", it.sessionStartTimeMillis,
-                it.packageName, it.effectivePackageName,
-                exempt = (it.effectiveCategoryLevel <= 0))
+            CumulativeUse(
+                start = it.startTimeMillis,
+                end = it.endTimeMillis,
+                managed = it.effectiveCategoryLevel >= 3,
+                openingId = "${it.packageName}:${it.sessionStartTimeMillis}",
+                openedAt = it.sessionStartTimeMillis,
+                packageName = it.packageName,
+                effectivePackageName = it.effectivePackageName,
+                exempt = (it.effectiveCategoryLevel <= 0),
+                studyExempt = com.digitscore.app.model.AppCategoryPolicy.isStudyOrReadingPackage(it.effectivePackageName.ifBlank { it.packageName }),
+                unlimitedExempt = com.digitscore.app.model.AppCategoryPolicy.isNavigationOrCallPackage(it.effectivePackageName.ifBlank { it.packageName })
+            )
         // Incremental scoring query: only cursor look-behind, not a fresh full-day/full-week score replay.
         val uses = db.foregroundUsageSessionDao().getSince(processStart - 5 * 60_000L).map(::asUse)
         val movements = mutableListOf<ScoreMovement>()
-        val next = CumulativeTimeline.advance(start, settledEnd, uses, { _ ->
-            CumulativeActivity.AWAKE_REST
+        val window = RestPhasePolicy.learn(uses, zone)
+        val lateAnchor = RestPhasePolicy.lateSleepAnchor(uses, zone) ?: record.lateSleepAnchorAt
+        val next = CumulativeTimeline.advance(start, settledEnd, uses, { ts ->
+            RestPhasePolicy.activityAt(
+                timestamp = ts,
+                window = window,
+                zone = zone,
+                wakeConfirmedAt = record.wakeConfirmedAt,
+                restingConfirmedUntil = record.restingConfirmedUntil,
+                lateSleepAnchorAt = lateAnchor
+            )
         }, onMovement = { movements.add(it) })
         // Attribution and cursor commit together: re-polling/restarting cannot charge twice.
         StatisticsStore.recordMovements(db, movements)
-        val updated = record.copy(checkpoint = next)
+        val updated = record.copy(checkpoint = next, lateSleepAnchorAt = lateAnchor)
         dao.put(CumulativeScoreStateEntity(payload = updated.encode()))
         updated to detail(updated, sleeping = false)
     }

@@ -109,6 +109,11 @@ internal object ForegroundUsageAggregator {
                 )
             }
         }
+        val lastSessionStartByPackage = mutableMapOf<String, Pair<Long, Long>>() // packageName -> (sessionStartTimeMillis, lastEndMillis)
+        initialState.visibleActivities.forEach { act ->
+            lastSessionStartByPackage[act.packageName] = Pair(act.sessionStartTimeMillis, act.lastActivatedMillis)
+        }
+        var lastUserPackage: String? = initialState.activePackage?.takeIf { it !in UsageStatsHelper.IGNORED_SYSTEM_PACKAGES }
         var screenInteractive = initialState.screenInteractive
         var keyguardHidden = initialState.keyguardHidden
         var cursor = startTimeMillis
@@ -134,9 +139,9 @@ internal object ForegroundUsageAggregator {
                 eventClass == activity.className
         }
 
-        fun selectFallbackPrimary() {
+        fun selectFallbackPrimary(pausedPackage: String? = activePackage) {
             val fallback = visibleActivities
-                .filter { it.isResumed }
+                .filter { it.isResumed && (pausedPackage == null || it.packageName == pausedPackage) }
                 .maxByOrNull { it.lastActivatedMillis }
             activePackage = fallback?.packageName
             activeClass = fallback?.className
@@ -224,19 +229,47 @@ internal object ForegroundUsageAggregator {
                 ForegroundTimelineEventType.APP_RESUMED -> {
                     val packageName = event.packageName
                     if (!packageName.isNullOrBlank()) {
+                        val isUserApp = packageName !in UsageStatsHelper.IGNORED_SYSTEM_PACKAGES
+                        if (isUserApp) {
+                            if (lastUserPackage != null && lastUserPackage != packageName) {
+                                lastSessionStartByPackage.clear()
+                            }
+                            lastUserPackage = packageName
+                        }
+
+                        visibleActivities.removeAll {
+                            it.packageName != packageName && !it.isResumed &&
+                                (event.timestampMillis - it.lastActivatedMillis) > 10_000L
+                        }
+                        for (i in visibleActivities.indices) {
+                            val act = visibleActivities[i]
+                            if (act.packageName != packageName && act.isResumed) {
+                                visibleActivities[i] = act.copy(isResumed = false)
+                            }
+                        }
+
                         val existingIndex = visibleActivities.indexOfFirst { matchesActivity(it, event) }
                         val existingPackageSessionStart = visibleActivities
                             .filter { it.packageName == packageName }
                             .maxByOrNull { it.lastActivatedMillis }
                             ?.sessionStartTimeMillis
+                        val prevSession = lastSessionStartByPackage[packageName]
+                        val sessionStart = if (existingPackageSessionStart != null) {
+                            existingPackageSessionStart
+                        } else if (prevSession != null && (event.timestampMillis - prevSession.second) <= 120_000L) {
+                            prevSession.first
+                        } else {
+                            event.timestampMillis
+                        }
+
                         val resumed = ForegroundActivityState(
                             packageName = packageName,
                             className = event.className,
                             instanceId = event.instanceId,
                             isResumed = true,
                             lastActivatedMillis = event.timestampMillis,
-                            // 같은 앱 내부 Activity 전환과 PiP 복귀는 새 실행이 아닙니다.
-                            sessionStartTimeMillis = existingPackageSessionStart ?: event.timestampMillis
+                            // 같은 앱 내부 Activity 전환과 120초 이내 단기 재진입은 직전 세션을 이어받습니다.
+                            sessionStartTimeMillis = sessionStart
                         )
                         if (existingIndex >= 0) visibleActivities[existingIndex] = resumed
                         else visibleActivities += resumed
@@ -244,6 +277,7 @@ internal object ForegroundUsageAggregator {
                         activeClass = event.className
                         activeInstanceId = event.instanceId
                         lastUsed[packageName] = event.timestampMillis
+                        lastSessionStartByPackage[packageName] = Pair(sessionStart, event.timestampMillis)
                         hasForegroundEvidence = true
                     }
                 }
@@ -275,14 +309,20 @@ internal object ForegroundUsageAggregator {
                 ForegroundTimelineEventType.APP_PAUSED -> {
                     val index = visibleActivities.indexOfFirst { matchesActivity(it, event) }
                     if (index >= 0) {
-                        visibleActivities[index] = visibleActivities[index].copy(isResumed = false)
+                        val act = visibleActivities[index]
+                        lastSessionStartByPackage[act.packageName] = Pair(act.sessionStartTimeMillis, event.timestampMillis)
+                        visibleActivities[index] = act.copy(isResumed = false)
                     }
-                    if (matchesActive(event)) selectFallbackPrimary()
+                    if (matchesActive(event)) selectFallbackPrimary(event.packageName)
                 }
 
                 ForegroundTimelineEventType.APP_STOPPED -> {
+                    val matched = visibleActivities.filter { matchesActivity(it, event) }
+                    matched.forEach { act ->
+                        lastSessionStartByPackage[act.packageName] = Pair(act.sessionStartTimeMillis, event.timestampMillis)
+                    }
                     visibleActivities.removeAll { matchesActivity(it, event) }
-                    if (matchesActive(event)) selectFallbackPrimary()
+                    if (matchesActive(event)) selectFallbackPrimary(event.packageName)
                 }
 
                 ForegroundTimelineEventType.SCREEN_INTERACTIVE -> {
@@ -309,6 +349,7 @@ internal object ForegroundUsageAggregator {
                                         lastActivatedMillis = event.timestampMillis,
                                         sessionStartTimeMillis = event.timestampMillis
                                     )
+                                    lastSessionStartByPackage[unlockedPackage] = Pair(event.timestampMillis, event.timestampMillis)
                                 }
                             }
                         }
@@ -324,6 +365,8 @@ internal object ForegroundUsageAggregator {
                     activeClass = null
                     activeInstanceId = null
                     visibleActivities.clear()
+                    lastSessionStartByPackage.clear()
+                    lastUserPackage = null
                 }
             }
         }

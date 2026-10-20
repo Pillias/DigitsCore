@@ -53,7 +53,39 @@ object DataBackupManager {
     suspend fun exportToJson(context: Context): String = withContext(Dispatchers.IO) {
         val db = DigitsDatabase.getInstance(context)
         // The checkpoint and attribution archive must describe the same scoring cursor.
-        db.withTransaction { exportDatabase(db) }
+        val dbJsonString = db.withTransaction { exportDatabase(db) }
+        val rootJson = JSONObject(dbJsonString)
+
+        // 1. edgeLightingPrefs
+        val edgeObj = JSONObject().apply {
+            put("enabled", com.digitscore.app.notification.EdgeLightingOverlayManager.isEnabled(context))
+            put("managedTriggerMinutes", com.digitscore.app.notification.EdgeLightingOverlayManager.getManagedTriggerMinutes(context))
+            put("studyTriggerMinutes", com.digitscore.app.notification.EdgeLightingOverlayManager.getStudyTriggerMinutes(context))
+        }
+        rootJson.put("edgeLightingPrefs", edgeObj)
+
+        // 2. customStudyPrefs
+        val customObj = JSONObject().apply {
+            val customStudyArray = JSONArray()
+            com.digitscore.app.model.AppCategoryPolicy.getCustomStudyPackages(context).forEach { customStudyArray.put(it) }
+            put("customStudyPackages", customStudyArray)
+
+            val excludedStudyArray = JSONArray()
+            com.digitscore.app.model.AppCategoryPolicy.getExcludedStudyPackages(context).forEach { excludedStudyArray.put(it) }
+            put("excludedStudyPackages", excludedStudyArray)
+        }
+        rootJson.put("customStudyPrefs", customObj)
+
+        // 3. goalRewardState
+        val rewardState = com.digitscore.app.data.DailyGoalStore.getRewardState(context)
+        val rewardObj = JSONObject().apply {
+            put("currentStreak", rewardState.currentStreak)
+            put("perfectStamps", rewardState.perfectStamps)
+            put("availableFreePasses", rewardState.availableFreePasses)
+        }
+        rootJson.put("goalRewardState", rewardObj)
+
+        rootJson.toString()
     }
 
     internal suspend fun exportDatabase(db: DigitsDatabase): String {
@@ -147,6 +179,7 @@ object DataBackupManager {
                 put("packageName", app.packageName)
                 put("appName", app.appName)
                 put("categoryType", app.categoryType.canonical.name)
+                put("isUserModified", app.isUserModified)
             }
             appsArray.put(aObj)
         }
@@ -217,6 +250,18 @@ object DataBackupManager {
         }
         rootJson.put("coreIndexSamples", samplesArray)
         rootJson.put("hourlyStatistics", StatisticsBackup.export(db))
+
+        // 7. 최근 48시간 잠금해제 및 상호작용 이벤트
+        val now = System.currentTimeMillis()
+        val interactionEvents = db.deviceInteractionEventDao().getBetween(now - 48 * 3_600_000L, now)
+        val interactionArray = JSONArray()
+        for (event in interactionEvents) {
+            interactionArray.put(JSONObject().apply {
+                put("timestampMillis", event.timestampMillis)
+                put("eventType", event.eventType)
+            })
+        }
+        rootJson.put("deviceInteractionEvents", interactionArray)
 
         return rootJson.toString().also {
             require(it.toByteArray(Charsets.UTF_8).size <= MAX_BACKUP_BYTES - 1024) { "Backup file is too large" }
@@ -394,10 +439,12 @@ object DataBackupManager {
                     val packageName = aObj.getString("packageName").trim()
                     val appName = aObj.getString("appName").trim()
                     require(packageName.length in 1..255 && appName.length in 1..255) { "Invalid app record" }
+                    val isUserModified = aObj.optBoolean("isUserModified", true)
                     val entity = AppWeightEntity(
                         packageName = packageName,
                         appName = appName,
-                        categoryType = cat
+                        categoryType = cat,
+                        isUserModified = isUserModified
                     )
                     db.appDao().insertOrUpdateAppWeight(entity)
                 }
@@ -532,6 +579,67 @@ object DataBackupManager {
                 }
                 db.coreIndexSampleDao().insertAll(samples)
             }
+
+            if (rootJson.has("deviceInteractionEvents")) {
+                val interactionArray = rootJson.getJSONArray("deviceInteractionEvents")
+                require(interactionArray.length() <= 50_000) { "Too many interaction events" }
+                val interactionEvents = buildList {
+                    for (i in 0 until interactionArray.length()) {
+                        val obj = interactionArray.getJSONObject(i)
+                        val timestamp = obj.getLong("timestampMillis")
+                        val eventType = obj.getInt("eventType")
+                        require(timestamp >= 0L) { "Invalid interaction timestamp" }
+                        add(
+                            com.digitscore.app.data.entity.DeviceInteractionEventEntity(
+                                timestampMillis = timestamp,
+                                eventType = eventType
+                            )
+                        )
+                    }
+                }
+                db.deviceInteractionEventDao().insertAll(interactionEvents)
+            }
+            }
+
+            // SharedPreferences 기반 설정 복원
+            rootJson.optJSONObject("edgeLightingPrefs")?.let { edgeObj ->
+                val enabled = edgeObj.optBoolean("enabled", false)
+                com.digitscore.app.notification.EdgeLightingOverlayManager.setEnabled(context, enabled)
+                val managedMins = edgeObj.optInt("managedTriggerMinutes", 30)
+                com.digitscore.app.notification.EdgeLightingOverlayManager.setManagedTriggerMinutes(context, managedMins)
+                val studyMins = edgeObj.optInt("studyTriggerMinutes", 50)
+                com.digitscore.app.notification.EdgeLightingOverlayManager.setStudyTriggerMinutes(context, studyMins)
+            }
+
+            rootJson.optJSONObject("customStudyPrefs")?.let { customObj ->
+                val studySet = mutableSetOf<String>()
+                customObj.optJSONArray("customStudyPackages")?.let { array ->
+                    for (i in 0 until array.length()) {
+                        val pkg = array.optString(i)
+                        if (pkg.isNotBlank()) studySet.add(pkg.lowercase())
+                    }
+                }
+                val excludedSet = mutableSetOf<String>()
+                customObj.optJSONArray("excludedStudyPackages")?.let { array ->
+                    for (i in 0 until array.length()) {
+                        val pkg = array.optString(i)
+                        if (pkg.isNotBlank()) excludedSet.add(pkg.lowercase())
+                    }
+                }
+                com.digitscore.app.model.AppCategoryPolicy.setStudyPackagesSets(context, studySet, excludedSet)
+            }
+
+            rootJson.optJSONObject("goalRewardState")?.let { rewardObj ->
+                val streak = rewardObj.optInt("currentStreak", 0)
+                val stamps = rewardObj.optInt("perfectStamps", 0)
+                val freePasses = rewardObj.optInt("availableFreePasses", 0)
+                val currentState = com.digitscore.app.data.DailyGoalStore.getRewardState(context)
+                val restoredState = currentState.copy(
+                    currentStreak = streak,
+                    perfectStamps = stamps,
+                    availableFreePasses = freePasses
+                )
+                com.digitscore.app.data.DailyGoalStore.saveRewardState(context, restoredState)
             }
 
             true

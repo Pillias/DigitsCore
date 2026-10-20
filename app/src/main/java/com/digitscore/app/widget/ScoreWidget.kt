@@ -49,7 +49,12 @@ import com.digitscore.app.ui.MainActivity
 
 class ScoreWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Responsive(
-        setOf(DpSize(50.dp, 50.dp), DpSize(110.dp, 50.dp), DpSize(110.dp, 110.dp))
+        setOf(
+            DpSize(50.dp, 50.dp),    // 1x1 SmallWidget
+            DpSize(110.dp, 110.dp),  // 2x2 Square2x2Widget (표준 정사각형)
+            DpSize(185.dp, 70.dp),   // 3x1 / 4x1 WideBarWidget (가로 바)
+            DpSize(240.dp, 135.dp)   // 4x2 LargeWidget (대형 종합)
+        )
     )
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
@@ -60,6 +65,7 @@ class ScoreWidget : GlanceAppWidget() {
         val rollingScoreDetail = ScoreRepository.rollingScoreDetail.value
         val settings = DigitsDatabase.getInstance(context).settingsDao().getSettings()
         val strings = AppLocale.stringsContext(context)
+        val isEn = AppLocale.isEnglish(context)
         val unlockCount = persistedSnapshot?.unlockCount
             ?: ScoreRepository.currentUnlockCount.value
         val score = persistedSnapshot?.score
@@ -74,6 +80,7 @@ class ScoreWidget : GlanceAppWidget() {
             ?: 0L
         val backgroundStyle = WidgetBackgroundStyle.fromId(settings?.widgetBackgroundStyleId)
         val palette = WidgetPalette.forStyle(backgroundStyle, score)
+        val isDarkSurface = backgroundStyle != WidgetBackgroundStyle.WHITE
         val gaugeBitmap = DynamicIconGenerator.createPurePowerGaugeBitmap(
             context, score, 64
         )
@@ -97,6 +104,40 @@ class ScoreWidget : GlanceAppWidget() {
         val continuousMinutes = persistedSnapshot?.continuousUsageMinutes
             ?: rollingScoreDetail?.continuousUsageMinutes
             ?: 0L
+        val scoreTarget = persistedSnapshot?.scoreTarget ?: 75
+        val targetAppName = persistedSnapshot?.targetAppName ?: ""
+        val targetAppUsageMinutes = persistedSnapshot?.targetAppUsageMinutes ?: 0
+        val targetAppLimitMinutes = persistedSnapshot?.targetAppLimitMinutes ?: 30
+        val unlockLimitTarget = persistedSnapshot?.unlockLimitTarget ?: 60
+        val recentScoresCsv = persistedSnapshot?.recentScoresCsv ?: ""
+        val recentScores = recentScoresCsv.split(",")
+            .mapNotNull { it.trim().toFloatOrNull() }
+
+        val sparkline2x2 = DynamicIconGenerator.createWidgetSparklineBitmap(
+            scores = recentScores,
+            currentScore = score,
+            isDarkSurface = isDarkSurface,
+            widthPx = 280,
+            heightPx = 90,
+            showMinMaxLabels = false
+        )
+        val sparklineWide = DynamicIconGenerator.createWidgetSparklineBitmap(
+            scores = recentScores,
+            currentScore = score,
+            isDarkSurface = isDarkSurface,
+            widthPx = 180,
+            heightPx = 70,
+            showMinMaxLabels = false
+        )
+        val sparklineLarge = DynamicIconGenerator.createWidgetSparklineBitmap(
+            scores = recentScores,
+            currentScore = score,
+            isDarkSurface = isDarkSurface,
+            widthPx = 280,
+            heightPx = 100,
+            showMinMaxLabels = true
+        )
+
         val accessibility = strings.getString(
             R.string.widget_accessibility, score, localizedGrade, screenTime, unlockCount
         )
@@ -105,16 +146,73 @@ class ScoreWidget : GlanceAppWidget() {
             val currentSize = LocalSize.current
             WidgetSurface(backgroundStyle, palette) {
                 when {
-                    currentSize.width >= 105.dp && currentSize.height >= 105.dp -> LargeWidget(
-                        gaugeBitmap, score, localizedGrade, screenTime, unlockCount, managedTime,
-                        continuousMinutes, keyMessage, accessibility, palette, strings,
-                        currentSize.width
+                    // 1. 4x2 대형 종합 위젯 (가로 185dp 이상 & 세로 125dp 이상)
+                    currentSize.width >= 185.dp && currentSize.height >= 125.dp -> LargeWidget(
+                        gaugeBitmap = gaugeBitmap,
+                        sparklineBitmap = sparklineLarge,
+                        score = score,
+                        grade = localizedGrade,
+                        screenTime = screenTime,
+                        unlockCount = unlockCount,
+                        managedTime = managedTime,
+                        continuousMinutes = continuousMinutes,
+                        scoreTarget = scoreTarget,
+                        targetAppName = targetAppName,
+                        targetAppUsageMinutes = targetAppUsageMinutes,
+                        targetAppLimitMinutes = targetAppLimitMinutes,
+                        unlockLimitTarget = unlockLimitTarget,
+                        keyMessage = keyMessage,
+                        accessibility = accessibility,
+                        palette = palette,
+                        strings = strings,
+                        isEn = isEn,
+                        widgetWidth = currentSize.width
                     )
-                    currentSize.width >= 100.dp || currentSize.height >= 100.dp -> MediumWidget(
-                        gaugeBitmap, score, localizedGrade, screenTime, unlockCount, accessibility, palette,
-                        strings, vertical = currentSize.height > currentSize.width
+                    // 2. 3x1 / 4x1 가로 슬림 바 위젯 (가로 185dp 이상 & 세로 125dp 미만)
+                    currentSize.width >= 185.dp -> WideBarWidget(
+                        gaugeBitmap = gaugeBitmap,
+                        sparklineBitmap = sparklineWide,
+                        score = score,
+                        grade = localizedGrade,
+                        continuousMinutes = continuousMinutes,
+                        scoreTarget = scoreTarget,
+                        targetAppName = targetAppName,
+                        targetAppUsageMinutes = targetAppUsageMinutes,
+                        targetAppLimitMinutes = targetAppLimitMinutes,
+                        screenMinutes = screenMinutes,
+                        unlockCount = unlockCount,
+                        unlockLimitTarget = unlockLimitTarget,
+                        accessibility = accessibility,
+                        palette = palette,
+                        isEn = isEn
                     )
-                    else -> SmallWidget(gaugeBitmap, score, localizedGrade, accessibility, palette)
+                    // 3. 2x2 정사각형 전용 위젯 (가로 100dp 이상 & 세로 95dp 이상)
+                    currentSize.width >= 100.dp && currentSize.height >= 95.dp -> Square2x2Widget(
+                        gaugeBitmap = gaugeBitmap,
+                        sparklineBitmap = sparkline2x2,
+                        score = score,
+                        grade = localizedGrade,
+                        continuousMinutes = continuousMinutes,
+                        targetAppName = targetAppName,
+                        targetAppUsageMinutes = targetAppUsageMinutes,
+                        targetAppLimitMinutes = targetAppLimitMinutes,
+                        screenMinutes = screenMinutes,
+                        unlockCount = unlockCount,
+                        unlockLimitTarget = unlockLimitTarget,
+                        stateText = stateText,
+                        accessibility = accessibility,
+                        palette = palette,
+                        isEn = isEn
+                    )
+                    // 4. 1x1 초소형 위젯 (그 외)
+                    else -> SmallWidget(
+                        gaugeBitmap = gaugeBitmap,
+                        score = score,
+                        grade = localizedGrade,
+                        continuousMinutes = continuousMinutes,
+                        accessibility = accessibility,
+                        palette = palette
+                    )
                 }
             }
         }
@@ -171,101 +269,205 @@ private fun SmallWidget(
     gaugeBitmap: android.graphics.Bitmap,
     score: Int,
     grade: String,
+    continuousMinutes: Long,
     accessibility: String,
     palette: WidgetPalette
 ) {
     Column(
+        modifier = GlanceModifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Gauge(gaugeBitmap, accessibility, 30)
+        Gauge(gaugeBitmap, accessibility, 28)
         Spacer(GlanceModifier.height(1.dp))
         Text(
-            text = score.toString(),
-            style = widgetTextStyle(palette.accent, 16, FontWeight.Bold),
+            text = "${score}P",
+            style = widgetTextStyle(palette.accent, 14, FontWeight.Bold),
             maxLines = 1
         )
         Text(
-            text = grade,
-            style = widgetTextStyle(palette.primary, 9, FontWeight.Bold),
+            text = if (continuousMinutes > 0L) "${continuousMinutes}min" else grade,
+            style = widgetTextStyle(palette.secondary, 9, FontWeight.Medium),
             maxLines = 1
         )
     }
 }
 
 @Composable
-private fun MediumWidget(
+private fun Square2x2Widget(
     gaugeBitmap: android.graphics.Bitmap,
+    sparklineBitmap: android.graphics.Bitmap,
     score: Int,
     grade: String,
-    screenTime: String,
+    continuousMinutes: Long,
+    targetAppName: String,
+    targetAppUsageMinutes: Int,
+    targetAppLimitMinutes: Int,
+    screenMinutes: Long,
     unlockCount: Int,
+    unlockLimitTarget: Int,
+    stateText: String,
     accessibility: String,
     palette: WidgetPalette,
-    strings: Context,
-    vertical: Boolean
+    isEn: Boolean
 ) {
-    if (vertical) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Gauge(gaugeBitmap, accessibility, 34)
-            Spacer(GlanceModifier.height(1.dp))
-            Text(
-                text = "${score}P",
-                style = widgetTextStyle(palette.accent, 14, FontWeight.Bold),
-                maxLines = 1
-            )
-            Text(
-                text = grade,
-                style = widgetTextStyle(palette.primary, 10, FontWeight.Bold),
-                maxLines = 1
-            )
-            Text(
-                text = screenTime,
-                style = widgetTextStyle(palette.secondary, 9),
-                maxLines = 1
-            )
-        }
-    } else {
+    Column(
+        modifier = GlanceModifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 상단 헤더
         Row(
             modifier = GlanceModifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Gauge(gaugeBitmap, accessibility, 32)
+            Gauge(gaugeBitmap, accessibility, 36)
+            Spacer(GlanceModifier.width(7.dp))
+            Column(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "${score}P",
+                        style = widgetTextStyle(palette.accent, 17, FontWeight.Bold),
+                        maxLines = 1
+                    )
+                    Spacer(GlanceModifier.width(5.dp))
+                    Text(
+                        text = grade,
+                        style = widgetTextStyle(palette.primary, 11, FontWeight.Bold),
+                        maxLines = 1
+                    )
+                }
                 Spacer(GlanceModifier.height(1.dp))
+                val subText = if (continuousMinutes > 0L) {
+                    if (isEn) "${continuousMinutes}min continuous" else "연속 ${continuousMinutes}min"
+                } else {
+                    stateText
+                }
+                Text(
+                    text = subText,
+                    style = widgetTextStyle(palette.secondary, 9, FontWeight.Normal),
+                    maxLines = 1
+                )
+            }
+        }
+
+        Spacer(GlanceModifier.height(3.dp))
+
+        // 중단 (24시간 미니 추세선)
+        Image(
+            provider = ImageProvider(sparklineBitmap),
+            contentDescription = null,
+            modifier = GlanceModifier.fillMaxWidth().height(36.dp),
+            contentScale = ContentScale.FillBounds
+        )
+
+        Spacer(GlanceModifier.height(3.dp))
+
+        // 하단 풋터 (오늘의 목표 달성 현황 캡슐)
+        val goalSummaryText = if (targetAppName.isNotBlank()) {
+            "$targetAppName ${targetAppUsageMinutes}/${targetAppLimitMinutes}min"
+        } else {
+            if (isEn) {
+                "Screen ${screenMinutes}min · ${unlockCount}/${unlockLimitTarget}x"
+            } else {
+                "화면 ${screenMinutes}min · 잠금 ${unlockCount}/${unlockLimitTarget}x"
+            }
+        }
+        Column(
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .background(palette.chip)
+                .cornerRadius(7.dp)
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = goalSummaryText,
+                style = widgetTextStyle(palette.primary, 9, FontWeight.Medium, TextAlign.Center),
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+private fun WideBarWidget(
+    gaugeBitmap: android.graphics.Bitmap,
+    sparklineBitmap: android.graphics.Bitmap,
+    score: Int,
+    grade: String,
+    continuousMinutes: Long,
+    scoreTarget: Int,
+    targetAppName: String,
+    targetAppUsageMinutes: Int,
+    targetAppLimitMinutes: Int,
+    screenMinutes: Long,
+    unlockCount: Int,
+    unlockLimitTarget: Int,
+    accessibility: String,
+    palette: WidgetPalette,
+    isEn: Boolean
+) {
+    Row(
+        modifier = GlanceModifier.fillMaxSize(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 좌측: 게이지 + 점수 + 등급
+        Gauge(gaugeBitmap, accessibility, 34)
+        Spacer(GlanceModifier.width(6.dp))
+        Column(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "${score}P",
-                    style = widgetTextStyle(palette.accent, 11, FontWeight.Bold),
+                    style = widgetTextStyle(palette.accent, 15, FontWeight.Bold),
                     maxLines = 1
                 )
-            }
-            Spacer(GlanceModifier.width(8.dp))
-            Column(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+                Spacer(GlanceModifier.width(4.dp))
                 Text(
                     text = grade,
-                    style = widgetTextStyle(palette.accent, 11, FontWeight.Bold),
-                    maxLines = 1
-                )
-                Spacer(GlanceModifier.height(1.dp))
-                Text(
-                    text = "📱 $screenTime",
-                    style = widgetTextStyle(palette.primary, 10, FontWeight.Medium),
-                    maxLines = 1
-                )
-                Text(
-                    text = "🔓 ${strings.getString(R.string.unlock_count_short, unlockCount)}",
-                    style = widgetTextStyle(palette.secondary, 9),
+                    style = widgetTextStyle(palette.primary, 10, FontWeight.Bold),
                     maxLines = 1
                 )
             }
+            Text(
+                text = if (continuousMinutes > 0L) "${continuousMinutes}min" else if (isEn) "Target ${scoreTarget}P" else "목표 ${scoreTarget}P",
+                style = widgetTextStyle(palette.secondary, 8, FontWeight.Normal),
+                maxLines = 1
+            )
+        }
+
+        Spacer(GlanceModifier.width(8.dp))
+
+        // 중앙: 미니 스파크라인
+        Image(
+            provider = ImageProvider(sparklineBitmap),
+            contentDescription = null,
+            modifier = GlanceModifier.width(75.dp).height(28.dp),
+            contentScale = ContentScale.FillBounds
+        )
+
+        Spacer(GlanceModifier.width(8.dp))
+
+        // 우측: 오늘의 3대 목표 요약 1줄 캡슐
+        val appGoalPart = if (targetAppName.isNotBlank()) {
+            "$targetAppName ${targetAppUsageMinutes}/${targetAppLimitMinutes}min"
+        } else {
+            "${screenMinutes}min"
+        }
+        val goalText = "${score}/${scoreTarget}P · $appGoalPart · ${unlockCount}/${unlockLimitTarget}x"
+        Column(
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .background(palette.chip)
+                .cornerRadius(6.dp)
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = goalText,
+                style = widgetTextStyle(palette.primary, 9, FontWeight.Medium, TextAlign.Center),
+                maxLines = 1
+            )
         }
     }
 }
@@ -273,40 +475,48 @@ private fun MediumWidget(
 @Composable
 private fun LargeWidget(
     gaugeBitmap: android.graphics.Bitmap,
+    sparklineBitmap: android.graphics.Bitmap,
     score: Int,
     grade: String,
     screenTime: String,
     unlockCount: Int,
     managedTime: String,
     continuousMinutes: Long,
+    scoreTarget: Int,
+    targetAppName: String,
+    targetAppUsageMinutes: Int,
+    targetAppLimitMinutes: Int,
+    unlockLimitTarget: Int,
     keyMessage: String,
     accessibility: String,
     palette: WidgetPalette,
     strings: Context,
+    isEn: Boolean,
     widgetWidth: Dp
 ) {
+    // 상단: 지수 정보 + 24시간 미니 스파크라인 나란히
     Row(
         modifier = GlanceModifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Gauge(gaugeBitmap, accessibility, 46)
-        Spacer(GlanceModifier.width(8.dp))
-        Column {
+        Gauge(gaugeBitmap, accessibility, 38)
+        Spacer(GlanceModifier.width(7.dp))
+        Column(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = strings.getString(R.string.widget_index_24h),
-                style = widgetTextStyle(palette.secondary, 10, FontWeight.Medium),
+                style = widgetTextStyle(palette.secondary, 9, FontWeight.Medium),
                 maxLines = 1
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "${score}P",
-                    style = widgetTextStyle(palette.accent, 18, FontWeight.Bold),
+                    style = widgetTextStyle(palette.accent, 17, FontWeight.Bold),
                     maxLines = 1
                 )
-                Spacer(GlanceModifier.width(6.dp))
+                Spacer(GlanceModifier.width(5.dp))
                 Text(
                     text = grade,
-                    style = widgetTextStyle(palette.primary, 12, FontWeight.Bold),
+                    style = widgetTextStyle(palette.primary, 11, FontWeight.Bold),
                     maxLines = 1
                 )
             }
@@ -314,30 +524,61 @@ private fun LargeWidget(
                 text = if (continuousMinutes > 0L) {
                     strings.getString(R.string.widget_continuous, continuousMinutes)
                 } else {
-                    strings.getString(R.string.widget_score_points, score)
+                    if (isEn) "Target ${scoreTarget}P" else "목표 ${scoreTarget}P"
                 },
-                style = widgetTextStyle(palette.secondary, 9),
+                style = widgetTextStyle(palette.secondary, 8),
                 maxLines = 1
             )
         }
-    }
-    Spacer(GlanceModifier.height(6.dp))
-    val metricWidth = ((widgetWidth - 20.dp) / 3).coerceAtLeast(28.dp)
-    Row(modifier = GlanceModifier.fillMaxWidth()) {
-        StatMetric(strings.getString(R.string.widget_screen), screenTime, palette, metricWidth)
-        StatMetric(
-            strings.getString(R.string.widget_unlocks),
-            strings.getString(R.string.unlock_count_short, unlockCount),
-            palette,
-            metricWidth
+
+        Spacer(GlanceModifier.width(10.dp))
+
+        // 스파크라인 (우측)
+        Image(
+            provider = ImageProvider(sparklineBitmap),
+            contentDescription = null,
+            modifier = GlanceModifier.fillMaxWidth().height(36.dp),
+            contentScale = ContentScale.FillBounds
         )
-        StatMetric(strings.getString(R.string.widget_managed), managedTime, palette, metricWidth)
     }
-    Spacer(GlanceModifier.height(6.dp))
+
+    Spacer(GlanceModifier.height(5.dp))
+
+    // 중단: 오늘의 3대 목표 3분할 캡슐 통계
+    val metricWidth = ((widgetWidth - 28.dp) / 3).coerceAtLeast(28.dp)
+    val appMetricLabel = if (targetAppName.isNotBlank()) targetAppName else strings.getString(R.string.widget_managed)
+    val appMetricVal = if (targetAppName.isNotBlank()) "${targetAppUsageMinutes}/${targetAppLimitMinutes}min" else managedTime
+    Row(
+        modifier = GlanceModifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        StatMetric(
+            label = if (isEn) "Defense" else "지수 방어",
+            value = "${score}/${scoreTarget}P",
+            palette = palette,
+            width = metricWidth
+        )
+        StatMetric(
+            label = appMetricLabel,
+            value = appMetricVal,
+            palette = palette,
+            width = metricWidth
+        )
+        StatMetric(
+            label = strings.getString(R.string.widget_unlocks),
+            value = "${unlockCount}/${unlockLimitTarget}x",
+            palette = palette,
+            width = metricWidth
+        )
+    }
+
+    Spacer(GlanceModifier.height(5.dp))
+
+    // 하단: 실시간 코칭 바
     Text(
         text = keyMessage,
-        modifier = GlanceModifier.fillMaxWidth().background(palette.chip).cornerRadius(9.dp).padding(7.dp),
-        style = widgetTextStyle(palette.primary, 10, FontWeight.Medium),
+        modifier = GlanceModifier.fillMaxWidth().background(palette.chip).cornerRadius(8.dp).padding(6.dp),
+        style = widgetTextStyle(palette.primary, 9, FontWeight.Medium),
         maxLines = 2
     )
 }
@@ -355,7 +596,11 @@ private fun Gauge(bitmap: android.graphics.Bitmap, accessibility: String, size: 
 @Composable
 private fun StatMetric(label: String, value: String, palette: WidgetPalette, width: Dp) {
     Column(
-        modifier = GlanceModifier.width(width),
+        modifier = GlanceModifier
+            .width(width)
+            .background(palette.chip)
+            .cornerRadius(6.dp)
+            .padding(vertical = 3.dp, horizontal = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
@@ -365,7 +610,7 @@ private fun StatMetric(label: String, value: String, palette: WidgetPalette, wid
         )
         Text(
             value,
-            style = widgetTextStyle(palette.primary, 10, FontWeight.Bold, TextAlign.Center),
+            style = widgetTextStyle(palette.primary, 9, FontWeight.Bold, TextAlign.Center),
             maxLines = 1
         )
     }
@@ -416,11 +661,5 @@ private fun darkWidgetAccent(score: Int): Color = when {
 }
 
 private fun formatMinutes(context: Context, totalMinutes: Long): String {
-    val hours = totalMinutes / 60
-    val minutes = totalMinutes % 60
-    return when {
-        hours > 0 && minutes > 0 -> context.getString(R.string.format_hours_minutes, hours, minutes)
-        hours > 0 -> context.getString(R.string.format_hours, hours)
-        else -> context.getString(R.string.format_minutes, minutes)
-    }
+    return "${totalMinutes.coerceAtLeast(0L)}min"
 }

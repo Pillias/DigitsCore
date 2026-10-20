@@ -97,10 +97,15 @@ android {
             enableV3Signing = true
             enableV4Signing = false
         }
+        val localKeystore = rootProject.file("keystore/digitscore-upload.jks")
         val uploadStorePath = System.getenv("DIGITSCORE_UPLOAD_STORE_FILE")
+            ?: (if (localKeystore.exists()) localKeystore.absolutePath else null)
         val uploadStorePassword = System.getenv("DIGITSCORE_UPLOAD_STORE_PASSWORD")
+            ?: if (localKeystore.exists()) "digitscore2026" else null
         val uploadKeyAlias = System.getenv("DIGITSCORE_UPLOAD_KEY_ALIAS")
+            ?: if (localKeystore.exists()) "digitscore-upload" else null
         val uploadKeyPassword = System.getenv("DIGITSCORE_UPLOAD_KEY_PASSWORD")
+            ?: if (localKeystore.exists()) "digitscore2026" else null
         if (!uploadStorePath.isNullOrBlank() &&
             !uploadStorePassword.isNullOrBlank() &&
             !uploadKeyAlias.isNullOrBlank() &&

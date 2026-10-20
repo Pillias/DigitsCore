@@ -67,14 +67,14 @@ enum class AppCategoryType(
     val isExempt: Boolean get() = this == EXEMPT
     val isPenalty: Boolean get() = scoreMultiplier < 0f
     val isBonus: Boolean get() = scoreMultiplier > 0f
-    val displayName: String get() = if (java.util.Locale.getDefault().language == "en") englishName else koreanName
+    val displayName: String get() = if (com.digitscore.app.i18n.AppLocale.isCurrentEnglish) englishName else koreanName
     val description: String get() = if (canonical == NEUTRAL) {
-        if (java.util.Locale.getDefault().language == "en") "General use · Standard usage load"
+        if (com.digitscore.app.i18n.AppLocale.isCurrentEnglish) "General use · Standard usage load"
         else "일반 사용 · 기본 사용 부하"
     } else if (canonical == EXEMPT) {
-        if (java.util.Locale.getDefault().language == "en") "Exempt tool · No score deduction or streak"
+        if (com.digitscore.app.i18n.AppLocale.isCurrentEnglish) "Exempt tool · No score deduction or streak"
         else "면제 도구 · 점수 감점 및 연속사용 시간 제외"
-    } else if (java.util.Locale.getDefault().language == "en") englishDescription else koreanDescription
+    } else if (com.digitscore.app.i18n.AppLocale.isCurrentEnglish) englishDescription else koreanDescription
     val canonical: AppCategoryType
         get() = when (this) {
             EXEMPT -> EXEMPT

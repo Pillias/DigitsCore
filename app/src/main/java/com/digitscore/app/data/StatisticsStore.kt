@@ -50,6 +50,7 @@ object StatisticsStore {
             val eventStart = maxOf(coverageStart, now - 24 * STAT_HOUR)
             val events = db.deviceInteractionEventDao().getBetween(maxOf(from - 15_000L, eventStart), until)
             val unlocks = UsageStatsHelper.resolvedUnlockTimestamps(events).groupingBy { statisticHour(it) }.eachCount()
+            val habitualUnlocks = UsageStatsHelper.resolvedHabitualUnlockTimestamps(events, sessions).groupingBy { statisticHour(it) }.eachCount()
             val notifications = events.filter { it.eventType == DeviceInteractionEventEntity.NOTIFICATION_INTERRUPTION }
                 .groupingBy { statisticHour(it.timestampMillis) }.eachCount()
             var hour = from
@@ -59,6 +60,7 @@ object StatisticsStore {
                 val observed = hour >= eventStart
                 if (observed || prior != null || records.containsKey(key)) {
                     records[key] = (records[key] ?: UsageHourEntity(hour, "", "")).copy(
+                        shortOpens = if (observed) habitualUnlocks[hour] ?: 0 else prior?.shortOpens ?: 0,
                         unlocks = if (observed) unlocks[hour] ?: 0 else prior?.unlocks,
                         notifications = if (observed) notifications[hour] ?: 0 else prior?.notifications
                     )

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,6 +34,11 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.TrackChanges
+import androidx.compose.material.icons.filled.Whatshot
+import androidx.compose.material.icons.filled.StarOutline
+import androidx.compose.material.icons.filled.ConfirmationNumber
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -78,6 +84,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
+import com.digitscore.app.i18n.AppLocale
 import com.digitscore.app.data.entity.CoreIndexSampleEntity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -111,6 +120,7 @@ import com.digitscore.app.ui.theme.ScoreYellow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -166,7 +176,7 @@ fun DashboardScreen(
             delay(60_000L)
         }
     }
-    val rolling24hStart = remember(nowMillis / (5 * 60_000L)) { nowMillis - 7L * 24 * 3600_000L }
+    val rolling24hStart = remember(nowMillis / (5 * 60_000L)) { nowMillis - 24L * 3600_000L }
     val rollingSamples by remember(rolling24hStart) {
         db.coreIndexSampleDao().observeSince(rolling24hStart)
     }.collectAsState(emptyList())
@@ -180,6 +190,7 @@ fun DashboardScreen(
     var showAllAppsModal by remember { mutableStateOf(false) }
     var showGuidanceModal by remember { mutableStateOf(false) }
     var showMorningDialog by remember { mutableStateOf(false) }
+    var showEditGoalsFromTopBar by remember { mutableStateOf(false) }
 
     // 외부 Intent(첫 언락 / 헤드업 탭)로부터 강제 호출 시 즉시 팝업 트리거
     LaunchedEffect(forceShowMorningBriefing) {
@@ -233,26 +244,39 @@ fun DashboardScreen(
                     titleContentColor = MaterialTheme.colorScheme.onBackground
                 ),
                 actions = {
-                    IconButton(onClick = onNavigateToStatistics) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.TrendingUp,
-                            contentDescription = UiTranslator.translate("통계 리포트"),
-                            tint = MaterialTheme.colorScheme.onBackground
-                        )
-                    }
-                    IconButton(onClick = onNavigateToAppSettings) {
-                        Icon(
-                            imageVector = Icons.Default.Category,
-                            contentDescription = UiTranslator.translate("앱별 균형 등급"),
-                            tint = MaterialTheme.colorScheme.onBackground
-                        )
-                    }
-                    IconButton(onClick = onNavigateToPresetSettings) {
-                        Icon(
-                            imageVector = Icons.Default.Tune,
-                            contentDescription = UiTranslator.translate("설정"),
-                            tint = MaterialTheme.colorScheme.onBackground
-                        )
+                    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(0.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = onNavigateToStatistics) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                                contentDescription = if (isEn) "Statistics" else "상세 통계",
+                                tint = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                        IconButton(onClick = { showEditGoalsFromTopBar = true }) {
+                            Icon(
+                                imageVector = Icons.Default.TrackChanges,
+                                contentDescription = if (isEn) "Goals" else "3대 목표",
+                                tint = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                        IconButton(onClick = onNavigateToAppSettings) {
+                            Icon(
+                                imageVector = Icons.Default.PhoneAndroid,
+                                contentDescription = if (isEn) "App Usage & Grades" else "앱별 사용량 및 등급",
+                                tint = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                        IconButton(onClick = onNavigateToPresetSettings) {
+                            Icon(
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = if (isEn) "Settings" else "환경설정",
+                                tint = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
                     }
                 }
             )
@@ -263,20 +287,23 @@ fun DashboardScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // 1. 원형 점수 인디케이터 (클릭 시 점수 산출 상세 내역 팝업)
+                // 1. 코어 지수 게이지 + 최근 7일 스파크라인을 결합한 통합 히어로 카드
                 item {
-                    ScoreGaugeCard(
+                    CoreIndexHeroCard(
                         score = currentScore,
                         grade = grade,
                         rollingScore = rollingScoreDetail,
-                        onClick = { showScoreDetailModal = true }
+                        samples = rollingSamples,
+                        guidance = guidance,
+                        onScoreDetailClick = { showScoreDetailModal = true },
+                        onTrendDetailClick = onNavigateToStatistics
                     )
                 }
 
-                // 2. 주요 3단 통계 카드 (각 카드 클릭 시 해당 세부 항목 팝업)
+                // 3. 주요 3단 통계 카드 (화면, 언락, 관리)
                 item {
                     ScoreStatsRow(
                         screenTimeMillis = rollingUsageSummary.totalScreenTimeMillis,
@@ -288,7 +315,7 @@ fun DashboardScreen(
                     )
                 }
 
-                // 2.5 3대 실질 목표 관리 카드 (코어 지수, 앱 1개 제한, 잠금해제 횟수)
+                // 4. 3대 실질 목표 관리 카드 (코어 지수, 앱 1개 제한, 잠금해제 횟수)
                 item {
                     ThreeGoalsDashboardCard(
                         currentScore = currentScore,
@@ -298,15 +325,6 @@ fun DashboardScreen(
                         appsUsage = appsUsage,
                         rewardState = rewardState,
                         onUnlockClick = { showUnlockModal = true }
-                    )
-                }
-
-                // 3. 최근 24시간 코어 지수 변화 스파크라인 카드 (클릭 시 전체 통계 화면 이동)
-                item {
-                    TodayCoreIndexSparklineCard(
-                        currentScore = currentScore,
-                        samples = rollingSamples,
-                        onClick = onNavigateToStatistics
                     )
                 }
 
@@ -321,65 +339,86 @@ fun DashboardScreen(
 
 
 
-                // 4. 실시간 앱 사용 헤더
+                // 4. 앱별 사용시간 요약 카드 (탭 시 앱별 사용량 및 등급 화면으로 이동)
                 item {
-                    val isEn = Locale.getDefault().language == "en"
-                    SectionHeading(
-                        title = if (isEn) "App Usage (Last 24 Hours)" else "최근 24시간 앱 사용 현황",
-                        subtitle = if (isEn) "Hourly distribution, sessions, and recent trends for the last 24h." else "현재 시각 직전 24시간의 시간대·세션·최근 추세입니다.",
-                        actionLabel = if (isEn) (if (appsUsage.size > 3) "All ${appsUsage.size}" else "View All") else (if (appsUsage.size > 3) "전체 ${appsUsage.size}개" else "전체 보기"),
-                        onAction = { showAllAppsModal = true }
-                    )
-                }
-
-                // 5. 상위 3개 앱 사용 목록
-                if (appsUsage.isEmpty()) {
-                    item {
-                        val isEn = Locale.getDefault().language == "en"
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                            shape = RoundedCornerShape(12.dp)
+                    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onNavigateToAppSettings() },
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text(
-                                text = if (isEn) "No app usage records collected yet." else "아직 집계된 앱 사용 기록이 없습니다.",
-                                color = MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.padding(24.dp),
-                                fontSize = 14.sp
-                            )
-                        }
-                    }
-                } else {
-                    items(appsUsage.take(3)) { app ->
-                        AppUsageItemCard(
-                            appUsage = app,
-                            onClick = { selectedAppDetail = app }
-                        )
-                    }
-                    if (appsUsage.size > 3) {
-                        item {
-                            val isEn = Locale.getDefault().language == "en"
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { showAllAppsModal = true },
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                                shape = RoundedCornerShape(12.dp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
+                                Text(
+                                    text = if (isEn) "App Usage" else "앱별 사용시간",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (isEn) "All (${appsUsage.size}) ▸" else "전체 ${appsUsage.size}개 ▸",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.clickable { onNavigateToAppSettings() }
+                                )
+                            }
+
+                            if (appsUsage.isEmpty()) {
+                                Text(
+                                    text = if (isEn) "No usage records yet." else "아직 사용 기록이 없습니다.",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            } else {
+                                val topApps = appsUsage.take(3)
                                 Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(14.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = if (isEn) "View all ${appsUsage.size} apps" else "나머지 ${appsUsage.size - 3}개 앱 모두 보기",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    DetailChevron(tint = MaterialTheme.colorScheme.primary)
+                                    topApps.forEach { app ->
+                                        val mins = (app.usageTimeMillis / 60_000L).coerceAtLeast(1L)
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = MaterialTheme.colorScheme.surface,
+                                            modifier = Modifier
+                                                .weight(1f, fill = false)
+                                                .clickable { selectedAppDetail = app }
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = app.appName,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    text = com.digitscore.app.i18n.formatReadableMinutes(mins, isEn, compact = true),
+                                                    fontSize = 10.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = appRatingColor(app.categoryType),
+                                                    maxLines = 1,
+                                                    softWrap = false
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -394,7 +433,7 @@ fun DashboardScreen(
     }
 
     // ==========================================
-    // 🔍 세부 항목 모달 / 다이얼로그들
+    // 세부 항목 모달 / 다이얼로그들
     // ==========================================
 
     // 1. 점수 산출 상세 내역 다이얼로그
@@ -543,6 +582,19 @@ fun DashboardScreen(
             }
         )
     }
+
+    if (showEditGoalsFromTopBar) {
+        EditThreeGoalsDialog(
+            currentGoal = dailyGoal ?: com.digitscore.app.model.DailyGoal(dateString = com.digitscore.app.data.DailyGoalStore.getLogicalDateString()),
+            appsUsage = appsUsage,
+            onDismiss = { showEditGoalsFromTopBar = false },
+            onSave = { score, pkg, name, limit, unlocks ->
+                com.digitscore.app.data.DailyGoalStore.setCustomGoal(context, score, pkg, name, limit, unlocks)
+                com.digitscore.app.service.TrackerForegroundService.refreshNotification(context)
+                showEditGoalsFromTopBar = false
+            }
+        )
+    }
 }
 
 @Composable
@@ -556,6 +608,7 @@ private fun ThreeGoalsDashboardCard(
     onUnlockClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    var showDetailDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
     var showGoalHelp by remember { mutableStateOf(false) }
 
@@ -576,267 +629,192 @@ private fun ThreeGoalsDashboardCard(
     val unlockRatio = (unlockCount.toFloat() / unlockLimit.toFloat())
     val isUnlockExceeded = unlockCount > unlockLimit
 
+    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { showDetailDialog = true },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(16.dp)
     ) {
-        val isEn = Locale.getDefault().language == "en"
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            // 헤더: 타이틀 + ? 도움말 아이콘 + 목표 수정 버튼
+            // 헤더: 타이틀 + 상세 ▸
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Default.TrackChanges,
                         contentDescription = null,
-                        tint = if (isAchieved) ScoreGreen else ScoreYellow,
-                        modifier = Modifier.size(20.dp)
+                        tint = if (isAchieved && !isAppExceeded && !isUnlockExceeded) ScoreGreen else ScoreYellow,
+                        modifier = Modifier.size(16.dp)
                     )
                     Text(
                         text = if (isEn) "Today's 3 Key Goals" else "오늘의 3대 실천 목표",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                    IconButton(
-                        onClick = { showGoalHelp = true },
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.HelpOutline,
-                            contentDescription = if (isEn) "Daily Goals Guide" else "실천 목표 안내",
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.outline
-                        )
-                    }
                 }
 
-                FilledTonalButton(
-                    onClick = { showEditDialog = true },
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                    modifier = Modifier.height(30.dp),
-                    shape = RoundedCornerShape(8.dp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    Text(if (isEn) "Set / Edit Goals" else "목표 설정/수정", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (isEn) "Details ▸" else "상세 ▸",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
 
-            // 스트릭 & 퍼펙트 스탬프 현황 바
+            // 한 줄로 된 3칸 가로 요약 그리드 (Row)
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(8.dp))
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = if (rewardState.currentStreak > 0) (if (isEn) "🔥 ${rewardState.currentStreak}-Day Streak" else "🔥 ${rewardState.currentStreak}일 연속 방어 중")
-                    else (if (isEn) "Start your streak today!" else "새로운 스트릭에 도전하세요!"),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (rewardState.currentStreak > 0) ScoreOrange else MaterialTheme.colorScheme.outline
-                )
-                Text(
-                    text = if (isEn) "🌟 Stamps ${rewardState.perfectStamps}/3" else "🌟 스탬프 ${rewardState.perfectStamps}/3",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-
-            // 15분 자유권(Free Pass) 활성화 또는 사용 UI
-            if (rewardState.isFreePassActive) {
+                // 1칸 (코어 지수): Shield ${currentScore}/${targetScore}P + 달성 시 ✓ (미달 시 주황색 텍스트)
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = ScoreGreen.copy(alpha = 0.15f),
-                    modifier = Modifier.fillMaxWidth()
+                    color = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier.weight(1f)
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.Center
                     ) {
+                        val tint = if (isAchieved) ScoreGreen else ScoreOrange
+                        Icon(
+                            imageVector = Icons.Outlined.Shield,
+                            contentDescription = null,
+                            modifier = Modifier.size(13.dp),
+                            tint = tint
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
                         Text(
-                            text = if (isEn) "🎟️ Free Pass Active (${rewardState.remainingFreePassSeconds / 60}m left) — Zero Load"
-                            else "🎟️ 15분 자유 시간 진행 중 (${rewardState.remainingFreePassSeconds / 60}분 남음) — 부하 면제",
+                            text = "${currentScore}/${targetScore}P" + if (isAchieved) " ✓" else "",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = ScoreGreen
+                            color = tint,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
-            } else if (rewardState.availableFreePasses > 0) {
+
+                // 2칸 (집중 앱): PhoneAndroid ${targetAppName ?: (if (isEn) "App" else "앱")} ${appMins}/${appLimit}m + 달성 시 ✓ (초과 시 경고색 !)
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                    modifier = Modifier.fillMaxWidth()
+                    color = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier.weight(1f)
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
                     ) {
-                        Text(
-                            text = if (isEn) "🎟️ 15-Min Free Pass (${rewardState.availableFreePasses} available)"
-                            else "🎟️ 15분 자유권 (${rewardState.availableFreePasses}장 보유)",
+                        val appLabel = targetAppName ?: (if (isEn) "App" else "앱")
+                        val appStatus = if (isAppExceeded) " !" else if (appMins > 0) " ✓" else ""
+                        val tint = if (isAppExceeded) ScoreRed else if (appRatio >= 0.8f) ScoreYellow else ScoreGreen
+                        Icon(
+                            imageVector = Icons.Default.PhoneAndroid,
+                            contentDescription = null,
+                            modifier = Modifier.size(13.dp),
+                            tint = tint
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        val goalText = com.digitscore.app.i18n.formatGoalMinutesSmallUnit(appMins, appLimit, appStatus)
+                        com.digitscore.app.i18n.Text(
+                            text = goalText,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = tint,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                        Button(
-                            onClick = {
-                                com.digitscore.app.data.DailyGoalStore.activateFreePass(context)
-                            },
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                            modifier = Modifier.height(26.dp),
-                            shape = RoundedCornerShape(6.dp)
-                        ) {
-                            Text(if (isEn) "Use Now" else "지금 사용", fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        }
                     }
                 }
-            }
 
-
-            // --- 목표 1: 코어 지수 점수 (수평 게이지 바) ---
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (isEn) "1. Core Index" else "1. 코어 지수",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = if (isEn) {
-                            if (pointsNeeded > 0) "Current ${currentScore}P / Target ${targetScore}P (+${pointsNeeded}P needed)"
-                            else "Current ${currentScore}P / Target ${targetScore}P (Achieved 🎉)"
-                        } else {
-                            if (pointsNeeded > 0) "현재 ${currentScore}P / 목표 ${targetScore}P (+${pointsNeeded}P 필요)"
-                            else "현재 ${currentScore}P / 목표 ${targetScore}P (달성 🎉)"
-                        },
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (pointsNeeded > 0) ScoreYellow else ScoreGreen
-                    )
-                }
-
-                val scoreProgress = (currentScore.toFloat() / targetScore.toFloat()).coerceIn(0.05f, 1f)
-
-                LinearProgressIndicator(
-                    progress = { scoreProgress },
-                    modifier = Modifier.fillMaxWidth().height(8.dp),
-                    color = if (isAchieved) ScoreGreen else ScoreYellow,
-                    trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    strokeCap = StrokeCap.Round
-                )
-            }
-
-            // --- 목표 2: 관리 앱 1개 시간 제한 (수평 막대 그래프) ---
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val appTitle = if (isEn) "2. Managed App" else "2. 관리 앱"
-                    val noneLabel = if (isEn) " (None)" else " (미지정)"
-                    Text(
-                        text = appTitle + if (targetAppName != null) " (${targetAppName})" else noneLabel,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = if (targetAppName != null) {
-                            if (isAppExceeded) "${appMins} / ${appLimit}m (+${appMins - appLimit}m ⚠️)"
-                            else "${appMins} / ${appLimit}m (${(appRatio * 100).toInt()}%)"
-                        } else {
-                            if (isEn) "Select an app" else "앱 선택 필요"
-                        },
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (targetAppName == null) MaterialTheme.colorScheme.outline
-                        else if (isAppExceeded) ScoreRed
-                        else if (appRatio >= 0.8f) ScoreYellow
-                        else ScoreGreen
-                    )
-                }
-
-                LinearProgressIndicator(
-                    progress = { if (targetAppName != null) appRatio.coerceIn(0.02f, 1f) else 0f },
-                    modifier = Modifier.fillMaxWidth().height(8.dp),
-                    color = if (isAppExceeded) ScoreRed else if (appRatio >= 0.8f) ScoreYellow else ScoreGreen,
-                    trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    strokeCap = StrokeCap.Round
-                )
-            }
-
-            // --- 목표 3: 오픈 / 잠금 해제 횟수 제한 (클릭 시 언락 상세 분석 팝업) ---
-            Surface(
-                onClick = onUnlockClick,
-                shape = RoundedCornerShape(8.dp),
-                color = Color.Transparent
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                // 3칸 (잠금 해제): LockOpen ${unlockCount}/${unlockLimit}x + 달성 시 ✓
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier.weight(1f)
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
                     ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = if (isEn) "3. Daily Unlocks" else "3. 일일 언락",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            DetailChevron()
-                        }
+                        val unlockStatus = if (isUnlockExceeded) " !" else " ✓"
+                        val tint = if (isUnlockExceeded) ScoreRed else if (unlockRatio >= 0.8f) ScoreYellow else ScoreGreen
+                        Icon(
+                            imageVector = Icons.Default.LockOpen,
+                            contentDescription = null,
+                            modifier = Modifier.size(13.dp),
+                            tint = tint
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
                         Text(
-                            text = if (isUnlockExceeded) {
-                                "${unlockCount} / ${unlockLimit}x (+${unlockCount - unlockLimit}x ⚠️)"
-                            } else {
-                                "${unlockCount} / ${unlockLimit}x (${(unlockRatio * 100).toInt()}%)"
-                            },
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (isUnlockExceeded) ScoreRed else if (unlockRatio >= 0.8f) ScoreYellow else ScoreGreen
+                            text = "${unlockCount}/${unlockLimit}x${unlockStatus}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = tint,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
-
-                    LinearProgressIndicator(
-                        progress = { unlockRatio.coerceIn(0.02f, 1f) },
-                        modifier = Modifier.fillMaxWidth().height(8.dp),
-                        color = if (isUnlockExceeded) ScoreRed else if (unlockRatio >= 0.8f) ScoreYellow else ScoreGreen,
-                        trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        strokeCap = StrokeCap.Round
-                    )
                 }
             }
         }
+    }
+
+    if (showDetailDialog) {
+        ThreeGoalsDetailDialog(
+            currentScore = currentScore,
+            targetScore = targetScore,
+            pointsNeeded = pointsNeeded,
+            isAchieved = isAchieved,
+            targetAppName = targetAppName,
+            appLimit = appLimit,
+            appMins = appMins,
+            appRatio = appRatio,
+            isAppExceeded = isAppExceeded,
+            unlockCount = unlockCount,
+            unlockLimit = unlockLimit,
+            unlockRatio = unlockRatio,
+            isUnlockExceeded = isUnlockExceeded,
+            rewardState = rewardState,
+            onDismiss = { showDetailDialog = false },
+            onEditGoals = {
+                showDetailDialog = false
+                showEditDialog = true
+            },
+            onShowHelp = { showGoalHelp = true },
+            onUnlockClick = {
+                showDetailDialog = false
+                onUnlockClick()
+            }
+        )
     }
 
     if (showEditDialog) {
@@ -853,7 +831,7 @@ private fun ThreeGoalsDashboardCard(
     }
 
     if (showGoalHelp) {
-        val isEn = Locale.getDefault().language == "en"
+        val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
         AlertDialog(
             onDismissRequest = { showGoalHelp = false },
             title = { Text(if (isEn) "Today's 3 Key Goals Guide" else "오늘의 3대 실천 목표 안내", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
@@ -882,13 +860,392 @@ private fun ThreeGoalsDashboardCard(
 }
 
 @Composable
+private fun ThreeGoalsDetailDialog(
+    currentScore: Int,
+    targetScore: Int,
+    pointsNeeded: Int,
+    isAchieved: Boolean,
+    targetAppName: String?,
+    appLimit: Int,
+    appMins: Int,
+    appRatio: Float,
+    isAppExceeded: Boolean,
+    unlockCount: Int,
+    unlockLimit: Int,
+    unlockRatio: Float,
+    isUnlockExceeded: Boolean,
+    rewardState: com.digitscore.app.model.GoalRewardState,
+    onDismiss: () -> Unit,
+    onEditGoals: () -> Unit,
+    onShowHelp: () -> Unit,
+    onUnlockClick: () -> Unit
+) {
+    val context = LocalContext.current
+    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.TrackChanges,
+                        contentDescription = null,
+                        tint = if (isAchieved && !isAppExceeded && !isUnlockExceeded) ScoreGreen else ScoreYellow,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = if (isEn) "Today's 3 Key Goals" else "오늘의 3대 실천 목표",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                IconButton(
+                    onClick = onShowHelp,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.HelpOutline,
+                        contentDescription = if (isEn) "Daily Goals Guide" else "실천 목표 안내",
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // 스트릭 & 퍼펙트 스탬프 현황 바
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (rewardState.currentStreak > 0) {
+                            Icon(
+                                imageVector = Icons.Default.Whatshot,
+                                contentDescription = null,
+                                modifier = Modifier.size(13.dp),
+                                tint = ScoreOrange
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                        }
+                        Text(
+                            text = if (rewardState.currentStreak > 0) (if (isEn) "${rewardState.currentStreak}-Day Streak" else "${rewardState.currentStreak}일 연속 방어 중")
+                            else (if (isEn) "Start your streak today!" else "새로운 스트릭에 도전하세요!"),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (rewardState.currentStreak > 0) ScoreOrange else MaterialTheme.colorScheme.outline
+                        )
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.StarOutline,
+                            contentDescription = null,
+                            modifier = Modifier.size(13.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = if (isEn) "Stamps ${rewardState.perfectStamps}/3" else "스탬프 ${rewardState.perfectStamps}/3",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
+
+                // 15분 자유권(Free Pass) 활성화 또는 사용 UI
+                if (rewardState.isFreePassActive) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = ScoreGreen.copy(alpha = 0.15f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ConfirmationNumber,
+                                contentDescription = null,
+                                modifier = Modifier.size(13.dp),
+                                tint = ScoreGreen
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (isEn) "Free Pass Active (${rewardState.remainingFreePassSeconds / 60}min left) — Zero Load"
+                                else "15min 자유 시간 진행 중 (${rewardState.remainingFreePassSeconds / 60}min 남음) — 부하 면제",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = ScoreGreen,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                } else if (rewardState.availableFreePasses > 0) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ConfirmationNumber,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(13.dp),
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (isEn) "15min Free Pass (${rewardState.availableFreePasses} available)"
+                                    else "15min 자유권 (${rewardState.availableFreePasses}장 보유)",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Button(
+                                onClick = {
+                                    com.digitscore.app.data.DailyGoalStore.activateFreePass(context)
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                modifier = Modifier.height(24.dp),
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(if (isEn) "Use" else "사용", fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                            }
+                        }
+                    }
+                }
+
+                // --- 목표 1: 코어 지수 점수 ---
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (isEn) "1. Core Index" else "1. 코어 지수",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (isEn) {
+                                if (pointsNeeded > 0) "${currentScore}P / ${targetScore}P (+${pointsNeeded}P)"
+                                else "${currentScore}P / ${targetScore}P (Achieved ✓)"
+                            } else {
+                                if (pointsNeeded > 0) "${currentScore}P / 목표 ${targetScore}P (+${pointsNeeded}P 필요)"
+                                else "${currentScore}P / 목표 ${targetScore}P (달성 ✓)"
+                            },
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (pointsNeeded > 0) ScoreYellow else ScoreGreen
+                        )
+                    }
+
+                    val scoreProgress = (currentScore.toFloat() / 100f).coerceIn(0.02f, 1f)
+                    val targetRatio = (targetScore.toFloat() / 100f).coerceIn(0f, 1f)
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(10.dp)
+                    ) {
+                        LinearProgressIndicator(
+                            progress = { scoreProgress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .align(Alignment.Center),
+                            color = if (isAchieved) ScoreGreen else ScoreYellow,
+                            trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            strokeCap = StrokeCap.Round
+                        )
+                        BoxWithConstraints(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(10.dp)
+                        ) {
+                            val markerX = maxWidth * targetRatio
+                            Box(
+                                modifier = Modifier
+                                    .offset(x = (markerX - 1.dp).coerceAtLeast(0.dp))
+                                    .width(2.dp)
+                                    .height(10.dp)
+                                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), RoundedCornerShape(1.dp))
+                            )
+                        }
+                    }
+                }
+
+                // --- 목표 2: 관리 앱 1개 시간 제한 ---
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val appTitle = if (isEn) "2. Managed App" else "2. 관리 앱"
+                        val noneLabel = if (isEn) " (None)" else " (미지정)"
+                        Text(
+                            text = appTitle + if (targetAppName != null) " (${targetAppName})" else noneLabel,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (targetAppName != null) {
+                                if (isAppExceeded) "${appMins} / ${appLimit}m (+${appMins - appLimit}m !)"
+                                else "${appMins} / ${appLimit}m (${(appRatio * 100).toInt()}%)"
+                            } else {
+                                if (isEn) "Select an app" else "앱 선택 필요"
+                            },
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (targetAppName == null) MaterialTheme.colorScheme.outline
+                            else if (isAppExceeded) ScoreRed
+                            else if (appRatio >= 0.8f) ScoreYellow
+                            else ScoreGreen
+                        )
+                    }
+
+                    LinearProgressIndicator(
+                        progress = { if (targetAppName != null) appRatio.coerceIn(0.02f, 1f) else 0f },
+                        modifier = Modifier.fillMaxWidth().height(6.dp),
+                        color = if (isAppExceeded) ScoreRed else if (appRatio >= 0.8f) ScoreYellow else ScoreGreen,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        strokeCap = StrokeCap.Round
+                    )
+                }
+
+                // --- 목표 3: 잠금 해제 횟수 제한 ---
+                Surface(
+                    onClick = onUnlockClick,
+                    shape = RoundedCornerShape(6.dp),
+                    color = Color.Transparent
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (isEn) "3. Daily Unlocks" else "3. 일일 언락",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                DetailChevron()
+                            }
+                            Text(
+                                text = if (isUnlockExceeded) {
+                                    "${unlockCount} / ${unlockLimit}x (+${unlockCount - unlockLimit}x !)"
+                                } else {
+                                    "${unlockCount} / ${unlockLimit}x (${(unlockRatio * 100).toInt()}%)"
+                                },
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (isUnlockExceeded) ScoreRed else if (unlockRatio >= 0.8f) ScoreYellow else ScoreGreen
+                            )
+                        }
+
+                        LinearProgressIndicator(
+                            progress = { unlockRatio.coerceIn(0.02f, 1f) },
+                            modifier = Modifier.fillMaxWidth().height(6.dp),
+                            color = if (isUnlockExceeded) ScoreRed else if (unlockRatio >= 0.8f) ScoreYellow else ScoreGreen,
+                            trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            strokeCap = StrokeCap.Round
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            FilledTonalButton(
+                onClick = onEditGoals,
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(if (isEn) "Edit Goals" else "목표 수정", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(if (isEn) "Close" else "닫기")
+            }
+        }
+    )
+}
+
+@Composable
 private fun EditThreeGoalsDialog(
     currentGoal: com.digitscore.app.model.DailyGoal,
     appsUsage: List<AppUsage>,
     onDismiss: () -> Unit,
     onSave: (scoreTarget: Int, targetPkg: String?, targetAppName: String, appLimitMins: Int, unlockLimit: Int) -> Unit
 ) {
-    val isEn = Locale.getDefault().language == "en"
+    val context = LocalContext.current
+    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
     var selectedScore by remember { mutableIntStateOf(currentGoal.scoreTarget) }
     var selectedPkg by remember { mutableStateOf(currentGoal.targetPackageName) }
     var selectedAppName by remember { mutableStateOf(currentGoal.targetAppName) }
@@ -996,8 +1353,8 @@ private fun EditThreeGoalsDialog(
                         if (mins > 0) {
                             val reduction = ((mins - selectedAppLimit).toFloat() / mins.toFloat() * 100).toInt().coerceAtLeast(0)
                             Text(
-                                text = if (isEn) "💡 Recent ${mins}m used → Target ${selectedAppLimit}m (${reduction}% reduction)"
-                                       else "💡 최근 ${mins}분 사용 → 목표 ${selectedAppLimit}분 (${reduction}% 절감 제안)",
+                                text = if (isEn) "Recent ${mins}min used → Target ${selectedAppLimit}min (${reduction}% reduction)"
+                                       else "최근 ${mins}min 사용 → 목표 ${selectedAppLimit}min (${reduction}% 절감 제안)",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Medium
@@ -1077,444 +1434,208 @@ private fun GuidanceSummaryCard(guidance: CoreIndexGuidance, onClick: () -> Unit
 }
 
 @Composable
-private fun TodayCoreIndexSparklineCard(
-    currentScore: Int,
+private fun CoreIndexHeroCard(
+    score: Int,
+    grade: ScoreGrade,
+    rollingScore: RollingScoreDetail?,
     samples: List<CoreIndexSampleEntity>,
-    onClick: () -> Unit
+    guidance: CoreIndexGuidance?,
+    onScoreDetailClick: () -> Unit,
+    onTrendDetailClick: () -> Unit
 ) {
     val context = LocalContext.current
-    val zone = remember { java.time.ZoneId.systemDefault() }
-
+    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
+    val gradeText = context.localizedGrade(grade)
     var showChartHelp by remember { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        shape = RoundedCornerShape(16.dp)
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // 상단 행 (좌측 게이지 컬럼 + 세로선 + 우측 스파크라인)
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
-                        Text(
-                            text = if (isEn) "Core Index Trend (Last 7 Days)" else "최근 7일 코어 지수 변화",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        IconButton(
-                            onClick = { showChartHelp = true },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.HelpOutline,
-                                contentDescription = if (isEn) "Chart Guide" else "차트 안내",
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.outline
-                            )
-                        }
-                    }
-                    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
-                    val nowMillis = System.currentTimeMillis()
-                    val target24hAgo = nowMillis - 24 * 3600_000L
-                    val sample24hAgo = samples.minByOrNull { kotlin.math.abs(it.timestampMillis - target24hAgo) }?.score ?: currentScore
-                    val diff = currentScore - sample24hAgo
-                    val diffStr = if (isEn) {
-                        if (diff > 0) "+${diff} pts" else if (diff < 0) "${diff} pts" else "0 pts"
-                    } else {
-                        if (diff > 0) "+${diff}점" else if (diff < 0) "${diff}점" else "0점"
-                    }
-                    val minScore = samples.minOfOrNull { it.score } ?: currentScore
-                    val maxScore = samples.maxOfOrNull { it.score } ?: currentScore
-                    val summaryText = if (samples.size < 2) {
-                        if (isEn) "Live tracking started · Current score: ${currentScore} pts"
-                        else "실시간 추적 시작 · 현재 코어 지수 ${currentScore}점"
-                    } else {
-                        if (isEn) "24h ago: ${sample24hAgo} pts → Now: ${currentScore} pts (${diffStr}) · High: ${maxScore} pts"
-                        else "24시간 전 ${sample24hAgo}점 → 현재 ${currentScore}점 (${diffStr}) · 최고 ${maxScore}점"
-                    }
-                    Text(
-                        text = summaryText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                // 좌측: 게이지 (고정 너비 102.dp, 클릭 시 점수 상세 모달)
+                Column(
+                    modifier = Modifier
+                        .width(102.dp)
+                        .clickable(onClick = onScoreDetailClick)
+                        .padding(vertical = 2.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    CoreIndexGauge(
+                        score = score,
+                        grade = gradeText,
+                        iconSize = 54.dp
                     )
-                    val headerTierColor = coreIndexTierColor(currentScore)
-                    val grade = ScoreGrade.fromScore(currentScore)
+                    val continuousMins = rollingScore?.continuousUsageMinutes ?: 0L
+                    val flowText = if (continuousMins > 0L) {
+                        if (isEn) "Continuous ${continuousMins}min" else "현재 연속 ${continuousMins}min"
+                    } else when (rollingScore?.flow) {
+                        ScoreFlow.RECOVERING -> if (isEn) "Resting" else "회복 중"
+                        ScoreFlow.CALIBRATING -> if (isEn) "Calibrating" else "보정 중"
+                        else -> if (isEn) "Steady" else "유지 중"
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(top = 2.dp)
+                    ) {
+                        Text(
+                            text = flowText,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            maxLines = 1
+                        )
+                    }
+                }
+
+                // 세로 구분선
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp)
+                        .width(1.dp)
+                        .height(125.dp)
+                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                )
+
+                // 우측: 스파크라인 추세 그래프 (Weight 1f)
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    // 미니 헤더
                     Row(
-                        modifier = Modifier.padding(top = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(7.dp)
-                                .background(headerTierColor, CircleShape)
-                        )
-                        val zoneDesc = if (isEn) {
-                            when {
-                                currentScore >= 80 -> "Stable"
-                                currentScore >= 60 -> "Moderate"
-                                currentScore >= 40 -> "Caution"
-                                else -> "Critical"
-                            }
-                        } else {
-                            when {
-                                currentScore >= 80 -> "안정 구간"
-                                currentScore >= 60 -> "보통 구간"
-                                currentScore >= 40 -> "주의 구간"
-                                else -> "하위 위험 구간"
-                            }
-                        }
-                        Text(
-                            text = if (isEn) "Now: ${currentScore} pts · ${grade.gradeText} ($zoneDesc)"
-                            else "현재 ${currentScore}점 · ${grade.gradeText} ($zoneDesc)",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = headerTierColor
-                        )
-                    }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
-                    Text(
-                        text = if (isEn) "Full Stats" else "상세 통계",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    DetailChevron(tint = MaterialTheme.colorScheme.primary)
-                }
-            }
-
-            val tierColor = coreIndexTierColor(currentScore)
-            val textMeasurer = rememberTextMeasurer()
-            val scrollState = rememberScrollState()
-            var initialScroll by remember(samples.size) { mutableStateOf(false) }
-            LaunchedEffect(scrollState.maxValue) {
-                if (!initialScroll && scrollState.maxValue > 0) {
-                    scrollState.scrollTo(scrollState.maxValue)
-                    initialScroll = true
-                }
-            }
-
-            if (samples.size < 2) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = "🌱",
-                            fontSize = 20.sp
-                        )
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
                             Text(
-                                text = if (isEn) "Live tracking started" else "실시간 추적을 시작했습니다",
-                                fontSize = 12.sp,
+                                text = if (isEn) "Core Trend" else "코어 지수 추세",
+                                fontSize = 12.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
+                            IconButton(
+                                onClick = { showChartHelp = true },
+                                modifier = Modifier.size(18.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.HelpOutline,
+                                    contentDescription = if (isEn) "Help" else "도움말",
+                                    modifier = Modifier.size(13.dp),
+                                    tint = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable(onClick = onTrendDetailClick)
+                        ) {
                             Text(
-                                text = if (isEn) "Score trend graph will appear after 5 minutes of usage."
-                                else "5분 뒤부터 점수 변화 그래프가 기록됩니다.",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.outline
+                                text = if (isEn) "Stats >" else "상세 >",
+                                fontSize = 11.5.sp,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
+
+                    // 스파크라인 Canvas
+                    CoreIndexSparklineContent(
+                        currentScore = score,
+                        samples = samples,
+                        isEn = isEn
+                    )
                 }
+            }
+
+            // 하단 구분선
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                thickness = 1.dp
+            )
+
+            // 하단 1줄 가이드/상태 요약 바
+            val adviceText = if (guidance != null) {
+                guidanceRecommendationText(guidance)
             } else {
-                val timelineDays = 7
-                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                val viewportWidth = maxWidth
-                val chartWidth = maxOf(viewportWidth, viewportWidth * timelineDays)
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(scrollState)
+                if (isEn) "Your 24-hour core index is maintaining stability."
+                else "최근 24시간 코어 지수가 안정적으로 유지되고 있습니다."
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onScoreDetailClick)
+                    .padding(horizontal = 14.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .width(chartWidth)
-                            .height(116.dp)
-                            .semantics {
-                                contentDescription = "최근 코어 지수 변화 차트, 현재 ${currentScore}점"
-                            }
-                    ) {
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            val w = size.width
-                            val h = size.height
-                            val topPadding = 12f
-                            val bottomPadding = 12f
-                            val chartH = h - topPadding - bottomPadding
-
-                            val allScores = samples.map { it.exactScore } + listOf(currentScore.toDouble())
-                            val rawMin = allScores.minOrNull() ?: currentScore.toDouble()
-                            val rawMax = allScores.maxOrNull() ?: currentScore.toDouble()
-                            val scoreRange = rawMax - rawMin
-
-                            val targetSpan = maxOf(16.0, scoreRange + 6.0)
-                            val centerScore = (rawMin + rawMax) / 2.0
-                            var yMin = (centerScore - targetSpan / 2.0).coerceIn(0.0, 100.0 - targetSpan)
-                            var yMax = (yMin + targetSpan).coerceAtMost(100.0)
-                            if (yMax - yMin < targetSpan) {
-                                yMin = (yMax - targetSpan).coerceAtLeast(0.0)
-                            }
-
-                            fun yPos(score: Double): Float =
-                                topPadding + chartH * (1f - ((score - yMin) / (yMax - yMin)).toFloat().coerceIn(0f, 1f))
-
-                            fun drawZone(bottomScore: Double, topScore: Double, color: Color) {
-                                val boundedTop = topScore.coerceAtMost(yMax)
-                                val boundedBottom = bottomScore.coerceAtLeast(yMin)
-                                if (boundedBottom < boundedTop) {
-                                    val yTop = yPos(boundedTop)
-                                    val yBottom = yPos(boundedBottom)
-                                    drawRect(
-                                        color = color,
-                                        topLeft = Offset(0f, yTop),
-                                        size = Size(w, yBottom - yTop)
-                                    )
-                                }
-                            }
-
-                            drawZone(80.0, 100.0, ScoreGreen.copy(alpha = 0.07f))
-                            drawZone(60.0, 80.0, ScoreYellow.copy(alpha = 0.04f))
-                            drawZone(40.0, 60.0, ScoreOrange.copy(alpha = 0.05f))
-                            drawZone(0.0, 40.0, ScoreRed.copy(alpha = 0.08f))
-
-                            val dashEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f), 0f)
-
-                            if (80.0 in yMin..yMax) {
-                                val y80 = yPos(80.0)
-                                drawLine(
-                                    color = ScoreGreen.copy(alpha = 0.45f),
-                                    start = Offset(0f, y80),
-                                    end = Offset(w, y80),
-                                    strokeWidth = 1.2f.dp.toPx(),
-                                    pathEffect = dashEffect
-                                )
-                                drawText(
-                                    textMeasurer = textMeasurer,
-                                    text = "80 안정",
-                                    topLeft = Offset(w - 44.dp.toPx(), y80 - 13.sp.toPx()),
-                                    style = TextStyle(
-                                        color = ScoreGreen.copy(alpha = 0.85f),
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                )
-                            }
-
-                            if (60.0 in yMin..yMax) {
-                                val y60 = yPos(60.0)
-                                drawLine(
-                                    color = ScoreYellow.copy(alpha = 0.25f),
-                                    start = Offset(0f, y60),
-                                    end = Offset(w, y60),
-                                    strokeWidth = 0.8f.dp.toPx()
-                                )
-                            }
-
-                            if (40.0 in yMin..yMax) {
-                                val y40 = yPos(40.0)
-                                drawLine(
-                                    color = ScoreRed.copy(alpha = 0.45f),
-                                    start = Offset(0f, y40),
-                                    end = Offset(w, y40),
-                                    strokeWidth = 1.2f.dp.toPx(),
-                                    pathEffect = dashEffect
-                                )
-                                drawText(
-                                    textMeasurer = textMeasurer,
-                                    text = "40 위험",
-                                    topLeft = Offset(w - 44.dp.toPx(), y40 - 13.sp.toPx()),
-                                    style = TextStyle(
-                                        color = ScoreRed.copy(alpha = 0.85f),
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                )
-                            }
-
-                            val now = System.currentTimeMillis()
-                            val windowStartMillis = now - timelineDays * 24 * 3600_000L
-                            val duration = (timelineDays * 24 * 3600_000L).toDouble()
-                            fun xPos(ts: Long): Float =
-                                (((ts - windowStartMillis).toDouble() / duration).coerceIn(0.0, 1.0) * w).toFloat()
-
-                            if (samples.size >= 2) {
-                                val path = Path()
-                                val fillPath = Path()
-
-                                samples.forEachIndexed { i, s ->
-                                    val x = xPos(s.timestampMillis)
-                                    val y = yPos(s.exactScore)
-
-                                    if (i == 0) {
-                                        path.moveTo(x, y)
-                                        fillPath.moveTo(x, h - bottomPadding)
-                                        fillPath.lineTo(x, y)
-                                    } else {
-                                        path.lineTo(x, y)
-                                        fillPath.lineTo(x, y)
-                                    }
-                                }
-
-                                val lastSample = samples.last()
-                                val lastX = xPos(lastSample.timestampMillis)
-                                fillPath.lineTo(lastX, h - bottomPadding)
-                                fillPath.close()
-
-                                val areaBrush = Brush.verticalGradient(
-                                    colors = listOf(
-                                        ScoreGreen.copy(alpha = 0.22f),
-                                        ScoreYellow.copy(alpha = 0.10f),
-                                        ScoreRed.copy(alpha = 0.02f)
-                                    ),
-                                    startY = topPadding,
-                                    endY = h - bottomPadding
-                                )
-                                drawPath(path = fillPath, brush = areaBrush)
-
-                                val lineBrush = Brush.verticalGradient(
-                                    colors = listOf(ScoreGreen, ScoreYellow, ScoreRed),
-                                    startY = topPadding,
-                                    endY = h - bottomPadding
-                                )
-                                drawPath(
-                                    path = path,
-                                    brush = lineBrush,
-                                    style = Stroke(width = 2.6f.dp.toPx(), cap = StrokeCap.Round)
-                                )
-
-                                val maxSample = samples.maxByOrNull { it.exactScore }
-                                val minSample = samples.minByOrNull { it.exactScore }
-                                val paintGreen = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                                    color = ScoreGreen.toArgb(); textSize = 9.sp.toPx(); isFakeBoldText = true
-                                }
-                                val paintRed = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                                    color = ScoreRed.toArgb(); textSize = 9.sp.toPx(); isFakeBoldText = true
-                                }
-                                val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
-                                maxSample?.let { s ->
-                                    val mx = xPos(s.timestampMillis)
-                                    val my = yPos(s.exactScore)
-                                    drawCircle(ScoreGreen, 2.5.dp.toPx(), Offset(mx, my))
-                                    drawContext.canvas.nativeCanvas.drawText(
-                                        if (isEn) "High ${points(s.exactScore)}" else "최고 ${points(s.exactScore)}",
-                                        (mx - 20.dp.toPx()).coerceIn(4.dp.toPx(), w - 50.dp.toPx()),
-                                        my - 6.dp.toPx(),
-                                        paintGreen
-                                    )
-                                }
-                                minSample?.let { s ->
-                                    val mx = xPos(s.timestampMillis)
-                                    val my = yPos(s.exactScore)
-                                    drawCircle(ScoreRed, 2.5.dp.toPx(), Offset(mx, my))
-                                    drawContext.canvas.nativeCanvas.drawText(
-                                        if (isEn) "Low ${points(s.exactScore)}" else "최저 ${points(s.exactScore)}",
-                                        (mx - 20.dp.toPx()).coerceIn(4.dp.toPx(), w - 50.dp.toPx()),
-                                        my + 14.dp.toPx(),
-                                        paintRed
-                                    )
-                                }
-
-                                val lastY = yPos(lastSample.exactScore)
-                                val lastTierColor = coreIndexTierColor(lastSample.exactScore.roundToInt())
-                                drawCircle(
-                                    color = lastTierColor.copy(alpha = 0.25f),
-                                    radius = 7.dp.toPx(),
-                                    center = Offset(lastX, lastY)
-                                )
-                                drawCircle(
-                                    color = tierColor,
-                                    radius = 3.5f.dp.toPx(),
-                                    center = Offset(lastX, lastY)
-                                )
-                            } else {
-                                val y = yPos(currentScore.toDouble())
-                                drawLine(
-                                    color = tierColor,
-                                    start = Offset(0f, y),
-                                    end = Offset(w, y),
-                                    strokeWidth = 2.dp.toPx()
-                                )
-                            }
-                        }
-                    }
-
-                    // 시간 눈금 라벨 (7일 기준)
-                    val nowInstant = remember(samples) { Instant.now() }
-                    val dayFormatter = remember { DateTimeFormatter.ofPattern("M/d") }
-                    val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
-
-                    Row(
-                        modifier = Modifier
-                            .width(chartWidth)
-                            .padding(top = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
-                        (6 downTo 1).forEach { daysAgo ->
-                            val t = nowInstant.minusSeconds(daysAgo * 86400L).atZone(zone)
-                            val isYesterday = daysAgo == 1
-                            val text = if (isYesterday) (if (isEn) "Yest (${t.format(timeFormatter)})" else "어제 (${t.format(timeFormatter)})") else "${t.format(dayFormatter)} ${t.format(timeFormatter)}"
-                            Text(
-                                text = text,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isYesterday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                                fontWeight = if (isYesterday) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                        Text(
-                            text = if (isEn) "Now (${nowInstant.atZone(zone).format(timeFormatter)})" else "현재 (${nowInstant.atZone(zone).format(timeFormatter)})",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Outlined.Lightbulb,
+                        contentDescription = null,
+                        modifier = Modifier.size(13.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = adviceText,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 11.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
+                Text(
+                    text = "▸",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
             }
         }
     }
-}
 
     if (showChartHelp) {
-        val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
         AlertDialog(
             onDismissRequest = { showChartHelp = false },
-            title = { Text(if (isEn) "Core Index Trend Guide" else "코어 지수 변화 차트 안내", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+            title = {
+                Text(
+                    text = if (isEn) "Core Index Trend Guide" else "코어 지수 변화 차트 안내",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            },
             text = {
                 Text(
-                    if (isEn) {
-                        "• Real-time core index score trend over the last 7 days.\n" +
-                        "• Scroll horizontally to inspect score changes by time on past dates."
+                    text = if (isEn) {
+                        "• Real-time core index score trend over the rolling 24h/7 days.\n" +
+                        "• Vertical lines mark 6-hour boundaries and midnight dates.\n" +
+                        "• High and low points show the exact score and time of occurrence."
                     } else {
-                        "• 최근 7일 동안의 실시간 코어 지수 변화 흐름입니다.\n" +
-                        "• 좌우로 스크롤하여 지난 날짜의 시간대별 점수 변화를 상세히 살펴볼 수 있습니다."
+                        "• 최근 코어 지수의 실시간 변화 흐름을 6시간 간격 및 자정 기준선과 함께 표시합니다.\n" +
+                        "• 최고/최저점에 발생 시각(HH:mm)이 함께 기록되어 집중 및 피로 시간대를 쉽게 확인할 수 있습니다."
                     },
                     fontSize = 13.sp,
                     lineHeight = 20.sp
@@ -1530,12 +1651,308 @@ private fun TodayCoreIndexSparklineCard(
 }
 
 @Composable
+private fun CoreIndexSparklineContent(
+    currentScore: Int,
+    samples: List<CoreIndexSampleEntity>,
+    isEn: Boolean
+) {
+    val tierColor = coreIndexTierColor(currentScore)
+    val scrollState = rememberScrollState()
+
+    LaunchedEffect(scrollState.maxValue) {
+        if (scrollState.maxValue > 0) {
+            scrollState.scrollTo(scrollState.maxValue)
+        }
+    }
+
+    if (samples.size < 2) {
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text(
+                        text = if (isEn) "Live tracking active" else "실시간 추적 진행 중",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = if (isEn) "Trend records every 5 minutes" else "5min마다 점수 추세가 기록됩니다",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
+        }
+    } else {
+        val outlineColorInt = MaterialTheme.colorScheme.outline.toArgb()
+        val onSurfaceColorInt = MaterialTheme.colorScheme.onSurface.toArgb()
+
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val viewportWidth = maxWidth
+            val chartWidth = maxOf(viewportWidth, viewportWidth * 2.2f)
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(scrollState)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(chartWidth)
+                        .height(84.dp)
+                ) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val w = size.width
+                        val hPx = size.height
+                        val topPadding = 6f
+                        val bottomPadding = 16f
+                        val chartH = hPx - topPadding - bottomPadding
+
+                        val allScores = samples.map { it.exactScore } + listOf(currentScore.toDouble())
+                        val rawMin = allScores.minOrNull() ?: currentScore.toDouble()
+                        val rawMax = allScores.maxOrNull() ?: currentScore.toDouble()
+                        val scoreRange = rawMax - rawMin
+
+                        val targetSpan = maxOf(16.0, scoreRange + 6.0)
+                        val centerScore = (rawMin + rawMax) / 2.0
+                        var yMin = (centerScore - targetSpan / 2.0).coerceIn(0.0, 100.0 - targetSpan)
+                        var yMax = (yMin + targetSpan).coerceAtMost(100.0)
+                        if (yMax - yMin < targetSpan) {
+                            yMin = (yMax - targetSpan).coerceAtLeast(0.0)
+                        }
+
+                        fun yPos(score: Double): Float =
+                            topPadding + chartH * (1f - ((score - yMin) / (yMax - yMin)).toFloat().coerceIn(0f, 1f))
+
+                        fun drawZone(bottomScore: Double, topScore: Double, color: Color) {
+                            val boundedTop = topScore.coerceAtMost(yMax)
+                            val boundedBottom = bottomScore.coerceAtLeast(yMin)
+                            if (boundedBottom < boundedTop) {
+                                val yTop = yPos(boundedTop)
+                                val yBottom = yPos(boundedBottom)
+                                drawRect(
+                                    color = color,
+                                    topLeft = Offset(0f, yTop),
+                                    size = Size(w, yBottom - yTop)
+                                )
+                            }
+                        }
+
+                        drawZone(80.0, 100.0, ScoreGreen.copy(alpha = 0.07f))
+                        drawZone(60.0, 80.0, ScoreYellow.copy(alpha = 0.04f))
+                        drawZone(40.0, 60.0, ScoreOrange.copy(alpha = 0.05f))
+                        drawZone(0.0, 40.0, ScoreRed.copy(alpha = 0.08f))
+
+                        val dashEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f), 0f)
+
+                        if (80.0 in yMin..yMax) {
+                            val y80 = yPos(80.0)
+                            drawLine(
+                                color = ScoreGreen.copy(alpha = 0.45f),
+                                start = Offset(0f, y80),
+                                end = Offset(w, y80),
+                                strokeWidth = 1.0f.dp.toPx(),
+                                pathEffect = dashEffect
+                            )
+                        }
+
+                        if (40.0 in yMin..yMax) {
+                            val y40 = yPos(40.0)
+                            drawLine(
+                                color = ScoreRed.copy(alpha = 0.45f),
+                                start = Offset(0f, y40),
+                                end = Offset(w, y40),
+                                strokeWidth = 1.0f.dp.toPx(),
+                                pathEffect = dashEffect
+                            )
+                        }
+
+                        val now = System.currentTimeMillis()
+                        val windowStartMillis = now - 24L * 3600_000L
+                        val duration = (24L * 3600_000L).toDouble()
+                        fun xPos(ts: Long): Float =
+                            (((ts - windowStartMillis).toDouble() / duration).coerceIn(0.0, 1.0) * w).toFloat()
+
+                        // X축 3시간 간격 및 자정 날짜 기준선 표시
+                        val vertDash = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
+                        val calAxis = Calendar.getInstance().apply {
+                            timeInMillis = windowStartMillis
+                            set(Calendar.MINUTE, 0)
+                            set(Calendar.SECOND, 0)
+                            set(Calendar.MILLISECOND, 0)
+                            val hour = get(Calendar.HOUR_OF_DAY)
+                            val rem = hour % 3
+                            add(Calendar.HOUR_OF_DAY, if (rem == 0) 0 else (3 - rem))
+                        }
+                        val paintAxis = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                            color = outlineColorInt
+                            textSize = 8.sp.toPx()
+                        }
+                        val paintMidnight = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                            color = onSurfaceColorInt
+                            textSize = 8.5.sp.toPx()
+                            isFakeBoldText = true
+                        }
+                        while (calAxis.timeInMillis <= now) {
+                            val ts = calAxis.timeInMillis
+                            val x = xPos(ts)
+                            val h = calAxis.get(Calendar.HOUR_OF_DAY)
+                            val isMidnight = (h == 0)
+
+                            drawLine(
+                                color = if (isMidnight) Color.Gray.copy(alpha = 0.35f) else Color.Gray.copy(alpha = 0.15f),
+                                start = Offset(x, topPadding),
+                                end = Offset(x, hPx - bottomPadding),
+                                strokeWidth = if (isMidnight) 1.2f.dp.toPx() else 0.8f.dp.toPx(),
+                                pathEffect = vertDash
+                            )
+
+                            if (isMidnight) {
+                                val month = calAxis.get(Calendar.MONTH) + 1
+                                val day = calAxis.get(Calendar.DAY_OF_MONTH)
+                                val dateStr = "$month/$day"
+                                drawContext.canvas.nativeCanvas.drawText(
+                                    dateStr,
+                                    (x - 10.dp.toPx()).coerceIn(2.dp.toPx(), w - 28.dp.toPx()),
+                                    hPx - 3.dp.toPx(),
+                                    paintMidnight
+                                )
+                            } else {
+                                val hourStr = String.format(Locale.getDefault(), "%02d:00", h)
+                                drawContext.canvas.nativeCanvas.drawText(
+                                    hourStr,
+                                    (x - 12.dp.toPx()).coerceIn(2.dp.toPx(), w - 28.dp.toPx()),
+                                    hPx - 3.dp.toPx(),
+                                    paintAxis
+                                )
+                            }
+                            calAxis.add(Calendar.HOUR_OF_DAY, 3)
+                        }
+
+                        // 샘플 라인 및 영역 그리기
+                        val path = Path()
+                        val fillPath = Path()
+
+                        samples.forEachIndexed { i, s ->
+                            val x = xPos(s.timestampMillis)
+                            val y = yPos(s.exactScore)
+
+                            if (i == 0) {
+                                path.moveTo(x, y)
+                                fillPath.moveTo(x, hPx - bottomPadding)
+                                fillPath.lineTo(x, y)
+                            } else {
+                                path.lineTo(x, y)
+                                fillPath.lineTo(x, y)
+                            }
+                        }
+
+                        val lastSample = samples.last()
+                        val lastX = xPos(lastSample.timestampMillis)
+                        fillPath.lineTo(lastX, hPx - bottomPadding)
+                        fillPath.close()
+
+                        val areaBrush = Brush.verticalGradient(
+                            colors = listOf(
+                                ScoreGreen.copy(alpha = 0.22f),
+                                ScoreYellow.copy(alpha = 0.10f),
+                                ScoreRed.copy(alpha = 0.02f)
+                            ),
+                            startY = topPadding,
+                            endY = hPx - bottomPadding
+                        )
+                        drawPath(path = fillPath, brush = areaBrush)
+
+                        val lineBrush = Brush.verticalGradient(
+                            colors = listOf(ScoreGreen, ScoreYellow, ScoreRed),
+                            startY = topPadding,
+                            endY = hPx - bottomPadding
+                        )
+                        drawPath(
+                            path = path,
+                            brush = lineBrush,
+                            style = Stroke(width = 2.0f.dp.toPx(), cap = StrokeCap.Round)
+                        )
+
+                        val maxSample = samples.maxByOrNull { it.exactScore }
+                        val minSample = samples.minByOrNull { it.exactScore }
+                        val paintGreen = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                            color = ScoreGreen.toArgb(); textSize = 8.5.sp.toPx(); isFakeBoldText = true
+                        }
+                        val paintRed = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                            color = ScoreRed.toArgb(); textSize = 8.5.sp.toPx(); isFakeBoldText = true
+                        }
+                        val calPoint = Calendar.getInstance()
+                        maxSample?.let { s ->
+                            val mx = xPos(s.timestampMillis)
+                            val my = yPos(s.exactScore)
+                            calPoint.timeInMillis = s.timestampMillis
+                            val timeStr = String.format(Locale.getDefault(), "%02d:%02d", calPoint.get(Calendar.HOUR_OF_DAY), calPoint.get(Calendar.MINUTE))
+                            drawCircle(ScoreGreen, 2.2.dp.toPx(), Offset(mx, my))
+                            drawContext.canvas.nativeCanvas.drawText(
+                                if (isEn) "High ${points(s.exactScore)}P ($timeStr)" else "최고 ${points(s.exactScore)}P ($timeStr)",
+                                (mx - 38.dp.toPx()).coerceIn(4.dp.toPx(), w - 96.dp.toPx()),
+                                (my - 4.dp.toPx()).coerceAtLeast(10.dp.toPx()),
+                                paintGreen
+                            )
+                        }
+                        minSample?.let { s ->
+                            val mx = xPos(s.timestampMillis)
+                            val my = yPos(s.exactScore)
+                            calPoint.timeInMillis = s.timestampMillis
+                            val timeStr = String.format(Locale.getDefault(), "%02d:%02d", calPoint.get(Calendar.HOUR_OF_DAY), calPoint.get(Calendar.MINUTE))
+                            drawCircle(ScoreRed, 2.2.dp.toPx(), Offset(mx, my))
+                            drawContext.canvas.nativeCanvas.drawText(
+                                if (isEn) "Low ${points(s.exactScore)}P ($timeStr)" else "최저 ${points(s.exactScore)}P ($timeStr)",
+                                (mx - 38.dp.toPx()).coerceIn(4.dp.toPx(), w - 96.dp.toPx()),
+                                (my + 11.dp.toPx()).coerceAtMost(hPx - bottomPadding - 2.dp.toPx()),
+                                paintRed
+                            )
+                        }
+
+                        val lastY = yPos(lastSample.exactScore)
+                        val lastTierColor = coreIndexTierColor(lastSample.exactScore.roundToInt())
+                        drawCircle(
+                            color = lastTierColor.copy(alpha = 0.25f),
+                            radius = 6.dp.toPx(),
+                            center = Offset(lastX, lastY)
+                        )
+                        drawCircle(
+                            color = tierColor,
+                            radius = 3.dp.toPx(),
+                            center = Offset(lastX, lastY)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun GuidanceDetailDialog(
     guidance: CoreIndexGuidance,
     onDismiss: () -> Unit,
     onNavigateToStatistics: () -> Unit
 ) {
-    val isEn = Locale.getDefault().language == "en"
+    val context = LocalContext.current
+    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (isEn) "Last 24 Hours Flow" else "최근 24시간 사용 흐름", fontWeight = FontWeight.Bold) },
@@ -1545,12 +1962,12 @@ private fun GuidanceDetailDialog(
                     Text(guidanceCauseText(guidance), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Text(
                         if (isEn) {
-                            if (guidance.scoreChange > 0) "+${guidance.scoreChange} pts compared to previous record."
-                            else if (guidance.scoreChange < 0) "-${-guidance.scoreChange} pts compared to previous record."
+                            if (guidance.scoreChange > 0) "+${guidance.scoreChange}P compared to previous record."
+                            else if (guidance.scoreChange < 0) "-${-guidance.scoreChange}P compared to previous record."
                             else "Score is unchanged, but usage trends continue updating."
                         } else {
-                            if (guidance.scoreChange > 0) "직전 기록보다 ${guidance.scoreChange}점 올랐습니다."
-                            else if (guidance.scoreChange < 0) "직전 기록보다 ${-guidance.scoreChange}점 낮아졌습니다."
+                            if (guidance.scoreChange > 0) "직전 기록보다 ${guidance.scoreChange}P 올랐습니다."
+                            else if (guidance.scoreChange < 0) "직전 기록보다 ${-guidance.scoreChange}P 낮아졌습니다."
                             else "직전 기록과 같은 점수지만 사용 흐름은 계속 갱신됩니다."
                         },
                         fontSize = 12.sp,
@@ -1560,17 +1977,17 @@ private fun GuidanceDetailDialog(
                 InsightCard(if (isEn) "Estimated Recovery" else "회복 예상") {
                     Text(
                         guidance.recoveryMinutes?.let {
-                            if (isEn) "About $it minutes of screen break may reach ${guidance.recoveryTargetScore}."
-                            else "약 ${it}분 화면을 쉬면 ${guidance.recoveryTargetScore}점으로 예상됩니다."
+                            if (isEn) "About ${it}min of screen break may reach ${guidance.recoveryTargetScore}P."
+                            else "약 ${it}min 화면을 쉬면 ${guidance.recoveryTargetScore}P로 예상됩니다."
                         } ?: if (isEn) "Recovery depends on accumulated use and screen-off rest; a near-term target is not available."
                             else "회복 속도는 누적 사용과 화면 휴식에 따라 달라집니다. 가까운 회복 시점은 아직 예측하기 어렵습니다.",
                         fontSize = 12.sp
                     )
                 }
-                InsightCard(if (isEn) "Last 24 Hours Summary" else "최근 24시간 요약") {
+                InsightCard(if (isEn) "Today's Summary (since 05:00)" else "오늘 요약 (05:00 기준)") {
                     Text(
-                        if (isEn) "Screen ${formatMinutesToHoursAndMinutes(guidance.rollingUsageMinutes)} · ${guidance.rollingOpenCount}x · Habitual ${guidance.shortOpenCount}x"
-                        else "화면 ${formatMinutesToHoursAndMinutes(guidance.rollingUsageMinutes)} · 앱 ${guidance.rollingOpenCount}x · 습관성 확인 ${guidance.shortOpenCount}x",
+                        if (isEn) "Screen ${formatMinutesToHoursAndMinutes(guidance.rollingUsageMinutes)} · Unlocks ${guidance.rollingUnlockCount}x"
+                        else "화면 ${formatMinutesToHoursAndMinutes(guidance.rollingUsageMinutes)} · 잠금해제 ${guidance.rollingUnlockCount}x",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -1582,14 +1999,14 @@ private fun GuidanceDetailDialog(
                         if (isEn) {
                             when {
                                 recent == null -> "Will compare with your past trends once enough data accumulates."
-                                previous == null -> "Recent average is $recent pts. Preparing comparison baseline."
-                                else -> "7-day average $recent pts · ${if (recent >= previous) "+${recent - previous}" else "${recent - previous}"} pts vs prior 7 days"
+                                previous == null -> "Recent average is ${recent}P. Preparing comparison baseline."
+                                else -> "7-day average ${recent}P · ${if (recent >= previous) "+${recent - previous}" else "${recent - previous}"}P vs prior 7 days"
                             }
                         } else {
                             when {
                                 recent == null -> "기록이 쌓이면 자신의 지난 사용 흐름과 비교합니다."
-                                previous == null -> "최근 기록 평균은 ${recent}점입니다. 이전 비교 기간을 준비하고 있습니다."
-                                else -> "최근 7일 평균 ${recent}점 · 이전 7일 대비 ${recent - previous}점"
+                                previous == null -> "최근 기록 평균은 ${recent}P입니다. 이전 비교 기간을 준비하고 있습니다."
+                                else -> "최근 7일 평균 ${recent}P · 이전 7일 대비 ${recent - previous}P"
                             }
                         },
                         fontSize = 12.sp
@@ -1603,8 +2020,10 @@ private fun GuidanceDetailDialog(
     )
 }
 
+@Composable
 private fun guidanceCauseText(guidance: CoreIndexGuidance): String {
-    val isEn = Locale.getDefault().language == "en"
+    val context = LocalContext.current
+    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
     return if (isEn) {
         when (guidance.cause) {
             CoreIndexCause.CALIBRATING -> "Calibrating and learning usage patterns."
@@ -1626,12 +2045,14 @@ private fun guidanceCauseText(guidance: CoreIndexGuidance): String {
     }
 }
 
+@Composable
 private fun guidanceRecommendationText(guidance: CoreIndexGuidance): String {
-    val isEn = Locale.getDefault().language == "en"
+    val context = LocalContext.current
+    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
     return if (isEn) {
         when (guidance.recommendation) {
             CoreIndexRecommendation.KEEP_BALANCE -> "Keep up this healthy pace and mindfully plan your next check."
-            CoreIndexRecommendation.TAKE_TEN_MINUTE_BREAK -> "Take a 10-minute break away from your screen now."
+            CoreIndexRecommendation.TAKE_TEN_MINUTE_BREAK -> "Take a 10min break away from your screen now."
             CoreIndexRecommendation.TAKE_QUIET_BREAK -> "Silence notifications and take a screen-free rest."
             CoreIndexRecommendation.BATCH_PHONE_CHECKS -> "Try batching your next two phone checks into one."
             CoreIndexRecommendation.WIND_DOWN -> "Time to wind down late-night screen time and dim the brightness."
@@ -1639,7 +2060,7 @@ private fun guidanceRecommendationText(guidance: CoreIndexGuidance): String {
     } else {
         when (guidance.recommendation) {
             CoreIndexRecommendation.KEEP_BALANCE -> "지금의 흐름을 유지하고 다음 확인을 의식적으로 선택해보세요."
-            CoreIndexRecommendation.TAKE_TEN_MINUTE_BREAK -> "지금 한 번, 10분 동안 화면을 내려놓아 보세요."
+            CoreIndexRecommendation.TAKE_TEN_MINUTE_BREAK -> "지금 한 번, 10min 동안 화면을 내려놓아 보세요."
             CoreIndexRecommendation.TAKE_QUIET_BREAK -> "알림을 잠시 두고 화면 없는 휴식을 시작해보세요."
             CoreIndexRecommendation.BATCH_PHONE_CHECKS -> "다음 확인 두 번을 한 번으로 묶어보세요."
             CoreIndexRecommendation.WIND_DOWN -> "심야 사용을 마치고 화면 밝기를 내려놓을 시간입니다."
@@ -1669,20 +2090,20 @@ private fun ScoreGaugeCard(
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(horizontal = 14.dp, vertical = 8.dp)
         ) {
             val useWideLayout = maxWidth >= 560.dp
             if (useWideLayout) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     CoreIndexGauge(
                         score = score,
                         grade = gradeText,
-                        modifier = Modifier.width(110.dp),
-                        iconSize = 64.dp
+                        modifier = Modifier.width(96.dp),
+                        iconSize = 48.dp
                     )
                     ScoreGaugeSummary(
                         rollingScore = rollingScore,
@@ -1692,30 +2113,38 @@ private fun ScoreGaugeCard(
             } else {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     CoreIndexGauge(
                         score = score,
                         grade = gradeText,
-                        modifier = Modifier.width(88.dp),
-                        iconSize = 48.dp
+                        modifier = Modifier.width(80.dp),
+                        iconSize = 38.dp
                     )
                     Column(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text(
-                            text = "${stringResource(R.string.digitscore_score)} · ${stringResource(R.string.cumulative_index_label)}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "${stringResource(R.string.digitscore_score)} · ${stringResource(R.string.cumulative_index_label)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            ScoreDetailAffordance()
+                        }
                         HeroMetric(
                             label = stringResource(R.string.continuous_usage),
                             value = formatMinutesToHoursAndMinutes(rollingScore?.continuousUsageMinutes ?: 0L),
                             modifier = Modifier.fillMaxWidth()
                         )
-                        ScoreDetailAffordance()
                     }
                 }
             }
@@ -1762,14 +2191,15 @@ private fun ScoreStatusChip(text: String) {
 
 @Composable
 private fun HeroMetric(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(
+    Row(
         modifier = modifier
             .background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.small)
-            .padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(text = label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
-        Text(text = value, style = MaterialTheme.typography.titleMedium)
+        Text(text = value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -1794,18 +2224,44 @@ private fun ScoreStatsRow(
     onUnlockClick: () -> Unit,
     onDistractingClick: () -> Unit
 ) {
-    val isEn = Locale.getDefault().language == "en"
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        StatisticCard(if (isEn) "Screen" else "화면", formatInsightDuration(screenTimeMillis), Icons.Default.PhoneAndroid, onScreenTimeClick, Modifier.weight(1f))
-        StatisticCard(if (isEn) "Unlocks" else "언락", "${unlockCount}x", Icons.Default.LockOpen, onUnlockClick, Modifier.weight(1f))
-        StatisticCard(if (isEn) "Managed" else "관리", formatInsightDuration(distractingMillis), Icons.Default.Warning, onDistractingClick, Modifier.weight(1f))
+    val context = LocalContext.current
+    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
+    val screenMinutes = screenTimeMillis / 60_000L
+    val distractingMinutes = distractingMillis / 60_000L
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        StatisticCard(
+            label = if (isEn) "Screen" else "화면",
+            value = com.digitscore.app.i18n.formatMinutesSmallUnit(screenMinutes),
+            icon = Icons.Default.PhoneAndroid,
+            onClick = onScreenTimeClick,
+            modifier = Modifier.weight(1f).fillMaxHeight()
+        )
+        StatisticCard(
+            label = if (isEn) "Unlocks" else "언락",
+            value = "${unlockCount}x",
+            icon = Icons.Default.LockOpen,
+            onClick = onUnlockClick,
+            modifier = Modifier.weight(1f).fillMaxHeight()
+        )
+        StatisticCard(
+            label = if (isEn) "Managed" else "관리",
+            value = com.digitscore.app.i18n.formatMinutesSmallUnit(distractingMinutes),
+            icon = Icons.Default.Warning,
+            onClick = onDistractingClick,
+            modifier = Modifier.weight(1f).fillMaxHeight()
+        )
     }
 }
 
 @Composable
 private fun StatisticCard(
     label: String,
-    value: String,
+    value: Any,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -1813,13 +2269,12 @@ private fun StatisticCard(
     Card(
         modifier = modifier.clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        shape = RoundedCornerShape(14.dp)
+        shape = RoundedCornerShape(12.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 14.dp, horizontal = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .padding(vertical = 8.dp, horizontal = 10.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Row(
@@ -1827,11 +2282,45 @@ private fun StatisticCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = label,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
                 DetailChevron()
             }
-            Text(text = value, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Text(text = label, fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+            if (value is androidx.compose.ui.text.AnnotatedString) {
+                com.digitscore.app.i18n.Text(
+                    text = value,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            } else {
+                Text(
+                    text = value.toString(),
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
         }
     }
 }
@@ -1839,7 +2328,8 @@ private fun StatisticCard(
 @Composable
 private fun AppUsageItemCard(appUsage: AppUsage, onClick: () -> Unit) {
     val categoryColor = appRatingColor(appUsage.categoryType)
-    val isEn = Locale.getDefault().language == "en"
+    val context = LocalContext.current
+    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -1853,7 +2343,7 @@ private fun AppUsageItemCard(appUsage: AppUsage, onClick: () -> Unit) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = appUsage.appName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    text = "${appUsage.categoryType.displayName} · ${if (isEn) "24h" else "24시간"} ${appUsage.sessionCount}x",
+                    text = "${appUsage.categoryType.displayName} · ${if (isEn) "Today" else "오늘"} ${appUsage.sessionCount}x",
                     fontSize = 11.sp,
                     color = categoryColor
                 )
@@ -1868,17 +2358,11 @@ private fun AppUsageItemCard(appUsage: AppUsage, onClick: () -> Unit) {
 
 private fun formatMinutesToHoursAndMinutes(minutes: Long): String {
     val safeMinutes = minutes.coerceAtLeast(0L)
-    val hours = safeMinutes / 60
-    val remainingMinutes = safeMinutes % 60
-    return when {
-        hours > 0 && remainingMinutes > 0 -> "${hours}h ${remainingMinutes}m"
-        hours > 0 -> "${hours}h"
-        else -> "${remainingMinutes}m"
-    }
+    return "${safeMinutes}min"
 }
 
 // =========================================================================
-// 📱 상세 다이얼로그 컴포넌트들
+// 상세 다이얼로그 컴포넌트들
 // =========================================================================
 
 @Composable
@@ -1992,12 +2476,13 @@ fun ScreenTimeDetailDialog(
     val productiveMillis = growthMillis.coerceAtLeast(0L)
     val neutralMillis = (totalScreenMillis - distractingMillis - productiveMillis).coerceAtLeast(0L)
 
-    val isEn = Locale.getDefault().language == "en"
+    val context = LocalContext.current
+    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Column {
-                Text(text = if (isEn) "Screen Time (Last 24 Hours)" else "최근 24시간 화면 사용", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text(text = if (isEn) "Screen Time (Today since 05:00)" else "오늘 화면 사용 (05:00 기준)", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Text(
                     text = if (isEn) "Total ${formatInsightDuration(totalScreenMillis)}" else "총 ${formatInsightDuration(totalScreenMillis)}",
                     fontWeight = FontWeight.ExtraBold,
@@ -2062,7 +2547,7 @@ fun ScreenTimeDetailDialog(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = app.appName, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                             Text(
-                                text = "${app.categoryType.displayName} · ${if (isEn) "24h" else "24시간"} ${app.sessionCount}x",
+                                text = "${app.categoryType.displayName} · ${if (isEn) "Today" else "오늘"} ${app.sessionCount}x",
                                 fontSize = 11.sp,
                                 color = appRatingColor(app.categoryType)
                             )
@@ -2109,7 +2594,7 @@ fun UnlockDetailDialog(
         }
     }
 
-    val isEn = Locale.getDefault().language == "en"
+    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -2142,7 +2627,7 @@ fun UnlockDetailDialog(
                     val glanceRatio = (glanceCount.toFloat() / totalUnlocks.toFloat()).coerceIn(0f, 1f)
                     val appUnlocks = (totalUnlocks - glanceCount).coerceAtLeast(0)
 
-                    // 1. 습관적 순간 열람(10초 이내) vs 실제 앱 사용 분리 분석 카드
+                    // 1. 습관적 순간 열람(7초 이내) vs 실제 앱 사용 분리 분석 카드
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         shape = RoundedCornerShape(12.dp)
@@ -2154,7 +2639,7 @@ fun UnlockDetailDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(if (isEn) "Quick Glances vs App Usage" else "습관적 열람 vs 실제 앱 사용", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.outline)
-                                Text(if (isEn) "Threshold: ≤10s" else "기준: 10초 이내", fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
+                                Text(if (isEn) "Threshold: ≤7s" else "기준: 7초 이내", fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
                             }
 
                             // 수평 분할 막대 그래프
@@ -2207,8 +2692,8 @@ fun UnlockDetailDialog(
                             }
 
                             Text(
-                                text = if (isEn) "💡 Detected habitual checks where the screen was turned off within 10s without launching apps. Calibrates gradually to your response speed."
-                                else "💡 앱을 켜지 않고 10초 이내에 화면을 끈 습관적 확인을 감지했습니다. 개인 세션 반응 속도를 학습하여 점진적으로 보정합니다.",
+                                text = if (isEn) "Detected habitual checks where the screen was turned off within 7 seconds without opening apps. Calibrates gradually to your response speed."
+                                else "앱을 켜지 않고 7초 이내에 화면을 끈 습관적 확인을 감지했습니다. 개인 세션 반응 속도를 학습하여 점진적으로 보정합니다.",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -2232,8 +2717,8 @@ fun UnlockDetailDialog(
                                     Text(if (isEn) "Today: ${unlockCount}x" else "오늘: ${unlockCount}x", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ScoreYellow)
                                 }
                                 Text(
-                                    text = if (isEn) "💡 Use your past record (${value.past14DaysLowestUnlock}x) as a benchmark to gradually reduce daily unlock goals."
-                                    else "💡 과거 최저 기록(${value.past14DaysLowestUnlock}x)을 바닥선으로 삼아 일일 목표를 점진적으로 낮춰보세요.",
+                                    text = if (isEn) "Use your past record (${value.past14DaysLowestUnlock}x) as a benchmark to gradually reduce daily unlock goals."
+                                    else "과거 최저 기록(${value.past14DaysLowestUnlock}x)을 바닥선으로 삼아 일일 목표를 점진적으로 낮춰보세요.",
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -2262,16 +2747,16 @@ fun UnlockDetailDialog(
                                 RollingHourlyAxisLabels(value.windowStartMillis, value.windowEndMillis)
                                 val peak = busiest.first()
                                 Text(
-                                    if (isEn) "Most active interval is ${rollingHourLabel(value.windowStartMillis, peak.index)} · ${peak.value} unlocks."
-                                    else "가장 잦은 구간은 ${rollingHourLabel(value.windowStartMillis, peak.index)} · ${peak.value}회입니다.",
+                                    if (isEn) "Most active interval is ${rollingHourLabel(value.windowStartMillis, peak.index)} · ${peak.value}x unlocks."
+                                    else "가장 잦은 구간은 ${rollingHourLabel(value.windowStartMillis, peak.index)} · ${peak.value}x입니다.",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
                             value.averageIntervalMinutes?.let { interval ->
                                 Text(
-                                    if (isEn) "Unlocked once every ~${interval.coerceAtLeast(1)} minutes on average."
-                                    else "평균 약 ${interval.coerceAtLeast(1)}분마다 한 번 열었습니다.",
+                                    if (isEn) "Unlocked once every ~${interval.coerceAtLeast(1)}min on average."
+                                    else "평균 약 ${interval.coerceAtLeast(1)}min마다 한 번 열었습니다.",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.primary
                                 )
@@ -2289,8 +2774,8 @@ fun UnlockDetailDialog(
                                 Text(if (isEn) "This Android version does not support notification event comparison." else "이 Android 버전은 알림 이벤트 비교를 제공하지 않습니다.", fontSize = 13.sp)
                             } else {
                                 Text(
-                                    if (isEn) "OS Notifications: ${value.notificationCount} · Unlocks: $unlockCount"
-                                    else "OS 감지 알림 ${value.notificationCount}건 · 언락 ${unlockCount}회",
+                                    if (isEn) "OS Notifications: ${value.notificationCount} · Unlocks: ${unlockCount}x"
+                                    else "OS 감지 알림 ${value.notificationCount}건 · 언락 ${unlockCount}x",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
@@ -2298,7 +2783,7 @@ fun UnlockDetailDialog(
                                     values = listOf(value.notificationCount.toFloat(), unlockCount.toFloat()),
                                     barColor = MaterialTheme.colorScheme.primary,
                                     contentDescription = UiTranslator.translate(
-                                        "알림 ${value.notificationCount}건과 언락 ${unlockCount}회 비교 그래프"
+                                        "알림 ${value.notificationCount}건과 언락 ${unlockCount}x 비교 그래프"
                                     )
                                 )
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
@@ -2308,11 +2793,11 @@ fun UnlockDetailDialog(
                                 val comparison = when {
                                     value.notificationCount > 0 -> {
                                         val ratio = unlockCount.toFloat() / value.notificationCount
-                                        if (isEn) "Unlocked ~${String.format(Locale.US, "%.1f", ratio)} times per notification."
-                                        else "알림 1건당 약 ${String.format(Locale.US, "%.1f", ratio)}회 언락했습니다."
+                                        if (isEn) "Unlocked ~${String.format(Locale.US, "%.1f", ratio)}x per notification."
+                                        else "알림 1건당 약 ${String.format(Locale.US, "%.1f", ratio)}x 언락했습니다."
                                     }
-                                    unlockCount > 0 -> if (isEn) "Unlocked $unlockCount times without any detected notifications."
-                                        else "감지된 알림 없이도 ${unlockCount}회 언락했습니다."
+                                    unlockCount > 0 -> if (isEn) "Unlocked ${unlockCount}x without any detected notifications."
+                                        else "감지된 알림 없이도 ${unlockCount}x 언락했습니다."
                                     else -> if (isEn) "No comparative records available yet." else "아직 비교할 기록이 없습니다."
                                 }
                                 Text(comparison, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
@@ -2340,8 +2825,8 @@ fun UnlockDetailDialog(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = if (isEn) "Rolling 24-hour unlock counts are factored smoothly into core score usage load."
-                            else "최근 24시간 언락 횟수는 코어 지수의 사용 부하에 완만하게 반영됩니다.",
+                            text = if (isEn) "Today's unlock counts are factored smoothly into core score usage load."
+                            else "오늘 언락 횟수는 코어 지수의 사용 부하에 완만하게 반영됩니다.",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.primary
@@ -2374,7 +2859,8 @@ fun DistractingDetailDialog(
     onNavigateToAppSettings: () -> Unit,
     onSelectApp: (AppUsage) -> Unit
 ) {
-    val isEn = Locale.getDefault().language == "en"
+    val context = LocalContext.current
+    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -2419,7 +2905,7 @@ fun DistractingDetailDialog(
                 if (appsUsage.isEmpty()) {
                     item {
                         Text(
-                            text = if (isEn) "No managed apps used in the last 24 hours. Great balance!" else "최근 24시간 사용된 관리 대상 앱이 없습니다. 안정적인 사용 흐름입니다.",
+                            text = if (isEn) "No managed apps used today. Great balance!" else "오늘 사용된 관리 대상 앱이 없습니다. 안정적인 사용 흐름입니다.",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = ScoreGreen,
@@ -2440,14 +2926,14 @@ fun DistractingDetailDialog(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(text = app.appName, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                 Text(
-                                    text = if (isEn) "24h ${app.sessionCount}x · Habitual ${app.shortSessionCount}x"
-                                    else "24시간 ${app.sessionCount}x · 습관성 확인 ${app.shortSessionCount}x",
+                                    text = if (isEn) "Today ${app.sessionCount}x · Habitual ${app.shortSessionCount}x"
+                                    else "오늘 ${app.sessionCount}x · 습관성 확인 ${app.shortSessionCount}x",
                                     fontSize = 10.sp,
                                     color = MaterialTheme.colorScheme.outline
                                 )
                                 if (app.lateNightUsageMinutes > 0) {
                                     Text(
-                                        text = if (isEn) "Late night ${app.lateNightUsageMinutes}m" else "심야 사용 ${app.lateNightUsageMinutes}m",
+                                        text = if (isEn) "Late night ${app.lateNightUsageMinutes}min" else "심야 사용 ${app.lateNightUsageMinutes}min",
                                         fontSize = 11.sp,
                                         color = ScoreOrange
                                     )
@@ -2489,11 +2975,12 @@ fun AllAppsUsageDialog(
     onDismiss: () -> Unit,
     onSelectApp: (AppUsage) -> Unit
 ) {
-    val isEn = Locale.getDefault().language == "en"
+    val context = LocalContext.current
+    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(text = if (isEn) "All Apps (Last 24 Hours)" else "최근 24시간 전체 앱 목록", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text(text = if (isEn) "All Apps (Today since 05:00)" else "오늘 전체 앱 목록 (05:00 기준)", fontWeight = FontWeight.Bold, fontSize = 18.sp)
         },
         text = {
             LazyColumn(
@@ -2513,7 +3000,7 @@ fun AllAppsUsageDialog(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = app.appName, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                             Text(
-                                text = "${app.categoryType.displayName} · ${if (isEn) "24h" else "24시간"} ${app.sessionCount}x",
+                                text = "${app.categoryType.displayName} · ${if (isEn) "Today" else "오늘"} ${app.sessionCount}x",
                                 fontSize = 11.sp,
                                 color = appRatingColor(app.categoryType)
                             )
@@ -2548,7 +3035,7 @@ fun AppDetailDialog(
     onCategoryChanged: (AppCategoryType) -> Unit
 ) {
     val context = LocalContext.current
-    val isEn = Locale.getDefault().language == "en"
+    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
     var selectedCategory by remember { mutableStateOf(appUsage.categoryType.canonical) }
     var categoryMenuExpanded by remember { mutableStateOf(false) }
     var insights by remember { mutableStateOf<AppUsageInsights?>(null) }
@@ -2625,7 +3112,7 @@ fun AppDetailDialog(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column {
-                                Text(text = if (isEn) "Last 24 Hours Use" else "최근 24시간 사용", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                                Text(text = if (isEn) "Today's Use (since 05:00)" else "오늘 사용 (05:00 기준)", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
                                 Text(
                                     text = formatInsightDuration(appUsage.usageTimeMillis),
                                     fontSize = 16.sp,
@@ -2636,7 +3123,7 @@ fun AppDetailDialog(
                                 Column(horizontalAlignment = Alignment.End) {
                                     Text(text = if (isEn) "Late Night (00~05h)" else "심야(00~05시)", fontSize = 11.sp, color = ScoreOrange)
                                     Text(
-                                        text = if (isEn) "${appUsage.lateNightUsageMinutes}m" else "${appUsage.lateNightUsageMinutes}분",
+                                        text = "${appUsage.lateNightUsageMinutes}min",
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = ScoreOrange
@@ -2688,12 +3175,13 @@ fun AppDetailDialog(
 
 @Composable
 private fun AppTimeOfDayInsight(insights: AppUsageInsights) {
-    val isEn = Locale.getDefault().language == "en"
+    val context = LocalContext.current
+    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
     val busiest = insights.hourlyUsageMillis.withIndex()
         .filter { it.value >= 10_000L }
         .sortedByDescending { it.value }
         .take(3)
-    InsightCard(if (isEn) "When was it used most (Last 24h)?" else "최근 24시간 언제 많이 사용했나요?") {
+    InsightCard(if (isEn) "When was it used today?" else "오늘 언제 많이 사용했나요?") {
         if (busiest.isEmpty()) {
             Text(if (isEn) "No hourly usage records available yet." else "아직 분석할 시간대 기록이 없습니다.", fontSize = 12.sp)
         } else {
@@ -2716,7 +3204,8 @@ private fun AppTimeOfDayInsight(insights: AppUsageInsights) {
 
 @Composable
 private fun AppSessionInsight(insights: AppUsageInsights) {
-    val isEn = Locale.getDefault().language == "en"
+    val context = LocalContext.current
+    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
     val sessions = insights.sessionDurationsMillis
     val average = sessions.takeIf { it.isNotEmpty() }?.average()?.toLong() ?: 0L
     val longest = sessions.maxOrNull() ?: 0L
@@ -2730,7 +3219,7 @@ private fun AppSessionInsight(insights: AppUsageInsights) {
         }
     } else {
         when {
-            longest >= 30 * 60_000L -> "한 번에 30분 이상 이어진 사용이 있습니다."
+            longest >= 30 * 60_000L -> "한 번에 30min 이상 이어진 사용이 있습니다."
             longest >= 15 * 60_000L -> "한 번에 다소 길게 사용한 구간이 있습니다."
             sessions.isNotEmpty() -> "대체로 짧게 나누어 사용했습니다."
             else -> "아직 세션 기록이 없습니다."
@@ -2746,7 +3235,7 @@ private fun AppSessionInsight(insights: AppUsageInsights) {
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(if (isEn) "Recent sessions" else "최근 세션", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
-                Text(if (isEn) "Orange: ≥30 min" else "30분 이상은 주황색", fontSize = 10.sp, color = ScoreOrange)
+                Text(if (isEn) "Orange: ≥30min" else "30min 이상은 주황색", fontSize = 10.sp, color = ScoreOrange)
             }
         }
         Text(
@@ -2757,8 +3246,8 @@ private fun AppSessionInsight(insights: AppUsageInsights) {
         )
         if (sessions.isNotEmpty()) {
             Text(
-                if (isEn) "Opened ${sessions.size} times in 24h, with ${shortOpens} habitual checks."
-                else "최근 24시간 ${sessions.size}회 열었고, 그중 습관성 확인은 ${shortOpens}회입니다.",
+                if (isEn) "Opened ${sessions.size}x today, with ${shortOpens}x habitual checks."
+                else "오늘 ${sessions.size}x 열었고, 그중 습관성 확인은 ${shortOpens}x입니다.",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -2773,14 +3262,15 @@ private fun AppSessionInsight(insights: AppUsageInsights) {
 
 @Composable
 private fun AppOpenTrendInsight(insights: AppUsageInsights) {
-    val isEn = Locale.getDefault().language == "en"
+    val context = LocalContext.current
+    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
     val days = insights.dailyUsage.takeLast(14)
     InsightCard(if (isEn) "How often was it opened by date?" else "날짜별로 몇 번 열었나요?") {
         val rollingSessions = insights.sessionDurationsMillis
         val rollingShortCount = rollingSessions.count { it in 1 until com.digitscore.app.data.HABITUAL_CHECK_THRESHOLD_MILLIS }
         Text(
-            if (isEn) "Last 24h: ${rollingSessions.size} opens · ${rollingShortCount} habitual checks"
-            else "최근 24시간 ${rollingSessions.size}회 · 습관성 확인 ${rollingShortCount}회",
+            if (isEn) "Today: ${rollingSessions.size}x opens · ${rollingShortCount}x habitual checks"
+            else "오늘 ${rollingSessions.size}x · 습관성 확인 ${rollingShortCount}x",
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold
         )
@@ -2841,7 +3331,8 @@ private fun AppOpenTrendInsight(insights: AppUsageInsights) {
 
 @Composable
 private fun AppTrendInsight(insights: AppUsageInsights) {
-    val isEn = Locale.getDefault().language == "en"
+    val context = LocalContext.current
+    val isEn = AppLocale.currentLanguage(context) == AppLocale.ENGLISH
     val periods = listOf(
         7 to (if (isEn) "Last 7 days" else "최근 7일"),
         28 to (if (isEn) "Last 4 weeks" else "최근 4주"),
@@ -3070,10 +3561,9 @@ private fun formatInsightDuration(millis: Long): String {
     val safeMillis = millis.coerceAtLeast(0L)
     val minutes = safeMillis / 60_000L
     return when {
-        minutes >= 60 -> "${minutes / 60}h ${minutes % 60}m"
-        minutes > 0 -> "${minutes}m"
+        minutes > 0 -> "${minutes}min"
         safeMillis > 0 -> "${(safeMillis / 1_000L).coerceAtLeast(1)}s"
-        else -> "0m"
+        else -> "0min"
     }
 }
 
@@ -3084,3 +3574,23 @@ private fun appRatingColor(category: AppCategoryType): Color = when (category.ca
     AppCategoryType.DISTRACTING -> ScoreRed
     else -> MaterialTheme.colorScheme.outline
 }
+
+@Composable
+private fun TopNavActionItem(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier.size(36.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onBackground
+        )
+    }
+}
+

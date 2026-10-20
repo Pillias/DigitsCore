@@ -41,6 +41,7 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.TextButton
+import com.digitscore.app.i18n.AppLocale
 import com.digitscore.app.i18n.Text
 import com.digitscore.app.i18n.UiTranslator
 import com.digitscore.app.ui.components.coreIndexTierColor
@@ -99,6 +100,12 @@ import java.util.Calendar
 import java.util.Locale
 import kotlin.math.max
 import kotlin.math.roundToInt
+
+@Composable
+private fun isEnglish(): Boolean {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    return AppLocale.currentLanguage(context) == AppLocale.ENGLISH
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -423,7 +430,7 @@ private fun StatisticsTakeawayCard(
     windowStartMillis: Long,
     windowEndMillis: Long
 ) {
-    val english = Locale.getDefault().language == "en"
+    val english = isEnglish()
     val visible = remember(samples, windowStartMillis, windowEndMillis) {
         currentModelWindowSamples(samples, windowStartMillis, windowEndMillis)
     }
@@ -461,7 +468,7 @@ private fun StatisticsTakeawayCard(
 
 @Composable
 private fun FourWeekTakeawayCard(histories: List<DailyScoreHistoryEntity>) {
-    val english = Locale.getDefault().language == "en"
+    val english = isEnglish()
     val today = LocalDate.now()
     val recent = historiesInCalendarRange(histories, 7, today)
     val previous = historiesInCalendarRange(histories, 7, today.minusDays(7))
@@ -576,7 +583,7 @@ private fun MarketIndexHeader(
     rangeLabel: String,
     onClick: () -> Unit
 ) {
-    val english = Locale.getDefault().language == "en"
+    val english = isEnglish()
     val changeColor = when {
         change == null || change == 0 -> MaterialTheme.colorScheme.outline
         change > 0 -> ScoreGreen
@@ -657,6 +664,7 @@ private fun RollingMarketChartCard(
     val summary = remember(sessions, windowStartMillis, windowEndMillis) {
         summarizeRollingUsage(sessions, windowStartMillis, windowEndMillis)
     }
+    val english = isEnglish()
     val axisColor = MaterialTheme.colorScheme.outline
     val current = visible.lastOrNull()?.score
     val lineColor = current?.let { coreIndexTierColor(it) } ?: MaterialTheme.colorScheme.primary
@@ -686,13 +694,13 @@ private fun RollingMarketChartCard(
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             MarketIndexHeader(
-                title = if (Locale.getDefault().language == "en") "Latest reading" else "마지막 기록",
+                title = if (english) "Latest reading" else "마지막 기록",
                 current = current,
                 change = change,
-                changeLabel = if (Locale.getDefault().language == "en") "vs first recorded point" else "첫 기록 대비",
+                changeLabel = if (english) "vs first recorded point" else "첫 기록 대비",
                 low = visible.minOfOrNull { it.score },
                 high = visible.maxOfOrNull { it.score },
-                rangeLabel = if (Locale.getDefault().language == "en") "24h readings" else "24시간 기록",
+                rangeLabel = if (english) "24h readings" else "24시간 기록",
                 onClick = onClick
             )
             Spacer(Modifier.height(12.dp))
@@ -869,7 +877,7 @@ private fun RollingMarketChartCard(
                 )
             }
             Text(
-                if (Locale.getDefault().language == "en")
+                if (english)
                     "Tap or drag for a reading. Unrecorded intervals join the next point; score steadily recovers while screen is off."
                 else "차트를 누르거나 드래그해 시점별 기록을 확인하세요. 기록이 없는 구간은 다음 점과 연결하며, 화면을 끄고 쉬는 동안 점수가 완만하게 회복됩니다.",
                 modifier = Modifier.padding(top = 8.dp),
@@ -1313,6 +1321,7 @@ private fun FourWeekMarketChartCard(
     val ranges = remember(scoreHistories, samples) { buildDailyCoreRanges(scoreHistories, samples) }
     val movingAverages = remember(ranges) { sevenDayMovingAverages(ranges) }
     val comparableRanges = remember(ranges) { ranges.filter { it.history.scoreModelVersion == CURRENT_SCORE_MODEL_VERSION } }
+    val english = isEnglish()
     val axisColor = MaterialTheme.colorScheme.outline
     val lineColor = MaterialTheme.colorScheme.primary
     val surfaceColor = MaterialTheme.colorScheme.surface
@@ -1351,12 +1360,12 @@ private fun FourWeekMarketChartCard(
     ) {
         Column(Modifier.fillMaxWidth().padding(20.dp)) {
             MarketIndexHeader(
-                title = if (Locale.getDefault().language == "en") "Current Core Index" else "현재 코어 지수",
+                title = if (english) "Current Core Index" else "현재 코어 지수",
                 current = current,
                 change = null,
                 low = allScores.minOrNull(),
                 high = allScores.maxOrNull(),
-                rangeLabel = if (Locale.getDefault().language == "en") "Current model · 4 weeks" else "현재 방식 · 4주",
+                rangeLabel = if (english) "Current model · 4 weeks" else "현재 방식 · 4주",
                 onClick = onClick
             )
             Spacer(Modifier.height(12.dp))
@@ -1373,7 +1382,6 @@ private fun FourWeekMarketChartCard(
                     Text(
                         buildString {
                             append(range.history.dateString)
-                            val english = Locale.getDefault().language == "en"
                             if (range.history.scoreModelVersion != CURRENT_SCORE_MODEL_VERSION)
                                 append(if (english) " · Previous model" else " · 이전 점수 방식")
                             if (english) {
@@ -1546,7 +1554,7 @@ private fun FourWeekMarketChartCard(
                         ScoreGreen to "첫 기록 대비 상승",
                         ScoreRed to "첫 기록 대비 하락",
                         lineColor to "일별 마지막 지수 7일 평균",
-                        axisColor to (if (Locale.getDefault().language == "en") "Previous model" else "이전 점수 방식"),
+                        axisColor to (if (english) "Previous model" else "이전 점수 방식"),
                         Color(0xFF26A69A) to "화면"
                     )
                 )
@@ -1557,7 +1565,7 @@ private fun FourWeekMarketChartCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    if (Locale.getDefault().language == "en")
+                    if (english)
                         "Previous-model scores are gray and excluded from the current range and 7-day trend. Missing days stay blank; lower red bars show managed-app time."
                     else "이전 점수 방식은 회색으로 표시하며 현재 범위와 7일 추세에서 제외합니다. 기록이 없는 날짜는 비워 두고, 아래 빨간 막대는 관리 앱 시간입니다.",
                     fontSize = 11.sp,
@@ -1585,7 +1593,7 @@ private fun WeeklyMarketSummary(
     }.toSortedMap()
     val lineColor = MaterialTheme.colorScheme.primary
     val historicColor = MaterialTheme.colorScheme.outline
-    val english = Locale.getDefault().language == "en"
+    val english = isEnglish()
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("주별 흐름 · 월요일 기준", fontWeight = FontWeight.Bold)
         if (weeks.isEmpty()) Text("기록 준비 중")
@@ -1638,7 +1646,7 @@ private fun IntradayCoreIndexDialog(
     onNext: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val english = Locale.getDefault().language == "en"
+    val english = isEnglish()
     val axisColor = MaterialTheme.colorScheme.outline
     val lineColor = MaterialTheme.colorScheme.primary
     val visible = remember(history.dateString, history.scoreModelVersion, samples) {
@@ -1787,7 +1795,7 @@ private fun IntradayCoreIndexDialog(
 }
 
 /**
- * 📊 2. 일별 사용 시간 & 언락 횟수 복합 바 차트 (Bar Chart)
+ * 2. 일별 사용 시간 & 언락 횟수 복합 바 차트 (Bar Chart)
  */
 @Composable
 private fun UsageAndUnlockBarChartCard(

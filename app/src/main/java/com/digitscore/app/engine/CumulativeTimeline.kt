@@ -9,7 +9,9 @@ data class CumulativeUse(
     val openedAt: Long = start,
     val packageName: String = "",
     val effectivePackageName: String = packageName,
-    val exempt: Boolean = false
+    val exempt: Boolean = false,
+    val studyExempt: Boolean = false,
+    val unlimitedExempt: Boolean = false
 )
 data class CumulativeCheckpoint(val timestamp: Long, val state: CumulativeScoreState)
 data class ScoreMovement(
@@ -22,7 +24,7 @@ data class ScoreMovement(
  * the caller supplies at least two minutes of look-ahead for the one-minute brief-check rule.
  * Consecutive short opens separated by <=60s form one usage burst (not unlimited free checks).
  * Openings remain individually chargeable, while repeated fragments of one opening are not.
- * Exempt uses (e.g. Navigation, Phone) do not penalize score or trigger usage bursts.
+ * Exempt uses (e.g. Navigation, Phone, Utility, Study) do not trigger usage bursts or fake rest.
  */
 object CumulativeTimeline {
     const val MINUTE = 60_000L
@@ -41,12 +43,12 @@ object CumulativeTimeline {
         val nonExemptSorted = sorted.filter { !it.exempt }
         val groups = mutableListOf<MutableList<CumulativeUse>>()
         var groupEnd = Long.MIN_VALUE
-        for (use in nonExemptSorted) {
+        for (use in sorted) {
             if (groups.isEmpty() || use.start > groupEnd + MINUTE) groups.add(mutableListOf())
             groups.last().add(use)
             groupEnd = maxOf(groupEnd, use.end)
         }
-        val longOpenIds = nonExemptSorted.groupBy { it.openingId }.filterValues { parts ->
+        val longOpenIds = sorted.groupBy { it.openingId }.filterValues { parts ->
             var lastEnd = Long.MIN_VALUE
             var duration = 0L
             for (use in parts) {
@@ -97,9 +99,19 @@ object CumulativeTimeline {
                 }
                 val visible = active.filter { it.start < b && it.end > a }
                 val nonExemptVisible = visible.filter { !it.exempt }
+                val isShortGap = if (substantial.isNotEmpty()) {
+                    val prevUse = substantial.lastOrNull { it.end <= a }
+                    val nextUse = substantial.firstOrNull { it.start >= b }
+                    prevUse != null && nextUse != null && (nextUse.start - prevUse.end) <= 3 * MINUTE
+                } else false
+
                 val activity = when {
                     nonExemptVisible.any { it.managed } -> CumulativeActivity.MANAGED_USE
                     nonExemptVisible.isNotEmpty() -> CumulativeActivity.NORMAL_USE
+                    visible.any { it.exempt && it.studyExempt } -> CumulativeActivity.EXEMPT_STUDY
+                    visible.any { it.exempt && !it.unlimitedExempt } -> CumulativeActivity.EXEMPT_UTILITY
+                    visible.any { it.exempt } -> CumulativeActivity.EXEMPT_UNLIMITED
+                    isShortGap -> CumulativeActivity.UNKNOWN
                     else -> restActivity(a)
                 }
                 val before = config.displayed(state.signal)

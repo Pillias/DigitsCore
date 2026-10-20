@@ -1,5 +1,6 @@
 package com.digitscore.app.model
 
+import android.content.Context
 import android.content.pm.ApplicationInfo
 
 /**
@@ -7,6 +8,66 @@ import android.content.pm.ApplicationInfo
  * 추후 학생 모드, 직장인 모드 등 모드별 앱 성격 변경을 유연하게 처리합니다.
  */
 object AppCategoryPolicy {
+
+    private const val PREFS_NAME = "custom_study_packages_prefs"
+    private const val KEY_STUDY_PACKAGES = "study_packages_set"
+    private const val KEY_EXCLUDED_STUDY_PACKAGES = "excluded_study_packages_set"
+
+    @Volatile
+    private var cachedCustomStudyPackages: Set<String>? = null
+    @Volatile
+    private var cachedExcludedStudyPackages: Set<String>? = null
+
+    fun getCustomStudyPackages(context: Context): Set<String> {
+        val cached = cachedCustomStudyPackages
+        if (cached != null) return cached
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val set = prefs.getStringSet(KEY_STUDY_PACKAGES, emptySet())?.toSet() ?: emptySet()
+        cachedCustomStudyPackages = set
+        return set
+    }
+
+    fun getExcludedStudyPackages(context: Context): Set<String> {
+        val cached = cachedExcludedStudyPackages
+        if (cached != null) return cached
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val set = prefs.getStringSet(KEY_EXCLUDED_STUDY_PACKAGES, emptySet())?.toSet() ?: emptySet()
+        cachedExcludedStudyPackages = set
+        return set
+    }
+
+    fun setCustomStudyPackage(context: Context, packageName: String, isStudy: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val studySet = prefs.getStringSet(KEY_STUDY_PACKAGES, emptySet())?.toMutableSet() ?: mutableSetOf()
+        val excludedSet = prefs.getStringSet(KEY_EXCLUDED_STUDY_PACKAGES, emptySet())?.toMutableSet() ?: mutableSetOf()
+        val pkg = packageName.lowercase()
+        if (isStudy) {
+            studySet.add(pkg)
+            excludedSet.remove(pkg)
+        } else {
+            studySet.remove(pkg)
+            if (EDUCATION_PACKAGES.any { pkg.startsWith(it) }) {
+                excludedSet.add(pkg)
+            }
+        }
+        prefs.edit()
+            .putStringSet(KEY_STUDY_PACKAGES, studySet)
+            .putStringSet(KEY_EXCLUDED_STUDY_PACKAGES, excludedSet)
+            .apply()
+        cachedCustomStudyPackages = studySet.toSet()
+        cachedExcludedStudyPackages = excludedSet.toSet()
+    }
+
+    fun setStudyPackagesSets(context: Context, studyPackages: Set<String>, excludedPackages: Set<String>) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putStringSet(KEY_STUDY_PACKAGES, studyPackages)
+            .putStringSet(KEY_EXCLUDED_STUDY_PACKAGES, excludedPackages)
+            .apply()
+        cachedCustomStudyPackages = studyPackages.toSet()
+        cachedExcludedStudyPackages = excludedPackages.toSet()
+    }
+
 
     // 지도 / 차량 내비게이션 관련 패키지
     val NAVIGATION_PACKAGES: Set<String> = setOf(
@@ -19,6 +80,13 @@ object AppCategoryPolicy {
         "com.mnsoft.mappy",             // 맵피
         "com.kt.ollehmap",              // 원내비
         "com.uplus.uplusnavi"           // U+내비
+    )
+
+    // 통화 / 다이얼러 패키지
+    val CALL_PACKAGES: Set<String> = setOf(
+        "com.samsung.android.dialer",
+        "com.google.android.dialer",
+        "com.android.phone"
     )
 
     // 필수 시스템 유틸리티 / 통화 / 도구
@@ -37,7 +105,7 @@ object AppCategoryPolicy {
         "com.android.settings"
     )
 
-    // 학습 / 교육 관련 앱
+    // 학습 / 교육 / 어학 / 인강 / 독서·전자책 앱 (모든 모드 기본 EXEMPT 면제, 연속 50분 한도 대상)
     val EDUCATION_PACKAGES: Set<String> = setOf(
         "com.duolingo",
         "com.ichi2.anki",
@@ -52,10 +120,53 @@ object AppCategoryPolicy {
         "kr.co.ebs.ebsi",               // EBS
         "kr.co.ebs.primary",            // EBS 초등
         "kr.co.ebs.mid",                // EBS 중학
-        "com.megastudy.smartlearning"   // 메가스터디
+        "com.megastudy.smartlearning",  // 메가스터디
+        "com.selabs.speak",             // 스픽
+        "kr.epopsoft.word",             // 말해보카
+        "co.riiid.vida",                // 산타
+        "kr.co.millie.millieshelf",     // 밀리의서재
+        "com.initialcoms.ridi",         // 리디
+        "com.kyobo.ebook",              // 교보eBook
+        "com.yes24.ebook",              // 예스24 eBook
+        "com.influential.youngkangapp", // 윌라
+        "net.pedaling.class101"         // 클래스101
     )
 
-    // 쇼핑 앱
+    // 은행 / 페이 / 인증 / 메일 / 캘린더 / 문서 / 업무 협업툴 (기본 EXEMPT 면제, 연속 30분 한도 대상)
+    val FINANCE_AND_WORK_PACKAGES: Set<String> = setOf(
+        // 은행 / 페이 / 공공인증
+        "viva.republica.toss",          // 토스
+        "com.kakaobank.channel",        // 카카오뱅크
+        "com.kbankwith.smartbank",      // 케이뱅크
+        "com.kbstar.kbbank",            // KB스타뱅킹
+        "com.shinhan.sbanking",         // 신한SOL
+        "com.wooribank.smart.npib",     // 우리WON
+        "com.kebhana.hanapush",         // 하나원큐
+        "com.nh.mobilenoti",            // NH올원
+        "com.samsung.android.spay",     // 삼성페이
+        "com.naverfin.payapp",          // 네이버페이
+        "com.kakaopay.app",             // 카카오페이
+        "com.sktelecom.tauth",
+        "com.kt.ktauth",
+        "com.lguplus.smartotp",
+        "kr.go.minwon.m",               // 정부24
+        "kr.go.mobileid",               // 모바일신분증
+        // 메일 / 캘린더 / 문서 / 업무 협업툴
+        "com.google.android.gm",        // Gmail
+        "com.microsoft.office.outlook", // Outlook
+        "com.nhn.android.mail",         // 네이버메일
+        "com.google.android.calendar",
+        "com.samsung.android.calendar",
+        "notion.id",                    // Notion
+        "com.google.android.apps.docs", // Google Docs/Drive
+        "com.microsoft.office",
+        "com.microsoft.teams",          // Teams
+        "com.slack",                    // Slack
+        "com.tosslab.jandi.app",        // 잔디
+        "us.zoom.videomeetings"         // Zoom
+    )
+
+    // 쇼핑 앱 (기본 등급: DISTRACTING 관리)
     val SHOPPING_PACKAGES: Set<String> = setOf(
         "com.alibaba.aliexpress",
         "com.amazon.mshop",
@@ -63,8 +174,73 @@ object AppCategoryPolicy {
         "com.ebay.mobile",
         "com.einnovation.temu",
         "com.contextlogic.wish",
-        "com.coupang.mobile"
+        "com.coupang.mobile",
+        "com.musinsa.store",            // 무신사
+        "com.banhala.android",          // 에이블리
+        "com.croquis.zigzag",           // 지그재그
+        "com.the29cm.app29cm",          // 29CM
+        "net.bucketplace",              // 오늘의집
+        "com.towneers.www"              // 당근
     )
+
+    // 웹툰 앱 (기본 등급: DISTRACTING 관리)
+    val WEBTOON_PACKAGES: Set<String> = setOf(
+        "com.nhn.android.webtoon",
+        "com.kakao.page",
+        "com.daum.android.webtoon",
+        "com.nhn.android.nbooks"
+    )
+
+    // 메신저 앱 (기본 등급: NEUTRAL 일반)
+    val MESSENGER_PACKAGES: Set<String> = setOf(
+        "com.kakao.talk",
+        "jp.naver.line.android",
+        "org.telegram.messenger",
+        "com.whatsapp",
+        "com.facebook.orca",
+        "com.discord",
+        "com.tencent.mm",
+        "org.thoughtcrime.securesms",
+        "com.samsung.android.messaging",
+        "com.google.android.apps.messaging"
+    )
+
+    // 소셜 미디어 / 숏폼 / 스트리밍 앱 (기본 등급: DISTRACTING 관리)
+    val SOCIAL_MEDIA_PACKAGES: Set<String> = setOf(
+        "com.instagram.android",
+        "com.instagram.barcelona",
+        "com.facebook.katana",
+        "com.facebook.lite",
+        "com.twitter.android",
+        "com.zhiliaoapp.musically",
+        "com.ss.android.ugc.trill",
+        "com.google.android.youtube",
+        "tv.twitch.android.app",
+        "com.navercorp.game.android.community",
+        "kr.co.nowcom.mobile.afreeca",
+        "com.reddit.frontpage"
+    )
+
+    /**
+     * 시간 제한 없는 순수 면제 앱(내비게이션, 통화 다이얼러)인지 판별합니다.
+     */
+    fun isNavigationOrCallPackage(packageName: String): Boolean {
+        val pkg = packageName.lowercase()
+        return NAVIGATION_PACKAGES.any { pkg.startsWith(it) } || CALL_PACKAGES.any { pkg.startsWith(it) }
+    }
+
+    /**
+     * 공부 / 어학 / 인강 / 독서·전자책 면제 앱(50분 면제 한도 대상)인지 판별합니다.
+     */
+    fun isStudyOrReadingPackage(packageName: String, context: Context? = null): Boolean {
+        val pkg = packageName.lowercase()
+        val excluded = if (context != null) getExcludedStudyPackages(context) else cachedExcludedStudyPackages
+        if (excluded?.contains(pkg) == true) return false
+        val custom = if (context != null) getCustomStudyPackages(context) else cachedCustomStudyPackages
+        if (custom?.contains(pkg) == true) return true
+        return EDUCATION_PACKAGES.any { pkg.startsWith(it) }
+    }
+
 
     /**
      * 모드(PresetMode)에 따른 앱의 기본 등급(Category)을 결정합니다.
@@ -76,41 +252,50 @@ object AppCategoryPolicy {
     ): AppCategoryType {
         val pkg = packageName.lowercase()
 
-        // 1. 모드별 특화 규칙
-        when (presetMode) {
-            PresetMode.STUDY, PresetMode.KIDS -> {
-                // 학생 / 어린이 모드: 학습·인강 앱은 면제(도구) 또는 일반으로 적극 지원
-                if (EDUCATION_PACKAGES.any { pkg.startsWith(it) }) {
-                    return AppCategoryType.EXEMPT
-                }
-                // 학생 모드에서는 운전 내비가 성인처럼 필수 도구가 아니므로 일반(NEUTRAL)으로 취급
-                if (NAVIGATION_PACKAGES.any { pkg.startsWith(it) } || applicationCategory == ApplicationInfo.CATEGORY_MAPS) {
-                    return AppCategoryType.NEUTRAL
-                }
+        // 1. 내비게이션 / 지도
+        if (NAVIGATION_PACKAGES.any { pkg.startsWith(it) } || applicationCategory == ApplicationInfo.CATEGORY_MAPS) {
+            if (presetMode == PresetMode.STUDY || presetMode == PresetMode.KIDS) {
+                return AppCategoryType.NEUTRAL
             }
-            else -> {
-                // 성인 / 직장인 / 기본 모드:
-                // 지도 / 내비게이션은 운전 및 안전 이동을 위한 필수 도구이므로 완전 면제(EXEMPT)
-                if (NAVIGATION_PACKAGES.any { pkg.startsWith(it) } || applicationCategory == ApplicationInfo.CATEGORY_MAPS) {
-                    return AppCategoryType.EXEMPT
-                }
-                if (EDUCATION_PACKAGES.any { pkg.startsWith(it) }) {
-                    return AppCategoryType.NEUTRAL
-                }
-            }
+            return AppCategoryType.EXEMPT
         }
 
-        // 2. 기본 유틸리티(전화, 계산기, 시계, 카메라 등)는 모든 모드에서 면제
+        // 2. 학습 / 교육 / 어학 / 독서 앱: 모든 모드에서 기본 EXEMPT (면제)
+        if (EDUCATION_PACKAGES.any { pkg.startsWith(it) }) {
+            return AppCategoryType.EXEMPT
+        }
+
+        // 3. 은행 / 페이 / 인증 / 업무 협업툴: 기본 EXEMPT (면제)
+        if (FINANCE_AND_WORK_PACKAGES.any { pkg.startsWith(it) }) {
+            return AppCategoryType.EXEMPT
+        }
+
+        // 4. 기본 시스템 유틸리티(전화, 계산기, 시계, 카메라 등): 모든 모드에서 EXEMPT (면제)
         if (UTILITY_PACKAGES.any { pkg.startsWith(it) }) {
             return AppCategoryType.EXEMPT
         }
 
-        // 3. 쇼핑 앱은 일반
+        // 5. 소셜 미디어 / 숏폼 / 스트리밍: DISTRACTING (관리)
+        if (SOCIAL_MEDIA_PACKAGES.any { pkg.startsWith(it) }) {
+            return AppCategoryType.DISTRACTING
+        }
+
+        // 6. 웹툰 앱: DISTRACTING (관리)
+        if (WEBTOON_PACKAGES.any { pkg.startsWith(it) }) {
+            return AppCategoryType.DISTRACTING
+        }
+
+        // 7. 쇼핑 앱: DISTRACTING (관리)
         if (SHOPPING_PACKAGES.any { pkg.startsWith(it) }) {
+            return AppCategoryType.DISTRACTING
+        }
+
+        // 8. 메신저 앱: NEUTRAL (일반)
+        if (MESSENGER_PACKAGES.any { pkg.startsWith(it) }) {
             return AppCategoryType.NEUTRAL
         }
 
-        // 4. Android ApplicationInfo Category 기반 기본 매핑
+        // 9. Android ApplicationInfo Category 기반 기본 매핑
         return when (applicationCategory) {
             ApplicationInfo.CATEGORY_GAME,
             ApplicationInfo.CATEGORY_VIDEO,
@@ -133,6 +318,9 @@ object AppCategoryPolicy {
         if (categoryType == AppCategoryType.DISTRACTING || categoryType == AppCategoryType.EXEMPT) return true
         val pkg = packageName.lowercase()
         return NAVIGATION_PACKAGES.any { pkg.startsWith(it) } ||
-               EDUCATION_PACKAGES.any { pkg.startsWith(it) }
+               EDUCATION_PACKAGES.any { pkg.startsWith(it) } ||
+               FINANCE_AND_WORK_PACKAGES.any { pkg.startsWith(it) } ||
+               SHOPPING_PACKAGES.any { pkg.startsWith(it) } ||
+               WEBTOON_PACKAGES.any { pkg.startsWith(it) }
     }
 }

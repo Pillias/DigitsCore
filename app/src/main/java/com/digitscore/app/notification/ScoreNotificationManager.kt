@@ -393,13 +393,13 @@ object ScoreNotificationManager {
 
         val expandedText = buildList {
             if (dailyGoal != null && !dailyGoal.isDismissed) {
-                add(if (isEn) "🎯 Today's 3 Key Goals" else "🎯 오늘 3대 실천 목표")
+                add(if (isEn) "Today's 3 Key Goals" else "오늘 3대 실천 목표")
                 val targetScore = dailyGoal.scoreTarget
                 val scoreDiff = (targetScore - score).coerceAtLeast(0)
                 if (scoreDiff > 0) {
                     add(if (isEn) "• Core Index: ${score}P / Target ${targetScore}P (+${scoreDiff}P)" else "• 코어 지수: ${score}P / 목표 ${targetScore}P (+${scoreDiff}P)")
                 } else {
-                    add(if (isEn) "• Core Index: ${score}P / Target ${targetScore}P (Achieved 🎉)" else "• 코어 지수: ${score}P / 목표 ${targetScore}P (달성 🎉)")
+                    add(if (isEn) "• Core Index: ${score}P / Target ${targetScore}P (Achieved ✓)" else "• 코어 지수: ${score}P / 목표 ${targetScore}P (달성 ✓)")
                 }
                 if (dailyGoal.targetPackageName != null) {
                     val appMins = dailyGoal.currentAppUsageMinutes
@@ -493,13 +493,7 @@ object ScoreNotificationManager {
     }
 
     private fun formatMinutesToHoursAndMinutes(context: Context, minutes: Long): String {
-        val hours = minutes / 60
-        val mins = minutes % 60
-        return when {
-            hours > 0 && mins > 0 -> context.getString(R.string.format_hours_minutes, hours, mins)
-            hours > 0 -> context.getString(R.string.format_hours, hours)
-            else -> context.getString(R.string.format_minutes, mins)
-        }
+        return "${minutes.coerceAtLeast(0L)}min"
     }
 
     private fun notificationActionMessage(
@@ -517,19 +511,19 @@ object ScoreNotificationManager {
                 if (isEn) "Target ${dailyGoal.scoreTarget}P (+${diff}P)"
                 else "목표 ${dailyGoal.scoreTarget}P (+${diff}P)"
             } else {
-                if (isEn) "Target ${dailyGoal.scoreTarget}P (Achieved 🎉)"
-                else "목표 ${dailyGoal.scoreTarget}P (달성 🎉)"
+                if (isEn) "Target ${dailyGoal.scoreTarget}P (Achieved ✓)"
+                else "목표 ${dailyGoal.scoreTarget}P (달성 ✓)"
             }
 
             val appPart = if (dailyGoal.targetPackageName != null) {
                 val appName = dailyGoal.targetAppName.ifBlank { if (isEn) "App" else "앱" }
                 val isOver = dailyGoal.currentAppUsageMinutes > dailyGoal.appLimitMinutes
-                val marker = if (isOver) "⚠️ " else ""
+                val marker = if (isOver) "! " else ""
                 "$marker$appName ${dailyGoal.currentAppUsageMinutes}/${dailyGoal.appLimitMinutes}m"
             } else null
 
             val isUnlockOver = dailyGoal.currentUnlockCount > dailyGoal.unlockLimitTarget
-            val unlockMarker = if (isUnlockOver) "⚠️ " else ""
+            val unlockMarker = if (isUnlockOver) "! " else ""
             val unlockPart = if (isEn) "${unlockMarker}Unlocks ${dailyGoal.currentUnlockCount}/${dailyGoal.unlockLimitTarget}x"
             else "${unlockMarker}언락 ${dailyGoal.currentUnlockCount}/${dailyGoal.unlockLimitTarget}x"
 

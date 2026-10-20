@@ -38,8 +38,8 @@ enum class ScoreGrade(
     D("D (경고)", "D (Pause)", "잠시 스마트폰을 내려놓고 쉬어갈 때입니다.", "This is a good time to put your phone down for a break."),
     F("F (집중 관리)", "F (Refocus)", "사용 흐름을 전환할 충분한 휴식이 필요합니다.", "A meaningful break can help reset your usage pattern.");
 
-    val gradeText: String get() = if (java.util.Locale.getDefault().language == "en") englishText else koreanText
-    val description: String get() = if (java.util.Locale.getDefault().language == "en") englishDescription else koreanDescription
+    val gradeText: String get() = if (com.digitscore.app.i18n.AppLocale.isCurrentEnglish) englishText else koreanText
+    val description: String get() = if (com.digitscore.app.i18n.AppLocale.isCurrentEnglish) englishDescription else koreanDescription
 
     companion object {
         fun fromScore(score: Int): ScoreGrade = when {

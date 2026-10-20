@@ -62,8 +62,8 @@ enum class ScoringBenchmark(
         lateNightMinutes = 0
     );
 
-    val title: String get() = if (java.util.Locale.getDefault().language == "en") englishTitle else koreanTitle
-    val sourceLabel: String get() = if (java.util.Locale.getDefault().language == "en") englishSourceLabel else koreanSourceLabel
+    val title: String get() = if (com.digitscore.app.i18n.AppLocale.isCurrentEnglish) englishTitle else koreanTitle
+    val sourceLabel: String get() = if (com.digitscore.app.i18n.AppLocale.isCurrentEnglish) englishSourceLabel else koreanSourceLabel
 
     fun evaluate(rule: ScoreRule): ScoreDetail {
         val usages = buildList {

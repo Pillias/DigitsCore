@@ -17,7 +17,13 @@ data class WidgetSnapshot(
     val updatedAtMillis: Long,
     val continuousUsageMinutes: Long = 0L,
     val recommendation: CoreIndexRecommendation = CoreIndexRecommendation.KEEP_BALANCE,
-    val recoveryMinutes: Int? = null
+    val recoveryMinutes: Int? = null,
+    val scoreTarget: Int = 75,
+    val targetAppName: String = "",
+    val targetAppUsageMinutes: Int = 0,
+    val targetAppLimitMinutes: Int = 30,
+    val unlockLimitTarget: Int = 60,
+    val recentScoresCsv: String = ""
 ) {
     fun sanitized(): WidgetSnapshot = copy(
         score = score.coerceIn(1, 100),
@@ -26,6 +32,11 @@ data class WidgetSnapshot(
         unlockCount = unlockCount.coerceAtLeast(0),
         continuousUsageMinutes = continuousUsageMinutes.coerceAtLeast(0L),
         recoveryMinutes = recoveryMinutes?.coerceIn(1, 720),
+        scoreTarget = scoreTarget.coerceIn(1, 100),
+        targetAppUsageMinutes = targetAppUsageMinutes.coerceAtLeast(0),
+        targetAppLimitMinutes = targetAppLimitMinutes.coerceAtLeast(1),
+        unlockLimitTarget = unlockLimitTarget.coerceAtLeast(1),
+        recentScoresCsv = recentScoresCsv.trim(),
         updatedAtMillis = updatedAtMillis.coerceAtLeast(0L)
     )
 
@@ -38,7 +49,13 @@ data class WidgetSnapshot(
             flow == other.flow &&
             continuousUsageMinutes == other.continuousUsageMinutes &&
             recommendation == other.recommendation &&
-            recoveryMinutes == other.recoveryMinutes
+            recoveryMinutes == other.recoveryMinutes &&
+            scoreTarget == other.scoreTarget &&
+            targetAppName == other.targetAppName &&
+            targetAppUsageMinutes == other.targetAppUsageMinutes &&
+            targetAppLimitMinutes == other.targetAppLimitMinutes &&
+            unlockLimitTarget == other.unlockLimitTarget &&
+            recentScoresCsv == other.recentScoresCsv
 }
 
 object WidgetSnapshotStore {
@@ -52,6 +69,12 @@ object WidgetSnapshotStore {
     private const val KEY_CONTINUOUS_USAGE_MINUTES = "continuous_usage_minutes"
     private const val KEY_RECOMMENDATION = "recommendation"
     private const val KEY_RECOVERY_MINUTES = "recovery_minutes"
+    private const val KEY_SCORE_TARGET = "score_target"
+    private const val KEY_TARGET_APP_NAME = "target_app_name"
+    private const val KEY_TARGET_APP_USAGE_MINUTES = "target_app_usage_minutes"
+    private const val KEY_TARGET_APP_LIMIT_MINUTES = "target_app_limit_minutes"
+    private const val KEY_UNLOCK_LIMIT_TARGET = "unlock_limit_target"
+    private const val KEY_RECENT_SCORES_CSV = "recent_scores_csv"
     private const val KEY_UPDATED_AT = "updated_at"
 
     fun write(context: Context, snapshot: WidgetSnapshot): Boolean {
@@ -71,6 +94,12 @@ object WidgetSnapshotStore {
                 value.recoveryMinutes?.let { putInt(KEY_RECOVERY_MINUTES, it) }
                     ?: remove(KEY_RECOVERY_MINUTES)
             }
+            .putInt(KEY_SCORE_TARGET, value.scoreTarget)
+            .putString(KEY_TARGET_APP_NAME, value.targetAppName)
+            .putInt(KEY_TARGET_APP_USAGE_MINUTES, value.targetAppUsageMinutes)
+            .putInt(KEY_TARGET_APP_LIMIT_MINUTES, value.targetAppLimitMinutes)
+            .putInt(KEY_UNLOCK_LIMIT_TARGET, value.unlockLimitTarget)
+            .putString(KEY_RECENT_SCORES_CSV, value.recentScoresCsv)
             .putLong(KEY_UPDATED_AT, value.updatedAtMillis)
             .commit()
     }
@@ -98,6 +127,12 @@ object WidgetSnapshotStore {
             recoveryMinutes = if (preferences.contains(KEY_RECOVERY_MINUTES)) {
                 preferences.getInt(KEY_RECOVERY_MINUTES, 0)
             } else null,
+            scoreTarget = preferences.getInt(KEY_SCORE_TARGET, 75),
+            targetAppName = preferences.getString(KEY_TARGET_APP_NAME, "") ?: "",
+            targetAppUsageMinutes = preferences.getInt(KEY_TARGET_APP_USAGE_MINUTES, 0),
+            targetAppLimitMinutes = preferences.getInt(KEY_TARGET_APP_LIMIT_MINUTES, 30),
+            unlockLimitTarget = preferences.getInt(KEY_UNLOCK_LIMIT_TARGET, 60),
+            recentScoresCsv = preferences.getString(KEY_RECENT_SCORES_CSV, "") ?: "",
             updatedAtMillis = preferences.getLong(KEY_UPDATED_AT, 0L)
         ).sanitized()
     }

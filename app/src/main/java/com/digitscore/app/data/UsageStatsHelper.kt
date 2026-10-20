@@ -12,6 +12,7 @@ import android.os.Process
 import android.os.SystemClock
 import com.digitscore.app.data.entity.AppWeightEntity
 import com.digitscore.app.data.entity.DeviceInteractionEventEntity
+import com.digitscore.app.data.entity.ForegroundUsageSessionEntity
 import com.digitscore.app.model.AppCategoryType
 import com.digitscore.app.model.AppUsage
 import java.text.SimpleDateFormat
@@ -65,7 +66,7 @@ data class UnlockInsights(
     val windowStartMillis: Long,
     val windowEndMillis: Long,
     val glanceUnlockCount: Int = 0,
-    val glanceThresholdSeconds: Int = 10,
+    val glanceThresholdSeconds: Int = 7,
     val past14DaysLowestUnlock: Int = 0,
     val past14DaysAverageUnlock: Int = 0
 )
@@ -151,25 +152,36 @@ object UsageStatsHelper {
         return calendar.timeInMillis
     }
 
-    /**
-     * 레거시 호환용 (05:00 AM 논리일 시작 타임스탬프 반환)
-     */
-    fun getStartOfTodayMillis(): Long = getStartOfLogicalDayMillis()
+    fun getStartOfTodayMillis(nowMillis: Long = System.currentTimeMillis()): Long = getStartOfLogicalDayMillis(nowMillis)
 
 
-    private val IGNORED_SYSTEM_PACKAGES = setOf(
-        "android",
-        "com.android.systemui",
+    internal val HOME_LAUNCHER_PACKAGES = setOf(
         "com.sec.android.app.launcher",
         "com.google.android.apps.nexuslauncher",
+        "com.miui.home",
+        "com.huawei.android.launcher"
+    )
+
+    internal val TRANSIENT_SYSTEM_OVERLAY_PACKAGES = setOf(
+        "android",
+        "com.android.systemui",
         "com.sec.android.inputmethod",
         "com.google.android.inputmethod.latin",
         "com.samsung.android.honeyboard",
         "com.samsung.android.app.aodservice",
         "com.samsung.android.incallui",
-        "com.android.phone",
-        "com.digitscore.app"
+        "com.samsung.android.game.gametools",
+        "com.samsung.android.game.gos",
+        "com.samsung.android.game.gamehome",
+        "com.samsung.android.app.cocktailbarservice",
+        "com.google.android.permissioncontroller",
+        "com.android.permissioncontroller",
+        "com.google.android.gms"
     )
+
+    internal val IGNORED_SYSTEM_PACKAGES = HOME_LAUNCHER_PACKAGES +
+        TRANSIENT_SYSTEM_OVERLAY_PACKAGES +
+        setOf("com.android.phone", "com.digitscore.app")
 
     internal fun defaultCategoryForApplicationCategory(applicationCategory: Int): AppCategoryType =
         when (applicationCategory) {
@@ -219,21 +231,19 @@ object UsageStatsHelper {
     ): AppCategoryType {
         // 사용자가 직접 지정한 분류를 최우선으로 존중합니다.
         savedEntity?.takeIf { it.isUserModified }?.let { return it.categoryType.canonical }
-        val applicationCategory = try {
-            pm.getApplicationInfo(packageName, 0).category
-        } catch (_: Exception) {
-            ApplicationInfo.CATEGORY_UNDEFINED
+        val appInfo = runCatching { pm.getApplicationInfo(packageName, 0) }.getOrNull()
+        val isLegacyGame = appInfo != null && (appInfo.flags and ApplicationInfo.FLAG_IS_GAME) != 0
+        val applicationCategory = when {
+            appInfo == null -> ApplicationInfo.CATEGORY_UNDEFINED
+            appInfo.category != ApplicationInfo.CATEGORY_UNDEFINED -> appInfo.category
+            isLegacyGame -> ApplicationInfo.CATEGORY_GAME
+            else -> ApplicationInfo.CATEGORY_UNDEFINED
         }
         val recommended = com.digitscore.app.model.AppCategoryPolicy.resolveDefaultCategory(
             packageName = packageName,
             applicationCategory = applicationCategory
         )
-        if (applicationCategory != ApplicationInfo.CATEGORY_UNDEFINED ||
-            com.digitscore.app.model.AppCategoryPolicy.NAVIGATION_PACKAGES.any(packageName.lowercase()::startsWith) ||
-            com.digitscore.app.model.AppCategoryPolicy.UTILITY_PACKAGES.any(packageName.lowercase()::startsWith) ||
-            com.digitscore.app.model.AppCategoryPolicy.EDUCATION_PACKAGES.any(packageName.lowercase()::startsWith) ||
-            com.digitscore.app.model.AppCategoryPolicy.SHOPPING_PACKAGES.any(packageName.lowercase()::startsWith)) return recommended
-        return savedEntity?.categoryType?.canonical ?: recommended
+        return recommended
     }
 
     internal fun shouldIncludeUsagePackage(packageName: String, usageTimeMillis: Long): Boolean =
@@ -280,6 +290,15 @@ object UsageStatsHelper {
                 UsageEvents.Event.DEVICE_SHUTDOWN -> ForegroundTimelineEventType.DEVICE_SHUTDOWN
                 else -> null
             } ?: continue
+
+            if ((type == ForegroundTimelineEventType.APP_RESUMED ||
+                 type == ForegroundTimelineEventType.APP_INTERACTION ||
+                 type == ForegroundTimelineEventType.APP_PAUSED ||
+                 type == ForegroundTimelineEventType.APP_STOPPED) &&
+                androidEvent.packageName in TRANSIENT_SYSTEM_OVERLAY_PACKAGES
+            ) {
+                continue
+            }
 
             when (type) {
                 ForegroundTimelineEventType.SCREEN_INTERACTIVE -> interactionEvents +=
@@ -358,10 +377,49 @@ object UsageStatsHelper {
         return resolved.map { it.timestamp }
     }
 
+    /**
+     * 잠금해제 시각 중 7초(thresholdMillis) 이내에 앱 진입 없이 화면을 껐거나,
+     * 7초 이내에 시작된 짧은 세션 종료 후 추가 사용 없이 화면을 끈 '습관성 오픈' 시각 목록을 반환합니다.
+     */
+    fun resolvedHabitualUnlockTimestamps(
+        events: List<DeviceInteractionEventEntity>,
+        sessions: List<ForegroundUsageSessionEntity>,
+        thresholdMillis: Long = 7_000L
+    ): List<Long> {
+        val unlockTimestamps = resolvedUnlockTimestamps(events)
+        val validSessions = sessions.filter { s ->
+            s.packageName != "com.digitscore.app" && !IGNORED_SYSTEM_PACKAGES.contains(s.packageName)
+        }
+        val habitualUnlocks = mutableListOf<Long>()
+        unlockTimestamps.forEachIndexed { index, unlockTime ->
+            val nextUnlockTime = unlockTimestamps.getOrNull(index + 1) ?: Long.MAX_VALUE
+            val windowEnd = minOf(unlockTime + thresholdMillis, nextUnlockTime)
+            val startedInWindow = validSessions.filter { s ->
+                s.startTimeMillis in unlockTime until windowEnd
+            }
+            if (startedInWindow.isEmpty()) {
+                // (A) 해당 7초 구간 내에 시작된 유효 앱 세션이 아예 없음
+                habitualUnlocks.add(unlockTime)
+            } else {
+                // (B) 유효 앱 세션이 있더라도 마지막 종료 시각이 7초 이하이고 직후 5초 이내 추가 세션 없음
+                val lastSessionEnd = startedInWindow.maxOf { it.endTimeMillis }
+                if (lastSessionEnd <= unlockTime + thresholdMillis) {
+                    val hasChainedSession = validSessions.any { s ->
+                        s !in startedInWindow && s.startTimeMillis in lastSessionEnd..(lastSessionEnd + 5_000L) && s.startTimeMillis < nextUnlockTime
+                    }
+                    if (!hasChainedSession) {
+                        habitualUnlocks.add(unlockTime)
+                    }
+                }
+            }
+        }
+        return habitualUnlocks
+    }
+
     /** 최근 24시간 시간대·세션과 최대 365일의 날짜별 장기 추세를 함께 읽습니다. */
     suspend fun getAppUsageInsights(context: Context, packageName: String): AppUsageInsights {
         val now = System.currentTimeMillis()
-        val rollingStart = now - 24 * 60 * 60_000L
+        val rollingStart = getStartOfTodayMillis(now)
         val today = Calendar.getInstance().apply {
             timeInMillis = now
             set(Calendar.HOUR_OF_DAY, 0)
@@ -441,7 +499,7 @@ object UsageStatsHelper {
 
         return getUnlockInsights(
             context = context,
-            start = end - 24 * 60 * 60_000L,
+            start = getStartOfTodayMillis(end),
             end = end,
             pastLowest = pastLowest,
             pastAvg = pastAvg
@@ -478,20 +536,14 @@ object UsageStatsHelper {
             it.eventType == DeviceInteractionEventEntity.NOTIFICATION_INTERRUPTION
         }
 
-        // 10초 이내 앱 미진입 무의미한 열람(Glance) 집계
+        // 7초 이내 앱 미진입 또는 단기 확인 무의미한 열람(Glance / 습관성 오픈) 집계
         val sessions = db.foregroundUsageSessionDao().getBetween(start, end)
-        val glanceThresholdMillis = 10_000L
-        var glanceCount = 0
-        unlockEvents.forEach { unlockTime ->
-            val hasAppStarted = sessions.any { s ->
-                s.startTimeMillis in unlockTime..(unlockTime + glanceThresholdMillis) &&
-                    s.packageName != "com.digitscore.app" &&
-                    !IGNORED_SYSTEM_PACKAGES.contains(s.packageName)
-            }
-            if (!hasAppStarted) {
-                glanceCount++
-            }
-        }
+        val glanceThresholdMillis = 7_000L
+        val glanceCount = resolvedHabitualUnlockTimestamps(
+            events = events,
+            sessions = sessions,
+            thresholdMillis = glanceThresholdMillis
+        ).size
 
         return UnlockInsights(
             unlockCount = unlockEvents.size,
@@ -502,7 +554,7 @@ object UsageStatsHelper {
             windowStartMillis = start,
             windowEndMillis = end,
             glanceUnlockCount = glanceCount.coerceAtMost(unlockEvents.size),
-            glanceThresholdSeconds = 10,
+            glanceThresholdSeconds = 7,
             past14DaysLowestUnlock = pastLowest,
             past14DaysAverageUnlock = pastAvg
         )
@@ -746,8 +798,13 @@ object UsageStatsHelper {
 
     /**
      * 기기에 설치된 실행 가능한 사용자 앱 목록 조회
+     * 오늘 아침 05:00 AM (getTodayUsageSnapshot) 기준의 사용량을 반영하고,
+     * 사용자 직접 변경(isUserModified)이 없는 앱은 최신 AppCategoryPolicy 기본값을 적용합니다.
      */
-    fun getInstalledApps(context: Context): List<AppUsage> {
+    fun getInstalledApps(
+        context: Context,
+        appWeightMap: Map<String, AppWeightEntity> = emptyMap()
+    ): List<AppUsage> {
         val pm = context.packageManager
         val intent = Intent(Intent.ACTION_MAIN, null).apply {
             addCategory(Intent.CATEGORY_LAUNCHER)
@@ -756,26 +813,47 @@ object UsageStatsHelper {
         val resolveInfos = pm.queryIntentActivities(intent, 0)
         val list = mutableListOf<AppUsage>()
 
+        val todaySnapshot = runCatching {
+            getTodayUsageSnapshot(context, appWeightMap)
+        }.getOrNull()
+        val todayUsageMap = todaySnapshot?.appsUsage?.associate { it.packageName to it.usageTimeMillis } ?: emptyMap()
+
         for (resolveInfo in resolveInfos) {
             val pkgName = resolveInfo.activityInfo.packageName
             val appName = resolveInfo.loadLabel(pm).toString()
-            val applicationCategory = try {
-                pm.getApplicationInfo(pkgName, 0).category
-            } catch (_: Exception) {
-                ApplicationInfo.CATEGORY_UNDEFINED
+            val appInfo = runCatching { pm.getApplicationInfo(pkgName, 0) }.getOrNull()
+            val isLegacyGame = appInfo != null && (appInfo.flags and ApplicationInfo.FLAG_IS_GAME) != 0
+            val applicationCategory = when {
+                appInfo == null -> ApplicationInfo.CATEGORY_UNDEFINED
+                appInfo.category != ApplicationInfo.CATEGORY_UNDEFINED -> appInfo.category
+                isLegacyGame -> ApplicationInfo.CATEGORY_GAME
+                else -> ApplicationInfo.CATEGORY_UNDEFINED
             }
+
+            val savedWeight = appWeightMap[pkgName]
+            val resolvedCategory = if (savedWeight != null && savedWeight.isUserModified) {
+                savedWeight.categoryType.canonical
+            } else {
+                com.digitscore.app.model.AppCategoryPolicy.resolveDefaultCategory(
+                    packageName = pkgName,
+                    applicationCategory = applicationCategory
+                )
+            }
+
+            val usageMillis = todayUsageMap[pkgName] ?: 0L
+
             list.add(
                 AppUsage(
                     packageName = pkgName,
                     appName = appName,
-                    usageTimeMillis = 0L,
-                    categoryType = defaultCategoryForPackage(pkgName, applicationCategory)
+                    usageTimeMillis = usageMillis,
+                    categoryType = resolvedCategory
                 )
             )
         }
 
         return list
             .distinctBy { it.packageName }
-            .sortedBy { it.appName }
+            .sortedWith(compareByDescending<AppUsage> { it.usageTimeMillis }.thenBy { it.appName.lowercase() })
     }
 }

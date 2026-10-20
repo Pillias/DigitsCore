@@ -112,7 +112,8 @@ fun InformationDetailDialog(
             }
         },
         confirmButton = {
-            val isEn = java.util.Locale.getDefault().language == "en"
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
             TextButton(onClick = onDismiss) {
                 Text(if (isEn) "Close" else "닫기", fontWeight = FontWeight.SemiBold)
             }

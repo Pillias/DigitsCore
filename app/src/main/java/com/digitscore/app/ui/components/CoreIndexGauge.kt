@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -120,19 +121,22 @@ fun CoreIndexGauge(
         // 아래로 내린 점수 글씨
         Text(
             text = normalizedScore.toString(),
-            fontSize = if (iconSize > 60.dp) 32.sp else 26.sp,
+            fontSize = if (iconSize > 60.dp) 32.sp else if (iconSize <= 42.dp) 22.sp else 26.sp,
             fontWeight = FontWeight.Black,
             color = tierColor,
-            lineHeight = if (iconSize > 60.dp) 34.sp else 28.sp
+            lineHeight = if (iconSize > 60.dp) 34.sp else if (iconSize <= 42.dp) 24.sp else 28.sp
         )
 
         // 아래로 내린 등급 글씨
         Text(
             text = grade,
-            fontSize = if (iconSize > 60.dp) 12.sp else 11.sp,
+            fontSize = if (iconSize > 60.dp) 12.sp else if (iconSize <= 42.dp) 10.sp else 11.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
-            lineHeight = 14.sp
+            lineHeight = if (iconSize <= 42.dp) 12.sp else 14.sp,
+            maxLines = 1,
+            softWrap = false,
+            textAlign = TextAlign.Center
         )
     }
 }

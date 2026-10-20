@@ -606,13 +606,13 @@ abstract class DigitsDatabase : RoomDatabase() {
                 AppWeightEntity("com.netflix.mediaclient", "Netflix", AppCategoryType.DISTRACTING),
                 AppWeightEntity("com.roblox.client", "Roblox", AppCategoryType.DISTRACTING),
 
-                // 성장: 교육·학습·생산성 앱
-                AppWeightEntity("com.duolingo", "Duolingo", AppCategoryType.PRODUCTIVE),
-                AppWeightEntity("com.ichi2.anki", "AnkiDroid", AppCategoryType.PRODUCTIVE),
-                AppWeightEntity("notion.id", "Notion", AppCategoryType.PRODUCTIVE),
-                AppWeightEntity("com.todoist", "Todoist", AppCategoryType.PRODUCTIVE),
-                AppWeightEntity("com.google.android.apps.docs", "Google Docs", AppCategoryType.PRODUCTIVE),
-                AppWeightEntity("com.slack", "Slack", AppCategoryType.PRODUCTIVE)
+                // 면제/집중: 교육·학습·생산성 앱
+                AppWeightEntity("com.duolingo", "Duolingo", AppCategoryType.EXEMPT),
+                AppWeightEntity("com.ichi2.anki", "AnkiDroid", AppCategoryType.EXEMPT),
+                AppWeightEntity("notion.id", "Notion", AppCategoryType.EXEMPT),
+                AppWeightEntity("com.todoist", "Todoist", AppCategoryType.EXEMPT),
+                AppWeightEntity("com.google.android.apps.docs", "Google Docs", AppCategoryType.EXEMPT),
+                AppWeightEntity("com.slack", "Slack", AppCategoryType.EXEMPT)
             )
             db.appDao().insertAppWeights(initialAppWeights)
         }

@@ -124,6 +124,24 @@ class DataBackupManagerSerializationTest {
             categoryType = AppCategoryType.NEUTRAL
         )
         assertEquals(AppCategoryType.NEUTRAL, neutralApp.categoryType)
+
+        val userModifiedApp = AppWeightEntity(
+            packageName = "com.chess",
+            appName = "Chess",
+            categoryType = AppCategoryType.DISTRACTING,
+            isUserModified = true
+        )
+        assertTrue(userModifiedApp.isUserModified)
+    }
+
+    @Test
+    fun testDeviceInteractionEventEntity_creation() {
+        val event = com.digitscore.app.data.entity.DeviceInteractionEventEntity(
+            timestampMillis = 123456789L,
+            eventType = com.digitscore.app.data.entity.DeviceInteractionEventEntity.KEYGUARD_HIDDEN
+        )
+        assertEquals(123456789L, event.timestampMillis)
+        assertEquals(com.digitscore.app.data.entity.DeviceInteractionEventEntity.KEYGUARD_HIDDEN, event.eventType)
     }
 
     @Test

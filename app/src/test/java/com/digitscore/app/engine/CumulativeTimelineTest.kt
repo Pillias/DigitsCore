@@ -37,9 +37,18 @@ class CumulativeTimelineTest {
     }
 
     @Test fun shortBurstsCannotAvoidDurationPenaltyByRapidReopening() {
-        val uses = listOf(CumulativeUse(0, 40_000, true, "a"), CumulativeUse(50_000, 90_000, true, "b"))
+        val uses = listOf(CumulativeUse(0, 40_000, true, "a"), CumulativeUse(50_000, 100_000, true, "b"))
         val result = CumulativeTimeline.advance(initial(), 2 * minute, uses, rest)
         assertTrue(result.state.useMomentumMinutes > 0)
+        assertTrue(result.state.signal < initial().state.signal)
+    }
+
+    @Test fun exemptUseDoesNotTriggerRestRecovery() {
+        val studyUse = CumulativeUse(0, 40 * minute, false, "study:0", exempt = true, studyExempt = true)
+        val result = CumulativeTimeline.advance(initial(), 40 * minute, listOf(studyUse), rest)
+        assertEquals(0.0, result.state.awakeRestMinutes, 0.0)
+        assertEquals(40.0, result.state.exemptMomentumMinutes, 0.0)
+        assertEquals(0.0, result.state.useMomentumMinutes, 0.0)
     }
 
     @Test fun morningConfirmationDoesNotDisableFollowingNightFreeze() {
@@ -66,5 +75,30 @@ class CumulativeTimelineTest {
         assertEquals(CumulativeActivity.AWAKE_REST, RestPhasePolicy.activityAt(time(10), RestWindow(), zone,
             wakeConfirmedAt = time(9), lateSleepAnchorAt = anchor))
         assertNull(RestPhasePolicy.lateSleepAnchor(listOf(CumulativeUse(time(7), time(11), true, "day")), zone))
+    }
+
+    @Test fun shortGapBetweenUsesBridgesMomentumWithoutFakeRest() {
+        val use1 = CumulativeUse(0, 30 * minute, true, "game1")
+        // Gap of 2 minutes between use1 and use2
+        val use2 = CumulativeUse(32 * minute, 60 * minute, true, "game2")
+        val atEndOfUse = CumulativeTimeline.advance(initial(), 60 * minute, listOf(use1, use2), rest)
+
+        // Momentum at end of use2 should be 30 + 28 = 58m because the 2-minute gap was UNKNOWN, not AWAKE_REST
+        assertEquals(58.0, atEndOfUse.state.useMomentumMinutes, 0.01)
+        assertEquals(0.0, atEndOfUse.state.awakeRestMinutes, 0.01)
+
+        // 2 minutes of real rest after use2 ends decays momentum by 2.0 * 2 = 4.0 (58 - 4 = 54)
+        val afterRest = CumulativeTimeline.advance(initial(), 62 * minute, listOf(use1, use2), rest)
+        assertEquals(54.0, afterRest.state.useMomentumMinutes, 0.01)
+    }
+
+    @Test fun longGapBetweenUsesDoesTriggerRealRest() {
+        val use1 = CumulativeUse(0, 30 * minute, true, "game1")
+        // Gap of 10 minutes between use1 and use2 (> 3 minutes)
+        val use2 = CumulativeUse(40 * minute, 60 * minute, true, "game2")
+        val result = CumulativeTimeline.advance(initial(), 62 * minute, listOf(use1, use2), rest)
+
+        // Momentum decayed during the 10-minute rest
+        assertTrue(result.state.useMomentumMinutes < 50.0)
     }
 }

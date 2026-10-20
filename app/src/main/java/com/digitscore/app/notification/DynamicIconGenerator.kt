@@ -5,9 +5,13 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.DashPathEffect
+import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.Typeface
 import androidx.annotation.ColorInt
 import androidx.core.graphics.drawable.IconCompat
@@ -436,6 +440,142 @@ object DynamicIconGenerator {
             }
             StatusIconStyle.SCORE_PROPORTION -> {
                 drawFullPowerSymbol(canvas, size, normalizedScore, tierColor, isProportionMode = true)
+            }
+        }
+
+        return bitmap
+    }
+
+    /**
+     * 위젯용 고해상도 '24시간 미니 코어 지수 추세선(Sparkline)' 비트맵을 생성합니다.
+     * 75P 기준 대시선, 부드러운 스플라인 곡선 및 그라디언트 채우기, 종단 강조점, 최고/최저치 라벨을 포함합니다.
+     */
+    fun createWidgetSparklineBitmap(
+        scores: List<Float>,
+        currentScore: Int,
+        isDarkSurface: Boolean,
+        widthPx: Int = 320,
+        heightPx: Int = 110,
+        showMinMaxLabels: Boolean = true
+    ): Bitmap {
+        val bitmap = Bitmap.createBitmap(widthPx.coerceAtLeast(64), heightPx.coerceAtLeast(32), Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        val effectiveScores = when {
+            scores.isEmpty() -> listOf(currentScore.toFloat(), currentScore.toFloat())
+            scores.size == 1 -> listOf(scores[0], currentScore.toFloat())
+            else -> scores
+        }
+
+        val padX = 14f
+        val padTop = if (showMinMaxLabels) 18f else 12f
+        val padBottom = if (showMinMaxLabels) 16f else 10f
+        val chartWidth = (widthPx - padX * 2).coerceAtLeast(1f)
+        val chartHeight = (heightPx - padTop - padBottom).coerceAtLeast(1f)
+
+        val minScoreVal = effectiveScores.minOrNull() ?: 75f
+        val maxScoreVal = effectiveScores.maxOrNull() ?: 75f
+        val minY = (minOf(minScoreVal, 70f) - 4f).coerceAtLeast(1f)
+        val maxY = (maxOf(maxScoreVal, 80f) + 4f).coerceAtMost(99f)
+        val rangeY = (maxY - minY).coerceAtLeast(1f)
+
+        fun getX(i: Int): Float = padX + i.toFloat() / (effectiveScores.size - 1).coerceAtLeast(1) * chartWidth
+        fun getY(score: Float): Float = padTop + (maxY - score) / rangeY * chartHeight
+
+        // 75P 기준선(Baseline)
+        val y75 = getY(75f)
+        if (y75 in padTop..(padTop + chartHeight)) {
+            val dashPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = 1.5f
+                pathEffect = DashPathEffect(floatArrayOf(6f, 6f), 0f)
+                color = if (isDarkSurface) Color.WHITE else Color.BLACK
+                alpha = if (isDarkSurface) 50 else 60
+            }
+            canvas.drawLine(padX, y75, widthPx - padX, y75, dashPaint)
+        }
+
+        // 곡선 및 영역 채우기 Path
+        val linePath = Path()
+        val fillPath = Path()
+
+        val firstX = getX(0)
+        val firstY = getY(effectiveScores[0])
+        linePath.moveTo(firstX, firstY)
+        fillPath.moveTo(firstX, heightPx.toFloat())
+        fillPath.lineTo(firstX, firstY)
+
+        for (i in 1 until effectiveScores.size) {
+            val prevX = getX(i - 1)
+            val prevY = getY(effectiveScores[i - 1])
+            val curX = getX(i)
+            val curY = getY(effectiveScores[i])
+            val midX = (prevX + curX) / 2f
+            linePath.cubicTo(midX, prevY, midX, curY, curX, curY)
+            fillPath.cubicTo(midX, prevY, midX, curY, curX, curY)
+        }
+
+        val lastX = getX(effectiveScores.size - 1)
+        fillPath.lineTo(lastX, heightPx.toFloat())
+        fillPath.close()
+
+        val tierColor = scoreTierColor(currentScore)
+
+        // 면적 그라디언트 (Fill)
+        val startColor = Color.argb(55, Color.red(tierColor), Color.green(tierColor), Color.blue(tierColor))
+        val endColor = Color.argb(0, Color.red(tierColor), Color.green(tierColor), Color.blue(tierColor))
+        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            shader = LinearGradient(0f, padTop, 0f, heightPx.toFloat(), startColor, endColor, Shader.TileMode.CLAMP)
+        }
+        canvas.drawPath(fillPath, fillPaint)
+
+        // 곡선 선분 (Stroke)
+        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 4.5f
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+            color = tierColor
+        }
+        canvas.drawPath(linePath, strokePaint)
+
+        // 종단점(Current Point Dot)
+        val endX = getX(effectiveScores.size - 1)
+        val endY = getY(effectiveScores.last())
+        val outerDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = tierColor
+        }
+        canvas.drawCircle(endX, endY, 5.5f, outerDotPaint)
+
+        val innerDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = if (isDarkSurface) Color.WHITE else Color.parseColor("#1C1B1F")
+        }
+        canvas.drawCircle(endX, endY, 2.5f, innerDotPaint)
+
+        // 미니 라벨(Min/Max)
+        if (showMinMaxLabels && effectiveScores.size >= 2) {
+            val maxIdx = effectiveScores.indices.maxByOrNull { effectiveScores[it] } ?: 0
+            val minIdx = effectiveScores.indices.minByOrNull { effectiveScores[it] } ?: 0
+            val maxScoreInt = effectiveScores[maxIdx].roundToInt()
+            val minScoreInt = effectiveScores[minIdx].roundToInt()
+
+            if (maxScoreInt != minScoreInt) {
+                val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    textSize = 10.5f
+                    typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                    color = if (isDarkSurface) Color.argb(160, 255, 255, 255) else Color.argb(160, 60, 60, 60)
+                    textAlign = Paint.Align.CENTER
+                }
+                val maxX = getX(maxIdx).coerceIn(padX + 12f, widthPx - padX - 12f)
+                val maxYPos = (getY(effectiveScores[maxIdx]) - 5f).coerceAtLeast(11f)
+                canvas.drawText("$maxScoreInt", maxX, maxYPos, labelPaint)
+
+                val minX = getX(minIdx).coerceIn(padX + 12f, widthPx - padX - 12f)
+                val minYPos = (getY(effectiveScores[minIdx]) + 13f).coerceAtMost(heightPx - 3f)
+                canvas.drawText("$minScoreInt", minX, minYPos, labelPaint)
             }
         }
 

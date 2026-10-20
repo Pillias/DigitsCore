@@ -28,10 +28,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Highlight
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.QueryStats
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -56,6 +59,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -74,6 +78,7 @@ fun OnboardingScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
 
     var hasUsagePermission by remember {
         mutableStateOf(UsageStatsHelper.hasUsageStatsPermission(context))
@@ -85,6 +90,9 @@ fun OnboardingScreen(
                         android.content.pm.PackageManager.PERMISSION_GRANTED
             } else true
         )
+    }
+    var hasOverlayPermission by remember {
+        mutableStateOf(Settings.canDrawOverlays(context))
     }
     var showPrivacyPolicy by remember { mutableStateOf(false) }
 
@@ -110,6 +118,7 @@ fun OnboardingScreen(
                     hasNotificationPermission = context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
                             android.content.pm.PackageManager.PERMISSION_GRANTED
                 }
+                hasOverlayPermission = Settings.canDrawOverlays(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -122,7 +131,7 @@ fun OnboardingScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 24.dp, vertical = 20.dp),
+                .padding(horizontal = 20.dp, vertical = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
@@ -133,23 +142,23 @@ fun OnboardingScreen(
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
             ) {
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // 로고 & 타이틀 헤더 (표준 머티리얼3 스타일)
                 Box(
                     modifier = Modifier
-                        .size(68.dp)
-                        .background(Color(0xFF101820), RoundedCornerShape(18.dp)),
+                        .size(60.dp)
+                        .background(Color(0xFF151F2E), RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
                         painter = painterResource(R.drawable.ic_launcher_foreground),
                         contentDescription = "DigitsCore",
-                        modifier = Modifier.size(68.dp)
+                        modifier = Modifier.size(60.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
                     text = stringResource(R.string.onboarding_title),
@@ -164,13 +173,15 @@ fun OnboardingScreen(
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     lineHeight = 20.sp,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 20.dp)
+                    modifier = Modifier.padding(top = 6.dp, bottom = 12.dp)
                 )
 
                 // 권한 안내 카드 1: 사용 정보 접근 권한 (필수)
                 StandardPermissionCard(
                     icon = Icons.Default.QueryStats,
                     title = stringResource(R.string.usage_access_title),
+                    badgeText = if (isEn) "Required" else "필수",
+                    isRequired = true,
                     description = stringResource(R.string.usage_access_body),
                     hint = if (!hasUsagePermission) stringResource(R.string.usage_access_guide) else null,
                     isGranted = hasUsagePermission,
@@ -178,12 +189,14 @@ fun OnboardingScreen(
                     onAction = { launchUsageAccessSettings(context) }
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // 권한 안내 카드 2: 알림 권한 (권장)
                 StandardPermissionCard(
                     icon = Icons.Default.Notifications,
                     title = stringResource(R.string.notification_permission_title),
+                    badgeText = if (isEn) "Recommended" else "권장",
+                    isRequired = false,
                     description = stringResource(R.string.notification_permission_body),
                     hint = null,
                     isGranted = hasNotificationPermission,
@@ -195,7 +208,22 @@ fun OnboardingScreen(
                     }
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // 권한 안내 카드 3: 화면 테두리 알림 (선택)
+                StandardPermissionCard(
+                    icon = Icons.Default.Highlight,
+                    title = stringResource(R.string.overlay_permission_title),
+                    badgeText = if (isEn) "Optional" else "선택",
+                    isRequired = false,
+                    description = stringResource(R.string.overlay_permission_body),
+                    hint = null,
+                    isGranted = hasOverlayPermission,
+                    actionLabel = stringResource(R.string.action_open_settings),
+                    onAction = { launchOverlaySettings(context) }
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // 개인정보 및 암호화 안심 배너 (컴팩트 카드)
                 Card(
@@ -210,7 +238,7 @@ fun OnboardingScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
@@ -219,26 +247,31 @@ fun OnboardingScreen(
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(18.dp)
                         )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = stringResource(R.string.privacy_secure_badge),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.privacy_secure_badge),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = stringResource(R.string.privacy_more),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            softWrap = false
                         )
                         DetailChevron(tint = MaterialTheme.colorScheme.primary)
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // DigitsCore 핵심 방식 안내 (컴팩트 2포인트 카드)
                 Card(
@@ -249,10 +282,9 @@ fun OnboardingScreen(
                     )
                 ) {
                     Column(
-                        modifier = Modifier.padding(14.dp),
+                        modifier = Modifier.padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
                         Text(
                             text = if (isEn) "How DigitsCore Works" else "DigitsCore의 핵심 방식",
                             fontWeight = FontWeight.Bold,
@@ -260,19 +292,19 @@ fun OnboardingScreen(
                             color = MaterialTheme.colorScheme.outline
                         )
                         FeatureItem(
-                            icon = "🔄",
-                            title = if (isEn) "24h Continuous Index" else "자정 리셋 없는 24시간 지수",
-                            desc = if (isEn) "Reflects continuous rolling 24h habit without midnight reset." else "자정에 초기화되지 않고 최근 24시간의 사용 흐름을 반영합니다."
+                            icon = Icons.Default.Autorenew,
+                            title = if (isEn) "Continuous 75P Balance Index" else "자정 리셋 없는 75P 균형 지수",
+                            desc = if (isEn) "Tracks your ongoing usage flow without midnight resets." else "자정에 초기화되지 않고 연속된 사용 흐름을 반영합니다."
                         )
                         FeatureItem(
-                            icon = "⏱️",
-                            title = if (isEn) "Rest Recovery" else "연속 사용 관리와 휴식 회복",
-                            desc = if (isEn) "30+ min continuous use accelerates load; screen-off breaks recover." else "30분 이상 연속 사용 시 부하가 커지며, 폰을 끄고 쉴 때 점수가 회복됩니다."
+                            icon = Icons.Default.Restore,
+                            title = if (isEn) "30min Acceleration & Break Recovery" else "30min 연속 가속과 휴식 회복",
+                            desc = if (isEn) "30+ min managed use accelerates loss; screen-off breaks recover score." else "관리 앱 30min 초과 시 가속 감점되며, 화면을 끄고 쉬면 빠르게 회복됩니다."
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
             }
 
             // 하단 스마트 액션 버튼 (항상 활성화 & 상황별 원터치 진행)
@@ -289,8 +321,8 @@ fun OnboardingScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(54.dp),
-                shape = RoundedCornerShape(16.dp),
+                    .height(50.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary
                 )
@@ -301,7 +333,7 @@ fun OnboardingScreen(
                     } else {
                         stringResource(R.string.action_grant_required)
                     },
-                    fontSize = 16.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimary
                 )
@@ -318,6 +350,8 @@ fun OnboardingScreen(
 private fun StandardPermissionCard(
     icon: ImageVector,
     title: String,
+    badgeText: String,
+    isRequired: Boolean,
     description: String,
     hint: String?,
     isGranted: Boolean,
@@ -340,12 +374,12 @@ private fun StandardPermissionCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(42.dp)
+                    .size(40.dp)
                     .background(
                         color = if (isGranted) ScoreGreen.copy(alpha = 0.15f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
                         shape = CircleShape
@@ -356,21 +390,55 @@ private fun StandardPermissionCard(
                     imageVector = icon,
                     contentDescription = null,
                     tint = if (isGranted) ScoreGreen else MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(22.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
             Column(
                 modifier = Modifier.weight(1f)
             ) {
-                Text(
-                    text = title,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    fontSize = 14.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = title,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                color = if (isRequired) {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceContainerHighest
+                                },
+                                shape = RoundedCornerShape(4.dp)
+                            )
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = badgeText,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isRequired) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
                 Text(
                     text = description,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -385,7 +453,7 @@ private fun StandardPermissionCard(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         lineHeight = 15.sp,
-                        modifier = Modifier.padding(top = 4.dp)
+                        modifier = Modifier.padding(top = 2.dp)
                     )
                 }
             }
@@ -401,13 +469,15 @@ private fun StandardPermissionCard(
                         imageVector = Icons.Default.CheckCircle,
                         contentDescription = stringResource(R.string.granted),
                         tint = ScoreGreen,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                     Text(
                         text = stringResource(R.string.granted),
                         color = ScoreGreen,
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             } else {
@@ -419,7 +489,9 @@ private fun StandardPermissionCard(
                     Text(
                         text = actionLabel,
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }
@@ -428,13 +500,20 @@ private fun StandardPermissionCard(
 }
 
 @Composable
-private fun FeatureItem(icon: String, title: String, desc: String) {
+private fun FeatureItem(icon: ImageVector, title: String, desc: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.Top
     ) {
-        Text(text = icon, fontSize = 14.sp)
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .padding(top = 2.dp)
+                .size(16.dp)
+        )
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
@@ -446,7 +525,8 @@ private fun FeatureItem(icon: String, title: String, desc: String) {
                 text = desc,
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                lineHeight = 14.sp
+                lineHeight = 15.sp,
+                modifier = Modifier.padding(top = 1.dp)
             )
         }
     }
@@ -468,5 +548,20 @@ private fun launchUsageAccessSettings(context: Context) {
             }
             context.startActivity(appDetailsIntent)
         }
+    }
+}
+
+private fun launchOverlaySettings(context: Context) {
+    try {
+        val intent = Intent(
+            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            Uri.parse("package:${context.packageName}")
+        )
+        context.startActivity(intent)
+    } catch (_: Exception) {
+        try {
+            val fallback = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+            context.startActivity(fallback)
+        } catch (_: Exception) {}
     }
 }

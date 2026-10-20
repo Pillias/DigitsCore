@@ -15,6 +15,7 @@ import com.digitscore.app.data.DailyGoalStore
 import com.digitscore.app.data.ScoreRepository
 import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.TodayUsageSnapshot
+import com.digitscore.app.data.ForegroundUsageSegment
 import com.digitscore.app.data.MeasurementDiagnostics
 import com.digitscore.app.data.summarizeRollingUsage
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
@@ -86,6 +87,9 @@ class TrackerForegroundService : Service() {
 
     private var cumulativeCoverageStart = UsageStatsHelper.getStartOfTodayMillis()
     private var lastAppWeightSignature: Int? = null
+    private var lastEdgeWarningAtMillis: Long = 0L
+    private var lastEdgeWarningPackage: String = ""
+    private var lastEdgeWarningIsStudy: Boolean? = null
 
     private val trackingPreferences by lazy {
         getSharedPreferences("tracking_state", Context.MODE_PRIVATE)
@@ -142,6 +146,10 @@ class TrackerForegroundService : Service() {
         super.onCreate()
         ScoreRepository.setServiceRunning(true)
         ScoreNotificationManager.createNotificationChannel(this)
+
+        // 기기 재부팅 시 커스텀 집중/제외 앱 캐시 초기화
+        com.digitscore.app.model.AppCategoryPolicy.getCustomStudyPackages(applicationContext)
+        com.digitscore.app.model.AppCategoryPolicy.getExcludedStudyPackages(applicationContext)
 
         // 초기 알림 띄우기
         val initialDetail = ScoreCalculator.calculateScore(emptyList(), 0, 0)
@@ -230,6 +238,7 @@ class TrackerForegroundService : Service() {
     private fun onScreenTurnedOff() {
         lastScreenOffTimestamp = System.currentTimeMillis()
         persistScreenState()
+        com.digitscore.app.notification.EdgeLightingOverlayManager.dismiss(applicationContext)
         // 화면이 꺼지면 배터리 절약을 위해 주기적 폴링 루프 중지
         trackingJob?.cancel()
         trackingJob = null
@@ -368,6 +377,11 @@ class TrackerForegroundService : Service() {
 
 
                 val db = DigitsDatabase.getInstance(applicationContext)
+
+                // 커스텀 집중/제외 앱 캐시 로드
+                com.digitscore.app.model.AppCategoryPolicy.getCustomStudyPackages(applicationContext)
+                com.digitscore.app.model.AppCategoryPolicy.getExcludedStudyPackages(applicationContext)
+
                 val settings = db.settingsDao().getSettings()
                 if (settings?.isTrackingEnabled == false) {
                     stopSelf()
@@ -585,23 +599,32 @@ class TrackerForegroundService : Service() {
                 // 새 방식은 자정 경계 대신 최근 24시간의 저장된 상세 세션과
                 // 실제 KEYGUARD_HIDDEN/USER_PRESENT 이벤트를 사용합니다.
                 val rollingWindowStart = now - ROLLING_WINDOW_MILLIS
+                val queryStart = minOf(rollingWindowStart, todayStart)
                 val recentSessionEntities = db.foregroundUsageSessionDao()
-                    .getSince(rollingWindowStart)
+                    .getSince(queryStart)
+                val todaySessionEntities = recentSessionEntities.filter { it.endTimeMillis > todayStart }
+                val todayUsageSummary = summarizeRollingUsage(
+                    records = todaySessionEntities,
+                    startMillis = todayStart,
+                    endMillis = now,
+                    appWeightMap = weightMap
+                )
                 val rollingUsageSummary = summarizeRollingUsage(
-                    records = recentSessionEntities,
+                    records = recentSessionEntities.filter { it.endTimeMillis > rollingWindowStart },
                     startMillis = rollingWindowStart,
                     endMillis = now,
                     appWeightMap = weightMap
                 )
                 val rollingAppsUsage = rollingUsageSummary.appsUsage
-                ScoreRepository.updateRollingUsageSummary(rollingUsageSummary)
+                ScoreRepository.updateRollingUsageSummary(todayUsageSummary)
                 val displayScoreDetail = legacyScoreDetail.copy(
-                    totalScreenTimeMinutes = rollingUsageSummary.totalScreenTimeMillis / 60_000L,
-                    distractingTimeMinutes = rollingUsageSummary.managedTimeMillis / 60_000L,
-                    productiveTimeMinutes = rollingUsageSummary.growthTimeMillis / 60_000L
+                    totalScreenTimeMinutes = todayUsageSummary.totalScreenTimeMillis / 60_000L,
+                    distractingTimeMinutes = todayUsageSummary.managedTimeMillis / 60_000L,
+                    productiveTimeMinutes = todayUsageSummary.growthTimeMillis / 60_000L
                 )
                 ScoreRepository.updateScoreDetail(displayScoreDetail)
                 val recentSessions = recentSessionEntities
+                    .filter { it.endTimeMillis > rollingWindowStart }
                     .map { session ->
                         RollingUsageSession(
                             packageName = session.packageName,
@@ -636,10 +659,76 @@ class TrackerForegroundService : Service() {
                 val scoringConfig = settings?.effectiveScoringConfig(coreIndexPreset)
                     ?: coreIndexPreset.defaultScoringConfig
 
+                // 3분 이내 간격으로 이어진 현재 연속 사용 사슬(chain) 계산
+                val sortedSegments = usageSnapshot.foregroundSegments.sortedBy { it.startTimeMillis }
+                val lastSeg = sortedSegments.lastOrNull()
+                val isCurrentlyInForeground = isScreenInteractive() &&
+                        !usageSnapshot.endingState.activePackage.isNullOrBlank() &&
+                        lastSeg != null &&
+                        lastSeg.endTimeMillis >= (collectionEnd - 20_000L)
+
+                var realTimeContinuousMinutes = 0L
+                var chainedManagedMinutes = 0.0
+                var chainedStudyMinutes = 0.0
+                var currentAppChainMinutes = 0.0
+
+                if (isCurrentlyInForeground && lastSeg != null) {
+                    val chain = mutableListOf<ForegroundUsageSegment>()
+                    chain.add(lastSeg)
+                    var current: ForegroundUsageSegment = lastSeg
+                    for (i in (sortedSegments.size - 2) downTo 0) {
+                        val prev = sortedSegments[i]
+                        val gap = current.startTimeMillis - prev.endTimeMillis
+                        if (gap <= 3 * 60_000L) {
+                            chain.add(prev)
+                            current = prev
+                        } else {
+                            break
+                        }
+                    }
+                    val totalActiveMillis = chain.sumOf { it.durationMillis }
+                    realTimeContinuousMinutes = (totalActiveMillis / 60_000L).coerceAtLeast(1L)
+
+                    val managedMillis = chain.filter {
+                        val pkg = it.effectivePackageName.ifBlank { it.packageName }
+                        !com.digitscore.app.model.AppCategoryPolicy.isStudyOrReadingPackage(pkg, applicationContext) &&
+                                (it.effectiveCategoryLevel >= 3 ||
+                                 com.digitscore.app.model.AppCategoryPolicy.resolveDefaultCategory(
+                                     packageName = pkg,
+                                     applicationCategory = android.content.pm.ApplicationInfo.CATEGORY_UNDEFINED
+                                 ) == com.digitscore.app.model.AppCategoryType.DISTRACTING)
+                    }.sumOf { it.durationMillis }
+                    chainedManagedMinutes = managedMillis / 60_000.0
+
+                    val studyMillis = chain.filter {
+                        val pkg = it.effectivePackageName.ifBlank { it.packageName }
+                        com.digitscore.app.model.AppCategoryPolicy.isStudyOrReadingPackage(pkg, applicationContext)
+                    }.sumOf { it.durationMillis }
+                    chainedStudyMinutes = studyMillis / 60_000.0
+
+                    val activePkg = usageSnapshot.endingState.activePackage ?: lastSeg.effectivePackageName.ifBlank { lastSeg.packageName }
+                    val currentAppMillis = chain.filter {
+                        val pkg = it.effectivePackageName.ifBlank { it.packageName }
+                        pkg == activePkg
+                    }.sumOf { it.durationMillis }
+                    currentAppChainMinutes = currentAppMillis / 60_000.0
+                }
+
                 val (cumulativeRecord, cumulativeDetail) = com.digitscore.app.data.CumulativeScoreStore.update(
                     db, now, cumulativeCoverageStart)
+
+                val displayContinuousMinutes = if (isCurrentlyInForeground) {
+                    maxOf(cumulativeDetail.continuousUsageMinutes, realTimeContinuousMinutes)
+                } else {
+                    com.digitscore.app.notification.EdgeLightingOverlayManager.dismiss(applicationContext)
+                    0L
+                }
+
                 val rollingScoreDetail = cumulativeDetail.copy(
-                    recentUsageMinutes = rollingUsageSummary.totalScreenTimeMillis / 60_000L)
+                    recentUsageMinutes = todayUsageSummary.totalScreenTimeMillis / 60_000L,
+                    continuousUsageMinutes = displayContinuousMinutes,
+                    flow = if (displayContinuousMinutes > 0L) com.digitscore.app.engine.ScoreFlow.USING else cumulativeDetail.flow
+                )
                 ScoreRepository.updateRollingScoreDetail(rollingScoreDetail)
 
                 val previousSample = db.coreIndexSampleDao().getLatestBefore(now)
@@ -647,7 +736,7 @@ class TrackerForegroundService : Service() {
                     detail = rollingScoreDetail,
                     previousScore = previousSample?.score,
                     sessions = recentSessions,
-                    apps = rollingAppsUsage,
+                    apps = todayUsageSummary.appsUsage,
                     rollingUnlockTimestamps = rollingUnlockTimestamps,
                     histories = db.scoreDao().getRecentCoreIndexHistories(14),
                     nowMillis = now,
@@ -681,41 +770,6 @@ class TrackerForegroundService : Service() {
                     db.scoreDao().pruneBefore(java.time.Instant.ofEpochMilli(now)
                         .atZone(java.time.ZoneId.systemDefault()).toLocalDate().minusDays(364).toString())
                     lastSamplePrunedAt = now
-                }
-
-                // Glance는 이 프로세스의 Repository가 초기화된 뒤 실행될 수 있으므로 계산 결과를
-                // 먼저 영구 snapshot으로 확정합니다. 표시값이 바뀌면 즉시, 그대로여도 5분마다
-                // launcher에 재전송하여 OEM이 놓친 갱신을 복구합니다.
-                val widgetSnapshot = WidgetSnapshot(
-                    score = rollingScoreDetail.finalScore,
-                    screenMinutes = displayScoreDetail.totalScreenTimeMinutes,
-                    managedMinutes = displayScoreDetail.distractingTimeMinutes,
-                    unlockCount = finalUnlockCount,
-                    flow = rollingScoreDetail.flow,
-                    continuousUsageMinutes = rollingScoreDetail.continuousUsageMinutes,
-                    recommendation = guidance.recommendation,
-                    recoveryMinutes = guidance.recoveryMinutes,
-                    updatedAtMillis = now
-                ).sanitized()
-                val snapshotPersisted = WidgetSnapshotStore.write(
-                    applicationContext,
-                    widgetSnapshot
-                )
-                val displayedValuesChanged = !widgetSnapshot.hasSameDisplayedValues(
-                    lastRenderedWidgetSnapshot
-                )
-                if (
-                    snapshotPersisted &&
-                    (displayedValuesChanged || now - lastWidgetUpdatedAt >= 5 * 60_000L)
-                ) {
-                    try {
-                        ScoreWidget().updateAll(applicationContext)
-                        lastRenderedWidgetSnapshot = widgetSnapshot
-                        lastWidgetUpdatedAt = now
-                    } catch (error: Exception) {
-                        // 런처 위젯 오류가 핵심 측정 및 알림 갱신을 중단하지 않게 합니다.
-                        android.util.Log.w("DigitsCoreWidget", "Widget update request failed", error)
-                    }
                 }
 
                 // 데일리 맞춤 목표 (Daily Goal) 진행도 계산 및 80% 마일스톤 코칭
@@ -772,6 +826,67 @@ class TrackerForegroundService : Service() {
                     android.util.Log.w("DigitsCoreGoal", "Failed to update daily goal progress", e)
                 }
 
+                // Glance는 이 프로세스의 Repository가 초기화된 뒤 실행될 수 있으므로 계산 결과를
+                // 먼저 영구 snapshot으로 확정합니다. 표시값이 바뀌면 즉시, 그대로여도 5분마다
+                // launcher에 재전송하여 OEM이 놓친 갱신을 복구합니다.
+                val recentScoresCsv = try {
+                    val pastSamples = db.coreIndexSampleDao().getSince(now - 24 * 3600_000L)
+                    val pastScores = pastSamples.map { it.exactScore.toFloat() }
+                    val sampled = if (pastScores.size <= 47) {
+                        pastScores
+                    } else {
+                        val step = (pastScores.size - 1).toDouble() / 46.0
+                        (0..46).map { i ->
+                            val idx = kotlin.math.round(i * step).toInt().coerceIn(0, pastScores.size - 1)
+                            pastScores[idx]
+                        }
+                    }
+                    (sampled + rollingScoreDetail.exactScore.toFloat()).joinToString(",") {
+                        String.format(java.util.Locale.US, "%.1f", it)
+                    }
+                } catch (e: Exception) {
+                    String.format(java.util.Locale.US, "%.1f", rollingScoreDetail.exactScore.toFloat())
+                }
+
+                val widgetSnapshot = WidgetSnapshot(
+                    score = rollingScoreDetail.finalScore,
+                    screenMinutes = displayScoreDetail.totalScreenTimeMinutes,
+                    managedMinutes = displayScoreDetail.distractingTimeMinutes,
+                    unlockCount = finalUnlockCount,
+                    flow = rollingScoreDetail.flow,
+                    continuousUsageMinutes = rollingScoreDetail.continuousUsageMinutes,
+                    recommendation = guidance.recommendation,
+                    recoveryMinutes = guidance.recoveryMinutes,
+                    scoreTarget = activeGoal?.scoreTarget ?: 75,
+                    targetAppName = activeGoal?.targetAppName ?: "",
+                    targetAppUsageMinutes = activeGoal?.currentAppUsageMinutes ?: 0,
+                    targetAppLimitMinutes = activeGoal?.appLimitMinutes ?: 30,
+                    unlockLimitTarget = activeGoal?.unlockLimitTarget ?: 60,
+                    recentScoresCsv = recentScoresCsv,
+                    updatedAtMillis = now
+                ).sanitized()
+                val snapshotPersisted = WidgetSnapshotStore.write(
+                    applicationContext,
+                    widgetSnapshot
+                )
+                val displayedValuesChanged = !widgetSnapshot.hasSameDisplayedValues(
+                    lastRenderedWidgetSnapshot
+                )
+                if (
+                    snapshotPersisted &&
+                    (displayedValuesChanged || now - lastWidgetUpdatedAt >= 5 * 60_000L)
+                ) {
+                    try {
+                        ScoreWidget().updateAll(applicationContext)
+                        lastRenderedWidgetSnapshot = widgetSnapshot
+                        lastWidgetUpdatedAt = now
+                    } catch (error: Exception) {
+                        // 런처 위젯 오류가 핵심 측정 및 알림 갱신을 중단하지 않게 합니다.
+                        android.util.Log.w("DigitsCoreWidget", "Widget update request failed", error)
+                    }
+                }
+
+
                 // 알림 갱신
                 if (settings?.isNotificationEnabled != false) {
                     val notification = ScoreNotificationManager.buildScoreNotification(
@@ -799,6 +914,87 @@ class TrackerForegroundService : Service() {
                     )
                 }
 
+                // 화면 신호등 알림 (공부 초록불 / 관리앱 빨간불)
+                if (isCurrentlyInForeground &&
+                    com.digitscore.app.notification.EdgeLightingOverlayManager.isEnabled(applicationContext) &&
+                    android.provider.Settings.canDrawOverlays(applicationContext)
+                ) {
+                    val activePkg = usageSnapshot.endingState.activePackage?.ifBlank { null }
+                        ?: lastSeg?.effectivePackageName?.ifBlank { lastSeg.packageName }
+                        ?: ""
+                    if (activePkg.isNotBlank()) {
+                        val isStudy = com.digitscore.app.model.AppCategoryPolicy.isStudyOrReadingPackage(activePkg, applicationContext)
+                        val isManaged = !isStudy && (
+                            (lastSeg?.effectiveCategoryLevel ?: 2) >= 3 ||
+                            com.digitscore.app.model.AppCategoryPolicy.resolveDefaultCategory(
+                                packageName = activePkg,
+                                applicationCategory = android.content.pm.ApplicationInfo.CATEGORY_UNDEFINED
+                            ) == com.digitscore.app.model.AppCategoryType.DISTRACTING
+                        )
+
+                        val rawAppName = todayAppsUsage.firstOrNull { it.packageName == activePkg }?.appName
+                            ?: try {
+                                val pm = packageManager
+                                val appInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    pm.getApplicationInfo(activePkg, android.content.pm.PackageManager.ApplicationInfoFlags.of(0))
+                                } else {
+                                    @Suppress("DEPRECATION")
+                                    pm.getApplicationInfo(activePkg, 0)
+                                }
+                                pm.getApplicationLabel(appInfo).toString()
+                            } catch (_: Exception) {
+                                activePkg.substringAfterLast('.')
+                            }
+                        val activeAppName = if (rawAppName.length > 10) rawAppName.take(9) + "…" else rawAppName
+
+                        val managedTargetMins = com.digitscore.app.notification.EdgeLightingOverlayManager.getManagedTriggerMinutes(applicationContext)
+                        val studyTargetMins = com.digitscore.app.notification.EdgeLightingOverlayManager.getStudyTriggerMinutes(applicationContext)
+
+                        val effectiveManagedMinutes = if (isManaged) chainedManagedMinutes else 0.0
+                        val effectiveStudyMinutes = if (isStudy) chainedStudyMinutes else 0.0
+
+                        val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(applicationContext) == com.digitscore.app.i18n.AppLocale.ENGLISH
+
+                        if (isStudy && effectiveStudyMinutes >= studyTargetMins) {
+                            val repeatIntervalMins = (studyTargetMins / 2).coerceAtLeast(1)
+                            val cooldownMillis = repeatIntervalMins * 60_000L
+                            val isSameWarningTarget = (lastEdgeWarningPackage == activePkg && lastEdgeWarningIsStudy == true)
+                            val canTrigger = !isSameWarningTarget || (now - lastEdgeWarningAtMillis) >= cooldownMillis
+                            if (canTrigger) {
+                                val displayMins = maxOf(studyTargetMins, effectiveStudyMinutes.toInt())
+                                val label = if (isEn) "● $activeAppName · ${displayMins}min focus · Rest eyes" else "● $activeAppName · ${displayMins}min 집중 · 휴식 권장"
+                                com.digitscore.app.notification.EdgeLightingOverlayManager.showEdgeWarning(
+                                    applicationContext,
+                                    isStudyGreen = true,
+                                    labelText = label
+                                )
+                                lastEdgeWarningAtMillis = now
+                                lastEdgeWarningPackage = activePkg
+                                lastEdgeWarningIsStudy = true
+                            }
+                        } else if (isManaged && effectiveManagedMinutes >= managedTargetMins) {
+                            val repeatIntervalMins = (managedTargetMins / 2).coerceAtLeast(1)
+                            val cooldownMillis = repeatIntervalMins * 60_000L
+                            val isSameWarningTarget = (lastEdgeWarningPackage == activePkg && lastEdgeWarningIsStudy == false)
+                            val canTrigger = !isSameWarningTarget || (now - lastEdgeWarningAtMillis) >= cooldownMillis
+                            if (canTrigger) {
+                                val displayMins = maxOf(managedTargetMins, effectiveManagedMinutes.toInt())
+                                val isDominantApp = currentAppChainMinutes >= managedTargetMins * 0.5
+                                val appTitle = if (isDominantApp) activeAppName else if (isEn) "Managed apps" else "관리앱 합산"
+                                val label = if (isEn) "● $appTitle · ${displayMins}min continuous · Overuse" else "● $appTitle · ${displayMins}min 연속 · 과몰입 주의"
+                                com.digitscore.app.notification.EdgeLightingOverlayManager.showEdgeWarning(
+                                    applicationContext,
+                                    isStudyGreen = false,
+                                    labelText = label
+                                )
+                                lastEdgeWarningAtMillis = now
+                                lastEdgeWarningPackage = activePkg
+                                lastEdgeWarningIsStudy = false
+                            }
+                        }
+                    }
+                }
+
                 // DB 일일 히스토리 업데이트
                 db.scoreDao().insertOrUpdateScoreHistory(
                     DailyScoreHistoryEntity(
@@ -813,6 +1009,15 @@ class TrackerForegroundService : Service() {
                         coreIndexPresetId = coreIndexPreset.id
                     )
                 )
+
+                // 화면이 꺼진 상태에서만 하루 최대 1회 점수 구간(녹/황/주/적)에 맞춰 런처 아이콘을 전환합니다.
+                if (!isScreenInteractive()) {
+                    com.digitscore.app.notification.LauncherIconManager.maybeUpdateOnScreenOff(
+                        context = applicationContext,
+                        score = rollingScoreDetail.finalScore,
+                        logicalDateString = currentDateString
+                    )
+                }
 
                 // 조회뿐 아니라 DB·점수·알림·위젯까지 이번 측정 주기의 CPU 비용을 포함합니다.
                 updateMeasurementDiagnostics(
@@ -976,6 +1181,7 @@ class TrackerForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        com.digitscore.app.notification.EdgeLightingOverlayManager.dismiss(applicationContext)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } else {
