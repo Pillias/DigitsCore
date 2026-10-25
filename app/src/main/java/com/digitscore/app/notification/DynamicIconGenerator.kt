@@ -23,10 +23,9 @@ import kotlin.math.roundToInt
  * 볼드 스트로크와 외곽 고대비 컨투어 림을 적용하여 밝은/어두운 배경 모두에 대응합니다.
  */
 object DynamicIconGenerator {
-    private const val RED = "#FF5A5F"
-    private const val ORANGE = "#E67E22"
-    private const val YELLOW = "#F1C40F"
-    private const val GREEN = "#35D07F"
+    // 점수 색은 ScorePalette(ui/theme/Color.kt) 한 곳에서 정합니다.
+    private val RED = String.format("#%06X", com.digitscore.app.ui.theme.ScorePalette.FILL[3].toInt() and 0xFFFFFF)
+    private val GREEN = String.format("#%06X", com.digitscore.app.ui.theme.ScorePalette.FILL[0].toInt() and 0xFFFFFF)
 
     fun createScoreBitmapIcon(
         context: Context,
@@ -328,14 +327,8 @@ object DynamicIconGenerator {
     }
 
     @ColorInt
-    internal fun scoreTierColor(score: Int): Int = Color.parseColor(
-        when {
-            score >= 80 -> GREEN
-            score >= 60 -> YELLOW
-            score >= 40 -> ORANGE
-            else -> RED
-        }
-    )
+    internal fun scoreTierColor(score: Int): Int =
+        com.digitscore.app.ui.theme.ScorePalette.fillArgb(score)
 
     @ColorInt
     internal fun statusIconScoreColor(context: Context, score: Int): Int =
@@ -344,18 +337,7 @@ object DynamicIconGenerator {
     @ColorInt
     internal fun statusIconScoreColor(score: Int, uiMode: Int): Int {
         val darkMode = uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-        return Color.parseColor(
-            when {
-                darkMode && score >= 80 -> "#49E291"
-                darkMode && score >= 60 -> "#FFD54F"
-                darkMode && score >= 40 -> "#FFA05A"
-                darkMode -> "#FF6B62"
-                score >= 80 -> "#087A46"
-                score >= 60 -> "#9A6200"
-                score >= 40 -> "#C34A00"
-                else -> "#C62828"
-            }
-        )
+        return com.digitscore.app.ui.theme.ScorePalette.textArgb(score, onDark = darkMode)
     }
 
     fun createScoreIconCompat(

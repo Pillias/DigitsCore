@@ -22,6 +22,9 @@ import java.util.Locale
 
 object EdgeLightingOverlayManager {
 
+    /** InputManager의 기본 최대 가림 불투명도(0.8). 이 값 이하여야 아래 앱으로 터치가 전달됩니다. */
+    private const val MAX_PASS_THROUGH_WINDOW_ALPHA = 0.8f
+
     private const val PREFS_NAME = "edge_lighting_prefs"
     private const val KEY_ENABLED = "edge_lighting_enabled"
     private const val KEY_MANAGED_MINUTES = "edge_lighting_managed_minutes"
@@ -35,7 +38,8 @@ object EdgeLightingOverlayManager {
     /**
      * 외부에서 언제든(화면 OFF, 홈 화면 이동, 서비스 종료 시) 즉시 오버레이를 닫습니다.
      */
-    fun dismiss(context: Context) {
+    fun dismiss(context: Context, reason: String = "external") {
+        if (activeOverlayView != null) android.util.Log.d("EdgeLighting", "dismiss: $reason")
         mainHandler.post {
             try {
                 val appCtx = context.applicationContext
@@ -129,14 +133,15 @@ object EdgeLightingOverlayManager {
             try {
                 val windowManager = appContext.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return@post
 
+                android.util.Log.d("EdgeLighting", "show: green=$isStudyGreen preview=$isPreview replacing=${activeOverlayView != null}")
                 // 기존 오버레이가 있다면 안전하게 제거
                 dismissCurrent(windowManager)
 
                 val density = appContext.resources.displayMetrics.density
                 val baseColor = if (isStudyGreen) {
-                    Color.parseColor("#00E676") // 에메랄드 초록불
+                    com.digitscore.app.ui.theme.ScorePalette.FILL[0].toInt() // 초록불 (점수 색표와 같은 초록)
                 } else {
-                    Color.parseColor("#FF5252") // 경고 빨간불
+                    com.digitscore.app.ui.theme.ScorePalette.FILL[3].toInt() // 빨간불 (점수 색표와 같은 빨강)
                 }
 
                 val glowDepth = 38f * density
@@ -149,7 +154,7 @@ object EdgeLightingOverlayManager {
                 } else {
                     val isEn = Locale.getDefault().language == "en"
                     if (isStudyGreen) {
-                        if (isEn) "● Study limit reached · Rest eyes" else "● 집중 한도 도달 · 눈 휴식 권장"
+                        if (isEn) "● Study limit reached · Rest eyes" else "● 공부·독서 한도 도달 · 눈 휴식 권장"
                     } else {
                         if (isEn) "● Managed app limit · Overuse alert" else "● 연속 사용 한도 · 과몰입 주의"
                     }
@@ -187,6 +192,16 @@ object EdgeLightingOverlayManager {
                     private val pillBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                         style = Paint.Style.STROKE
                         strokeWidth = 1f * density
+                    }
+
+                    override fun onConfigurationChanged(newConfig: android.content.res.Configuration?) {
+                        super.onConfigurationChanged(newConfig)
+                        android.util.Log.d("EdgeLighting", "overlay config changed: ${newConfig?.orientation} size=${width}x${height}")
+                    }
+
+                    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+                        super.onSizeChanged(w, h, oldw, oldh)
+                        android.util.Log.d("EdgeLighting", "overlay size ${oldw}x${oldh} -> ${w}x${h}")
                     }
 
                     fun setPulse(alpha: Float) {
@@ -291,18 +306,11 @@ object EdgeLightingOverlayManager {
                     }
                 }
 
-                val windowBounds = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    windowManager.currentWindowMetrics.bounds
-                } else {
-                    val dm = android.util.DisplayMetrics()
-                    @Suppress("DEPRECATION")
-                    windowManager.defaultDisplay.getRealMetrics(dm)
-                    android.graphics.Rect(0, 0, dm.widthPixels, dm.heightPixels)
-                }
-
+                // 크기를 고정 픽셀로 주면 표시 중에 가로·세로가 바뀔 때 창이 이전 방향 크기로 남아
+                // 테두리 빛이 화면 가운데에 걸리거나 한쪽이 잘립니다. MATCH_PARENT로 두어 회전 시 다시 배치되게 합니다.
                 val layoutParams = WindowManager.LayoutParams(
-                    windowBounds.width(),
-                    windowBounds.height(),
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                             WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
@@ -315,7 +323,12 @@ object EdgeLightingOverlayManager {
                     gravity = android.view.Gravity.TOP or android.view.Gravity.START
                     x = 0
                     y = 0
+                    // Android 12+는 다른 앱의 불투명 오버레이를 통과하는 터치를 차단합니다(untrusted touch).
+                    // 창 불투명도를 시스템 허용 상한(기본 0.8) 이하로 두어 경고 중에도 아래 앱을 조작할 수 있게 합니다.
+                    alpha = MAX_PASS_THROUGH_WINDOW_ALPHA
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        // 상태바·내비게이션 바 영역까지 덮어 화면 가장자리에서 빛이 시작되게 합니다.
+                        fitInsetsTypes = 0
                         layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
                     } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                         layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
@@ -336,6 +349,7 @@ object EdgeLightingOverlayManager {
                     }
                     addListener(object : AnimatorListenerAdapter() {
                         override fun onAnimationEnd(animation: Animator) {
+                            android.util.Log.d("EdgeLighting", "animation end")
                             dismissCurrent(windowManager)
                         }
                     })
@@ -343,6 +357,7 @@ object EdgeLightingOverlayManager {
 
                 activeAnimator = animator
                 val watchdog = Runnable {
+                    android.util.Log.d("EdgeLighting", "watchdog")
                     dismissCurrent(windowManager)
                 }
                 watchdogRunnable = watchdog

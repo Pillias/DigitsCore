@@ -74,6 +74,9 @@ class MainActivity : ComponentActivity() {
     private fun handleIntent(intent: Intent?) {
         if (intent?.getBooleanExtra(EXTRA_SHOW_MORNING_BRIEFING, false) == true) {
             forceShowMorningBriefing = true
+            // 처리한 요청은 지워 화면 회전·다크모드·언어 변경으로 Activity가 다시 만들어져도
+            // 브리핑이 또 열리지 않게 합니다.
+            intent.removeExtra(EXTRA_SHOW_MORNING_BRIEFING)
         }
     }
 
@@ -84,7 +87,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        handleIntent(intent)
+        // 재생성(savedInstanceState != null) 시에는 이미 처리한 알림 요청을 다시 처리하지 않습니다.
+        if (savedInstanceState == null) handleIntent(intent)
 
         val hasPermission = UsageStatsHelper.hasUsageStatsPermission(this)
         val startDestination = if (hasPermission) {

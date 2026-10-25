@@ -50,7 +50,7 @@ internal object StatisticsBackup {
             require(r.length() == 8)
             ScoreHourEntity(hour(r), r.getInt(1), r.getLong(2), r.getLong(3),
                 finite(r, 4), finite(r, 5), finite(r, 6), finite(r, 7)).also {
-                require(it.model in 1..5 && it.firstAt >= it.hour && it.lastAt >= it.firstAt && it.lastAt < it.hour + STAT_HOUR)
+                require(it.model in 1..com.digitscore.app.engine.ScoreModel.CURRENT_STORED && it.firstAt >= it.hour && it.lastAt >= it.firstAt && it.lastAt < it.hour + STAT_HOUR)
                 require(it.low <= minOf(it.first, it.last) && it.high >= maxOf(it.first, it.last) && it.high <= 100)
             }
         }

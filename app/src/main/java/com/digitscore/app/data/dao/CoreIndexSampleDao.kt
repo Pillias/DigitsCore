@@ -50,4 +50,8 @@ interface CoreIndexSampleDao {
 
     @Query("DELETE FROM core_index_samples")
     suspend fun deleteAll()
+
+    /** 시계가 뒤로 바뀐 뒤 남은 미래 시각 샘플을 지웁니다. */
+    @Query("DELETE FROM core_index_samples WHERE timestampMillis > :afterMillis")
+    suspend fun deleteAfter(afterMillis: Long)
 }

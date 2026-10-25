@@ -15,9 +15,10 @@ object StatisticsStore {
         for (m in movements) {
             val hour = statisticHour(m.start)
             val last = maxOf(m.start, m.end - 1)
-            val point = ScoreHourEntity(hour, 5, m.start, last, m.before, m.after,
+            val model = com.digitscore.app.engine.ScoreModel.CURRENT_STORED
+            val point = ScoreHourEntity(hour, model, m.start, last, m.before, m.after,
                 minOf(m.before, m.after), maxOf(m.before, m.after))
-            scores[hour] = mergeScoreHours(scores[hour] ?: dao.score(hour, 5), point)
+            scores[hour] = mergeScoreHours(scores[hour] ?: dao.score(hour, model), point)
             val loss = (m.before - m.after).coerceAtLeast(0.0)
             val gain = (m.after - m.before).coerceAtLeast(0.0)
             for (pkg in listOf("") + listOf(m.packageName).filter { it.isNotBlank() && loss > 0 }) {
@@ -40,7 +41,9 @@ object StatisticsStore {
         val dao = db.statisticsDao()
         val state = dao.state()
         val coverageStart = state?.interactionCoverageStart ?: (now - 24 * STAT_HOUR)
-        var from = statisticHour(maxOf(now - 30L * 24 * STAT_HOUR, (state?.processedUntil ?: 0L) - 2 * 60_000L))
+        // 시계 역행으로 처리 시각이 미래에 있으면 현재 시각 기준으로 다시 집계합니다.
+        val processedUntil = (state?.processedUntil ?: 0L).coerceAtMost(now)
+        var from = statisticHour(maxOf(now - 30L * 24 * STAT_HOUR, processedUntil - 2 * 60_000L))
         val existing = dao.deviceUsageSince(from).associateBy { it.hour }
         while (from < now) {
             val until = minOf(from + 24 * STAT_HOUR, now)

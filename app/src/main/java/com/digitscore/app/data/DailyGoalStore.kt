@@ -40,6 +40,7 @@ object DailyGoalStore {
     private const val KEY_AUTO_ASSIGNED = "goal_auto_assigned"
     private const val KEY_DISMISSED = "goal_dismissed"
     private const val KEY_NOTIFIED_80 = "goal_notified_80"
+    private const val KEY_NOTIFIED_UNLOCK_80 = "goal_notified_unlock_80"
 
     private const val KEY_YESTERDAY_SCORE = "y_score"
     private const val KEY_YESTERDAY_SCREEN_MINS = "y_screen_mins"
@@ -66,11 +67,12 @@ object DailyGoalStore {
     // 어제 목표 결과 스냅샷 캐시
     private const val KEY_Y_RESULT_JSON = "y_result_json"
 
-    // 스트릭 & 자유권 보상 키
+    // 연속 달성 & 자유권 보상 키
     private const val KEY_REWARD_STREAK = "reward_current_streak"
     private const val KEY_REWARD_PERFECT_STAMPS = "reward_perfect_stamps"
     private const val KEY_REWARD_FREE_PASSES = "reward_free_passes"
     private const val KEY_REWARD_ACTIVE_UNTIL = "reward_active_until"
+    private const val KEY_REWARD_WINDOWS = "reward_free_pass_windows"
     private const val KEY_REWARD_LAST_PROCESSED_DATE = "reward_last_processed_date"
 
 
@@ -82,6 +84,38 @@ object DailyGoalStore {
         val now = LocalDateTime.now()
         val logicalDate = if (now.hour < 5) now.minusDays(1).toLocalDate() else now.toLocalDate()
         return logicalDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+    }
+
+    /**
+     * 시계가 뒤로 바뀐 경우 미래 날짜로 저장된 목표·브리핑·보상 처리 기록과 미래 자유권을 정리합니다.
+     * 그대로 두면 실제 그 날짜가 왔을 때 목표 생성·브리핑·보상 정산이 건너뛰어집니다. 매 주기 호출해도 가볍습니다.
+     */
+    fun discardFutureState(context: Context, nowMillis: Long = System.currentTimeMillis(), todayDate: String = getLogicalDateString()) = synchronized(storeLock) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        fun isFuture(key: String) = prefs.getString(key, null)?.let { it > todayDate } == true
+        val editor = prefs.edit()
+        var changed = false
+        if (isFuture(KEY_DATE)) { editor.remove(KEY_DATE); changed = true }
+        if (isFuture(KEY_BRIEFING_DATE)) {
+            editor.remove(KEY_BRIEFING_DATE).putBoolean(KEY_BRIEFING_COMPLETED, false); changed = true
+        }
+        if (isFuture(KEY_Y_GOAL_DATE)) {
+            editor.remove(KEY_Y_GOAL_DATE).putBoolean(KEY_Y_GOAL_EXISTS, false); changed = true
+        }
+        val windows = prefs.getString(KEY_REWARD_WINDOWS, null)
+        if (windows != null) {
+            val kept = windows.split(",").filter { token ->
+                token.split(":").firstOrNull()?.toLongOrNull()?.let { it <= nowMillis } == true
+            }.joinToString(",")
+            if (kept != windows) { editor.putString(KEY_REWARD_WINDOWS, kept); changed = true }
+        }
+        if (changed) editor.apply()
+        val reward = getRewardState(context)
+        val fixedReward = reward.copy(
+            lastProcessedDate = reward.lastProcessedDate?.takeIf { it <= todayDate },
+            activeFreePassUntil = reward.activeFreePassUntil.takeIf { it <= nowMillis + FREE_PASS_DURATION_MILLIS } ?: 0L
+        )
+        if (fixedReward != reward) saveRewardState(context, fixedReward)
     }
 
     fun getYesterdayLogicalDateString(): String {
@@ -107,7 +141,8 @@ object DailyGoalStore {
             currentUnlockCount = prefs.getInt(KEY_CURRENT_UNLOCK, 0),
             isAutoAssigned = prefs.getBoolean(KEY_AUTO_ASSIGNED, true),
             isDismissed = prefs.getBoolean(KEY_DISMISSED, false),
-            notifiedMilestone80 = prefs.getBoolean(KEY_NOTIFIED_80, false)
+            notifiedMilestone80 = prefs.getBoolean(KEY_NOTIFIED_80, false),
+            notifiedUnlockMilestone80 = prefs.getBoolean(KEY_NOTIFIED_UNLOCK_80, false)
         )
     }
 
@@ -126,6 +161,7 @@ object DailyGoalStore {
             .putBoolean(KEY_AUTO_ASSIGNED, goal.isAutoAssigned)
             .putBoolean(KEY_DISMISSED, goal.isDismissed)
             .putBoolean(KEY_NOTIFIED_80, goal.notifiedMilestone80)
+            .putBoolean(KEY_NOTIFIED_UNLOCK_80, goal.notifiedUnlockMilestone80)
             .apply()
     }
 
@@ -136,7 +172,8 @@ object DailyGoalStore {
         currentScore: Int? = null,
         currentAppMins: Int? = null,
         currentUnlock: Int? = null,
-        notifiedMilestone80: Boolean? = null
+        notifiedMilestone80: Boolean? = null,
+        notifiedUnlockMilestone80: Boolean? = null
     ) = synchronized(storeLock) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val savedDate = prefs.getString(KEY_DATE, null)
@@ -149,6 +186,7 @@ object DailyGoalStore {
         currentAppMins?.let { editor.putInt(KEY_CURRENT_APP, it) }
         currentUnlock?.let { editor.putInt(KEY_CURRENT_UNLOCK, it) }
         notifiedMilestone80?.let { editor.putBoolean(KEY_NOTIFIED_80, it) }
+        notifiedUnlockMilestone80?.let { editor.putBoolean(KEY_NOTIFIED_UNLOCK_80, it) }
         editor.apply()
     }
 
@@ -284,7 +322,7 @@ object DailyGoalStore {
 
 
     // -----------------------------------------------------------------------------------------
-    // 스트릭 및 15분 자유권(Free Pass) 보상 엔진
+    // 연속 달성 및 15분 자유권(Free Pass) 보상 엔진
     // -----------------------------------------------------------------------------------------
 
     fun getRewardState(context: Context): GoalRewardState {
@@ -312,22 +350,58 @@ object DailyGoalStore {
 
     /**
      * 15분 자유권 사용 활성화
-     * (보유 1장 차감, 지금부터 15분간 부하 면제 적용)
+     * (보유 1장 차감, 지금부터 15분간 감점 없음 적용)
      */
     fun activateFreePass(context: Context): Boolean = synchronized(storeLock) {
         val state = getRewardState(context)
         if (state.availableFreePasses <= 0 || state.isFreePassActive) return false
+        val now = System.currentTimeMillis()
+        val until = now + FREE_PASS_DURATION_MILLIS
         val newState = state.copy(
             availableFreePasses = (state.availableFreePasses - 1).coerceAtLeast(0),
-            activeFreePassUntil = System.currentTimeMillis() + 15 * 60 * 1000L
+            activeFreePassUntil = until
         )
         saveRewardState(context, newState)
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val existing = freePassWindows(context, now) + listOf(now..until)
+        val serialized = existing.distinctBy { it.first to it.last }
+            .joinToString(",") { "${it.first}:${it.last}" }
+        prefs.edit().putString(KEY_REWARD_WINDOWS, serialized).apply()
         return true
     }
 
     fun isFreePassActive(context: Context): Boolean {
         return getRewardState(context).isFreePassActive
     }
+
+    /** 최근 24시간 내에 사용한 모든 15분 자유권 구간을 반환합니다. 연속 사용 시에도 이전 미정산 구간이 보존됩니다. */
+    fun freePassWindows(context: Context, nowMillis: Long = System.currentTimeMillis()): List<LongRange> {
+        val cutoff = nowMillis - 24 * 3_600_000L
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val parsed = prefs.getString(KEY_REWARD_WINDOWS, null).orEmpty()
+            .split(",")
+            .mapNotNull { token ->
+                val parts = token.split(":")
+                if (parts.size == 2) {
+                    val start = parts[0].toLongOrNull()
+                    val end = parts[1].toLongOrNull()
+                    if (start != null && end != null && end > start && end >= cutoff) start..end else null
+                } else null
+            }
+        val single = getRewardState(context).activeFreePassUntil.takeIf { it > 0L && it >= cutoff }
+            ?.let { (it - FREE_PASS_DURATION_MILLIS)..it }
+        return (parsed + listOfNotNull(single)).distinctBy { it.first to it.last }.sortedBy { it.first }
+    }
+
+    /** 가장 최근에 사용한 15분 자유권 구간입니다. 만료 후에도 점수 정산이 끝날 때까지 필요합니다. */
+    fun latestFreePassWindow(context: Context, nowMillis: Long = System.currentTimeMillis()): LongRange? =
+        freePassWindows(context, nowMillis).lastOrNull()
+
+    const val FREE_PASS_DURATION_MILLIS = 15 * 60 * 1000L
+
+    /** 어제 사용 기록이 있어 아침 브리핑에 보여줄 기준값이 있는지 확인합니다. */
+    fun hasYesterdayBaseline(summary: YesterdayBriefingSummary?): Boolean =
+        summary != null && (summary.totalScreenTimeMinutes > 0L || summary.unlockCount > 0)
 
     // -----------------------------------------------------------------------------------------
     // 어제 목표 아카이브 및 결과 스냅샷 관리
@@ -540,7 +614,7 @@ object DailyGoalStore {
         }
         saveYesterdayGoalResult(context, yGoalResult)
 
-        // 3. 스트릭 및 자유권 보상 정산 (해당 날짜 1회만 처리)
+        // 3. 연속 달성 및 자유권 보상 정산 (해당 날짜 1회만 처리)
         val currentRewardState = getRewardState(context)
         if (currentRewardState.lastProcessedDate != yesterdayDate) {
             if (yGoalResult.hasGoal) {
@@ -568,8 +642,10 @@ object DailyGoalStore {
             ScoreRepository.updateRewardState(currentRewardState)
         }
 
-        // 최근 14일간 앱별 통계 종합 (사용 일수, 총 사용량, 일평균, 카테고리 등)
-        val recentDateCutoff = java.time.LocalDate.now().minusDays(14)
+        // 최근 14일간 앱별 통계 종합 (05:00 논리적 날짜 기준)
+        val recentDateCutoff = runCatching { java.time.LocalDate.parse(todayDate) }
+            .getOrElse { java.time.LocalDate.now() }
+            .minusDays(14)
             .format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
         val recent14DayUsage = allAppUsage.filter { it.dateString >= recentDateCutoff }
 
@@ -579,12 +655,13 @@ object DailyGoalStore {
                 val activeDays = records.count { it.usageMillis >= 3 * 60_000L }.coerceAtLeast(1)
                 val totalMillis = records.sumOf { it.usageMillis }
                 val avgMins = (totalMillis / (14 * 60_000L)).coerceAtLeast(0L)
-                val isHeavyCategory = records.any { it.categoryLevel >= 2 }
+                val isHeavyCategory = records.any { it.categoryLevel >= 3 }
+                val isExempt = records.lastOrNull()?.categoryLevel?.let { it <= 0 } ?: false
                 val latestName = records.lastOrNull { it.appName.isNotBlank() }?.appName ?: ""
-                Triple(activeDays, avgMins, isHeavyCategory) to latestName
+                Triple(activeDays, avgMins, isHeavyCategory) to (latestName to isExempt)
             }
 
-        // 어제 사용 앱을 우선으로 하되, 최근 14일간 고사용/몰입관리 앱도 반드시 후보군으로 포괄
+        // 어제 사용 앱을 우선으로 하되, 최근 14일간 고사용/관리 앱도 반드시 후보군으로 포괄
         val allTargetPackages = (yesterdayApps.map { it.packageName } + appStatsByPkg.keys).distinct()
 
         val candidateApps = allTargetPackages.mapNotNull { pkg ->
@@ -595,8 +672,11 @@ object DailyGoalStore {
             val recentAvgMins = statsPair?.first?.second ?: 0L
             val isHeavyCategory = statsPair?.first?.third ?: false
             val appName = yApp?.appName?.ifBlank { null }
-                ?: statsPair?.second?.ifBlank { null }
+                ?: statsPair?.second?.first?.ifBlank { null }
                 ?: pkg.substringAfterLast('.')
+            // 면제 앱(내비·통화·공부·업무 도구)은 '줄일 앱' 후보에서 제외합니다.
+            val isExemptApp = yApp?.categoryLevel?.let { it <= 0 } ?: (statsPair?.second?.second ?: false)
+            if (isExemptApp) return@mapNotNull null
 
             // 어제 5분 이상 썼거나, 최근 14일 일평균 5분 이상인 의미 있는 앱만 후보 편입
             if (yMins < 5 && recentAvgMins < 5) return@mapNotNull null
@@ -633,7 +713,7 @@ object DailyGoalStore {
         )
         saveYesterdaySummary(context, summary)
 
-        // 1. 코어 지수 목표 기본값 (현실적으로 도달 가능한 점진적 목표 프리셋)
+        // 1. 지수 방어선 기본값 (현실적으로 도달 가능한 점진적 목표 점수 모드)
         val baseScore = yesterdayScore.coerceIn(0, 100)
         val recommendedScoreTarget = when {
             baseScore < 45 -> 50
@@ -655,7 +735,7 @@ object DailyGoalStore {
             ((baseAppMins * 0.75f).toInt().coerceAtLeast(15) / 5) * 5
         } else 30
 
-        // 3. 잠금해제 목표 기본값:
+        // 3. 잠금 해제 목표 기본값:
         val baseUnlock = when {
             yesterdayUnlock >= 20 -> yesterdayUnlock
             pastAvgUnlock >= 20 -> pastAvgUnlock

@@ -1,5 +1,10 @@
 package com.digitscore.app.ui.dashboard
 
+import com.digitscore.app.ui.theme.tile
+import com.digitscore.app.ui.theme.DigitsTextSize
+import com.digitscore.app.ui.theme.DigitsShape
+import com.digitscore.app.ui.theme.ScoreOrangeText
+import com.digitscore.app.ui.theme.ScoreGreenText
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -8,13 +13,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ConfirmationNumber
-import androidx.compose.material.icons.filled.LockOpen
-import androidx.compose.material.icons.filled.PhoneAndroid
-import androidx.compose.material.icons.filled.StarOutline
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.Whatshot
-import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.rounded.ConfirmationNumber
+import androidx.compose.material.icons.rounded.LockOpen
+import androidx.compose.material.icons.rounded.PhoneAndroid
+import androidx.compose.material.icons.rounded.StarOutline
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Whatshot
+import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -41,7 +46,7 @@ import java.util.Locale
 
 /**
  * 아침 기상 시 뜨는 데일리 코칭 팝업 다이얼로그
- * - [상단] 어제의 3대 실천 목표 결과 피드백 & 스트릭/자유권 보상 확인
+ * - [상단] 어제의 목표 결과 피드백 & 연속 달성/자유권 보상 확인
  * - [하단] 오늘의 시스템 자동 지정 미션 (난이도 선택 / 원터치 수락 / 필요 시 세부 조정)
  */
 @Composable
@@ -109,7 +114,7 @@ fun MorningBriefingDialog(
                 .fillMaxWidth(0.95f)
                 .heightIn(max = 640.dp)
                 .wrapContentHeight(),
-            shape = RoundedCornerShape(24.dp),
+            shape = DigitsShape.xl,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
@@ -125,7 +130,7 @@ fun MorningBriefingDialog(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // 1. 헤더: 타이틀 + 스트릭 배지
+                    // 1. 헤더: 타이틀 + 연속 달성 배지
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -135,21 +140,21 @@ fun MorningBriefingDialog(
                         Text(
                             text = if (english) "MORNING BRIEFING" else "모닝 브리핑",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp,
+                            fontSize = DigitsTextSize.caption,
                             color = MaterialTheme.colorScheme.primary,
                             letterSpacing = 1.sp
                         )
                         Spacer(Modifier.height(2.dp))
                         Text(
                             text = if (english) "Yesterday Feedback & Today's Mission" else "어제 피드백 & 오늘의 미션",
-                            fontSize = 17.sp,
+                            fontSize = DigitsTextSize.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
 
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
+                        shape = DigitsShape.sm,
                         color = if (rewardState.currentStreak > 0) ScoreOrange.copy(alpha = 0.15f) else MaterialTheme.colorScheme.primaryContainer
                     ) {
                         Row(
@@ -159,18 +164,18 @@ fun MorningBriefingDialog(
                         ) {
                             if (rewardState.currentStreak > 0) {
                                 Icon(
-                                    imageVector = Icons.Default.Whatshot,
+                                    imageVector = Icons.Rounded.Whatshot,
                                     contentDescription = null,
                                     modifier = Modifier.size(13.dp),
-                                    tint = ScoreOrange
+                                    tint = ScoreOrangeText
                                 )
                             }
                             Text(
-                                text = if (rewardState.currentStreak > 0) (if (english) "${rewardState.currentStreak}-Day Streak" else "${rewardState.currentStreak}일 스트릭")
+                                text = if (rewardState.currentStreak > 0) (if (english) "${rewardState.currentStreak}-Day Streak" else "${rewardState.currentStreak}일 연속 달성")
                                 else (if (english) "Today's Start" else "오늘의 시작"),
-                                fontSize = 11.sp,
+                                fontSize = DigitsTextSize.caption,
                                 fontWeight = FontWeight.Bold,
-                                color = if (rewardState.currentStreak > 0) ScoreOrange else MaterialTheme.colorScheme.onPrimaryContainer
+                                color = if (rewardState.currentStreak > 0) ScoreOrangeText else MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
                     }
@@ -178,7 +183,7 @@ fun MorningBriefingDialog(
 
                 // 2. [상단] 어제의 목표 결과 피드백 카드
                 Surface(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -186,11 +191,11 @@ fun MorningBriefingDialog(
                         modifier = Modifier.padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        // 스트릭 및 보상 획득 현황 배너
+                        // 연속 달성 및 보상 획득 현황 배너
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.tile, DigitsShape.md)
                                 .padding(horizontal = 10.dp, vertical = 7.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
@@ -204,18 +209,18 @@ fun MorningBriefingDialog(
                             ) {
                                 if (rewardState.currentStreak > 0) {
                                     Icon(
-                                        imageVector = Icons.Default.Whatshot,
+                                        imageVector = Icons.Rounded.Whatshot,
                                         contentDescription = null,
                                         modifier = Modifier.size(14.dp),
-                                        tint = ScoreOrange
+                                        tint = ScoreOrangeText
                                     )
                                 }
                                 Text(
                                     text = if (rewardState.currentStreak > 0) (if (english) "${rewardState.currentStreak}-Day Streak Active" else "${rewardState.currentStreak}일 연속 방어 중")
-                                    else (if (english) "New Streak Starting" else "새로운 스트릭 도전"),
+                                    else (if (english) "New Streak Starting" else "연속 달성 새로 시작"),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
-                                    fontSize = 12.sp,
+                                    fontSize = DigitsTextSize.label,
                                     fontWeight = FontWeight.Bold,
                                     color = if (rewardState.currentStreak > 0) ScoreOrange else MaterialTheme.colorScheme.outline
                                 )
@@ -229,21 +234,21 @@ fun MorningBriefingDialog(
                                     horizontalArrangement = Arrangement.spacedBy(3.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.StarOutline,
+                                        imageVector = Icons.Rounded.StarOutline,
                                         contentDescription = null,
                                         modifier = Modifier.size(13.dp),
                                         tint = MaterialTheme.colorScheme.primary
                                     )
                                     Text(
                                         text = if (english) "Stamps ${rewardState.perfectStamps}/3" else "스탬프 ${rewardState.perfectStamps}/3",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = DigitsTextSize.caption,
+                                        fontWeight = FontWeight.Medium,
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                 }
                                 if (rewardState.availableFreePasses > 0) {
                                     Surface(
-                                        shape = RoundedCornerShape(6.dp),
+                                        shape = DigitsShape.sm,
                                         color = MaterialTheme.colorScheme.primaryContainer
                                     ) {
                                         Row(
@@ -252,14 +257,14 @@ fun MorningBriefingDialog(
                                             horizontalArrangement = Arrangement.spacedBy(3.dp)
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.ConfirmationNumber,
+                                                imageVector = Icons.Rounded.ConfirmationNumber,
                                                 contentDescription = null,
                                                 modifier = Modifier.size(11.dp),
                                                 tint = MaterialTheme.colorScheme.onPrimaryContainer
                                             )
                                             Text(
                                                 text = if (english) "Free Pass x${rewardState.availableFreePasses}" else "자유권 ${rewardState.availableFreePasses}장",
-                                                fontSize = 10.sp,
+                                                fontSize = DigitsTextSize.tiny,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                                             )
@@ -272,16 +277,16 @@ fun MorningBriefingDialog(
                         // 어제 결과 판정 텍스트
                         if (yesterdayGoalResult != null && yesterdayGoalResult.hasGoal) {
                             val bannerMessage = when {
-                                yesterdayGoalResult.isPerfectDay -> if (english) "All 3 Goals Cleared! Perfect Day!" else "3개 올 클리어! 퍼펙트 데이 달성!"
-                                yesterdayGoalResult.isStreakMaintained -> if (english) "${yesterdayGoalResult.achievedCount} Goals Cleared! Shield streak maintained." else "${yesterdayGoalResult.achievedCount}개 달성! 훌륭하게 방어했습니다 (스트릭 유지)"
+                                yesterdayGoalResult.isPerfectDay -> if (english) "All 3 goals met." else "목표 3개를 모두 달성했습니다."
+                                yesterdayGoalResult.isStreakMaintained -> if (english) "${yesterdayGoalResult.achievedCount} Goals Cleared! Shield streak maintained." else "${yesterdayGoalResult.achievedCount}개 달성! 훌륭하게 방어했습니다 (연속 달성 유지)"
                                 else -> if (english) "Good effort yesterday! Ready to recover today?" else "아쉽지만 좋은 시도였습니다. 오늘 다시 회복해볼까요?"
                             }
 
                             Text(
                                 text = bannerMessage,
-                                fontSize = 13.sp,
+                                fontSize = DigitsTextSize.body,
                                 fontWeight = FontWeight.Bold,
-                                color = if (yesterdayGoalResult.isStreakMaintained) ScoreGreen else MaterialTheme.colorScheme.onSurface
+                                color = if (yesterdayGoalResult.isStreakMaintained) ScoreGreenText else MaterialTheme.colorScheme.onSurface
                             )
 
                             // 3대 항목별 실적 그리드
@@ -292,8 +297,8 @@ fun MorningBriefingDialog(
                                 // 1) 코어 지수
                                 Surface(
                                     modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = MaterialTheme.colorScheme.surface
+                                    shape = DigitsShape.md,
+                                    color = MaterialTheme.colorScheme.tile
                                 ) {
                                     Column(
                                         modifier = Modifier.padding(8.dp),
@@ -301,7 +306,7 @@ fun MorningBriefingDialog(
                                     ) {
                                         Text(
                                             text = if (english) "CORE" else "코어 지수",
-                                            fontSize = 9.sp,
+                                            fontSize = DigitsTextSize.micro,
                                             color = MaterialTheme.colorScheme.outline,
                                             fontWeight = FontWeight.Medium,
                                             maxLines = 1,
@@ -310,19 +315,19 @@ fun MorningBriefingDialog(
                                         )
                                         Text(
                                             text = "${yesterdayGoalResult.finalScore}P",
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = if (yesterdayGoalResult.isScoreAchieved) ScoreGreen else ScoreOrange,
+                                            fontSize = DigitsTextSize.emphasis,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (yesterdayGoalResult.isScoreAchieved) ScoreGreenText else ScoreOrangeText,
                                             maxLines = 1,
                                             softWrap = false,
                                             overflow = TextOverflow.Ellipsis
                                         )
                                          Text(
-                                            text = if (yesterdayGoalResult.isScoreAchieved) (if (english) "Cleared ✓" else "방어 성공 ✓")
+                                            text = if (yesterdayGoalResult.isScoreAchieved) (if (english) "Achieved" else "방어 성공")
                                             else (if (english) "Below !" else "목표 미달 !"),
-                                            fontSize = 9.sp,
+                                            fontSize = DigitsTextSize.micro,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (yesterdayGoalResult.isScoreAchieved) ScoreGreen else ScoreOrange,
+                                            color = if (yesterdayGoalResult.isScoreAchieved) ScoreGreenText else ScoreOrangeText,
                                             maxLines = 1,
                                             softWrap = false,
                                             overflow = TextOverflow.Ellipsis
@@ -333,8 +338,8 @@ fun MorningBriefingDialog(
                                 // 2) 집중 앱
                                 Surface(
                                     modifier = Modifier.weight(1.1f),
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = MaterialTheme.colorScheme.surface
+                                    shape = DigitsShape.md,
+                                    color = MaterialTheme.colorScheme.tile
                                 ) {
                                     Column(
                                         modifier = Modifier.padding(8.dp),
@@ -343,7 +348,7 @@ fun MorningBriefingDialog(
                                         Text(
                                             text = if (yesterdayGoalResult.targetPackageName != null) yesterdayGoalResult.targetAppName
                                             else (if (english) "NO APP" else "관리 앱 없음"),
-                                            fontSize = 9.sp,
+                                            fontSize = DigitsTextSize.micro,
                                             color = MaterialTheme.colorScheme.outline,
                                             fontWeight = FontWeight.Medium,
                                             maxLines = 1,
@@ -352,9 +357,9 @@ fun MorningBriefingDialog(
                                         )
                                         Text(
                                             text = "${yesterdayGoalResult.finalAppUsageMinutes}min",
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = if (yesterdayGoalResult.isAppLimitAchieved) ScoreGreen else ScoreOrange,
+                                            fontSize = DigitsTextSize.emphasis,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (yesterdayGoalResult.isAppLimitAchieved) ScoreGreenText else ScoreOrangeText,
                                             maxLines = 1,
                                             softWrap = false,
                                             overflow = TextOverflow.Ellipsis
@@ -369,9 +374,9 @@ fun MorningBriefingDialog(
                                         }
                                         Text(
                                             text = appStatusText,
-                                            fontSize = 9.sp,
+                                            fontSize = DigitsTextSize.micro,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (yesterdayGoalResult.isAppLimitAchieved) ScoreGreen else ScoreOrange,
+                                            color = if (yesterdayGoalResult.isAppLimitAchieved) ScoreGreenText else ScoreOrangeText,
                                             maxLines = 1,
                                             softWrap = false,
                                             overflow = TextOverflow.Ellipsis
@@ -382,8 +387,8 @@ fun MorningBriefingDialog(
                                 // 3) 잠금 해제
                                 Surface(
                                     modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = MaterialTheme.colorScheme.surface
+                                    shape = DigitsShape.md,
+                                    color = MaterialTheme.colorScheme.tile
                                 ) {
                                     Column(
                                         modifier = Modifier.padding(8.dp),
@@ -391,7 +396,7 @@ fun MorningBriefingDialog(
                                     ) {
                                         Text(
                                             text = if (english) "UNLOCK" else "잠금 해제",
-                                            fontSize = 9.sp,
+                                            fontSize = DigitsTextSize.micro,
                                             color = MaterialTheme.colorScheme.outline,
                                             fontWeight = FontWeight.Medium,
                                             maxLines = 1,
@@ -400,24 +405,24 @@ fun MorningBriefingDialog(
                                         )
                                         Text(
                                             text = "${yesterdayGoalResult.finalUnlockCount}x",
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = if (yesterdayGoalResult.isUnlockLimitAchieved) ScoreGreen else ScoreOrange,
+                                            fontSize = DigitsTextSize.emphasis,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (yesterdayGoalResult.isUnlockLimitAchieved) ScoreGreenText else ScoreOrangeText,
                                             maxLines = 1,
                                             softWrap = false,
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         val unlockDiff = yesterdayGoalResult.unlockLimitTarget - yesterdayGoalResult.finalUnlockCount
                                         val unlockStatusText = if (unlockDiff >= 0) {
-                                            if (english) "Cleared ✓" else "절제 성공 ✓"
+                                            if (english) "Achieved" else "절제 성공"
                                         } else {
                                             if (english) "+${-unlockDiff}x !" else "+${-unlockDiff}x 초과 !"
                                         }
                                         Text(
                                             text = unlockStatusText,
-                                            fontSize = 9.sp,
+                                            fontSize = DigitsTextSize.micro,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (yesterdayGoalResult.isUnlockLimitAchieved) ScoreGreen else ScoreOrange,
+                                            color = if (yesterdayGoalResult.isUnlockLimitAchieved) ScoreGreenText else ScoreOrangeText,
                                             maxLines = 1,
                                             softWrap = false,
                                             overflow = TextOverflow.Ellipsis
@@ -430,19 +435,19 @@ fun MorningBriefingDialog(
                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(
                                     text = if (english) "Yesterday's Baseline Usage" else "어제의 기본 사용 기록",
-                                    fontSize = 13.sp,
+                                    fontSize = DigitsTextSize.body,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
                                     text = if (english) "Score: ${yesterdaySummary.score}P  |  Screen: $yTimeStr  |  Most Used: ${yesterdaySummary.topAppName.ifBlank { "None" }} $topTimeStr"
                                     else "점수: ${yesterdaySummary.score}P  |  화면: $yTimeStr  |  최다 사용: ${yesterdaySummary.topAppName.ifBlank { "없음" }} $topTimeStr",
-                                    fontSize = 11.sp,
+                                    fontSize = DigitsTextSize.caption,
                                     color = MaterialTheme.colorScheme.outline
                                 )
                                 Text(
-                                    text = if (english) "Ready to challenge your first daily mission today!" else "오늘 첫 시스템 미션을 수락하고 스트릭을 시작해보세요!",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
+                                    text = if (english) "Ready to challenge your first daily mission today!" else "오늘 첫 시스템 미션을 수락하고 연속 달성을 시작해보세요!",
+                                    fontSize = DigitsTextSize.caption,
+                                    fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
@@ -454,7 +459,7 @@ fun MorningBriefingDialog(
 
                 // 3. [하단] 오늘의 시스템 미션 (Daily Mission)
                 Surface(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -471,7 +476,7 @@ fun MorningBriefingDialog(
                             Column {
                                 Text(
                                     text = if (english) "TODAY'S GOALS" else "오늘의 추천 목표",
-                                    fontSize = 13.sp,
+                                    fontSize = DigitsTextSize.body,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -485,8 +490,8 @@ fun MorningBriefingDialog(
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                             ) {
                                 Text(
-                                    text = if (showCustomAdjust) (if (english) "Fold ▲" else "접기 ▲") else (if (english) "Tune ▼" else "세부 조정 ▼"),
-                                    fontSize = 11.sp,
+                                    text = if (showCustomAdjust) (if (english) "Hide" else "접기") else (if (english) "Adjust" else "세부 조정"),
+                                    fontSize = DigitsTextSize.caption,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
@@ -503,7 +508,7 @@ fun MorningBriefingDialog(
                                     userInteracted = true
                                     selectedDifficulty = GoalDifficulty.EASY
                                 },
-                                label = { Text(if (english) "Easy" else "여유", fontSize = 11.sp, maxLines = 1, softWrap = false) },
+                                label = { Text(if (english) "Easy" else "여유", fontSize = DigitsTextSize.caption, maxLines = 1, softWrap = false) },
                                 modifier = Modifier.weight(1f)
                             )
                             FilterChip(
@@ -512,7 +517,7 @@ fun MorningBriefingDialog(
                                     userInteracted = true
                                     selectedDifficulty = GoalDifficulty.NORMAL
                                 },
-                                label = { Text(if (english) "Normal" else "표준", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false) },
+                                label = { Text(if (english) "Normal" else "표준", fontSize = DigitsTextSize.caption, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false) },
                                 modifier = Modifier.weight(1.2f)
                             )
                             FilterChip(
@@ -521,7 +526,7 @@ fun MorningBriefingDialog(
                                     userInteracted = true
                                     selectedDifficulty = GoalDifficulty.HARD
                                 },
-                                label = { Text(if (english) "Hard" else "도전", fontSize = 11.sp, maxLines = 1, softWrap = false) },
+                                label = { Text(if (english) "Hard" else "도전", fontSize = DigitsTextSize.caption, maxLines = 1, softWrap = false) },
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -530,7 +535,7 @@ fun MorningBriefingDialog(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.tile, DigitsShape.md)
                                 .padding(12.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
@@ -544,14 +549,14 @@ fun MorningBriefingDialog(
                                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Outlined.Shield,
+                                        imageVector = Icons.Rounded.Shield,
                                         contentDescription = null,
                                         modifier = Modifier.size(13.dp),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    Text(text = if (english) "Core Index Defense" else "코어 지수 방어", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                    Text(text = if (english) "Core Index Defense" else "코어 지수 방어", fontSize = DigitsTextSize.label, fontWeight = FontWeight.Medium)
                                 }
-                                Text(text = "${selectedScoreTarget} P", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
+                                Text(text = "${selectedScoreTarget}P", fontSize = DigitsTextSize.bodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                             }
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
                             Row(
@@ -564,22 +569,22 @@ fun MorningBriefingDialog(
                                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.PhoneAndroid,
+                                        imageVector = Icons.Rounded.PhoneAndroid,
                                         contentDescription = null,
                                         modifier = Modifier.size(13.dp),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Text(
                                         text = if (selectedAppPkg != null) (if (english) "Limit $selectedAppName" else "${selectedAppName} 절제") else (if (english) "Focus App" else "집중 관리 앱"),
-                                        fontSize = 12.sp,
+                                        fontSize = DigitsTextSize.label,
                                         fontWeight = FontWeight.Medium
                                     )
                                 }
                                 Text(
                                     text = if (selectedAppPkg != null) "${selectedAppLimit}min" else (if (english) "None" else "선택 안 함"),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = if (selectedAppPkg != null) ScoreOrange else MaterialTheme.colorScheme.outline
+                                    fontSize = DigitsTextSize.bodyLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (selectedAppPkg != null) ScoreOrangeText else MaterialTheme.colorScheme.outline
                                 )
                             }
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
@@ -593,14 +598,14 @@ fun MorningBriefingDialog(
                                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.LockOpen,
+                                        imageVector = Icons.Rounded.LockOpen,
                                         contentDescription = null,
                                         modifier = Modifier.size(13.dp),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    Text(text = if (english) "Daily Unlock Limit" else "일일 잠금 해제 조절", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                    Text(text = if (english) "Daily Unlock Limit" else "일일 잠금 해제 조절", fontSize = DigitsTextSize.label, fontWeight = FontWeight.Medium)
                                 }
-                                Text(text = "${selectedUnlockTarget}x", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
+                                Text(text = "${selectedUnlockTarget}x", fontSize = DigitsTextSize.bodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                             }
                         }
 
@@ -614,7 +619,7 @@ fun MorningBriefingDialog(
                             ) {
                                 // 코어 지수 슬라이더
                                 Column {
-                                    Text(text = if (english) "Adjust Core Index Target" else "코어 지수 목표 미세조정", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                                    Text(text = if (english) "Adjust Core Index Target" else "코어 지수 목표 미세조정", fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
                                     Slider(
                                         value = selectedScoreTarget.toFloat(),
                                         onValueChange = {
@@ -629,7 +634,7 @@ fun MorningBriefingDialog(
 
                                 // 앱 선택 칩 & 슬라이더
                                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text(text = if (english) "Change Focus App" else "집중 관리 앱 변경", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                                    Text(text = if (english) "Change Limited App" else "관리할 앱 변경", fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -643,7 +648,7 @@ fun MorningBriefingDialog(
                                                 selectedAppPkg = null
                                                 selectedAppName = ""
                                             },
-                                            label = { Text(if (english) "None" else "선택 안 함", fontSize = 11.sp) }
+                                            label = { Text(if (english) "None" else "선택 안 함", fontSize = DigitsTextSize.caption) }
                                         )
 
                                         yesterdaySummary.candidateApps.forEach { candidate ->
@@ -656,7 +661,7 @@ fun MorningBriefingDialog(
                                                     val baseMins = if (candidate.yesterdayUsageMinutes > 0) candidate.yesterdayUsageMinutes else candidate.recentAvgMinutes
                                                     selectedAppLimit = ((baseMins * 0.75f).toInt().coerceAtLeast(15) / 5) * 5
                                                 },
-                                                label = { Text("${candidate.appName} (${candidate.yesterdayUsageMinutes}min)", fontSize = 11.sp) }
+                                                label = { Text("${candidate.appName} (${candidate.yesterdayUsageMinutes}min)", fontSize = DigitsTextSize.caption) }
                                             )
                                         }
                                     }
@@ -675,9 +680,9 @@ fun MorningBriefingDialog(
                                     }
                                 }
 
-                                // 잠금해제 슬라이더
+                                // 잠금 해제 슬라이더
                                 Column {
-                                    Text(text = if (english) "Adjust Unlock Limit" else "잠금 해제 한도 미세조정", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                                    Text(text = if (english) "Adjust Unlock Limit" else "잠금 해제 한도 미세조정", fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
                                     Slider(
                                         value = selectedUnlockTarget.toFloat(),
                                         onValueChange = {
@@ -714,7 +719,7 @@ fun MorningBriefingDialog(
                         modifier = Modifier
                             .weight(1.4f)
                             .height(48.dp),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = DigitsShape.md
                     ) {
                         Text(
                             text = if (english) {
@@ -723,7 +728,7 @@ fun MorningBriefingDialog(
                                 if (!userInteracted && autoCloseSeconds > 0) "오늘 미션 시작 (${autoCloseSeconds}초 후 자동 닫힘)" else "오늘 미션 시작"
                             },
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
+                            fontSize = DigitsTextSize.body
                         )
                     }
 
@@ -735,12 +740,12 @@ fun MorningBriefingDialog(
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = DigitsShape.md
                     ) {
                         Text(
                             text = if (english) "Pass (Auto)" else "건너뛰기 (자동)",
                             fontWeight = FontWeight.Medium,
-                            fontSize = 12.sp
+                            fontSize = DigitsTextSize.label
                         )
                     }
                 }

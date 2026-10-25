@@ -387,4 +387,36 @@ class ForegroundUsageAggregatorTest {
         assertEquals(null, result.usageMillisByPackage["youtube"])
         assertEquals(20_000L, result.usageMillisByPackage["duolingo"])
     }
+
+    @Test
+    fun deviceWithoutLockScreenCountsUsageAfterReboot() {
+        // 잠금 화면이 없는 기기: 부팅 후 KEYGUARD 이벤트 없이 앱이 바로 실행됩니다.
+        val result = aggregate(
+            endSecond = 70,
+            events = listOf(
+                event(0, ForegroundTimelineEventType.DEVICE_SHUTDOWN),
+                event(0, ForegroundTimelineEventType.SCREEN_INTERACTIVE),
+                event(0, ForegroundTimelineEventType.DEVICE_STARTUP),
+                event(10, ForegroundTimelineEventType.APP_RESUMED, "youtube", "Main")
+            )
+        )
+        assertEquals(60_000L, result.usageMillisByPackage["youtube"])
+        assertEquals(false, result.endingState.keyguardUnknown)
+    }
+
+    @Test
+    fun rebootWithLockScreenStillWaitsForUnlock() {
+        val result = aggregate(
+            endSecond = 70,
+            events = listOf(
+                event(0, ForegroundTimelineEventType.DEVICE_STARTUP),
+                event(1, ForegroundTimelineEventType.SCREEN_INTERACTIVE),
+                event(2, ForegroundTimelineEventType.KEYGUARD_SHOWN),
+                event(5, ForegroundTimelineEventType.APP_RESUMED, "launcher.home", "Home"),
+                event(40, ForegroundTimelineEventType.KEYGUARD_HIDDEN),
+                event(40, ForegroundTimelineEventType.APP_RESUMED, "youtube", "Main")
+            )
+        )
+        assertEquals(30_000L, result.usageMillisByPackage["youtube"])
+    }
 }

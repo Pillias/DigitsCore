@@ -1,6 +1,8 @@
 package com.digitscore.app.ui.dashboard
 
 import androidx.compose.foundation.layout.*
+import com.digitscore.app.ui.theme.DigitsTextSize
+import com.digitscore.app.ui.theme.DigitsShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -53,19 +55,19 @@ fun HabitReviewCard(
     suggestion?.let { app ->
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            shape = DigitsShape.lg,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
             Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = if (english) "Manage ${app.appName}?" else "${app.appName}을 관리 앱으로 바꿀까요?",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp
+                    fontSize = DigitsTextSize.body
                 )
                 Text(
                     text = if (english) "Used 90+ min on 3+ days. Applies to future scoring."
                         else "최근 7일 중 3일 이상 90min 넘게 사용했습니다. 변경 후 사용부터 반영합니다.",
-                    fontSize = 11.sp,
+                    fontSize = DigitsTextSize.caption,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     lineHeight = 15.sp
                 )
@@ -84,8 +86,8 @@ fun HabitReviewCard(
                         } },
                         modifier = Modifier.weight(1f),
                         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
-                        shape = RoundedCornerShape(8.dp)
-                    ) { Text(if (english) "Manage" else "관리로 변경", fontSize = 11.5.sp) }
+                        shape = DigitsShape.sm
+                    ) { Text(if (english) "Manage" else "관리로 변경", fontSize = DigitsTextSize.label) }
                     OutlinedButton(
                         onClick = { scope.launch {
                             val old = db.appDao().getAppWeight(app.packageName)
@@ -96,14 +98,14 @@ fun HabitReviewCard(
                         } },
                         modifier = Modifier.weight(1f),
                         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
-                        shape = RoundedCornerShape(8.dp)
-                    ) { Text(if (english) "Keep" else "일반 유지", fontSize = 11.5.sp) }
+                        shape = DigitsShape.sm
+                    ) { Text(if (english) "Keep" else "일반 유지", fontSize = DigitsTextSize.label) }
                     TextButton(
                         onClick = { scope.launch {
                             CumulativeScoreStore.snoozeSuggestion(db, app.packageName, System.currentTimeMillis() + 7 * 86_400_000L); revision++
                         } },
                         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
-                    ) { Text(if (english) "Later" else "나중에", fontSize = 11.5.sp) }
+                    ) { Text(if (english) "Later" else "나중에", fontSize = DigitsTextSize.label) }
                 }
             }
         }

@@ -1,5 +1,7 @@
 package com.digitscore.app.ui.components
 
+import com.digitscore.app.ui.theme.scoreTextColor
+import com.digitscore.app.ui.theme.DigitsTextSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -121,16 +123,16 @@ fun CoreIndexGauge(
         // 아래로 내린 점수 글씨
         Text(
             text = normalizedScore.toString(),
-            fontSize = if (iconSize > 60.dp) 32.sp else if (iconSize <= 42.dp) 22.sp else 26.sp,
-            fontWeight = FontWeight.Black,
-            color = tierColor,
+            fontSize = if (iconSize > 60.dp) DigitsTextSize.hero else if (iconSize <= 42.dp) DigitsTextSize.headlineLarge else DigitsTextSize.display,
+            fontWeight = FontWeight.Bold,
+            color = scoreTextColor(normalizedScore),
             lineHeight = if (iconSize > 60.dp) 34.sp else if (iconSize <= 42.dp) 24.sp else 28.sp
         )
 
         // 아래로 내린 등급 글씨
         Text(
             text = grade,
-            fontSize = if (iconSize > 60.dp) 12.sp else if (iconSize <= 42.dp) 10.sp else 11.sp,
+            fontSize = if (iconSize > 60.dp) DigitsTextSize.label else if (iconSize <= 42.dp) DigitsTextSize.tiny else DigitsTextSize.caption,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
             lineHeight = if (iconSize <= 42.dp) 12.sp else 14.sp,
@@ -141,9 +143,5 @@ fun CoreIndexGauge(
     }
 }
 
-fun coreIndexTierColor(score: Int): Color = when {
-    score >= 80 -> ScoreGreen
-    score >= 60 -> ScoreYellow
-    score >= 40 -> ScoreOrange
-    else -> ScoreRed
-}
+/** 링·그래프 채우기용 점수 색. 글자에는 [scoreTextColor]를 씁니다. */
+fun coreIndexTierColor(score: Int): Color = Color(com.digitscore.app.ui.theme.ScorePalette.fillArgb(score))

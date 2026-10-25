@@ -25,6 +25,8 @@ data class ScoreMovement(
  * Consecutive short opens separated by <=60s form one usage burst (not unlimited free checks).
  * Openings remain individually chargeable, while repeated fragments of one opening are not.
  * Exempt uses (e.g. Navigation, Phone, Utility, Study) do not trigger usage bursts or fake rest.
+ * [penaltyFreeWindows] (15분 자유권 등) 안의 앱 사용은 감점·가속 없이 시간 제한 없는 면제로 처리하며,
+ * 휴식 회복도 만들지 않습니다.
  */
 object CumulativeTimeline {
     const val MINUTE = 60_000L
@@ -35,7 +37,8 @@ object CumulativeTimeline {
         uses: List<CumulativeUse>,
         restActivity: (Long) -> CumulativeActivity,
         config: CumulativeScoreConfig = CumulativeScoreConfig.CURRENT,
-        onMovement: (ScoreMovement) -> Unit = {}
+        onMovement: (ScoreMovement) -> Unit = {},
+        penaltyFreeWindows: List<LongRange> = emptyList()
     ): CumulativeCheckpoint {
         val end = throughMillis - Math.floorMod(throughMillis, MINUTE)
         if (end <= checkpoint.timestamp) return checkpoint
@@ -88,7 +91,8 @@ object CumulativeTimeline {
             }
             val boundaries = (listOf(time, next) + active.flatMap {
                 listOf(it.start.coerceIn(time, next), it.end.coerceIn(time, next))
-            } + openings.subList(openIndex, openings.size).takeWhile { it.openedAt < next }.map { it.openedAt })
+            } + openings.subList(openIndex, openings.size).takeWhile { it.openedAt < next }.map { it.openedAt } +
+                penaltyFreeWindows.flatMap { w -> listOf(w.first, w.last) }.filter { it in time..next })
                 .distinct().sorted()
             for ((a, b) in boundaries.zipWithNext()) {
                 while (openIndex < openings.size && openings[openIndex].openedAt <= a) {
@@ -105,7 +109,9 @@ object CumulativeTimeline {
                     prevUse != null && nextUse != null && (nextUse.start - prevUse.end) <= 3 * MINUTE
                 } else false
 
+                val penaltyFree = penaltyFreeWindows.any { a >= it.first && a < it.last }
                 val activity = when {
+                    penaltyFree && visible.isNotEmpty() -> CumulativeActivity.EXEMPT_UNLIMITED
                     nonExemptVisible.any { it.managed } -> CumulativeActivity.MANAGED_USE
                     nonExemptVisible.isNotEmpty() -> CumulativeActivity.NORMAL_USE
                     visible.any { it.exempt && it.studyExempt } -> CumulativeActivity.EXEMPT_STUDY

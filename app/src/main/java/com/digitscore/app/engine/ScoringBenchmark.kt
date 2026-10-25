@@ -6,7 +6,7 @@ import com.digitscore.app.model.ScoreRule
 
 /**
  * 건강 진단 기준이 아닌, 공개 조사 수치를 점수 조정에 활용하기 위한 기준 시나리오입니다.
- * 전체 사용시간을 방해/생산성/중립 앱으로 나누는 비율과 언락·심야 시간은 제품 보정 가정입니다.
+ * 전체 사용 시간을 방해/생산성/중립 앱으로 나누는 비율과 잠금 해제·심야 시간은 제품 보정 가정입니다.
  */
 enum class ScoringBenchmark(
     val presetModeId: String,
@@ -71,7 +71,7 @@ enum class ScoringBenchmark(
                 add(
                     AppUsage(
                         packageName = "benchmark.distracting",
-                        appName = "방해 앱",
+                        appName = "관리 앱",
                         usageTimeMillis = distractingMinutes * 60_000L,
                         categoryType = AppCategoryType.DISTRACTING,
                         lateNightUsageMillis = lateNightMinutes.coerceAtMost(distractingMinutes) * 60_000L

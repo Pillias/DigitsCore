@@ -242,6 +242,20 @@ object AppCategoryPolicy {
     }
 
 
+    /** 화면 신호등(엣지 라이팅) 분류. 점수 계산과 같은 기준을 씁니다. */
+    enum class EdgeKind { STUDY, MANAGED, NONE }
+
+    /**
+     * 사용자 지정이 반영된 실제 등급([effectiveCategoryLevel])으로 신호등 종류를 정합니다.
+     * - 공부(초록): 면제 등급이면서 공부·독서 앱 (점수의 공부 면제와 동일 조건)
+     * - 관리(빨강): 관리 등급 (기본 분류가 아니라 사용자가 정한 등급 기준)
+     */
+    fun edgeKindFor(packageName: String, effectiveCategoryLevel: Int, context: Context? = null): EdgeKind = when {
+        effectiveCategoryLevel <= 0 && isStudyOrReadingPackage(packageName, context) -> EdgeKind.STUDY
+        effectiveCategoryLevel >= 3 -> EdgeKind.MANAGED
+        else -> EdgeKind.NONE
+    }
+
     /**
      * 모드(PresetMode)에 따른 앱의 기본 등급(Category)을 결정합니다.
      */

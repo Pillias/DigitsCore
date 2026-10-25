@@ -52,13 +52,32 @@ data class CumulativeScoreConfig(
     }
 }
 
+/**
+ * 저장소(DB·통계·백업)에 기록하는 점수 모델 번호.
+ * - 1~4: 이전 일일/롤링 모델, 5: 누적 모델 v2(75점 피벗, 현재)
+ * - 계수 미세 조정은 번호를 올리지 않습니다. 기준점·감점/회복 구조처럼 점수의 의미가 바뀌는
+ *   변경일 때만 [CumulativeScoreConfig.version]을 올리고, 저장 번호는 그에 맞춰 1씩 증가합니다.
+ *   (차트는 번호가 다른 기록을 회색으로 구분하므로, 잦은 변경은 피합니다.)
+ */
+object ScoreModel {
+    /** 누적 모델 v2의 저장 번호. v1 누적 기록도 같은 번호를 썼으므로 v2를 기준으로 셉니다. */
+    private const val V2_STORED_VERSION = 5
+    fun storedVersion(configVersion: Int): Int = V2_STORED_VERSION + (configVersion - 2).coerceAtLeast(0)
+    /** 현재 계산 설정의 저장 번호. 컴파일 상수가 필요한 곳은 [CURRENT_STORED]를 사용합니다. */
+    const val CURRENT_STORED = 5
+    val current: Int get() = storedVersion(CumulativeScoreConfig.CURRENT.version)
+}
+
 /** The signal is the exact score (1.0..99.0). All fields survive midnight, rest and restart. */
 data class CumulativeScoreState(
     val signal: Double = CumulativeScoreConfig.CURRENT.signalForScore(75.0),
     val useMomentumMinutes: Double = 0.0,
     val awakeRestMinutes: Double = 0.0,
     val recoveryBurden: Double = 0.0,
-    val exemptMomentumMinutes: Double = 0.0
+    /** 도구(유틸리티) 면제 앱의 연속 사용 분. 공부 앱과 별도로 셉니다. */
+    val exemptMomentumMinutes: Double = 0.0,
+    /** 공부·독서 면제 앱의 연속 사용 분. */
+    val studyMomentumMinutes: Double = 0.0
 )
 
 enum class CumulativeActivity {
@@ -86,12 +105,13 @@ object CumulativeScoreEngine {
     ): CumulativeScoreState {
         require(minutes.isFinite() && minutes >= 0.0 && openings >= 0)
         require(listOf(state.signal, state.useMomentumMinutes, state.awakeRestMinutes,
-            state.recoveryBurden, state.exemptMomentumMinutes).all { it.isFinite() })
+            state.recoveryBurden, state.exemptMomentumMinutes, state.studyMomentumMinutes).all { it.isFinite() })
         var s = state.signal
         var q = state.useMomentumMinutes
         var r = state.awakeRestMinutes
         var b = state.recoveryBurden
         var em = state.exemptMomentumMinutes
+        var sm = state.studyMomentumMinutes
 
         // 75점 피벗 속도 스케일러 (정규화된 가동 배율)
         // 75점에서 1.0, 30점에서 2.8 (강력 반등), 90점에서 0.4 (과도 상승 방지)
@@ -134,17 +154,18 @@ object CumulativeScoreEngine {
                     r = 0.0
                 }
                 CumulativeActivity.EXEMPT_STUDY -> {
-                    // 공부·독서 면제: 50분 미만 감점 0, 50분 이상부터 일반 감점
-                    if (em >= config.studyExemptLimitMinutes) {
+                    // 공부·독서 면제: 50분 미만 감점 0, 50분 이상부터 일반 감점 (도구 앱과 별도 카운터)
+                    if (sm >= config.studyExemptLimitMinutes) {
                         s -= config.normalLossPerMinute * speedDown() * dt
                     }
-                    em += dt
+                    sm += dt
                     r = 0.0
                 }
                 CumulativeActivity.AWAKE_REST -> {
                     b *= 0.5.pow(dt / (config.burdenHalfLifeAwakeHours * 60.0))
                     q = (q - config.momentumRestDecayRate * dt).coerceAtLeast(0.0)
                     em = (em - config.momentumRestDecayRate * dt).coerceAtLeast(0.0)
+                    sm = (sm - config.momentumRestDecayRate * dt).coerceAtLeast(0.0)
                     val restRate = if (r < config.awakeRestCapMinutes) config.baseRestPerMinute else config.sleepRestorationRate
                     val effectiveRest = (restRate / (1.0 + b / config.burdenRecoveryDivisor)) * speedUp()
                     s += effectiveRest * dt
@@ -154,6 +175,7 @@ object CumulativeScoreEngine {
                     b *= 0.5.pow(dt / (config.burdenHalfLifeAwakeHours * 60.0))
                     q = (q - config.momentumRestDecayRate * dt).coerceAtLeast(0.0)
                     em = (em - config.momentumRestDecayRate * dt).coerceAtLeast(0.0)
+                    sm = (sm - config.momentumRestDecayRate * dt).coerceAtLeast(0.0)
                     val effectiveRest = (config.sleepRestorationRate / (1.0 + b / config.burdenRecoveryDivisor)) * speedUp()
                     s += effectiveRest * dt
                     r += dt
@@ -165,6 +187,6 @@ object CumulativeScoreEngine {
             s = s.coerceIn(1.0, 99.0)
             remaining -= dt
         }
-        return CumulativeScoreState(s, q, r, b, em)
+        return CumulativeScoreState(s, q, r, b, em, sm)
     }
 }

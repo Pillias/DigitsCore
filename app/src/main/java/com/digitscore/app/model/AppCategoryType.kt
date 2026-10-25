@@ -17,8 +17,8 @@ enum class AppCategoryType(
 ) {
     EXEMPT(
         level = 0,
-        koreanName = "면제",
-        englishName = "Exempt",
+        koreanName = "권장·필수",
+        englishName = "Study·Tool",
         koreanDescription = "지도, 내비, 통화, 도구 등 필수 앱 · 감점 및 연속사용 시간 제외",
         englishDescription = "Maps, navigation, phone, tools · No penalty, excluded from usage streak",
         scoreMultiplier = 0.0f
@@ -72,8 +72,7 @@ enum class AppCategoryType(
         if (com.digitscore.app.i18n.AppLocale.isCurrentEnglish) "General use · Standard usage load"
         else "일반 사용 · 기본 사용 부하"
     } else if (canonical == EXEMPT) {
-        if (com.digitscore.app.i18n.AppLocale.isCurrentEnglish) "Exempt tool · No score deduction or streak"
-        else "면제 도구 · 점수 감점 및 연속사용 시간 제외"
+        AppGrade.TOOL.description
     } else if (com.digitscore.app.i18n.AppLocale.isCurrentEnglish) englishDescription else koreanDescription
     val canonical: AppCategoryType
         get() = when (this) {

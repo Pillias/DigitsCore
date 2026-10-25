@@ -7,12 +7,36 @@ import android.content.pm.PackageManager
 /**
  * 코어 지수 4단계(녹색 80~99P / 노랑 60~79P / 주황 40~59P / 빨강 1~39P)에 따라
  * 홈 화면 런처 아이콘(<activity-alias>)을 하루 최대 1회, 화면이 꺼진 안전한 시점에 전환합니다.
+ *
+ * 일부 런처는 별칭이 바뀌면 홈 화면 바로가기를 지우므로, 기본은 꺼져 있고 설정에서 켭니다.
+ * 꺼져 있으면 기본 아이콘(노랑 별칭)으로 되돌린 뒤 더 이상 바꾸지 않습니다.
  */
 object LauncherIconManager {
 
     private const val PREFS_NAME = "launcher_icon_state"
     private const val KEY_ACTIVE_TIER = "active_tier"
     private const val KEY_LAST_UPDATED_DATE = "last_updated_date"
+    private const val KEY_ENABLED = "dynamic_icon_enabled"
+    private const val KEY_PENDING_RESET = "pending_reset"
+    private val DEFAULT_TIER = IconTier.YELLOW
+
+    fun isEnabled(context: Context): Boolean =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getBoolean(KEY_ENABLED, false)
+
+    /** 설정에서 켜고 끕니다. 아이콘 전환 자체는 다음 화면 꺼짐 시점에 적용됩니다. */
+    fun setEnabled(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_ENABLED, enabled)
+            .apply()
+    }
+
+    /** 전체 기록 삭제 후 다음 화면 꺼짐 시점에 기본 아이콘으로 되돌리도록 예약합니다. */
+    fun scheduleResetToDefault(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_PENDING_RESET, true)
+            .putString(KEY_LAST_UPDATED_DATE, "")
+            .apply()
+    }
 
     enum class IconTier(val id: String, val aliasClassName: String) {
         GREEN("green", "com.digitscore.app.ui.MainActivityAliasGreen"),
@@ -43,7 +67,12 @@ object LauncherIconManager {
         logicalDateString: String
     ): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val currentTier = IconTier.fromId(prefs.getString(KEY_ACTIVE_TIER, IconTier.YELLOW.id))
+        val currentTier = IconTier.fromId(prefs.getString(KEY_ACTIVE_TIER, DEFAULT_TIER.id))
+        val pendingReset = prefs.getBoolean(KEY_PENDING_RESET, false)
+        if (pendingReset || !isEnabled(context)) {
+            if (pendingReset) prefs.edit().putBoolean(KEY_PENDING_RESET, false).apply()
+            return if (currentTier != DEFAULT_TIER) applyTierIcon(context, DEFAULT_TIER) else false
+        }
         val targetTier = IconTier.fromScore(score)
         if (targetTier == currentTier) {
             return false

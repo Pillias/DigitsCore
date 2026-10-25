@@ -60,6 +60,11 @@ object PrivacyDataManager {
             .clear()
             .commit()
         WidgetSnapshotStore.clear(appContext)
+        // 점수에 따라 바뀐 런처 아이콘은 기록에서 나온 상태이므로 기본 아이콘으로 되돌립니다.
+        // (홈 화면 갱신으로 앱이 닫히지 않도록 다음 화면 꺼짐 시점에 적용합니다.)
+        // 신호등·공부 앱 목록·동적 아이콘 사용 여부 같은 사용자 설정은 유지합니다.
+        com.digitscore.app.notification.LauncherIconManager.scheduleResetToDefault(appContext)
+        com.digitscore.app.data.CumulativeScoreStore.clearWindowCache()
         ScoreRepository.updateRollingUsageSummary(RollingUsageSummary(emptyList(), 0L, 0L, 0L))
         ScoreRepository.updateUnlockCount(0)
         ScoreRepository.updateScoreDetail(null)

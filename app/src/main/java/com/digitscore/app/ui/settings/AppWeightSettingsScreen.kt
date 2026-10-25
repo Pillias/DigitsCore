@@ -1,5 +1,9 @@
 package com.digitscore.app.ui.settings
 
+import com.digitscore.app.ui.theme.tile
+import com.digitscore.app.ui.theme.DigitsTextSize
+import com.digitscore.app.ui.theme.DigitsShape
+import com.digitscore.app.ui.theme.ScoreRedText
 import android.content.pm.ApplicationInfo
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -23,8 +27,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -99,7 +103,7 @@ fun AppWeightSettingsScreen(
     var installedApps by remember { mutableStateOf<List<AppUsage>>(emptyList()) }
     var appCategoryMap by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     var searchQuery by remember { mutableStateOf("") }
-    var sortOption by remember { mutableIntStateOf(0) } // 0: 사용시간순, 1: 카테고리별, 2: 가나다순, 3: 앱등급별
+    var sortOption by remember { mutableIntStateOf(0) } // 0: 사용 시간순, 1: 카테고리별, 2: 가나다순, 3: 앱등급별
     var studyToggleVersion by remember { mutableIntStateOf(0) }
     var localGradeOverrides by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
 
@@ -188,7 +192,7 @@ fun AppWeightSettingsScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = UiTranslator.translate("뒤로가기"),
                             tint = MaterialTheme.colorScheme.onBackground
                         )
@@ -226,7 +230,7 @@ fun AppWeightSettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 4.dp, bottom = 8.dp),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = DigitsShape.md,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Row(
@@ -237,11 +241,11 @@ fun AppWeightSettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(if (isEn) "Screen" else "화면", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                            Text(if (isEn) "Screen" else "화면", fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
                             Text(
-                                text = formatMinutesSmallUnit(screenMins, unitSize = 10.sp),
-                                fontSize = 14.5.sp,
-                                fontWeight = FontWeight.ExtraBold,
+                                text = formatMinutesSmallUnit(screenMins),
+                                fontSize = DigitsTextSize.emphasis,
+                                fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
@@ -252,12 +256,12 @@ fun AppWeightSettingsScreen(
                                 .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                         )
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(if (isEn) "Managed" else "관리", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                            Text(if (isEn) "Managed" else "관리", fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
                             Text(
-                                text = formatMinutesSmallUnit(managedMins, unitSize = 10.sp),
-                                fontSize = 14.5.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = ScoreRed
+                                text = formatMinutesSmallUnit(managedMins),
+                                fontSize = DigitsTextSize.emphasis,
+                                fontWeight = FontWeight.Bold,
+                                color = ScoreRedText
                             )
                         }
                         Box(
@@ -267,12 +271,12 @@ fun AppWeightSettingsScreen(
                                 .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                         )
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(if (isEn) "Exempt" else "면제", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                            Text(if (isEn) "Study·Tool" else "권장·필수", fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
                             Text(
-                                text = formatMinutesSmallUnit(exemptMins, unitSize = 10.sp),
-                                fontSize = 14.5.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFF29B6F6)
+                                text = formatMinutesSmallUnit(exemptMins),
+                                fontSize = DigitsTextSize.emphasis,
+                                fontWeight = FontWeight.Bold,
+                                color = com.digitscore.app.ui.theme.gradeAccentColor(com.digitscore.app.model.AppGrade.TOOL)
                             )
                         }
                     }
@@ -289,18 +293,18 @@ fun AppWeightSettingsScreen(
                         Text(
                             if (isEn) "Search app name or package" else "앱 이름 또는 패키지 검색",
                             color = MaterialTheme.colorScheme.outline,
-                            fontSize = 13.sp
+                            fontSize = DigitsTextSize.body
                         )
                     },
                     leadingIcon = {
                         Icon(
-                            imageVector = Icons.Default.Search,
+                            imageVector = Icons.Rounded.Search,
                             contentDescription = if (isEn) "Search" else UiTranslator.translate("검색"),
                             tint = MaterialTheme.colorScheme.outline
                         )
                     },
                     singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = DigitsShape.md,
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                         unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -318,7 +322,7 @@ fun AppWeightSettingsScreen(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     val sortLabels = listOf(
-                        if (isEn) "Usage Time" else "사용시간순",
+                        if (isEn) "Usage Time" else "사용 시간순",
                         if (isEn) "Category" else "카테고리별",
                         if (isEn) "Name A-Z" else "가나다순",
                         if (isEn) "Grade" else "앱등급별"
@@ -327,7 +331,7 @@ fun AppWeightSettingsScreen(
                         FilterChip(
                             selected = sortOption == idx,
                             onClick = { sortOption = idx },
-                            label = { Text(label, fontSize = 12.sp) }
+                            label = { Text(label, fontSize = DigitsTextSize.label) }
                         )
                     }
                 }
@@ -348,25 +352,13 @@ fun AppWeightSettingsScreen(
                             studyToggleVersion = studyToggleVersion,
                             overrideGradeIndex = localGradeOverrides[app.packageName],
                             onGradeSelect = { newGradeIndex ->
-                                val (catType, isStudy) = when (newGradeIndex) {
-                                    0 -> AppCategoryType.EXEMPT to true
-                                    1 -> AppCategoryType.EXEMPT to false
-                                    3 -> AppCategoryType.DISTRACTING to false
-                                    else -> AppCategoryType.NEUTRAL to false
-                                }
+                                val grade = com.digitscore.app.model.AppGrade.entries[newGradeIndex]
                                 localGradeOverrides = localGradeOverrides + (app.packageName to newGradeIndex)
-                                AppCategoryPolicy.setCustomStudyPackage(context, app.packageName, isStudy)
+                                // 앱 상세 화면과 같은 경로로 등급과 공부 앱 목록을 함께 갱신합니다.
+                                AppCategoryPolicy.setCustomStudyPackage(context, app.packageName, grade.isStudy)
                                 studyToggleVersion++
                                 scope.launch(Dispatchers.IO) {
-                                    db.appDao().insertOrUpdateAppWeight(
-                                        AppWeightEntity(
-                                            packageName = app.packageName,
-                                            appName = app.appName,
-                                            categoryType = catType,
-                                            isUserModified = true
-                                        )
-                                    )
-                                    TrackerForegroundService.refreshNotification(context)
+                                    com.digitscore.app.data.AppGradeStore.apply(context, app.packageName, app.appName, grade)
                                 }
                             }
                         )
@@ -394,16 +386,12 @@ fun AppWeightSettingsScreen(
         AppDetailDialog(
             appUsage = targetApp,
             onDismiss = { selectedAppForDetail = null },
-            onCategoryChanged = { newCategory ->
+            onGradeChanged = { newGrade ->
+                localGradeOverrides = localGradeOverrides + (targetApp.packageName to newGrade.ordinal)
+                AppCategoryPolicy.setCustomStudyPackage(context, targetApp.packageName, newGrade.isStudy)
+                studyToggleVersion++
                 scope.launch(Dispatchers.IO) {
-                    db.appDao().insertOrUpdateAppWeight(
-                        AppWeightEntity(
-                            packageName = targetApp.packageName,
-                            appName = targetApp.appName,
-                            categoryType = newCategory,
-                            isUserModified = true
-                        )
-                    )
+                    com.digitscore.app.data.AppGradeStore.apply(context, targetApp.packageName, targetApp.appName, newGrade)
                 }
                 selectedAppForDetail = null
             }
@@ -515,7 +503,7 @@ private fun AppWeightRowCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(10.dp),
+        shape = DigitsShape.md,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Row(
@@ -541,7 +529,7 @@ private fun AppWeightRowCard(
                     Text(
                         text = app.appName.take(1),
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
+                        fontSize = DigitsTextSize.label,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -559,7 +547,7 @@ private fun AppWeightRowCard(
                     text = app.appName,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground,
-                    fontSize = 13.sp,
+                    fontSize = DigitsTextSize.body,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -572,7 +560,7 @@ private fun AppWeightRowCard(
                     ) {
                         Text(
                             text = typeLabel,
-                            fontSize = 10.5.sp,
+                            fontSize = DigitsTextSize.caption,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.outline,
                             maxLines = 1,
@@ -582,8 +570,8 @@ private fun AppWeightRowCard(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = formatMinutesSmallUnit(app.usageTimeMinutes, unitSize = 8.5.sp),
-                        fontSize = 10.5.sp,
+                        text = formatMinutesSmallUnit(app.usageTimeMinutes),
+                        fontSize = DigitsTextSize.caption,
                         color = MaterialTheme.colorScheme.outline,
                         maxLines = 1,
                         softWrap = false
@@ -591,13 +579,13 @@ private fun AppWeightRowCard(
                 }
             }
 
-            // 우측: 가로 4칸의 1-tap 세그먼트 버튼 [집중 | 필수 | 일반 | 관리] / [Focus | Tool | Daily | Limit]
-            val gradeLabels = if (isEn) listOf("Focus", "Tool", "Daily", "Limit") else listOf("집중", "필수", "일반", "관리")
-            val gradeColors = listOf(ScoreGreen, Color(0xFF29B6F6), MaterialTheme.colorScheme.onSurfaceVariant, ScoreRed)
+            // 우측: 가로 4칸의 1-tap 세그먼트 버튼 [권장 | 필수 | 일반 | 관리] / [Study | Tool | Daily | Limit]
+            val gradeLabels = com.digitscore.app.model.AppGrade.entries.map { it.displayName }
+            val gradeColors = com.digitscore.app.model.AppGrade.entries.map { com.digitscore.app.ui.theme.GradePalette.fill(it) }
 
             Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = MaterialTheme.colorScheme.surface,
+                shape = DigitsShape.sm,
+                color = MaterialTheme.colorScheme.tile,
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             ) {
                 Row(
@@ -612,7 +600,7 @@ private fun AppWeightRowCard(
                                 .height(28.dp)
                                 .background(
                                     color = if (isSelected) activeColor else Color.Transparent,
-                                    shape = RoundedCornerShape(5.dp)
+                                    shape = DigitsShape.xs
                                 )
                                 .clickable { onGradeSelect(idx) }
                                 .padding(horizontal = 6.dp),
@@ -620,7 +608,7 @@ private fun AppWeightRowCard(
                         ) {
                             Text(
                                 text = label,
-                                fontSize = 11.sp,
+                                fontSize = DigitsTextSize.caption,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                 color = if (isSelected) Color.White else MaterialTheme.colorScheme.outline,
                                 maxLines = 1,

@@ -233,7 +233,7 @@ private data class WidgetPalette(
                 darkWidgetAccent(score)
             )
             WidgetBackgroundStyle.WHITE -> WidgetPalette(
-                Color.White, Color(0xFF17191D), Color(0xFF5F6368), Color(0xFFF3F0FA),
+                Color.White, Color(0xFF17191D), Color(0xFF5F6368), Color(0xFFF0F2F5),
                 lightWidgetAccent(score)
             )
             WidgetBackgroundStyle.TRANSPARENT -> WidgetPalette(
@@ -448,7 +448,7 @@ private fun WideBarWidget(
 
         Spacer(GlanceModifier.width(8.dp))
 
-        // 우측: 오늘의 3대 목표 요약 1줄 캡슐
+        // 우측: 오늘의 목표 요약 1줄 캡슐
         val appGoalPart = if (targetAppName.isNotBlank()) {
             "$targetAppName ${targetAppUsageMinutes}/${targetAppLimitMinutes}min"
         } else {
@@ -544,7 +544,7 @@ private fun LargeWidget(
 
     Spacer(GlanceModifier.height(5.dp))
 
-    // 중단: 오늘의 3대 목표 3분할 캡슐 통계
+    // 중단: 오늘의 목표 3분할 캡슐 통계
     val metricWidth = ((widgetWidth - 28.dp) / 3).coerceAtLeast(28.dp)
     val appMetricLabel = if (targetAppName.isNotBlank()) targetAppName else strings.getString(R.string.widget_managed)
     val appMetricVal = if (targetAppName.isNotBlank()) "${targetAppUsageMinutes}/${targetAppLimitMinutes}min" else managedTime
@@ -646,19 +646,11 @@ private fun widgetKeyMessage(
     null -> fallback
 }
 
-private fun lightWidgetAccent(score: Int): Color = when {
-    score >= 80 -> Color(0xFF14804A)
-    score >= 60 -> Color(0xFFA86400)
-    score >= 40 -> Color(0xFFC94F00)
-    else -> Color(0xFFC62828)
-}
+private fun lightWidgetAccent(score: Int): Color =
+    Color(com.digitscore.app.ui.theme.ScorePalette.textArgb(score, onDark = false))
 
-private fun darkWidgetAccent(score: Int): Color = when {
-    score >= 80 -> Color(0xFF49E291)
-    score >= 60 -> Color(0xFFFFD54F)
-    score >= 40 -> Color(0xFFFFA05A)
-    else -> Color(0xFFFF6B62)
-}
+private fun darkWidgetAccent(score: Int): Color =
+    Color(com.digitscore.app.ui.theme.ScorePalette.textArgb(score, onDark = true))
 
 private fun formatMinutes(context: Context, totalMinutes: Long): String {
     return "${totalMinutes.coerceAtLeast(0L)}min"

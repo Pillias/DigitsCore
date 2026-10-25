@@ -20,6 +20,27 @@ class ExplorerDataTest {
         assertNull(buckets.last().score); assertNull(buckets.last().usage)
     }
 
+    @Test fun dailyBucketsStartAtFiveAmLogicalDay() {
+        val h = STAT_HOUR
+        val rows = listOf(ScoreHourEntity(3*h,5,3*h,3*h+1000,80.0,79.0,78.0,80.0),
+            ScoreHourEntity(6*h,5,6*h,6*h+1000,70.0,71.0,69.0,72.0))
+        val buckets = explorerBuckets(0, 48*h, true, emptyList(), rows, emptyList(), zone=ZoneId.of("UTC"))
+        // 03:00 사용은 전날(논리적 하루)로, 06:00 사용은 05:00에 시작하는 새 하루로 집계됩니다.
+        assertEquals(5*h, buckets[0].end)
+        assertEquals(80.0, buckets[0].score!!.first, 0.0)
+        assertEquals(5*h, buckets[1].start)
+        assertEquals(70.0, buckets[1].score!!.first, 0.0)
+        assertEquals("1969-12-31", logicalDate(4*h, ZoneId.of("UTC")).toString())
+        assertEquals("1970-01-01", logicalDate(5*h, ZoneId.of("UTC")).toString())
+    }
+
+    @Test fun dailyAverageDividesByRecordedDaysOnly() {
+        fun day(usage: Long?, unlocks: Int?) = ExplorerBucket(0, 1, null, usage, 0, null, 0, unlocks, null, null)
+        val buckets = List(26) { day(null, null) } + listOf(day(600_000, 3), day(600_000, null))
+        assertEquals(2, recordedDayCount(buckets))
+        assertEquals(1, recordedDayCount(List(28) { day(null, null) }))
+    }
+
     @Test fun appRankingUsesActualLossAndNeverConvertsUsageIntoLoss() {
         val apps = explorerApps(listOf(UsageHourEntity(0,"video","Video",600_000,600_000,3,1),
             UsageHourEntity(0,"study","Study",900_000,0,2,0)),

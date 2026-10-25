@@ -55,7 +55,12 @@ data class ForegroundTrackerState(
     val activeInstanceId: Int? = null,
     val screenInteractive: Boolean = true,
     val keyguardHidden: Boolean = true,
-    val visibleActivities: List<ForegroundActivityState> = emptyList()
+    val visibleActivities: List<ForegroundActivityState> = emptyList(),
+    /**
+     * 부팅 직후처럼 잠금 상태를 아직 관측하지 못했는지 여부. 잠금 화면을 쓰지 않는 기기(보안 '없음')는
+     * KEYGUARD 이벤트가 오지 않으므로, 이 상태에서 일반 앱이 실행되면 잠금 해제된 것으로 봅니다.
+     */
+    val keyguardUnknown: Boolean = false
 )
 
 data class ForegroundUsageSegment(
@@ -116,6 +121,7 @@ internal object ForegroundUsageAggregator {
         var lastUserPackage: String? = initialState.activePackage?.takeIf { it !in UsageStatsHelper.IGNORED_SYSTEM_PACKAGES }
         var screenInteractive = initialState.screenInteractive
         var keyguardHidden = initialState.keyguardHidden
+        var keyguardUnknown = initialState.keyguardUnknown
         var cursor = startTimeMillis
         var unlockCount = 0
         var hasForegroundEvidence = false
@@ -230,6 +236,13 @@ internal object ForegroundUsageAggregator {
                     val packageName = event.packageName
                     if (!packageName.isNullOrBlank()) {
                         val isUserApp = packageName !in UsageStatsHelper.IGNORED_SYSTEM_PACKAGES
+                        if (keyguardUnknown && isUserApp) {
+                            // 부팅 후 잠금 이벤트 없이 일반 앱이 화면에 나타났다면 잠금 화면이 없는 기기입니다.
+                            // (잠금 화면 위에서는 일반 앱 Activity가 재개되지 않습니다. 런처·시스템 화면은 제외)
+                            keyguardUnknown = false
+                            keyguardHidden = true
+                            screenInteractive = true
+                        }
                         if (isUserApp) {
                             if (lastUserPackage != null && lastUserPackage != packageName) {
                                 lastSessionStartByPackage.clear()
@@ -335,11 +348,13 @@ internal object ForegroundUsageAggregator {
 
                 ForegroundTimelineEventType.KEYGUARD_SHOWN -> {
                     keyguardHidden = false
+                    keyguardUnknown = false
                 }
 
                 ForegroundTimelineEventType.KEYGUARD_HIDDEN -> {
                     val wasLocked = !keyguardHidden
                     keyguardHidden = true
+                    keyguardUnknown = false
                     if (wasLocked) {
                         activePackage?.let { unlockedPackage ->
                             visibleActivities.indices.forEach { index ->
@@ -361,6 +376,9 @@ internal object ForegroundUsageAggregator {
                 ForegroundTimelineEventType.DEVICE_SHUTDOWN -> {
                     screenInteractive = false
                     keyguardHidden = false
+                    // 부팅 직후에는 잠금 여부를 아직 모릅니다. 잠금 화면이 없는 기기는 KEYGUARD 이벤트가
+                    // 전혀 오지 않아, 이대로 두면 재부팅 뒤 사용 시간이 계속 0으로 집계됩니다.
+                    keyguardUnknown = event.type == ForegroundTimelineEventType.DEVICE_STARTUP
                     activePackage = null
                     activeClass = null
                     activeInstanceId = null
@@ -403,7 +421,8 @@ internal object ForegroundUsageAggregator {
                 activeInstanceId = activeInstanceId,
                 screenInteractive = screenInteractive,
                 keyguardHidden = keyguardHidden,
-                visibleActivities = visibleActivities.toList()
+                visibleActivities = visibleActivities.toList(),
+                keyguardUnknown = keyguardUnknown
             )
         )
     }

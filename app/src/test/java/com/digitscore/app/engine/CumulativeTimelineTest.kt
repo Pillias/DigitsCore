@@ -47,7 +47,7 @@ class CumulativeTimelineTest {
         val studyUse = CumulativeUse(0, 40 * minute, false, "study:0", exempt = true, studyExempt = true)
         val result = CumulativeTimeline.advance(initial(), 40 * minute, listOf(studyUse), rest)
         assertEquals(0.0, result.state.awakeRestMinutes, 0.0)
-        assertEquals(40.0, result.state.exemptMomentumMinutes, 0.0)
+        assertEquals(40.0, result.state.studyMomentumMinutes, 0.0)
         assertEquals(0.0, result.state.useMomentumMinutes, 0.0)
     }
 
@@ -100,5 +100,16 @@ class CumulativeTimelineTest {
 
         // Momentum decayed during the 10-minute rest
         assertTrue(result.state.useMomentumMinutes < 50.0)
+    }
+
+    @Test fun freePassWindowRemovesManagedPenaltyOnlyInsideWindow() {
+        val use = CumulativeUse(0, 30 * minute, true, "video:0")
+        val baseline = CumulativeTimeline.advance(initial(), 30 * minute, listOf(use), rest)
+        val withPass = CumulativeTimeline.advance(initial(), 30 * minute, listOf(use), rest,
+            penaltyFreeWindows = listOf(0L..15 * minute))
+        assertTrue(withPass.state.signal > baseline.state.signal)
+        // 자유권 15분 동안은 연속 사용 가속 카운터도 늘지 않습니다.
+        assertEquals(15.0, withPass.state.useMomentumMinutes, 1e-9)
+        assertEquals(0.0, withPass.state.awakeRestMinutes, 0.0)
     }
 }

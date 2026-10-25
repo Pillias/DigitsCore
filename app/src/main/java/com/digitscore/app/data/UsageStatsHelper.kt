@@ -71,7 +71,7 @@ data class UnlockInsights(
     val past14DaysAverageUnlock: Int = 0
 )
 
-/** 한 번의 실제 앱 진입에 속한 여러 전면 조각을 세션 ID로 묶어 사용시간을 합칩니다. */
+/** 한 번의 실제 앱 진입에 속한 여러 전면 조각을 세션 ID로 묶어 사용 시간을 합칩니다. */
 internal fun sessionDurationsByPackage(
     segments: List<ForegroundUsageSegment>
 ): Map<String, List<Long>> = segments
@@ -179,9 +179,36 @@ object UsageStatsHelper {
         "com.google.android.gms"
     )
 
-    internal val IGNORED_SYSTEM_PACKAGES = HOME_LAUNCHER_PACKAGES +
+    val SELF_PACKAGES = setOf("com.digitscore.app", com.digitscore.app.BuildConfig.APPLICATION_ID)
+
+    private val BASE_IGNORED_SYSTEM_PACKAGES = HOME_LAUNCHER_PACKAGES +
         TRANSIENT_SYSTEM_OVERLAY_PACKAGES +
-        setOf("com.android.phone", "com.digitscore.app")
+        setOf("com.android.phone") + SELF_PACKAGES
+
+    /** 홈 화면 앱으로 등록돼 있어도 실제 앱 화면이므로 제외하면 안 되는 패키지 (예: 설정의 FallbackHome). */
+    private val HOME_DETECTION_EXCLUDED = setOf("com.android.settings") + SELF_PACKAGES
+
+    /**
+     * 사용 시간에서 제외하는 시스템 화면 목록. 기본 목록에 기기에 설치된 홈 앱(런처)을 더합니다.
+     * Nova·OnePlus·Oppo 등 목록에 없는 런처의 홈 화면 시간이 앱 사용으로 집계되지 않게 합니다.
+     */
+    @Volatile
+    internal var IGNORED_SYSTEM_PACKAGES: Set<String> = BASE_IGNORED_SYSTEM_PACKAGES
+        private set
+
+    /** 설치된 홈 앱을 다시 확인합니다. 서비스 시작 시 1회 호출하면 충분합니다. */
+    fun refreshHomePackages(context: Context) {
+        val detected = runCatching {
+            val homeIntent = android.content.Intent(android.content.Intent.ACTION_MAIN)
+                .addCategory(android.content.Intent.CATEGORY_HOME)
+            val pm = context.packageManager
+            val defaultHome = pm.resolveActivity(homeIntent, PackageManager.MATCH_DEFAULT_ONLY)
+                ?.activityInfo?.packageName
+            val allHomes = pm.queryIntentActivities(homeIntent, 0).mapNotNull { it.activityInfo?.packageName }
+            (allHomes + listOfNotNull(defaultHome)).filterNot { it in HOME_DETECTION_EXCLUDED }.toSet()
+        }.getOrDefault(emptySet())
+        IGNORED_SYSTEM_PACKAGES = BASE_IGNORED_SYSTEM_PACKAGES + detected
+    }
 
     internal fun defaultCategoryForApplicationCategory(applicationCategory: Int): AppCategoryType =
         when (applicationCategory) {
@@ -345,7 +372,7 @@ object UsageStatsHelper {
     /**
      * ACTION_USER_PRESENT와 KEYGUARD_HIDDEN은 실제 잠금 해제 상태 전환만 나타냅니다.
      * 두 소스가 한 번의 해제에서 연달아 올 수 있으므로 15초 안의 이벤트는 한 건으로 합칩니다.
-     * SCREEN_INTERACTIVE는 알림 확인처럼 잠금 화면만 켠 경우도 포함하므로 언락으로 세지 않습니다.
+     * SCREEN_INTERACTIVE는 알림 확인처럼 잠금 화면만 켠 경우도 포함하므로 잠금 해제로 세지 않습니다.
      */
     fun resolvedUnlockTimestamps(events: List<DeviceInteractionEventEntity>): List<Long> {
         data class Candidate(val timestamp: Long, val type: Int)
@@ -378,8 +405,8 @@ object UsageStatsHelper {
     }
 
     /**
-     * 잠금해제 시각 중 7초(thresholdMillis) 이내에 앱 진입 없이 화면을 껐거나,
-     * 7초 이내에 시작된 짧은 세션 종료 후 추가 사용 없이 화면을 끈 '습관성 오픈' 시각 목록을 반환합니다.
+     * 잠금 해제 시각 중 7초(thresholdMillis) 이내에 앱 진입 없이 화면을 껐거나,
+     * 7초 이내에 시작된 짧은 세션 종료 후 추가 사용 없이 화면을 끈 '짧은 확인' 시각 목록을 반환합니다.
      */
     fun resolvedHabitualUnlockTimestamps(
         events: List<DeviceInteractionEventEntity>,
@@ -388,7 +415,7 @@ object UsageStatsHelper {
     ): List<Long> {
         val unlockTimestamps = resolvedUnlockTimestamps(events)
         val validSessions = sessions.filter { s ->
-            s.packageName != "com.digitscore.app" && !IGNORED_SYSTEM_PACKAGES.contains(s.packageName)
+            s.packageName !in SELF_PACKAGES && !IGNORED_SYSTEM_PACKAGES.contains(s.packageName)
         }
         val habitualUnlocks = mutableListOf<Long>()
         unlockTimestamps.forEachIndexed { index, unlockTime ->
@@ -422,6 +449,9 @@ object UsageStatsHelper {
         val rollingStart = getStartOfTodayMillis(now)
         val today = Calendar.getInstance().apply {
             timeInMillis = now
+            if (get(Calendar.HOUR_OF_DAY) < 5) {
+                add(Calendar.DAY_OF_YEAR, -1)
+            }
             set(Calendar.HOUR_OF_DAY, 0)
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
@@ -486,7 +516,7 @@ object UsageStatsHelper {
         )
     }
 
-    /** 현재 시각을 끝으로 하는 직전 24시간의 언락·알림 흐름을 24개 시간 버킷으로 계산합니다. */
+    /** 현재 시각을 끝으로 하는 직전 24시간의 잠금 해제·알림 흐름을 24개 시간 버킷으로 계산합니다. */
     suspend fun getRolling24HourUnlockInsights(
         context: Context,
         end: Long = System.currentTimeMillis()
@@ -536,7 +566,7 @@ object UsageStatsHelper {
             it.eventType == DeviceInteractionEventEntity.NOTIFICATION_INTERRUPTION
         }
 
-        // 7초 이내 앱 미진입 또는 단기 확인 무의미한 열람(Glance / 습관성 오픈) 집계
+        // 7초 이내 앱 미진입 또는 단기 확인 무의미한 열람(Glance / 짧은 확인) 집계
         val sessions = db.foregroundUsageSessionDao().getBetween(start, end)
         val glanceThresholdMillis = 7_000L
         val glanceCount = resolvedHabitualUnlockTimestamps(
@@ -820,6 +850,7 @@ object UsageStatsHelper {
 
         for (resolveInfo in resolveInfos) {
             val pkgName = resolveInfo.activityInfo.packageName
+            if (pkgName in SELF_PACKAGES || pkgName in IGNORED_SYSTEM_PACKAGES) continue
             val appName = resolveInfo.loadLabel(pm).toString()
             val appInfo = runCatching { pm.getApplicationInfo(pkgName, 0) }.getOrNull()
             val isLegacyGame = appInfo != null && (appInfo.flags and ApplicationInfo.FLAG_IS_GAME) != 0

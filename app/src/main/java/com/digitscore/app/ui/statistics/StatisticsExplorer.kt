@@ -1,5 +1,10 @@
 package com.digitscore.app.ui.statistics
 
+import com.digitscore.app.ui.theme.ScoreRedText
+import com.digitscore.app.ui.theme.DigitsTextSize
+import com.digitscore.app.ui.theme.DigitsShape
+import com.digitscore.app.ui.theme.ScoreYellowText
+import com.digitscore.app.ui.theme.ScoreGreenText
 import androidx.compose.foundation.*
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.gestures.*
@@ -8,9 +13,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -86,7 +91,7 @@ private fun formatBucketAxisLabel(start: Long, isHourly: Boolean, isDay: Boolean
     val time = Instant.ofEpochMilli(start).atZone(zone)
     return when {
         isRolling -> {
-            if (time.hour == 0) {
+            if (time.hour == 5) {
                 if (isKo) "${time.monthValue}/${time.dayOfMonth}" else time.format(DateTimeFormatter.ofPattern("M/d"))
             } else {
                 time.format(DateTimeFormatter.ofPattern("HH:mm"))
@@ -157,8 +162,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
         }
         ExplorerViewMode.PERIOD, ExplorerViewMode.WEEKDAY -> {
             val periodEnd = now
-            val periodStart = Instant.ofEpochMilli(periodEnd).atZone(zone).toLocalDate()
-                .minusDays(27L).atStartOfDay(zone).toInstant().toEpochMilli()
+            val periodStart = logicalDayStartMillis(logicalDate(periodEnd, zone).minusDays(27L), zone)
             periodStart to periodEnd
         }
     }
@@ -237,7 +241,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
         when {
             isRolling -> visibleUsage.filter { it.hour >= statisticHour(now - 24 * STAT_HOUR) }
             isWeekday && selectedDayOfWeek != null -> visibleUsage.filter {
-                Instant.ofEpochMilli(it.hour).atZone(zone).dayOfWeek == selectedDayOfWeek
+                logicalDate(it.hour, zone).dayOfWeek == selectedDayOfWeek
             }
             else -> visibleUsage
         }
@@ -246,7 +250,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
         when {
             isRolling -> visibleImpacts.filter { it.firstAt >= now - 24 * STAT_HOUR }
             isWeekday && selectedDayOfWeek != null -> visibleImpacts.filter {
-                Instant.ofEpochMilli(it.firstAt).atZone(zone).dayOfWeek == selectedDayOfWeek
+                logicalDate(it.firstAt, zone).dayOfWeek == selectedDayOfWeek
             }
             else -> visibleImpacts
         }
@@ -267,10 +271,10 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
             it.exactScore, it.exactScore, it.exactScore, it.exactScore)
     } else buckets.mapNotNull { it.score }
     val latest = readings.lastOrNull()
-    val currentModel = latest?.model ?: 5
+    val currentModel = latest?.model ?: com.digitscore.app.engine.ScoreModel.CURRENT_STORED
     val comparable = readings.filter { it.model == currentModel }
     val displayed = if (selected != null) selectedSample?.exactScore ?: selected.score?.last
-        else if (isRolling && currentModel == 5) liveScore?.exactScore ?: latest?.last else latest?.last
+        else if (isRolling && currentModel == com.digitscore.app.engine.ScoreModel.CURRENT_STORED) liveScore?.exactScore ?: latest?.last else latest?.last
     val change = if (selected == null && comparable.isNotEmpty() && displayed != null) {
         val baseScore = if (isRolling) {
             val target24hAgo = now - 24 * STAT_HOUR
@@ -291,7 +295,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
             },
             navigationIcon = {
                 IconButton(onClick = handleBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, label("뒤로", "Back"))
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, label("뒤로", "Back"))
                 }
             }
         )
@@ -317,7 +321,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                             }
                             Text(
                                 text = titleStr,
-                                fontSize = 14.sp,
+                                fontSize = DigitsTextSize.bodyLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
@@ -336,9 +340,9 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(
                                     text = points(targetScore),
-                                    fontSize = 32.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = coreIndexTierColor(targetScore.roundToInt()),
+                                    fontSize = DigitsTextSize.hero,
+                                    fontWeight = FontWeight.Bold,
+                                    color = com.digitscore.app.ui.theme.scoreTextColor(targetScore.roundToInt()),
                                     modifier = Modifier.testTag("statistics-score")
                                 )
                                 if (selected != null && isPeriod) {
@@ -347,8 +351,8 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                     val isUp = diffVal >= 0
                                     Text(
                                         text = "${if (diffVal >= 0) "+" else ""}${points(diffVal)}",
-                                        color = if (isUp) ScoreGreen else ScoreRed,
-                                        fontSize = 15.sp,
+                                        color = if (isUp) ScoreGreenText else ScoreRedText,
+                                        fontSize = DigitsTextSize.emphasis,
                                         fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(bottom = 3.dp)
                                     )
@@ -356,8 +360,8 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                     val isUp = change >= 0
                                     Text(
                                         text = "${if (isUp) "+" else ""}${points(change)}",
-                                        color = if (isUp) ScoreGreen else ScoreRed,
-                                        fontSize = 15.sp,
+                                        color = if (isUp) ScoreGreenText else ScoreRedText,
+                                        fontSize = DigitsTextSize.emphasis,
                                         fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(bottom = 3.dp)
                                     )
@@ -368,7 +372,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                         // 2줄: 인라인 요약 바 (선택 시 해당 항목 세부, 미선택 시 탭별 요약)
                         Row(
                             Modifier.fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f), DigitsShape.sm)
                                 .padding(horizontal = 12.dp, vertical = 6.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
@@ -381,20 +385,18 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                 } else label("점수 ${points(displayed ?: 80.0)}P", "Score ${points(displayed ?: 80.0)}P")
                                 val usageInfo = label("화면 ${minutes(selected.usage ?: 0L)} (관리 ${minutes(selected.managed)})", "Screen ${minutes(selected.usage ?: 0L)} (${minutes(selected.managed)})")
                                 val unlockInfo = label("잠금 ${selected.unlocks ?: 0}x (${selected.shortOpens}x)", "Unlocks ${selected.unlocks ?: 0}x (${selected.shortOpens}x)")
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+ androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                     Text(
                                         text = "$scoreInfo · $usageInfo",
-                                        fontSize = 11.sp,
+                                        fontSize = DigitsTextSize.caption,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontWeight = FontWeight.Medium,
-                                        maxLines = 1,
-                                        softWrap = false,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f, fill = false).padding(end = 6.dp)
+                                        modifier = Modifier.padding(end = 12.dp)
                                     )
                                     Text(
                                         text = unlockInfo,
-                                        fontSize = 11.sp,
+                                        fontSize = DigitsTextSize.caption,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontWeight = FontWeight.Medium,
                                         maxLines = 1,
@@ -410,14 +412,15 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                         val rBuckets = buckets.filter { it.start >= now - 24 * STAT_HOUR }
                                         val totalU = rBuckets.sumOf { it.usage ?: 0L }
                                         val totalO = rBuckets.sumOf { it.unlocks ?: 0 }
-                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                Text(label("24시간 최고 ", "24h High ") + points(highScore), fontSize = 11.sp, color = ScoreGreen, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
-                                                Text(label("최저 ", "Low ") + points(lowScore), fontSize = 11.sp, color = ScoreRed, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                                        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+ androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Row(Modifier.padding(end = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                Text(label("24시간 최고 ", "24h High ") + points(highScore), fontSize = DigitsTextSize.caption, color = ScoreGreenText, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
+                                                Text(label("최저 ", "Low ") + points(lowScore), fontSize = DigitsTextSize.caption, color = ScoreRedText, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
                                             }
                                             Text(
                                                 text = label("화면 ${minutes(totalU)} · 잠금 ${totalO}x", "Screen ${minutes(totalU)} · ${totalO}x"),
-                                                fontSize = 11.sp,
+                                                fontSize = DigitsTextSize.caption,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 fontWeight = FontWeight.Medium,
                                                 maxLines = 1,
@@ -428,17 +431,18 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                     ExplorerViewMode.PERIOD -> {
                                         val highScore = buckets.maxOfOrNull { it.score?.high ?: 0.0 } ?: 80.0
                                         val lowScore = buckets.minOfOrNull { it.score?.low ?: 100.0 } ?: 80.0
-                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                Text(label("4주 최고 ", "4W High ") + points(highScore), fontSize = 11.sp, color = ScoreGreen, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
-                                                Text(label("최저 ", "Low ") + points(lowScore), fontSize = 11.sp, color = ScoreRed, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                                        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+ androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Row(Modifier.padding(end = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                Text(label("4주 최고 ", "4W High ") + points(highScore), fontSize = DigitsTextSize.caption, color = ScoreGreenText, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
+                                                Text(label("최저 ", "Low ") + points(lowScore), fontSize = DigitsTextSize.caption, color = ScoreRedText, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
                                             }
-                                            val activePeriodDays = buckets.count { it.usage != null || it.unlocks != null }.coerceAtLeast(1)
+                                            val activePeriodDays = recordedDayCount(buckets)
                                             val avgUsage = if (buckets.isNotEmpty()) buckets.sumOf { it.usage ?: 0L } / activePeriodDays else 0L
                                             val avgUnlocks = if (buckets.isNotEmpty()) (buckets.sumOf { it.unlocks ?: 0 }.toFloat() / activePeriodDays).roundToInt() else 0
                                             Text(
                                                 text = label("일 평균 ${minutes(avgUsage)} · ${avgUnlocks}x", "Daily ${minutes(avgUsage)} · ${avgUnlocks}x"),
-                                                fontSize = 11.sp,
+                                                fontSize = DigitsTextSize.caption,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 fontWeight = FontWeight.Medium,
                                                 maxLines = 1,
@@ -452,15 +456,16 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                         val worstB = validBuckets.minByOrNull { it.score?.last ?: 100.0 }
                                         val bestName = bestB?.let { weekdayName(it.start.toInt(), isEn) } ?: "—"
                                         val worstName = worstB?.let { weekdayName(it.start.toInt(), isEn) } ?: "—"
-                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                Text(label("최고 ", "Best ") + "$bestName (${points(bestB?.score?.last ?: 0.0)})", fontSize = 11.sp, color = ScoreGreen, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
-                                                Text(label("주의 ", "Watch ") + "$worstName (${points(worstB?.score?.last ?: 0.0)})", fontSize = 11.sp, color = ScoreRed, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                                        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+ androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Row(Modifier.padding(end = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                Text(label("최고 ", "Best ") + "$bestName (${points(bestB?.score?.last ?: 0.0)})", fontSize = DigitsTextSize.caption, color = ScoreGreenText, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
+                                                Text(label("주의 ", "Watch ") + "$worstName (${points(worstB?.score?.last ?: 0.0)})", fontSize = DigitsTextSize.caption, color = ScoreRedText, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
                                             }
                                             val avgUsage = if (validBuckets.isNotEmpty()) validBuckets.sumOf { it.usage ?: 0L } / validBuckets.size else 0L
                                             Text(
                                                 text = label("요일 평균 ${minutes(avgUsage)}", "Avg ${minutes(avgUsage)}"),
-                                                fontSize = 11.sp,
+                                                fontSize = DigitsTextSize.caption,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 fontWeight = FontWeight.Medium,
                                                 maxLines = 1,
@@ -472,34 +477,26 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                             }
                         }
 
-                        // 3줄: 고정 범례 바 (항상 노출되어 차트 이해도 보장)
-                        Row(
+                        // 3줄: 고정 범례 (점·막대 색으로 계열 구분, 글자는 읽기 쉬운 본문 색. 공간이 부족하면 줄바꿈)
+                        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                        androidx.compose.foundation.layout.FlowRow(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Box(Modifier.size(7.dp).background(ScoreYellow, CircleShape))
-                                    Text(label("코어지수", "Index"), fontSize = 10.sp, color = ScoreYellow, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
-                                }
-                                Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Box(Modifier.size(7.dp).background(Color(0xFF26A69A), RoundedCornerShape(1.dp)))
-                                    Text(label("일반", "General"), fontSize = 10.sp, color = Color(0xFF26A69A), fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
-                                }
-                                Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Box(Modifier.size(7.dp).background(ScoreRed, RoundedCornerShape(1.dp)))
-                                    Text(label("몰입관리", "Managed"), fontSize = 10.sp, color = ScoreRed, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
-                                }
-                                Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Box(Modifier.size(7.dp).background(Color(0xFF38BDF8), CircleShape))
-                                    Text(label("잠금해제", "Unlocks"), fontSize = 10.sp, color = Color(0xFF38BDF8), fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
-                                }
-                                Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Box(Modifier.width(9.dp).height(2.dp).background(MaterialTheme.colorScheme.outline))
-                                    Text(label("목표 75P", "Target 75P"), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
+                            val legendText = MaterialTheme.colorScheme.onSurfaceVariant
+                            @Composable
+                            fun LegendItem(marker: @Composable () -> Unit, text: String) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    marker()
+                                    Text(text, fontSize = DigitsTextSize.tiny, color = legendText, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
                                 }
                             }
+                            LegendItem({ Box(Modifier.size(7.dp).background(ScoreYellow, CircleShape)) }, label("코어 지수", "Core Index"))
+                            LegendItem({ Box(Modifier.size(7.dp).background(com.digitscore.app.ui.theme.ChartScreen, DigitsShape.bar)) }, label("화면 시간", "Screen time"))
+                            LegendItem({ Box(Modifier.size(7.dp).background(com.digitscore.app.ui.theme.ChartManaged, DigitsShape.bar)) }, label("관리 앱", "Managed apps"))
+                            LegendItem({ Box(Modifier.size(7.dp).background(com.digitscore.app.ui.theme.ChartUnlock, CircleShape)) }, label("잠금 해제", "Unlocks"))
+                            LegendItem({ Box(Modifier.width(9.dp).height(2.dp).background(MaterialTheme.colorScheme.outline)) }, label("기준 75P", "Baseline 75P"))
                         }
                     }
                 }
@@ -566,7 +563,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                         }
                         Text(
                             text = periodLabel,
-                            fontSize = 12.sp,
+                            fontSize = DigitsTextSize.label,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Medium
                         )
@@ -577,7 +574,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                                     modifier = Modifier.height(28.dp)
                                 ) {
-                                    Text(label("선택 해제 ✕", "Clear ✕"), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text(label("선택 해제", "Clear"), fontSize = DigitsTextSize.caption, fontWeight = FontWeight.Bold)
                                 }
                             }
                             if (isRolling) {
@@ -588,7 +585,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                                     modifier = Modifier.height(28.dp)
                                 ) {
-                                    Text(label("최신으로 ↻", "Latest ↻"), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text(label("최신으로", "Latest"), fontSize = DigitsTextSize.caption, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -603,7 +600,9 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                         Text(
                             text = when (viewMode) {
                                 ExplorerViewMode.ROLLING_24H -> label("최근 24시간 패턴 분석", "24-Hour Usage Pattern")
-                                ExplorerViewMode.PERIOD -> label("기간 요약 (최근 4주 일 평균)", "Period summary (4W Daily Avg)")
+                                ExplorerViewMode.PERIOD -> recordedDayCount(summaryBuckets).let { days ->
+                                    label("기간 요약 (기록 ${days}일 기준 일 평균)", "Period summary (daily avg of $days recorded days)")
+                                }
                                 ExplorerViewMode.WEEKDAY -> label("요일별 요약 (최근 4주 평균)", "Weekday summary (4W Avg)")
                             },
                             fontWeight = FontWeight.Bold
@@ -627,19 +626,19 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                     modifier = Modifier.weight(1f).fillMaxHeight()
                                 )
                                 SmallMetric(
-                                    title = label("총 잠금해제", "Total Unlocks"),
+                                    title = label("총 잠금 해제", "Total Unlocks"),
                                     value = if (unlockKnown) "${totalUnlocks}x" else "—",
                                     subtext = if (unlockKnown && totalUnlocks > 0) label("시간당 ${(totalUnlocks / 24f).roundToInt()}x", "${(totalUnlocks / 24f).roundToInt()}/hr") else null,
                                     modifier = Modifier.weight(1f).fillMaxHeight()
                                 )
                                 SmallMetric(
-                                    title = label("습관성 오픈", "Habitual Opens"),
+                                    title = label("짧은 확인", "Quick checks"),
                                     value = if (unlockKnown) "${habitualUnlocks}x" else "—",
                                     subtext = if (unlockKnown && totalUnlocks > 0) label("7초내 종료 ${habitualPercent}%", "≤7s close ${habitualPercent}%") else null,
                                     modifier = Modifier.weight(1f).fillMaxHeight()
                                 )
                             } else if (isPeriod) {
-                                val daysCount = summaryBuckets.size.coerceAtLeast(1)
+                                val daysCount = recordedDayCount(summaryBuckets)
                                 val totalUsage = summaryBuckets.mapNotNull { it.usage }.sum()
                                 val dailyAvgUsage = totalUsage / daysCount
                                 val dailyAvgUnlocks = (totalUnlocks.toFloat() / daysCount).roundToInt()
@@ -652,13 +651,13 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                     modifier = Modifier.weight(1f).fillMaxHeight()
                                 )
                                 SmallMetric(
-                                    title = label("일 평균 잠금해제", "Daily Unlocks"),
+                                    title = label("일 평균 잠금 해제", "Daily Unlocks"),
                                     value = if (unlockKnown) "${dailyAvgUnlocks}x" else "—",
                                     subtext = if (unlockKnown) label("4주 총 ${totalUnlocks}x", "Total ${totalUnlocks}x") else null,
                                     modifier = Modifier.weight(1f).fillMaxHeight()
                                 )
                                 SmallMetric(
-                                    title = label("일 평균 습관성 오픈", "Daily Habitual Opens"),
+                                    title = label("일 평균 짧은 확인", "Daily Quick checks"),
                                     value = if (unlockKnown) "${dailyAvgHabitual}x" else "—",
                                     subtext = if (unlockKnown && totalUnlocks > 0) label("7초내 종료 ${habitualPercent}%", "≤7s close ${habitualPercent}%") else null,
                                     modifier = Modifier.weight(1f).fillMaxHeight()
@@ -705,7 +704,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                             } else {
                                 label("최다 사용: ${top.name} · ${minutes(top.usage)}", "Top: ${top.name} · ${minutes(top.usage)}")
                             }
-                            Text(topText, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                            Text(topText, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = DigitsTextSize.label)
                         }
                     }
                 }
@@ -716,9 +715,9 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                             isPeriod && selected != null -> label("${dateLabel(selected.start, "M/d")} 주요 앱", "${dateLabel(selected.start, "M/d")} Top Apps")
                             else -> label("앱별 요약", "Apps")
                         }
-                        Text(appSectionTitle, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(appSectionTitle, fontWeight = FontWeight.Bold, fontSize = DigitsTextSize.titleLarge)
                         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf(label("사용시간", "Usage"), label("점수 영향", "Impact"), label("실행", "Opens")).forEachIndexed { index, text ->
+                            listOf(label("사용 시간", "Usage"), label("점수 영향", "Impact"), label("실행", "Opens")).forEachIndexed { index, text ->
                                 FilterChip(ranking == index, { ranking = index; allApps = false }, label = { Text(text) })
                             }
                         }
@@ -730,13 +729,13 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                     else -> apps.filter { it.usage > 0 }.sortedByDescending { it.usage }
                 }
                 val maxValue = ordered.firstOrNull()?.let { appValue(it, ranking) } ?: 1.0
-                val periodDaysCount = if (isWeekday) 4 else if (isPeriod) buckets.takeLast(28).size.coerceAtLeast(1) else 1
+                val periodDaysCount = if (isWeekday) 4 else if (isPeriod) recordedDayCount(buckets.takeLast(28)) else 1
                 (if (allApps) ordered else ordered.take(3)).forEach { app -> item(key = "app:${app.pkg}") {
                     AppRankingRow(app, ranking, maxValue, daysCount = periodDaysCount, isPeriod = isPeriod || isWeekday) { selectedApp = app }
                 } }
                 if (ordered.size > 3) item {
                     TextButton(onClick = { allApps = !allApps }, modifier = Modifier.fillMaxWidth()) {
-                        Text(if (!allApps) label("나머지 ${ordered.size - 3}개 앱 더보기 ▾", "Show ${ordered.size - 3} more apps ▾") else label("앱 목록 접기 ▲", "Collapse apps ▲"))
+                        Text(if (!allApps) label("나머지 ${ordered.size - 3}개 앱 더보기", "Show ${ordered.size - 3} more apps") else label("앱 목록 접기", "Collapse apps"))
                     }
                 }
                 item { Spacer(Modifier.height(24.dp)) }
@@ -754,22 +753,22 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
 ) {
     Column(
         modifier = modifier
-            .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.45f), DigitsShape.md)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.Center
     ) {
-        Text(title, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+        Text(title, fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.height(2.dp))
-        Text(value, fontWeight = FontWeight.Bold, fontSize = 17.sp, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+        Text(value, fontWeight = FontWeight.Bold, fontSize = DigitsTextSize.titleLarge, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
         if (subtext != null) {
             Spacer(Modifier.height(2.dp))
-            Text(subtext, fontSize = 10.sp, color = MaterialTheme.colorScheme.outline, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+            Text(subtext, fontSize = DigitsTextSize.tiny, color = MaterialTheme.colorScheme.outline, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
 @Composable private fun Legend(color: Color, text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(7.dp).background(color, CircleShape)); Spacer(Modifier.width(4.dp)); Text(text, fontSize = 11.sp) }
+    Row(verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(7.dp).background(color, CircleShape)); Spacer(Modifier.width(4.dp)); Text(text, fontSize = DigitsTextSize.caption) }
 }
 private fun appValue(app: ExplorerApp, mode: Int) = when (mode) { 1 -> app.loss ?: 0.0; 2 -> app.opens.toDouble(); else -> app.usage.toDouble() }
 
@@ -791,20 +790,20 @@ private fun appValue(app: ExplorerApp, mode: Int) = when (mode) { 1 -> app.loss 
             if (icon != null) Image(icon!!, null, Modifier.size(36.dp))
             else Box(Modifier.size(36.dp).background(MaterialTheme.colorScheme.surfaceContainerHighest, CircleShape), contentAlignment = Alignment.Center) { Text(app.name.take(1)) }
             Column(Modifier.weight(1f)) {
-                Text(app.name, fontWeight = FontWeight.SemiBold)
+                Text(app.name, fontWeight = FontWeight.Medium)
                 val subtitle = when {
                     mode == 1 -> if (isPeriod) label("일 평균 −${points((app.loss ?: 0.0) / daysCount)} (총 −${points(app.loss ?: 0.0)})", "Daily −${points((app.loss ?: 0.0) / daysCount)}")
                                  else label("실제 감점 기여", "Recorded score loss")
                     isPeriod -> label(
-                        "일 ${(app.opens.toFloat() / daysCount).roundToInt()}x · 짧은 실행 ${(app.shortOpens.toFloat() / daysCount).roundToInt()}x (총 ${app.opens}x)",
+                        "일 ${(app.opens.toFloat() / daysCount).roundToInt()}x · 짧은 확인 ${(app.shortOpens.toFloat() / daysCount).roundToInt()}x (총 ${app.opens}x)",
                         "Daily ${(app.opens.toFloat() / daysCount).roundToInt()}x · Brief ${(app.shortOpens.toFloat() / daysCount).roundToInt()}x (Total ${app.opens}x)"
                     )
                     else -> label(
-                        "${app.opens}x · 짧은 실행 ${app.shortOpens}x",
+                        "${app.opens}x · 짧은 확인 ${app.shortOpens}x",
                         "${app.opens}x · Brief ${app.shortOpens}x"
                     )
                 }
-                Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(subtitle, fontSize = DigitsTextSize.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             val valueText = when (mode) {
                 1 -> if (isPeriod) "일 −${points((app.loss ?: 0.0) / daysCount)}" else "−${points(app.loss ?: 0.0)}"
@@ -812,7 +811,7 @@ private fun appValue(app: ExplorerApp, mode: Int) = when (mode) { 1 -> app.loss 
                 else -> if (isPeriod) "일 ${minutes(app.usage / daysCount)}" else minutes(app.usage)
             }
             Text(valueText, color = color, fontWeight = FontWeight.Bold)
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, Modifier.size(18.dp))
+            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, Modifier.size(18.dp))
         }
         Box(Modifier.fillMaxWidth().height(5.dp).background(MaterialTheme.colorScheme.surfaceContainerHighest, CircleShape)) {
             Box(Modifier.fillMaxWidth((appValue(app, mode) / maximum.coerceAtLeast(0.01)).toFloat().coerceIn(0f, 1f)).fillMaxHeight().background(color, CircleShape))
@@ -831,6 +830,9 @@ private fun ExplorerChart(
 ) {
     val primary = MaterialTheme.colorScheme.primary
     val muted = MaterialTheme.colorScheme.outline
+    // 차트 위 최고·최저 글자색 (테마별 대비 확보)
+    val highTextArgb = ScoreGreenText.toArgb()
+    val lowTextArgb = ScoreRedText.toArgb()
     val foreground = MaterialTheme.colorScheme.onSurface
     val isHourly = buckets.firstOrNull()?.let { it.end - it.start <= STAT_HOUR } ?: false
     val values = buckets.mapNotNull { it.score }.flatMap { listOf(it.low, it.high) } + samples.map { it.exactScore }
@@ -932,12 +934,12 @@ private fun ExplorerChart(
                         )
                     }
 
-                    // 자정(00:00) 세로 구분선 (실시간 타임라인 모드)
+                    // 05:00 논리적 하루 시작 세로 구분선 (실시간 타임라인 모드)
                     if (line) {
                         val zoneId = ZoneId.systemDefault()
                         buckets.forEach { b ->
                             val bTime = Instant.ofEpochMilli(b.start).atZone(zoneId)
-                            if (bTime.hour == 0) {
+                            if (bTime.hour == LOGICAL_DAY_START_HOUR) {
                                 val mx = x(b.start)
                                 drawLine(
                                     color = muted.copy(alpha = 0.22f),
@@ -1003,23 +1005,23 @@ private fun ExplorerChart(
                         val maxB = validScores.maxByOrNull { it.score?.last ?: 0.0 }
                         val minB = validScores.minByOrNull { it.score?.last ?: 100.0 }
                         val paintGreen = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                            color = ScoreGreen.toArgb(); textSize = 11.sp.toPx(); isFakeBoldText = true
+                            color = highTextArgb; textSize = DigitsTextSize.caption.toPx(); isFakeBoldText = true
                         }
                         val paintRed = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                            color = ScoreRed.toArgb(); textSize = 11.sp.toPx(); isFakeBoldText = true
+                            color = lowTextArgb; textSize = DigitsTextSize.caption.toPx(); isFakeBoldText = true
                         }
 
                         maxB?.score?.let { s ->
                             val idx = buckets.indexOf(maxB)
                             val mid = idx * slotW + slotW / 2f
-                            val text = "↓ ${points(s.last)}"
-                            drawContext.canvas.nativeCanvas.drawText(text, (mid - 16.dp.toPx()).coerceIn(4.dp.toPx(), size.width - 50.dp.toPx()), y(s.high) - 8.dp.toPx(), paintGreen)
+                            val text = label("최고 ${points(s.last)}", "High ${points(s.last)}")
+                            drawContext.canvas.nativeCanvas.drawText(text, chartLabelX(mid, text, paintGreen, size.width, 4.dp.toPx()), y(s.high) - 8.dp.toPx(), paintGreen)
                         }
                         minB?.score?.let { s ->
                             val idx = buckets.indexOf(minB)
                             val mid = idx * slotW + slotW / 2f
-                            val text = "↑ ${points(s.last)}"
-                            drawContext.canvas.nativeCanvas.drawText(text, (mid - 16.dp.toPx()).coerceIn(4.dp.toPx(), size.width - 50.dp.toPx()), y(s.low) + 16.dp.toPx(), paintRed)
+                            val text = label("최저 ${points(s.last)}", "Low ${points(s.last)}")
+                            drawContext.canvas.nativeCanvas.drawText(text, chartLabelX(mid, text, paintRed, size.width, 4.dp.toPx()), y(s.low) + 16.dp.toPx(), paintRed)
                         }
                     } else if (line) {
                         // 1. 1일 24시간 실시간 라인 차트 (토스 첨부2 스타일)
@@ -1047,13 +1049,13 @@ private fun ExplorerChart(
                             val minReading = readings.minByOrNull { it.second }
 
                             val paintGreen = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                                color = ScoreGreen.toArgb()
-                                textSize = 11.sp.toPx()
+                                color = highTextArgb
+                                textSize = DigitsTextSize.caption.toPx()
                                 isFakeBoldText = true
                             }
                             val paintRed = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                                color = ScoreRed.toArgb()
-                                textSize = 11.sp.toPx()
+                                color = lowTextArgb
+                                textSize = DigitsTextSize.caption.toPx()
                                 isFakeBoldText = true
                             }
 
@@ -1061,13 +1063,15 @@ private fun ExplorerChart(
                                 val mx = x(it.first)
                                 val my = y(it.second)
                                 drawCircle(ScoreGreen, 3.5.dp.toPx(), Offset(mx, my))
-                                drawContext.canvas.nativeCanvas.drawText(label("최고 ${points(it.second)}", "High ${points(it.second)}"), (mx - 22.dp.toPx()).coerceAtLeast(4.dp.toPx()), my - 8.dp.toPx(), paintGreen)
+                                val highText = label("최고 ${points(it.second)}", "High ${points(it.second)}")
+                                drawContext.canvas.nativeCanvas.drawText(highText, chartLabelX(mx, highText, paintGreen, size.width, 4.dp.toPx()), my - 8.dp.toPx(), paintGreen)
                             }
                             minReading?.let {
                                 val mx = x(it.first)
                                 val my = y(it.second)
                                 drawCircle(ScoreRed, 3.5.dp.toPx(), Offset(mx, my))
-                                drawContext.canvas.nativeCanvas.drawText(label("최저 ${points(it.second)}", "Low ${points(it.second)}"), (mx - 22.dp.toPx()).coerceAtLeast(4.dp.toPx()), my + 16.dp.toPx(), paintRed)
+                                val lowText = label("최저 ${points(it.second)}", "Low ${points(it.second)}")
+                                drawContext.canvas.nativeCanvas.drawText(lowText, chartLabelX(mx, lowText, paintRed, size.width, 4.dp.toPx()), my + 16.dp.toPx(), paintRed)
                             }
                         }
                     } else if (isHourly) {
@@ -1120,27 +1124,27 @@ private fun ExplorerChart(
                         val minBucket = buckets.minByOrNull { it.score?.low ?: 100.0 }
 
                         val paintGreen = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                            color = ScoreGreen.toArgb(); textSize = 11.sp.toPx(); isFakeBoldText = true
+                            color = highTextArgb; textSize = DigitsTextSize.caption.toPx(); isFakeBoldText = true
                         }
                         val paintRed = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                            color = ScoreRed.toArgb(); textSize = 11.sp.toPx(); isFakeBoldText = true
+                            color = lowTextArgb; textSize = DigitsTextSize.caption.toPx(); isFakeBoldText = true
                         }
 
                         maxBucket?.score?.let { s ->
                             val idx = buckets.indexOf(maxBucket)
                             val mid = idx * slotW + slotW / 2f
-                            val text = "↓ ${points(s.high)} (${dateLabel(maxBucket.start, "MM.dd")})"
-                            drawContext.canvas.nativeCanvas.drawText(text, (mid - 32.dp.toPx()).coerceIn(4.dp.toPx(), size.width - 90.dp.toPx()), y(s.high) - 8.dp.toPx(), paintGreen)
+                            val text = label("최고 ${points(s.high)} (${dateLabel(maxBucket.start, "MM.dd")})", "High ${points(s.high)} (${dateLabel(maxBucket.start, "MM.dd")})")
+                            drawContext.canvas.nativeCanvas.drawText(text, chartLabelX(mid, text, paintGreen, size.width, 4.dp.toPx()), y(s.high) - 8.dp.toPx(), paintGreen)
                         }
                         minBucket?.score?.let { s ->
                             val idx = buckets.indexOf(minBucket)
                             val mid = idx * slotW + slotW / 2f
-                            val text = "↑ ${points(s.low)} (${dateLabel(minBucket.start, "MM.dd")})"
-                            drawContext.canvas.nativeCanvas.drawText(text, (mid - 32.dp.toPx()).coerceIn(4.dp.toPx(), size.width - 90.dp.toPx()), y(s.low) + 16.dp.toPx(), paintRed)
+                            val text = label("최저 ${points(s.low)} (${dateLabel(minBucket.start, "MM.dd")})", "Low ${points(s.low)} (${dateLabel(minBucket.start, "MM.dd")})")
+                            drawContext.canvas.nativeCanvas.drawText(text, chartLabelX(mid, text, paintRed, size.width, 4.dp.toPx()), y(s.low) + 16.dp.toPx(), paintRed)
                         }
                     }
 
-                    // 하단 볼륨: 화면 사용 시간 막대 (일반 시간 + 몰입 관리 시간 구분)
+                    // 하단 볼륨: 화면 사용 시간 막대 (일반 시간 + 관리 시간 구분)
                     val maxUsage = buckets.maxOfOrNull { it.usage ?: 0L }?.coerceAtLeast(60_000L) ?: 60_000L
                     val slotW = size.width / (if (isWeekday) 7f else buckets.size.coerceAtLeast(1).toFloat())
                     val barW = maxOf(2.dp.toPx(), slotW * 0.55f)
@@ -1157,15 +1161,15 @@ private fun ExplorerChart(
                         val managedH = maxBarH * managedUsage / maxUsage.toFloat()
                         val generalH = (totalH - managedH).coerceAtLeast(0f)
 
-                        // 일반 화면시간 (청록색)
+                        // 일반 화면 시간 (청록색)
                         if (generalH > 0f) {
                             drawRect(
-                                color = Color(0xFF26A69A).copy(alpha = 0.75f),
+                                color = com.digitscore.app.ui.theme.ChartScreen.copy(alpha = 0.75f),
                                 topLeft = Offset(mid - barW / 2f, volumeBottom - generalH),
                                 size = Size(barW, generalH)
                             )
                         }
-                        // 몰입 관리 시간 (빨간색 - 일반 시간 위에 스택)
+                        // 관리 시간 (빨간색 - 일반 시간 위에 스택)
                         if (managedH > 0f) {
                             drawRect(
                                 color = ScoreRed.copy(alpha = 0.85f),
@@ -1177,12 +1181,12 @@ private fun ExplorerChart(
 
                     // 4주 모드: 화면 사용 시간 4주 평균 기준선 (청록색 점선)
                     val validUsageBuckets = buckets.filter { (it.usage ?: 0L) > 0 }
-                    val avgUsage = if (validUsageBuckets.isNotEmpty()) buckets.mapNotNull { it.usage }.sum() / buckets.size.coerceAtLeast(1) else 0L
+                    val avgUsage = if (validUsageBuckets.isNotEmpty()) buckets.mapNotNull { it.usage }.sum() / recordedDayCount(buckets) else 0L
                     if (!line && !isHourly && !isWeekday && avgUsage > 0L) {
                         val avgUsageH = maxBarH * avgUsage / maxUsage.toFloat()
                         val avgUsageY = volumeBottom - avgUsageH
                         drawLine(
-                            color = Color(0xFF26A69A).copy(alpha = 0.9f),
+                            color = com.digitscore.app.ui.theme.ChartScreen.copy(alpha = 0.9f),
                             start = Offset(0f, avgUsageY),
                             end = Offset(size.width, avgUsageY),
                             strokeWidth = 1.3.dp.toPx(),
@@ -1190,16 +1194,16 @@ private fun ExplorerChart(
                         )
                         val avgUsagePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                             color = android.graphics.Color.parseColor("#26A69A")
-                            textSize = 9.sp.toPx()
+                            textSize = DigitsTextSize.micro.toPx()
                         }
                         drawContext.canvas.nativeCanvas.drawText("4주 평균 ${minutes(avgUsage)}", 4.dp.toPx(), avgUsageY - 3.dp.toPx(), avgUsagePaint)
                     }
 
-                    // 일별 잠금해제 횟수 꺾은선 + 점 그래프 (하늘색/Cyan)
+                    // 일별 잠금 해제 횟수 꺾은선 + 점 그래프 (하늘색/Cyan)
                     val maxOpens = buckets.maxOfOrNull { it.unlocks ?: 0 }?.coerceAtLeast(1) ?: 1
                     val openLineBottom = volumeBottom
                     val openLineTop = volumeBottom - 44.dp.toPx()
-                    val opensColor = Color(0xFF38BDF8)
+                    val opensColor = com.digitscore.app.ui.theme.ChartUnlock
 
                     val opensPath = Path()
                     var opensStarted = false
@@ -1229,8 +1233,8 @@ private fun ExplorerChart(
                         }
                     }
 
-                    // 4주 모드: 잠금해제 횟수 4주 평균 기준선 (하늘색 점선)
-                    val avgOpens = if (buckets.isNotEmpty()) buckets.mapNotNull { it.unlocks }.sum().toFloat() / buckets.size.coerceAtLeast(1) else 0f
+                    // 4주 모드: 잠금 해제 횟수 4주 평균 기준선 (하늘색 점선)
+                    val avgOpens = if (buckets.isNotEmpty()) buckets.mapNotNull { it.unlocks }.sum().toFloat() / recordedDayCount(buckets) else 0f
                     if (!line && !isHourly && !isWeekday && avgOpens > 0f) {
                         val avgOpensH = (openLineBottom - openLineTop) * avgOpens / maxOpens.toFloat()
                         val avgOpensY = openLineBottom - avgOpensH
@@ -1243,7 +1247,7 @@ private fun ExplorerChart(
                         )
                         val avgOpensPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                             color = android.graphics.Color.parseColor("#38BDF8")
-                            textSize = 9.sp.toPx()
+                            textSize = DigitsTextSize.micro.toPx()
                         }
                         val avgOpensLabel = label("4주 평균 ${avgOpens.roundToInt()}x", "4W Avg ${avgOpens.roundToInt()}x")
                         drawContext.canvas.nativeCanvas.drawText(avgOpensLabel, (size.width - 65.dp.toPx()).coerceAtLeast(4.dp.toPx()), avgOpensY - 3.dp.toPx(), avgOpensPaint)
@@ -1261,19 +1265,19 @@ private fun ExplorerChart(
                     }
 
                     // X축 날짜/요일 라벨
-                    val axisPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = muted.toArgb(); textSize = 10.sp.toPx() }
+                    val axisPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = muted.toArgb(); textSize = DigitsTextSize.tiny.toPx() }
                     if (isWeekday) {
                         buckets.forEachIndexed { index, b ->
                             val mid = index * slotW + slotW / 2f
                             val axisLabel = formatBucketAxisLabel(b.start, isHourly = false, isDay = false, isRolling = false, isWeekday = true)
-                            drawContext.canvas.nativeCanvas.drawText(axisLabel, mid - 6.dp.toPx(), size.height - 4.dp.toPx(), axisPaint)
+                            drawContext.canvas.nativeCanvas.drawText(axisLabel, chartLabelX(mid, axisLabel, axisPaint, size.width, 0f), size.height - 4.dp.toPx(), axisPaint)
                         }
                     } else {
                         val labelStep = if (line) 6 else 4
                         buckets.forEachIndexed { index, b ->
                             if (index % labelStep == 0) {
                                 val axisLabel = formatBucketAxisLabel(b.start, isHourly, line, isRolling = line)
-                                drawContext.canvas.nativeCanvas.drawText(axisLabel, x(b.start).coerceAtMost(size.width - 40.dp.toPx()), size.height - 4.dp.toPx(), axisPaint)
+                                drawContext.canvas.nativeCanvas.drawText(axisLabel, chartLabelX(x(b.start), axisLabel, axisPaint, size.width, 0f), size.height - 4.dp.toPx(), axisPaint)
                             }
                         }
                     }
@@ -1282,7 +1286,7 @@ private fun ExplorerChart(
 
             // 우측 Y축 눈금 및 현재가 배지 (토스 첨부1 스타일)
             Canvas(Modifier.width(44.dp).height(height)) {
-                val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = muted.toArgb(); textSize = 10.sp.toPx() }
+                val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = muted.toArgb(); textSize = DigitsTextSize.tiny.toPx() }
                 val graphTop = 24.dp.toPx()
                 val graphBottom = 200.dp.toPx()
                 fun y(score: Double) = graphBottom - (graphBottom - graphTop) * ((score - low) / (high - low).coerceAtLeast(1.0)).toFloat()
@@ -1297,7 +1301,7 @@ private fun ExplorerChart(
                     val y75 = y(75.0)
                     val targetPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                         color = muted.toArgb()
-                        textSize = 9.sp.toPx()
+                        textSize = DigitsTextSize.micro.toPx()
                         isFakeBoldText = true
                     }
                     drawContext.canvas.nativeCanvas.drawText("75P", 6.dp.toPx(), y75 + 3.dp.toPx(), targetPaint)
@@ -1317,16 +1321,16 @@ private fun ExplorerChart(
                     )
                     val badgePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                         color = android.graphics.Color.WHITE
-                        textSize = 10.sp.toPx()
+                        textSize = DigitsTextSize.tiny.toPx()
                         isFakeBoldText = true
                     }
                     drawContext.canvas.nativeCanvas.drawText(points(lastScore), 6.dp.toPx(), lastY + 3.5.dp.toPx(), badgePaint)
                 }
 
                 // 볼륨 및 오픈 라벨
-                val volPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = muted.toArgb(); textSize = 9.sp.toPx() }
-                val openPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = Color(0xFF38BDF8).toArgb(); textSize = 9.sp.toPx() }
-                drawContext.canvas.nativeCanvas.drawText(label("잠금해제", "Unlocks"), 4.dp.toPx(), 238.dp.toPx(), openPaint)
+                val volPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = muted.toArgb(); textSize = DigitsTextSize.micro.toPx() }
+                val openPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = com.digitscore.app.ui.theme.ChartUnlock.toArgb(); textSize = DigitsTextSize.micro.toPx() }
+                drawContext.canvas.nativeCanvas.drawText(label("잠금 해제", "Unlocks"), 4.dp.toPx(), 238.dp.toPx(), openPaint)
                 drawContext.canvas.nativeCanvas.drawText(label("화면", "Screen"), 4.dp.toPx(), 274.dp.toPx(), volPaint)
             }
         }
@@ -1338,17 +1342,17 @@ private fun ExplorerChart(
     val appRows = hours.filter { it.packageName == app.pkg }.map { it.copy(packageName = "") }
     val series = remember(appRows, start, end, daily) { explorerBuckets(start, end, daily, appRows, emptyList(), emptyList()) }
     Dialog(onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Scaffold(modifier = Modifier.testTag("app-detail"), topBar = { TopAppBar(title = { Text(app.name) }, navigationIcon = { IconButton(onClick = onDismiss) { Icon(Icons.AutoMirrored.Filled.ArrowBack, label("뒤로", "Back")) } }) }) { padding ->
+        Scaffold(modifier = Modifier.testTag("app-detail"), topBar = { TopAppBar(title = { Text(app.name) }, navigationIcon = { IconButton(onClick = onDismiss) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, label("뒤로", "Back")) } }) }) { padding ->
             ResponsiveContent(Modifier.padding(padding)) {
                 LazyColumn(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                     item { Text("${dateLabel(start)} – ${dateLabel(end)}", color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        SmallMetric(label("사용시간", "Usage"), minutes(app.usage)); SmallMetric(label("실행", "Opens"), "${app.opens}x"); SmallMetric(label("짧은 실행", "Brief"), "${app.shortOpens}x")
+                        SmallMetric(label("사용 시간", "Usage"), minutes(app.usage)); SmallMetric(label("실행", "Opens"), "${app.opens}x"); SmallMetric(label("짧은 확인", "Brief"), "${app.shortOpens}x")
                     } }
                     item { Text(label("기록된 감점", "Recorded loss"), fontWeight = FontWeight.Bold)
-                        Text(app.loss?.let { "−${points(it)}" } ?: "—", fontSize = 28.sp, color = ScoreRed, fontWeight = FontWeight.Bold)
+                        Text(app.loss?.let { "−${points(it)}" } ?: "—", fontSize = DigitsTextSize.displayLarge, color = ScoreRedText, fontWeight = FontWeight.Bold)
                     }
-                    item { AppMetricBars(label("사용시간 추세", "Usage trend"), series, false) }
+                    item { AppMetricBars(label("사용 시간 추세", "Usage trend"), series, false) }
                     item { AppMetricBars(label("실행 횟수 추세", "Open frequency"), series, true) }
                 }
             }
@@ -1361,7 +1365,7 @@ private fun ExplorerChart(
     var selected by remember(series) { mutableStateOf<ExplorerBucket?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(title, fontWeight = FontWeight.Bold)
-        selected?.let { Text("${dateLabel(it.start)} · ${if (opens) "${it.opens ?: 0}" else minutes(it.usage ?: 0)}", fontSize = 12.sp) }
+        selected?.let { Text("${dateLabel(it.start)} · ${if (opens) "${it.opens ?: 0}" else minutes(it.usage ?: 0)}", fontSize = DigitsTextSize.label) }
         Canvas(Modifier.fillMaxWidth().height(140.dp).pointerInput(series) {
             detectTapGestures { tap -> selected = series.getOrNull((tap.x / size.width * series.size).toInt().coerceIn(0, series.lastIndex.coerceAtLeast(0))) }
         }) {
@@ -1376,8 +1380,14 @@ private fun ExplorerChart(
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(series.firstOrNull()?.let { dateLabel(it.start) } ?: "—", fontSize = 11.sp)
-            Text(series.lastOrNull()?.let { dateLabel(it.end) } ?: "—", fontSize = 11.sp)
+            Text(series.firstOrNull()?.let { dateLabel(it.start) } ?: "—", fontSize = DigitsTextSize.caption)
+            Text(series.lastOrNull()?.let { dateLabel(it.end) } ?: "—", fontSize = DigitsTextSize.caption)
         }
     }
+}
+
+/** 차트 라벨을 실제 글자 폭 기준으로 가운데 정렬하고 차트 안쪽에 둡니다 (양 끝 잘림 방지). */
+private fun chartLabelX(centerX: Float, text: String, paint: android.graphics.Paint, width: Float, margin: Float): Float {
+    val tw = paint.measureText(text)
+    return (centerX - tw / 2f).coerceIn(margin, (width - tw - margin).coerceAtLeast(margin))
 }

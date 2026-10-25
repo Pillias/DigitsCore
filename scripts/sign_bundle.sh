@@ -17,10 +17,18 @@ if [[ -d "$JAVA_BIN" ]]; then
   export PATH="$JAVA_BIN:$PATH"
 fi
 
-STOREPASS="${DIGITSCORE_UPLOAD_STORE_PASSWORD:-digitscore2026}"
+# 비밀번호는 스크립트에 두지 않습니다: 환경변수 → local.properties(digitscore.upload.storePassword) 순서로 읽습니다.
+STOREPASS="${DIGITSCORE_UPLOAD_STORE_PASSWORD:-}"
+if [[ -z "$STOREPASS" && -f local.properties ]]; then
+  STOREPASS="$(grep '^digitscore.upload.storePassword=' local.properties | head -n 1 | cut -d'=' -f2-)"
+fi
+if [[ -z "$STOREPASS" ]]; then
+  echo "오류: DIGITSCORE_UPLOAD_STORE_PASSWORD 환경변수나 local.properties의 digitscore.upload.storePassword가 필요합니다." >&2
+  exit 1
+fi
 
 echo "안내: 릴리스 번들을 새로 빌드합니다..."
-JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :app:bundleRelease -PnoAutoBump --no-daemon
+JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :app:bundleRelease --no-daemon
 
 # version.properties에서 최신 버전 다시 읽기 (Auto-Versioning 반영)
 MAJOR=$(grep "^MAJOR=" version.properties | cut -d'=' -f2)

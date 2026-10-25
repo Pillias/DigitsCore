@@ -2,7 +2,7 @@ package com.digitscore.app.model
 
 /**
  * 최근 24시간 코어 지수 계산 엔진에 적용되는 세부 설정 규칙입니다.
- * 프리셋의 권장 기본값을 사용하거나 사용자가 설정 화면에서 수동으로 조정할 수 있습니다.
+ * 점수 모드의 권장 기본값을 사용하거나 사용자가 설정 화면에서 수동으로 조정할 수 있습니다.
  */
 data class CoreIndexScoringConfig(
     val continuousLoadStartMinutes: Double = 30.0,

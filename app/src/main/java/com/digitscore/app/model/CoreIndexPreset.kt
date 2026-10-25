@@ -16,7 +16,7 @@ enum class PresetSensitivity(
         get() = label(com.digitscore.app.i18n.AppLocale.isCurrentEnglish)
 }
 
-/** 최근 24시간 코어 지수에 직접 적용되는 프리셋입니다. */
+/** 최근 24시간 코어 지수에 직접 적용되는 점수 모드입니다. */
 enum class CoreIndexPreset(
     val id: String,
     private val koreanTitle: String,
@@ -90,7 +90,7 @@ enum class CoreIndexPreset(
         id = "screen_rest",
         koreanTitle = "화면 휴식",
         englishTitle = "Screen Rest",
-        koreanDescription = "앱 종류와 관계없이 전체 화면시간과 긴 연속 사용을 더 민감하게 보는 모드",
+        koreanDescription = "앱 종류와 관계없이 전체 화면 시간과 긴 연속 사용을 더 민감하게 보는 모드",
         englishDescription = "More sensitive to total screen time and long continuous sessions regardless of app type",
         baseLoadMultiplier = 1.25,
         categoryLoadMultiplier = 1.0,
@@ -113,8 +113,8 @@ enum class CoreIndexPreset(
         id = "night_balance",
         koreanTitle = "심야 균형",
         englishTitle = "Night Balance",
-        koreanDescription = "자정부터 새벽 5시까지 몰입 관리 앱 사용을 특히 민감하게 보는 모드",
-        englishDescription = "Especially sensitive to Immersion Management app use between midnight and 5 a.m.",
+        koreanDescription = "자정부터 새벽 5시까지 관리 앱 사용을 특히 민감하게 보는 모드",
+        englishDescription = "Especially sensitive to managed-app use between midnight and 5 a.m.",
         baseLoadMultiplier = 1.0,
         categoryLoadMultiplier = 1.0,
         acuteLoadMultiplier = 1.0,
@@ -168,7 +168,7 @@ enum class CoreIndexPreset(
             "Night ${lateNightSensitivity.label(true)} · Unlocks ${unlockSensitivity.label(true)}"
     } else {
         "전체 사용 ${overallSensitivity.label(false)} · 연속 사용 ${continuousSensitivity.label(false)} · " +
-            "심야 ${lateNightSensitivity.label(false)} · 언락 ${unlockSensitivity.label(false)}"
+            "심야 ${lateNightSensitivity.label(false)} · 잠금 해제 ${unlockSensitivity.label(false)}"
     }
 
     val title: String

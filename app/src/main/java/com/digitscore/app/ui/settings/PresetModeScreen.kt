@@ -1,5 +1,8 @@
 package com.digitscore.app.ui.settings
 
+import com.digitscore.app.ui.theme.tile
+import com.digitscore.app.ui.theme.DigitsTextSize
+import com.digitscore.app.ui.theme.DigitsShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,10 +18,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.BugReport
-import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.BugReport
+import androidx.compose.material.icons.rounded.Speed
 import android.os.Build
 import android.provider.Settings
 import android.content.Intent
@@ -77,9 +80,9 @@ import android.app.Activity
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material.icons.filled.Backup
-import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.rounded.Backup
+import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
@@ -177,16 +180,19 @@ fun PresetModeScreen(
     var showBugReport by remember { mutableStateOf(false) }
     var showDiagnosticsModal by remember { mutableStateOf(false) }
     var selectedDetail by remember { mutableStateOf<SettingsDetail?>(null) }
-    var selectedCategoryTab by remember { mutableStateOf(0) }
+    var selectedCategoryTab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     var hasOverlayPermission by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     var edgeLightingEnabled by remember { mutableStateOf(EdgeLightingOverlayManager.isEnabled(context)) }
     var managedTriggerMins by remember { mutableStateOf(EdgeLightingOverlayManager.getManagedTriggerMinutes(context)) }
     var studyTriggerMins by remember { mutableStateOf(EdgeLightingOverlayManager.getStudyTriggerMinutes(context)) }
+    var dynamicLauncherIconEnabled by remember {
+        mutableStateOf(com.digitscore.app.notification.LauncherIconManager.isEnabled(context))
+    }
 
-    var isEdgeLightingDetailExpanded by remember { mutableStateOf(false) }
-    var isSilentAlertDetailExpanded by remember { mutableStateOf(false) }
+    var isEdgeLightingDetailExpanded by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var isSilentAlertDetailExpanded by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -343,7 +349,7 @@ fun PresetModeScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = UiTranslator.translate("뒤로가기"),
                             tint = MaterialTheme.colorScheme.onBackground
                         )
@@ -365,13 +371,13 @@ fun PresetModeScreen(
             ) {
                 // 4개 폴더 탭 바 (가로 스크롤 없이 1/4씩 균등 분할)
                 val tabs = listOf(
-                    if (isEn) "General" else "화면·일반",
-                    if (isEn) "Scoring" else "점수·모드",
-                    if (isEn) "Alerts" else "알림·신호등",
-                    if (isEn) "Data" else "데이터·진단"
+                    if (isEn) "General" else "일반",
+                    if (isEn) "Scoring" else "점수",
+                    if (isEn) "Alerts" else "알림",
+                    if (isEn) "Data" else "데이터"
                 )
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
+                    shape = DigitsShape.md,
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -387,8 +393,8 @@ fun PresetModeScreen(
                         tabs.forEachIndexed { index, label ->
                             val isSelected = selectedCategoryTab == index
                             Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isSelected) MaterialTheme.colorScheme.surface else Color.Transparent,
+                                shape = DigitsShape.sm,
+                                color = if (isSelected) MaterialTheme.colorScheme.tile else Color.Transparent,
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable { selectedCategoryTab = index }
@@ -399,7 +405,7 @@ fun PresetModeScreen(
                                 ) {
                                     Text(
                                         text = label,
-                                        fontSize = 12.sp,
+                                        fontSize = DigitsTextSize.label,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                         color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
                                         maxLines = 1,
@@ -418,7 +424,7 @@ fun PresetModeScreen(
             if (selectedCategoryTab == 0) item {
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(
@@ -436,7 +442,7 @@ fun PresetModeScreen(
                                 modifier = Modifier.weight(1f),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Text(stringResource(R.string.language), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text(stringResource(R.string.language), fontWeight = FontWeight.Bold, fontSize = DigitsTextSize.body)
                                 ExposedDropdownMenuBox(
                                     expanded = isLanguageMenuExpanded,
                                     onExpandedChange = { isLanguageMenuExpanded = !isLanguageMenuExpanded }
@@ -463,7 +469,7 @@ fun PresetModeScreen(
                                             AppLocale.ENGLISH to stringResource(R.string.language_english)
                                         ).forEach { (code, label) ->
                                             DropdownMenuItem(
-                                                text = { Text(label, fontSize = 13.sp) },
+                                                text = { Text(label, fontSize = DigitsTextSize.body) },
                                                 onClick = {
                                                     isLanguageMenuExpanded = false
                                                     scope.launch {
@@ -483,7 +489,7 @@ fun PresetModeScreen(
                                 modifier = Modifier.weight(1f),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Text(stringResource(R.string.theme_mode), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text(stringResource(R.string.theme_mode), fontWeight = FontWeight.Bold, fontSize = DigitsTextSize.body)
                                 ExposedDropdownMenuBox(
                                     expanded = isThemeMenuExpanded,
                                     onExpandedChange = { isThemeMenuExpanded = !isThemeMenuExpanded }
@@ -514,7 +520,7 @@ fun PresetModeScreen(
                                                 AppThemeMode.DARK -> stringResource(R.string.theme_dark)
                                             }
                                             DropdownMenuItem(
-                                                text = { Text(label, fontSize = 13.sp) },
+                                                text = { Text(label, fontSize = DigitsTextSize.body) },
                                                 onClick = {
                                                     isThemeMenuExpanded = false
                                                     onThemeModeChanged(mode)
@@ -522,7 +528,7 @@ fun PresetModeScreen(
                                                 trailingIcon = if (themeMode == mode) {
                                                     {
                                                         Icon(
-                                                            imageVector = Icons.Default.Check,
+                                                            imageVector = Icons.Rounded.Check,
                                                             contentDescription = UiTranslator.translate("선택됨"),
                                                             tint = MaterialTheme.colorScheme.primary
                                                         )
@@ -547,7 +553,7 @@ fun PresetModeScreen(
                                 .padding(horizontal = 14.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text(if (isEn) "Widget Background" else "위젯 배경", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text(if (isEn) "Widget Background" else "위젯 배경", fontWeight = FontWeight.Bold, fontSize = DigitsTextSize.body)
                             val selectedWidgetBackground = WidgetBackgroundStyle.fromId(
                                 settings.widgetBackgroundStyleId
                             )
@@ -581,7 +587,7 @@ fun PresetModeScreen(
                                         WidgetBackgroundStyle.TRANSPARENT to "투명 배경"
                                     ).forEach { (style, label) ->
                                         DropdownMenuItem(
-                                            text = { Text(UiTranslator.translate(label), fontSize = 13.sp) },
+                                            text = { Text(UiTranslator.translate(label), fontSize = DigitsTextSize.body) },
                                             onClick = {
                                                 isWidgetBackgroundMenuExpanded = false
                                                 scope.launch {
@@ -596,7 +602,7 @@ fun PresetModeScreen(
                                             trailingIcon = if (selectedWidgetBackground == style) {
                                                 {
                                                     Icon(
-                                                        imageVector = Icons.Default.Check,
+                                                        imageVector = Icons.Rounded.Check,
                                                         contentDescription = UiTranslator.translate("선택됨"),
                                                         tint = MaterialTheme.colorScheme.primary
                                                     )
@@ -607,13 +613,50 @@ fun PresetModeScreen(
                                 }
                             }
                         }
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 14.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
+
+                        // 점수에 따라 바뀌는 런처 아이콘 (기본 꺼짐)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp)
+                                .padding(top = 12.dp, bottom = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                                Text(
+                                    if (isEn) "Score-colored app icon" else "점수 색상 앱 아이콘",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = DigitsTextSize.body
+                                )
+                                Text(
+                                    if (isEn) "Changes the launcher icon color (green/yellow/orange/red) at most once a day while the screen is off. Some launchers may remove the home-screen shortcut when the icon changes."
+                                    else "화면이 꺼져 있을 때 하루 최대 1회 런처 아이콘 색(녹/노/주/빨)을 바꿉니다. 일부 런처는 아이콘이 바뀔 때 홈 화면 바로가기를 지울 수 있습니다.",
+                                    fontSize = DigitsTextSize.label,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.padding(top = 3.dp)
+                                )
+                            }
+                            androidx.compose.material3.Switch(
+                                checked = dynamicLauncherIconEnabled,
+                                onCheckedChange = { enabled ->
+                                    dynamicLauncherIconEnabled = enabled
+                                    com.digitscore.app.notification.LauncherIconManager.setEnabled(context, enabled)
+                                }
+                            )
+                        }
                     }
                 }
             }
 
             if (selectedCategoryTab == 1) item {
                 SectionHeading(
-                    title = if (isEn) "Core Index Preset" else "코어 지수 프리셋",
+                    title = if (isEn) "Core Index Preset" else "점수 모드",
                     subtitle = if (isEn) "Select which signals matter most in your 24h usage pattern." else "최근 24시간 사용 흐름에서 중요하게 볼 항목을 선택합니다."
                 )
             }
@@ -621,7 +664,7 @@ fun PresetModeScreen(
             if (selectedCategoryTab == 1) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(
@@ -638,7 +681,7 @@ fun PresetModeScreen(
                                 value = UiTranslator.translate(selectedCoreIndexPreset.title(isEn)),
                                 onValueChange = {},
                                 readOnly = true,
-                                label = { Text(if (isEn) "Current Preset" else "현재 프리셋") },
+                                label = { Text(if (isEn) "Current Preset" else "현재 점수 모드") },
                                 trailingIcon = {
                                     ExposedDropdownMenuDefaults.TrailingIcon(
                                         expanded = isCoreIndexPresetMenuExpanded
@@ -661,19 +704,19 @@ fun PresetModeScreen(
                                                 ) {
                                                     Text(
                                                         text = UiTranslator.translate(preset.title(isEn)),
-                                                        fontWeight = FontWeight.SemiBold,
+                                                        fontWeight = FontWeight.Medium,
                                                         modifier = Modifier.weight(1f, fill = false),
                                                         maxLines = 1,
                                                         overflow = TextOverflow.Ellipsis
                                                     )
                                                     if (!isAvailable) {
                                                         Surface(
-                                                            shape = RoundedCornerShape(4.dp),
+                                                            shape = DigitsShape.xs,
                                                             color = MaterialTheme.colorScheme.surfaceVariant
                                                         ) {
                                                             Text(
                                                                 text = "Later",
-                                                                fontSize = 9.sp,
+                                                                fontSize = DigitsTextSize.micro,
                                                                 fontWeight = FontWeight.Bold,
                                                                 color = MaterialTheme.colorScheme.outline,
                                                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
@@ -685,7 +728,7 @@ fun PresetModeScreen(
                                                 }
                                                 Text(
                                                     text = if (isAvailable) preset.sensitivitySummary(isEn) else UiTranslator.translate("충분한 데이터 축적 후 추후 제공 예정"),
-                                                    fontSize = 11.sp,
+                                                    fontSize = DigitsTextSize.caption,
                                                     color = MaterialTheme.colorScheme.outline
                                                 )
                                             }
@@ -699,7 +742,7 @@ fun PresetModeScreen(
                                         trailingIcon = if (preset == selectedCoreIndexPreset) {
                                             {
                                                 Icon(
-                                                    imageVector = Icons.Default.Check,
+                                                    imageVector = Icons.Rounded.Check,
                                                     contentDescription = UiTranslator.translate("선택됨"),
                                                     tint = MaterialTheme.colorScheme.primary
                                                 )
@@ -712,14 +755,14 @@ fun PresetModeScreen(
 
                         Text(
                             selectedCoreIndexPreset.description(isEn),
-                            fontSize = 13.sp,
+                            fontSize = DigitsTextSize.body,
                             lineHeight = 18.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             selectedCoreIndexPreset.sensitivitySummary(isEn),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            fontSize = DigitsTextSize.label,
+                            fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
@@ -736,7 +779,7 @@ fun PresetModeScreen(
             if (selectedCategoryTab == 2) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(
@@ -758,15 +801,15 @@ fun PresetModeScreen(
                                     Text(
                                         text = if (isEn) "Traffic Light Edge Alert" else "화면 신호등 알림",
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp
+                                        fontSize = DigitsTextSize.bodyLarge
                                     )
                                     Surface(
-                                        shape = RoundedCornerShape(4.dp),
+                                        shape = DigitsShape.xs,
                                         color = MaterialTheme.colorScheme.primaryContainer
                                     ) {
                                         Text(
                                             text = if (isEn) "Beta" else "베타",
-                                            fontSize = 9.sp,
+                                            fontSize = DigitsTextSize.micro,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.onPrimaryContainer,
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -778,7 +821,7 @@ fun PresetModeScreen(
                                 Text(
                                     text = if (isEn) "Gently pulses the phone bezel in green or red when continuous use limits are reached."
                                     else "스마트폰 최외곽 베젤에서 초록불·빨간불 간접 조명으로 연속 사용 한도를 알려줍니다.",
-                                    fontSize = 12.sp,
+                                    fontSize = DigitsTextSize.label,
                                     lineHeight = 17.sp,
                                     color = MaterialTheme.colorScheme.outline
                                 )
@@ -812,7 +855,7 @@ fun PresetModeScreen(
                         if (!hasOverlayPermission) {
                             Text(
                                 text = if (isEn) "Requires 'Display over other apps' permission" else "'다른 앱 위에 표시' 권한 허용 필요",
-                                fontSize = 11.sp,
+                                fontSize = DigitsTextSize.caption,
                                 color = MaterialTheme.colorScheme.error,
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -846,38 +889,41 @@ fun PresetModeScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = if (isEn) "● Managed ${managedTriggerMins}min · ● Study ${studyTriggerMins}min"
-                                    else "● 관리 ${managedTriggerMins}min · ● 공부 ${studyTriggerMins}min",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold,
+                                    text = if (isEn) "Managed ${managedTriggerMins}min · Study ${studyTriggerMins}min"
+                                    else "관리 ${managedTriggerMins}min · 공부 ${studyTriggerMins}min",
+                                    fontSize = DigitsTextSize.label,
+                                    fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.primary
                                 )
                                 Text(
                                     text = if (isEdgeLightingDetailExpanded) {
-                                        if (isEn) "Hide ▲" else "접기 ▲"
+                                        if (isEn) "Hide" else "접기"
                                     } else {
-                                        if (isEn) "Customize ▼" else "시간·미리보기 ▼"
+                                        if (isEn) "Customize" else "시간·미리보기"
                                     },
-                                    fontSize = 12.sp,
+                                    fontSize = DigitsTextSize.label,
                                     color = MaterialTheme.colorScheme.outline
                                 )
                             }
 
                             if (isEdgeLightingDetailExpanded) {
-                                // 1) 빨간불 (몰입 관리 앱)
+                                // 1) 빨간불 (관리 앱)
                                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Text(
-                                        text = if (isEn) "● Managed Apps (Red Light) limit" else "● 몰입 관리 앱 (빨간불) 연속 한도",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
+                                        text = if (isEn) "Managed apps (red light) limit" else "관리 앱 (빨간불) 연속 한도",
+                                        fontSize = DigitsTextSize.label,
+                                        fontWeight = FontWeight.Medium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     val managedOptions = listOf(1, 5, 15, 30, 45, 60)
+                                    // 6개를 한 줄에 두면 칩 안 여백 때문에 "15min"이 "15n"처럼 잘립니다. 3개씩 두 줄로 둡니다.
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    managedOptions.chunked(3).forEach { rowOptions ->
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        managedOptions.forEach { m ->
+                                        rowOptions.forEach { m ->
                                             val labelText = if (m == 1 || m == 5) "${m}min*" else "${m}min"
                                             FilterChip(
                                                 selected = managedTriggerMins == m,
@@ -889,7 +935,7 @@ fun PresetModeScreen(
                                                 label = {
                                                     Text(
                                                         text = labelText,
-                                                        fontSize = 10.sp,
+                                                        fontSize = DigitsTextSize.label,
                                                         maxLines = 1,
                                                         softWrap = false,
                                                         modifier = Modifier.fillMaxWidth(),
@@ -899,22 +945,27 @@ fun PresetModeScreen(
                                             )
                                         }
                                     }
+                                    }
+                                    }
                                 }
 
                                 // 2) 초록불 (공부·독서 앱)
                                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Text(
-                                        text = if (isEn) "● Study & Reading (Green Light) limit" else "● 공부·독서 앱 (초록불) 집중 한도",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
+                                        text = if (isEn) "Study & reading (green light) limit" else "공부·독서 앱 (초록불) 연속 한도",
+                                        fontSize = DigitsTextSize.label,
+                                        fontWeight = FontWeight.Medium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     val studyOptions = listOf(1, 5, 30, 50, 60, 90)
+                                    // 6개를 한 줄에 두면 칩 안 여백 때문에 "15min"이 "15n"처럼 잘립니다. 3개씩 두 줄로 둡니다.
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    studyOptions.chunked(3).forEach { rowOptions ->
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        studyOptions.forEach { m ->
+                                        rowOptions.forEach { m ->
                                             val labelText = if (m == 1 || m == 5) "${m}min*" else "${m}min"
                                             FilterChip(
                                                 selected = studyTriggerMins == m,
@@ -926,7 +977,7 @@ fun PresetModeScreen(
                                                 label = {
                                                     Text(
                                                         text = labelText,
-                                                        fontSize = 10.sp,
+                                                        fontSize = DigitsTextSize.label,
                                                         maxLines = 1,
                                                         softWrap = false,
                                                         modifier = Modifier.fillMaxWidth(),
@@ -936,10 +987,12 @@ fun PresetModeScreen(
                                             )
                                         }
                                     }
+                                    }
+                                    }
                                     Text(
                                         text = if (isEn) "* 1min and 5min options are for testing.\n* Repeats every half-interval (${(managedTriggerMins / 2).coerceAtLeast(1)}min / ${(studyTriggerMins / 2).coerceAtLeast(1)}min) after the first alert."
                                                else "* 1min·5min은 동작 테스트용 옵션입니다.\n* 첫 점등 이후에도 계속 사용 시 설정 시간의 절반 간격(${(managedTriggerMins / 2).coerceAtLeast(1)}min / ${(studyTriggerMins / 2).coerceAtLeast(1)}min)마다 다시 알려줍니다.",
-                                        fontSize = 11.sp,
+                                        fontSize = DigitsTextSize.caption,
                                         color = MaterialTheme.colorScheme.outline
                                     )
                                 }
@@ -966,7 +1019,7 @@ fun PresetModeScreen(
                                     ) {
                                         Text(
                                             text = if (isEn) "Green Light Preview" else "초록불 미리보기",
-                                            fontSize = 11.sp,
+                                            fontSize = DigitsTextSize.caption,
                                             maxLines = 1,
                                             softWrap = false,
                                             overflow = TextOverflow.Ellipsis
@@ -989,7 +1042,7 @@ fun PresetModeScreen(
                                     ) {
                                         Text(
                                             text = if (isEn) "Red Light Preview" else "빨간불 미리보기",
-                                            fontSize = 11.sp,
+                                            fontSize = DigitsTextSize.caption,
                                             maxLines = 1,
                                             softWrap = false,
                                             overflow = TextOverflow.Ellipsis
@@ -1006,7 +1059,7 @@ fun PresetModeScreen(
             if (selectedCategoryTab == 2) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(
@@ -1026,15 +1079,15 @@ fun PresetModeScreen(
                                     Text(
                                         if (isEn) "Silent Status Alert" else "무음 상태바 경고",
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp
+                                        fontSize = DigitsTextSize.bodyLarge
                                     )
                                     Surface(
-                                        shape = RoundedCornerShape(4.dp),
+                                        shape = DigitsShape.xs,
                                         color = MaterialTheme.colorScheme.primaryContainer
                                     ) {
                                         Text(
                                             text = if (isEn) "Beta" else "베타",
-                                            fontSize = 9.sp,
+                                            fontSize = DigitsTextSize.micro,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.onPrimaryContainer,
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -1046,7 +1099,7 @@ fun PresetModeScreen(
                                 Text(
                                     if (isEn) "Silently posts a status notification without sound, vibration, or pop-ups."
                                     else "소리·진동·화면 가림 없이 상단 알림창에만 조용히 경고를 남깁니다.",
-                                    fontSize = 12.sp,
+                                    fontSize = DigitsTextSize.label,
                                     lineHeight = 17.sp,
                                     color = MaterialTheme.colorScheme.outline
                                 )
@@ -1078,19 +1131,19 @@ fun PresetModeScreen(
                             Text(
                                 text = if (isEn) "${selectedCoreIndexPreset.title(true)} criteria · ${rapidAlertConfig.scoreDrop}P drop in ${rapidAlertConfig.windowMinutes}min"
                                 else "${selectedCoreIndexPreset.title(isEn)} 기준 · ${rapidAlertConfig.windowMinutes}min 동안 ${rapidAlertConfig.scoreDrop}P 하락",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
+                                fontSize = DigitsTextSize.label,
+                                fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.weight(1f, fill = false)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = if (isSilentAlertDetailExpanded) {
-                                    if (isEn) "Hide ▲" else "접기 ▲"
+                                    if (isEn) "Hide" else "접기"
                                 } else {
-                                    if (isEn) "Details ▼" else "세부 설정 ▼"
+                                    if (isEn) "Details" else "세부 설정"
                                 },
-                                fontSize = 12.sp,
+                                fontSize = DigitsTextSize.label,
                                 color = MaterialTheme.colorScheme.outline
                             )
                         }
@@ -1099,15 +1152,15 @@ fun PresetModeScreen(
                             Text(
                                 text = if (isEn) "Or triggers if screen time reaches ${rapidAlertConfig.usageMinutes}min or continuous use reaches ${rapidAlertConfig.continuousMinutes}min in the same window."
                                 else "또는 같은 구간에서 화면 ${rapidAlertConfig.usageMinutes}min, 연속 사용 ${rapidAlertConfig.continuousMinutes}min에 도달하면 알려줍니다.",
-                                fontSize = 12.sp,
+                                fontSize = DigitsTextSize.label,
                                 lineHeight = 17.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
 
                             if (settings.usePresetRapidAlertDefaults) {
                                 Text(
-                                    text = if (isEn) "Preset defaults applied" else "프리셋 기본값 적용 중",
-                                    fontSize = 11.sp,
+                                    text = if (isEn) "Preset defaults applied" else "점수 모드 기본값 적용 중",
+                                    fontSize = DigitsTextSize.caption,
                                     color = MaterialTheme.colorScheme.outline
                                 )
                             } else {
@@ -1118,7 +1171,7 @@ fun PresetModeScreen(
                                 ) {
                                     Text(
                                         text = if (isEn) "Custom values applied" else "사용자 조정값 적용 중",
-                                        fontSize = 11.sp,
+                                        fontSize = DigitsTextSize.caption,
                                         color = MaterialTheme.colorScheme.outline
                                     )
                                     OutlinedButton(
@@ -1136,7 +1189,7 @@ fun PresetModeScreen(
                                             )
                                         }
                                     ) {
-                                        Text(if (isEn) "Restore Preset Defaults" else "프리셋 기본값으로 되돌리기")
+                                        Text(if (isEn) "Restore Preset Defaults" else "점수 모드 기본값으로 되돌리기")
                                     }
                                 }
                             }
@@ -1191,14 +1244,14 @@ fun PresetModeScreen(
             if (selectedCategoryTab == 2) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(if (isEn) "Status Bar Icon Style" else "상태바 아이콘 스타일", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(if (isEn) "Status Bar Icon Style" else "상태바 아이콘 스타일", fontWeight = FontWeight.Bold, fontSize = DigitsTextSize.bodyLarge)
                         val selectedIconStyle = StatusIconStyle.fromId(settings.statusIconStyleId)
                         ExposedDropdownMenuBox(
                             expanded = isStatusIconMenuExpanded,
@@ -1248,7 +1301,7 @@ fun PresetModeScreen(
                                         trailingIcon = if (selectedIconStyle == style) {
                                             {
                                                 Icon(
-                                                    imageVector = Icons.Default.Check,
+                                                    imageVector = Icons.Rounded.Check,
                                                     contentDescription = UiTranslator.translate("선택됨"),
                                                     tint = MaterialTheme.colorScheme.primary
                                                 )
@@ -1273,7 +1326,7 @@ fun PresetModeScreen(
                                     if (isEn) "Shows score digits right next to the power icon."
                                     else "전원 아이콘 옆에 점수 숫자를 나란히 표시합니다."
                             },
-                            fontSize = 12.sp,
+                            fontSize = DigitsTextSize.label,
                             lineHeight = 17.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
@@ -1281,10 +1334,10 @@ fun PresetModeScreen(
                 }
             }
 
-            // 1. 프리셋 모드 선택
+            // 1. 점수 모드 선택
             if (selectedCategoryTab == 1 && SHOW_LEGACY_SCORE_SETTINGS) item {
                 SectionHeading(
-                    title = "점수 프리셋 모드 선택",
+                    title = "점수 모드 선택",
                     subtitle = "생활 패턴에 맞는 기본값을 선택하고 아래에서 세부 조정합니다."
                 )
             }
@@ -1292,7 +1345,7 @@ fun PresetModeScreen(
             if (selectedCategoryTab == 1 && SHOW_LEGACY_SCORE_SETTINGS) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(
@@ -1309,7 +1362,7 @@ fun PresetModeScreen(
                                 value = UiTranslator.translate(selectedPreset.title),
                                 onValueChange = {},
                                 readOnly = true,
-                                label = { Text("현재 프리셋") },
+                                label = { Text("현재 점수 모드") },
                                 trailingIcon = {
                                     ExposedDropdownMenuDefaults.TrailingIcon(
                                         expanded = isPresetMenuExpanded
@@ -1331,7 +1384,7 @@ fun PresetModeScreen(
                                         trailingIcon = if (mode.id == selectedModeId) {
                                             {
                                                 Icon(
-                                                    imageVector = Icons.Default.Check,
+                                                    imageVector = Icons.Rounded.Check,
                                                     contentDescription = UiTranslator.translate("선택됨"),
                                                     tint = MaterialTheme.colorScheme.primary
                                                 )
@@ -1346,7 +1399,7 @@ fun PresetModeScreen(
 
                         Text(
                             text = selectedPreset.description,
-                            fontSize = 13.sp,
+                            fontSize = DigitsTextSize.body,
                             lineHeight = 18.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1358,7 +1411,7 @@ fun PresetModeScreen(
             if (selectedCategoryTab == 0) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Row(
@@ -1373,12 +1426,12 @@ fun PresetModeScreen(
                                 text = if (isEn) (if (settings.isTrackingEnabled) "Usage tracking is active" else "Usage tracking is off")
                                 else (if (settings.isTrackingEnabled) "사용 기록 추적 중" else "사용 기록 추적 중지됨"),
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
+                                fontSize = DigitsTextSize.bodyLarge
                             )
                             Text(
                                 text = if (isEn) "Turning this off stops background tracking and the status notification immediately."
                                 else "끄면 백그라운드 서비스와 상태바 점수 알림이 즉시 종료됩니다.",
-                                fontSize = 12.sp,
+                                fontSize = DigitsTextSize.label,
                                 color = MaterialTheme.colorScheme.outline,
                                 modifier = Modifier.padding(top = 3.dp)
                             )
@@ -1404,31 +1457,31 @@ fun PresetModeScreen(
                 }
             }
 
-            // 2. 개인 목표 방어선
+            // 2. 개인 목표 지수 방어선
 
             if (selectedCategoryTab == 1 && SHOW_LEGACY_SCORE_SETTINGS) item {
                 SectionHeading(
                     title = "개인 목표 기준선",
-                    subtitle = "점수 안내와 언락 기준을 본인의 생활 패턴에 맞춥니다."
+                    subtitle = "점수 안내와 잠금 해제 기준을 본인의 생활 패턴에 맞춥니다."
                 )
             }
 
             if (selectedCategoryTab == 1 && SHOW_LEGACY_SCORE_SETTINGS) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = if (isEn) "Minimum Score Defense: ${settings.minimumScoreDefenseLine}P" else "최저 점수 방어선: ${settings.minimumScoreDefenseLine}P",
+                            text = if (isEn) "Minimum Score Defense: ${settings.minimumScoreDefenseLine}P" else "최저 점수 지수 방어선: ${settings.minimumScoreDefenseLine}P",
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground,
-                            fontSize = 14.sp
+                            fontSize = DigitsTextSize.bodyLarge
                         )
                         Text(
                             text = "점수가 이 이하로 떨어지면 사용 균형 안내를 강조합니다.",
-                            fontSize = 12.sp,
+                            fontSize = DigitsTextSize.label,
                             color = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
                         )
@@ -1451,19 +1504,19 @@ fun PresetModeScreen(
             if (selectedCategoryTab == 1 && SHOW_LEGACY_SCORE_SETTINGS) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = if (isEn) "Daily Target Unlock Limit: ${settings.targetUnlockCount}x" else "일일 목표 언락 제한: ${settings.targetUnlockCount}x",
+                            text = if (isEn) "Daily Target Unlock Limit: ${settings.targetUnlockCount}x" else "일일 목표 잠금 해제 제한: ${settings.targetUnlockCount}x",
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground,
-                            fontSize = 14.sp
+                            fontSize = DigitsTextSize.bodyLarge
                         )
                         Text(
                             text = "이 횟수를 초과하여 스마트폰을 켤 때 페널티가 누적됩니다.",
-                            fontSize = 12.sp,
+                            fontSize = DigitsTextSize.label,
                             color = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
                         )
@@ -1487,7 +1540,7 @@ fun PresetModeScreen(
             if (selectedCategoryTab == 1) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Row(
@@ -1498,12 +1551,12 @@ fun PresetModeScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Surface(
-                            shape = RoundedCornerShape(4.dp),
+                            shape = DigitsShape.xs,
                             color = MaterialTheme.colorScheme.secondaryContainer
                         ) {
                             Text(
                                 text = if (isEn) "Later" else "추후 지원",
-                                fontSize = 10.sp,
+                                fontSize = DigitsTextSize.tiny,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -1514,7 +1567,7 @@ fun PresetModeScreen(
                         Text(
                             text = if (isEn) "Custom weight fine-tuning will be available in a future update."
                             else "개인별 가중치 미세조정 기능은 데이터 축적 후 추후 업데이트에서 지원됩니다.",
-                            fontSize = 11.5.sp,
+                            fontSize = DigitsTextSize.label,
                             lineHeight = 16.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
@@ -1533,7 +1586,7 @@ fun PresetModeScreen(
             if (selectedCategoryTab == 3) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(
@@ -1546,7 +1599,7 @@ fun PresetModeScreen(
                             } else {
                                 "기존 기록을 보호하기 위해 이번 실행에서는 호환 모드로 열었습니다. 백업 파일은 계속 사용자 비밀번호로 암호화됩니다."
                             },
-                            fontSize = 12.sp,
+                            fontSize = DigitsTextSize.label,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
@@ -1555,18 +1608,18 @@ fun PresetModeScreen(
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.errorContainer
                                 ),
-                                shape = RoundedCornerShape(12.dp)
+                                shape = DigitsShape.md
                             ) {
                                 Column(modifier = Modifier.padding(12.dp)) {
                                     Text(
                                         "DB 암호화 호환 모드",
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
+                                        fontSize = DigitsTextSize.body,
                                         color = MaterialTheme.colorScheme.onErrorContainer
                                     )
                                     Text(
                                         "기록 손실과 실행 중단을 막기 위해 기존 DB를 그대로 사용하고 있습니다. 앱을 다시 시작하면 암호화를 재시도합니다.",
-                                        fontSize = 11.sp,
+                                        fontSize = DigitsTextSize.caption,
                                         color = MaterialTheme.colorScheme.onErrorContainer
                                     )
                                 }
@@ -1575,21 +1628,21 @@ fun PresetModeScreen(
 
                         Card(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = DigitsShape.md
                         ) {
                             Column(
                                 modifier = Modifier.fillMaxWidth().padding(12.dp),
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Text("기록 보존 방식", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                Text("기록 보존 방식", fontWeight = FontWeight.Medium, fontSize = DigitsTextSize.body)
                                 Text(
                                     "앱별 시작·종료 상세와 5분 단위 코어 지수 표본은 30일, 시간별·날짜별 집계는 365일 보관합니다.",
-                                    fontSize = 11.sp,
+                                    fontSize = DigitsTextSize.caption,
                                     color = MaterialTheme.colorScheme.outline
                                 )
                                 Text(
                                     "30일을 넘겨 상세 기록을 보관하려면 만료 전에 암호화 백업을 저장하세요.",
-                                    fontSize = 11.sp,
+                                    fontSize = DigitsTextSize.caption,
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
@@ -1601,10 +1654,10 @@ fun PresetModeScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("잠금 화면에서 상세 정보 숨기기", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                Text("잠금 화면에서 상세 정보 숨기기", fontWeight = FontWeight.Medium, fontSize = DigitsTextSize.body)
                                 Text(
-                                    "점수·화면시간·언락 횟수를 잠금 해제 전에는 표시하지 않습니다.",
-                                    fontSize = 11.sp,
+                                    "점수·화면 시간·잠금 해제 횟수를 잠금 해제 전에는 표시하지 않습니다.",
+                                    fontSize = DigitsTextSize.caption,
                                     color = MaterialTheme.colorScheme.outline
                                 )
                             }
@@ -1628,11 +1681,11 @@ fun PresetModeScreen(
                             Button(
                                 onClick = { showBackupPasswordDialog = true },
                                 modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(10.dp),
+                                shape = DigitsShape.md,
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                             ) {
-                                Icon(imageVector = Icons.Default.Backup, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
-                                Text(text = "암호화 백업", fontSize = 13.sp)
+                                Icon(imageVector = Icons.Rounded.Backup, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
+                                Text(text = "암호화 백업", fontSize = DigitsTextSize.body)
                             }
 
                             // 3) 데이터 복원
@@ -1641,11 +1694,11 @@ fun PresetModeScreen(
                                     importLauncher.launch("*/*")
                                 },
                                 modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                                shape = DigitsShape.md,
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer)
                             ) {
-                                Icon(imageVector = Icons.Default.Restore, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
-                                Text(text = "데이터 복원", fontSize = 13.sp)
+                                Icon(imageVector = Icons.Rounded.Restore, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
+                                Text(text = "데이터 복원", fontSize = DigitsTextSize.body)
                             }
                         }
 
@@ -1656,7 +1709,7 @@ fun PresetModeScreen(
                                 contentColor = MaterialTheme.colorScheme.error
                             )
                         ) {
-                            Icon(Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
+                            Icon(Icons.Rounded.DeleteForever, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
                             Text("모든 사용 기록 즉시 삭제")
                         }
                     }
@@ -1678,11 +1731,11 @@ fun PresetModeScreen(
                             selectedDetail = SettingsDetail(
                                 title = "DigitsCore",
                                 value = "v${BuildConfig.VERSION_NAME} · ${BuildConfig.BUILD_DATE}",
-                                description = "디지털 사용 습관을 전면 앱 사용시간과 언락 기록으로 분석합니다.",
+                                description = "디지털 사용 습관을 전면 앱 사용 시간과 잠금 해제 기록으로 분석합니다.",
                                 supportingText = "개인정보 처리 방식은 아래 개인정보 처리 안내에서 확인할 수 있습니다."
                             )
                         },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Row(
@@ -1696,19 +1749,19 @@ fun PresetModeScreen(
                             Text(
                                 text = "DigitsCore",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
+                                fontSize = DigitsTextSize.bodyLarge
                             )
                             Text(
                                 text = "디지털 사용 습관 점수 관리",
-                                fontSize = 12.sp,
+                                fontSize = DigitsTextSize.label,
                                 color = MaterialTheme.colorScheme.outline
                             )
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = "v${BuildConfig.VERSION_NAME} · ${BuildConfig.BUILD_DATE}",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
+                                fontSize = DigitsTextSize.label,
+                                fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.primary
                             )
                             DetailChevron()
@@ -1721,7 +1774,7 @@ fun PresetModeScreen(
                 OutlinedButton(
                     onClick = { showPrivacyPolicy = true },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp)
+                    shape = DigitsShape.md
                 ) {
                     Text("개인정보 처리 안내")
                 }
@@ -1735,18 +1788,18 @@ fun PresetModeScreen(
                     OutlinedButton(
                         onClick = { showBugReport = true },
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = DigitsShape.md
                     ) {
-                        Icon(Icons.Default.BugReport, contentDescription = null)
-                        Text("버그 리포트", modifier = Modifier.padding(start = 6.dp), fontSize = 12.sp)
+                        Icon(Icons.Rounded.BugReport, contentDescription = null)
+                        Text("버그 리포트", modifier = Modifier.padding(start = 6.dp), fontSize = DigitsTextSize.label)
                     }
                     OutlinedButton(
                         onClick = { showDiagnosticsModal = true },
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = DigitsShape.md
                     ) {
-                        Icon(Icons.Default.Speed, contentDescription = null)
-                        Text("측정 상태 진단", modifier = Modifier.padding(start = 6.dp), fontSize = 12.sp)
+                        Icon(Icons.Rounded.Speed, contentDescription = null)
+                        Text("측정 상태 진단", modifier = Modifier.padding(start = 6.dp), fontSize = DigitsTextSize.label)
                     }
                 }
             }
@@ -1854,7 +1907,7 @@ fun PresetModeScreen(
             onDismissRequest = { showDeleteHistoryConfirmation = false },
             title = { Text("모든 사용 기록을 삭제할까요?", fontWeight = FontWeight.Bold) },
             text = {
-                Text("앱별 365일 기록, 점수 기록과 언락 통계가 삭제되고 추적이 중지됩니다. 앱 등급과 점수 설정은 유지되며 이 작업은 되돌릴 수 없습니다.")
+                Text("앱별 365일 기록, 점수 기록과 잠금 해제 통계가 삭제되고 추적이 중지됩니다. 앱 등급과 점수 설정은 유지되며 이 작업은 되돌릴 수 없습니다.")
             },
             confirmButton = {
                 Button(
@@ -1893,11 +1946,11 @@ private fun RapidAlertSlider(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(title, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(title, fontSize = DigitsTextSize.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
                 valueLabel,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontSize = DigitsTextSize.label,
+                fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.primary
             )
         }
@@ -1944,7 +1997,7 @@ private fun BackupPasswordDialog(
                 Text(
                     if (isEn) "Passwords are not stored in the app or server and are only used for backup encryption (PBKDF2 + AES-256-GCM). Data cannot be recovered if lost."
                     else "비밀번호는 앱이나 서버에 저장되지 않고 백업 파일 암호화(PBKDF2 + AES-256-GCM)에만 사용됩니다. 분실하면 복원할 수 없습니다.",
-                    fontSize = 12.sp,
+                    fontSize = DigitsTextSize.label,
                     lineHeight = 16.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

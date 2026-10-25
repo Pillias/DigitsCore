@@ -25,3 +25,10 @@ keystore/
 ci_download/
 decrypted_backup.json
 stock_data.json
+*.patch
+app/src.zip
+build-log.txt
+Claude outputs/
+
+# 에뮬레이터 개발 작업 로그
+scripts/dev/out/

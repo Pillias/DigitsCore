@@ -1,7 +1,7 @@
 package com.digitscore.app.model
 
 /**
- * 사전 정의된 점수 프리셋 모드
+ * 사전 정의된 점수 모드
  */
 enum class PresetMode(
     val id: String,
@@ -57,7 +57,7 @@ enum class PresetMode(
         id = "worker",
         koreanTitle = "직장인 / 집중 모드",
         englishTitle = "Work / Focus Mode",
-        koreanDescription = "국내 평균 사용시간 기준 약 60점이 되도록 보정한 모드",
+        koreanDescription = "국내 평균 사용 시간 기준 약 60점이 되도록 보정한 모드",
         englishDescription = "Calibrated around typical adult workday phone use",
         scoreRule = ScoreRule(
             distractingWeightPerMinute = 0.62f,

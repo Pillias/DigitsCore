@@ -3,7 +3,17 @@ package com.digitscore.app.ui.statistics
 import com.digitscore.app.data.*
 import com.digitscore.app.data.entity.*
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
+
+/** 논리적 하루는 05:00에 시작합니다 (00:00~04:59는 전날로 집계). */
+internal const val LOGICAL_DAY_START_HOUR = 5
+
+internal fun logicalDate(time: Long, zone: ZoneId = ZoneId.systemDefault()): LocalDate =
+    Instant.ofEpochMilli(time).atZone(zone).minusHours(LOGICAL_DAY_START_HOUR.toLong()).toLocalDate()
+
+internal fun logicalDayStartMillis(date: LocalDate, zone: ZoneId = ZoneId.systemDefault()): Long =
+    date.atTime(LOGICAL_DAY_START_HOUR, 0).atZone(zone).toInstant().toEpochMilli()
 
 internal data class ExplorerBucket(
     val start: Long, val end: Long, val score: ScoreHourEntity?,
@@ -17,8 +27,7 @@ internal fun explorerBuckets(
     histories: List<DailyScoreHistoryEntity> = emptyList(), zone: ZoneId = ZoneId.systemDefault()
 ): List<ExplorerBucket> {
     if (end <= start) return emptyList()
-    fun key(time: Long): Long = if (daily) Instant.ofEpochMilli(time).atZone(zone).toLocalDate()
-        .atStartOfDay(zone).toInstant().toEpochMilli() else statisticHour(time)
+    fun key(time: Long): Long = if (daily) logicalDayStartMillis(logicalDate(time, zone), zone) else statisticHour(time)
     val usesBy = usage.filter { it.packageName.isEmpty() }.groupBy { key(it.hour) }
     val scoresBy = scores.groupBy { key(it.hour) }
     val impactsBy = impacts.filter { it.packageName.isEmpty() }.groupBy { key(it.hour) }
@@ -26,13 +35,12 @@ internal fun explorerBuckets(
     val result = mutableListOf<ExplorerBucket>()
     var cursor = key(start)
     while (cursor < end) {
-        val next = if (daily) Instant.ofEpochMilli(cursor).atZone(zone).toLocalDate().plusDays(1)
-            .atStartOfDay(zone).toInstant().toEpochMilli() else cursor + STAT_HOUR
+        val next = if (daily) logicalDayStartMillis(logicalDate(cursor, zone).plusDays(1), zone) else cursor + STAT_HOUR
         val rows = usesBy[cursor].orEmpty()
         val allScores = scoresBy[cursor].orEmpty().sortedBy { it.lastAt }
         val model = allScores.lastOrNull()?.model
         val matching = allScores.filter { it.model == model }.sortedBy { it.firstAt }
-        val history = if (daily) historyBy[Instant.ofEpochMilli(cursor).atZone(zone).toLocalDate().toString()] else null
+        val history = if (daily) historyBy[logicalDate(cursor, zone).toString()] else null
         val score = matching.takeIf { it.isNotEmpty() }?.let {
             ScoreHourEntity(cursor, it.first().model, it.first().firstAt, it.last().lastAt,
                 it.first().first, it.last().last, it.minOf { r -> r.low }, it.maxOf { r -> r.high })
@@ -54,6 +62,13 @@ internal fun explorerBuckets(
     }
     return result
 }
+
+/**
+ * 기간 화면의 모든 '일 평균' 분모: 사용 또는 잠금 해제 기록이 있는 날 수(오늘 포함).
+ * 측정하지 않은 날(설치 전·추적 중지)을 0분 사용으로 세지 않습니다.
+ */
+internal fun recordedDayCount(buckets: List<ExplorerBucket>): Int =
+    buckets.count { it.usage != null || it.unlocks != null }.coerceAtLeast(1)
 
 internal fun explorerWeekdayBuckets(
     dailyBuckets: List<ExplorerBucket>,
@@ -145,7 +160,7 @@ internal fun explorerApps(
     // For long periods, daily rows supply historical dates whose hourly archive did not exist yet.
     val zone = ZoneId.systemDefault()
     val knownDates = hours.filter { it.packageName.isEmpty() }.map {
-        Instant.ofEpochMilli(it.hour).atZone(zone).toLocalDate().toString()
+        logicalDate(it.hour, zone).toString()
     }.toSet()
     return (hourApps.keys + lossApps.keys + if (useDailyFallback) days.keys else emptySet()).map { pkg ->
         val rows = hourApps[pkg].orEmpty()

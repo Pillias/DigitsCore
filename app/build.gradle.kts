@@ -12,6 +12,19 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+/** 디버그 빌드 번호를 접미사로 바꿉니다: 0 → "", 1 → a, 26 → z, 27 → aa */
+fun debugSuffix(n: Int): String {
+    if (n <= 0) return ""
+    val sb = StringBuilder()
+    var x = n
+    while (x > 0) {
+        x -= 1
+        sb.append('a' + (x % 26))
+        x /= 26
+    }
+    return sb.reverse().toString()
+}
+
 android {
     namespace = "com.digitscore.app"
     compileSdk = 36
@@ -27,39 +40,66 @@ android {
         ?.takeIf { System.getenv("GITHUB_REF_TYPE") == "tag" && it.startsWith("v") }
         ?.removePrefix("v")
 
-    val isAssemble = gradle.startParameter.taskNames.any {
-        it.contains("assemble", ignoreCase = true) || it.contains("bundle", ignoreCase = true)
+    val buildTasks = gradle.startParameter.taskNames.map { it.substringAfterLast(':') }.filter {
+        it.contains("assemble", ignoreCase = true) || it.contains("bundle", ignoreCase = true) ||
+            it.startsWith("install", ignoreCase = true)
+    }
+    val isAssemble = buildTasks.isNotEmpty()
+    // 변형 이름이 없는 assemble/bundle은 release도 만들므로 릴리스로 봅니다.
+    val isReleaseBuild = buildTasks.any {
+        it.contains("release", ignoreCase = true) || it.equals("assemble", true) || it.equals("bundle", true)
     }
 
-    // CI 태그 빌드가 아니고, APK/AAB 어셈블 작업을 수행할 때 자동으로 PATCH 버전을 1 올리고 파일에 저장합니다.
+    // 버전 규칙 (CI 태그 빌드는 태그 버전을 그대로 사용):
+    // - 릴리스 빌드: PATCH와 VERSION_CODE를 1 올리고 접미사를 지웁니다. 예) 0.9.33c → 0.9.34
+    // - 디버그 빌드: 숫자는 그대로 두고 접미사만 올립니다. 예) 0.9.33 → 0.9.33a → 0.9.33b
+    //   (Play versionCode는 릴리스에만 쓰여 0.9.x 상한을 소모하지 않습니다.)
     val alreadyBumpedKey = "DIGITSCORE_VERSION_BUMPED"
     val alreadyBumped = rootProject.extra.has(alreadyBumpedKey)
-    val shouldAutoBump = isAssemble && tagVersion == null && !project.hasProperty("noAutoBump") && !alreadyBumped
+    val shouldAutoBump = isAssemble && tagVersion == null && !alreadyBumped
 
     val versionMajor = versionProps.getProperty("MAJOR", "0").toIntOrNull() ?: 0
     val versionMinor = versionProps.getProperty("MINOR", "9").toIntOrNull() ?: 9
     var versionPatch = versionProps.getProperty("PATCH", "0").toIntOrNull() ?: 0
     var versionCodeVal = versionProps.getProperty("VERSION_CODE", "1000").toIntOrNull() ?: 1000
+    var debugBuild = versionProps.getProperty("DEBUG_BUILD", "0").toIntOrNull()?.coerceAtLeast(0) ?: 0
 
     if (shouldAutoBump) {
         rootProject.extra.set(alreadyBumpedKey, true)
-        versionPatch += 1
-        versionCodeVal += 1
+        if (isReleaseBuild) {
+            versionPatch += 1
+            versionCodeVal += 1
+            debugBuild = 0
+        } else {
+            debugBuild += 1
+        }
         versionProps.setProperty("PATCH", versionPatch.toString())
         versionProps.setProperty("VERSION_CODE", versionCodeVal.toString())
+        versionProps.setProperty("DEBUG_BUILD", debugBuild.toString())
         try {
             FileOutputStream(versionPropsFile).use { fos ->
                 versionProps.store(fos, "DigitsCore Version Configuration")
             }
-            logger.lifecycle(">> [Auto-Versioning] Automatically bumped to $versionMajor.$versionMinor.$versionPatch (code: $versionCodeVal) in version.properties")
+            logger.lifecycle(">> [Auto-Versioning] ${if (isReleaseBuild) "Release" else "Debug"} build -> $versionMajor.$versionMinor.$versionPatch${debugSuffix(debugBuild)} (code: $versionCodeVal)")
         } catch (e: Exception) {
             logger.warn(">> [Auto-Versioning] Failed to auto-bump version.properties: ${e.message}")
         }
     }
 
+    // 0.x 트랙의 versionCode는 MINOR*100+PATCH라 PATCH 100부터 1.0.0(1000)과 겹칩니다.
+    if (isAssemble && tagVersion == null && versionMajor == 0 && versionPatch > 99) {
+        throw GradleException(
+            "버전 $versionMajor.$versionMinor.$versionPatch: 0.x 트랙 PATCH 상한(99)을 넘었습니다. " +
+                "versionCode가 1.0.0과 겹치므로 version.properties에서 1.0.0 전환(MAJOR=1, MINOR=0, PATCH=0) 또는 MINOR 변경이 필요합니다."
+        )
+    }
+
     val defaultVersion = "$versionMajor.$versionMinor.$versionPatch"
-    val finalVersionName = tagVersion ?: defaultVersion
-    val versionParts = finalVersionName.split(".").mapNotNull { it.toIntOrNull() }
+    val numericVersionName = tagVersion ?: defaultVersion
+    // 디버그 접미사는 표시용 이름에만 붙고 versionCode 계산에는 쓰지 않습니다.
+    val finalVersionName = if (tagVersion != null || isReleaseBuild) numericVersionName
+        else numericVersionName + debugSuffix(debugBuild)
+    val versionParts = numericVersionName.split(".").mapNotNull { it.toIntOrNull() }
     val calculatedVersionCode = if (versionParts.size >= 3 && versionParts[0] == 0) {
         // 0.9.x 베타 트랙: 1000 안쪽 (900 + patch)
         versionParts[1] * 100 + versionParts[2]
@@ -97,15 +137,21 @@ android {
             enableV3Signing = true
             enableV4Signing = false
         }
+        // 업로드 키 비밀번호는 저장소에 두지 않습니다. CI는 환경변수, 로컬은 git에서 제외된
+        // local.properties(digitscore.upload.*)에서 읽습니다.
+        val localSigningProps = Properties().apply {
+            val file = rootProject.file("local.properties")
+            if (file.exists()) FileInputStream(file).use { load(it) }
+        }
+        fun signingValue(envKey: String, localKey: String): String? =
+            System.getenv(envKey)?.takeIf { it.isNotBlank() }
+                ?: localSigningProps.getProperty(localKey)?.takeIf { it.isNotBlank() }
         val localKeystore = rootProject.file("keystore/digitscore-upload.jks")
-        val uploadStorePath = System.getenv("DIGITSCORE_UPLOAD_STORE_FILE")
+        val uploadStorePath = signingValue("DIGITSCORE_UPLOAD_STORE_FILE", "digitscore.upload.storeFile")
             ?: (if (localKeystore.exists()) localKeystore.absolutePath else null)
-        val uploadStorePassword = System.getenv("DIGITSCORE_UPLOAD_STORE_PASSWORD")
-            ?: if (localKeystore.exists()) "digitscore2026" else null
-        val uploadKeyAlias = System.getenv("DIGITSCORE_UPLOAD_KEY_ALIAS")
-            ?: if (localKeystore.exists()) "digitscore-upload" else null
-        val uploadKeyPassword = System.getenv("DIGITSCORE_UPLOAD_KEY_PASSWORD")
-            ?: if (localKeystore.exists()) "digitscore2026" else null
+        val uploadStorePassword = signingValue("DIGITSCORE_UPLOAD_STORE_PASSWORD", "digitscore.upload.storePassword")
+        val uploadKeyAlias = signingValue("DIGITSCORE_UPLOAD_KEY_ALIAS", "digitscore.upload.keyAlias")
+        val uploadKeyPassword = signingValue("DIGITSCORE_UPLOAD_KEY_PASSWORD", "digitscore.upload.keyPassword")
         if (!uploadStorePath.isNullOrBlank() &&
             !uploadStorePassword.isNullOrBlank() &&
             !uploadKeyAlias.isNullOrBlank() &&
@@ -137,6 +183,8 @@ android {
         debug {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("debug")
+            // Play 테스트 버전과 나란히 설치되도록 debug 빌드는 별도 패키지로 만듭니다.
+            applicationIdSuffix = ".debug"
         }
     }
     compileOptions {

@@ -251,7 +251,7 @@ abstract class DigitsDatabase : RoomDatabase() {
 
         internal val MIGRATION_13_14 = object : Migration(13, 14) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // 사용자 선택과 과거 상세 기록을 5단계에서 성장/균형/몰입 관리 3단계로 통합합니다.
+                // 사용자 선택과 과거 상세 기록을 5단계에서 성장/균형/관리 3단계로 통합합니다.
                 db.execSQL(
                     """UPDATE app_weights SET categoryType = CASE categoryType
                        WHEN 'MILDLY_PRODUCTIVE' THEN 'PRODUCTIVE'
@@ -594,9 +594,9 @@ abstract class DigitsDatabase : RoomDatabase() {
                 )
             )
 
-            // 2. 대표적인 앱들에 대한 기본 카테고리 프리셋 시딩
+            // 2. 대표적인 앱들에 대한 기본 카테고리 점수 모드 시딩
             val initialAppWeights = listOf(
-                // 몰입 관리: SNS·뉴스·쇼핑·게임·동영상·음악처럼 흐름이 길어지기 쉬운 앱
+                // 관리: SNS·뉴스·쇼핑·게임·동영상·음악처럼 흐름이 길어지기 쉬운 앱
                 AppWeightEntity("com.instagram.android", "Instagram", AppCategoryType.DISTRACTING),
                 AppWeightEntity("com.facebook.katana", "Facebook", AppCategoryType.DISTRACTING),
                 AppWeightEntity("com.twitter.android", "X (Twitter)", AppCategoryType.DISTRACTING),

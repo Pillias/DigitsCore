@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.Intent
 
 /**
- * 화면 켜짐/꺼짐, 사용자 잠금 해제(언락) 및 시간대/시각 변경 이벤트를 수신하는 리시버
+ * 화면 켜짐/꺼짐, 사용자 잠금 해제(잠금 해제) 및 시간대/시각 변경 이벤트를 수신하는 리시버
  */
 class ScreenEventReceiver(
     private val onScreenOn: () -> Unit,

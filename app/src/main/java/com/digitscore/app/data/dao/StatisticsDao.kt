@@ -51,6 +51,12 @@ interface StatisticsDao {
     suspend fun pruneScores(before: Long)
     @Query("DELETE FROM score_impact_hourly WHERE hour < :before")
     suspend fun pruneImpacts(before: Long)
+    @Query("DELETE FROM usage_hourly WHERE hour > :after") suspend fun deleteUsageAfter(after: Long)
+    /** 미래 시간대 행과, 시계 역행 전 미래 시각까지 정산된 행(lastAt이 현재보다 뒤)을 지웁니다. */
+    @Query("DELETE FROM score_hourly WHERE hour > :afterHour OR lastAt > :nowMillis")
+    suspend fun deleteScoresFrom(afterHour: Long, nowMillis: Long)
+    @Query("DELETE FROM score_impact_hourly WHERE hour > :afterHour OR lastAt > :nowMillis")
+    suspend fun deleteImpactsFrom(afterHour: Long, nowMillis: Long)
     @Query("DELETE FROM usage_hourly") suspend fun deleteUsage()
     @Query("DELETE FROM score_hourly") suspend fun deleteScores()
     @Query("DELETE FROM score_impact_hourly") suspend fun deleteImpacts()

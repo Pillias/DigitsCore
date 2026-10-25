@@ -2,4 +2,6 @@
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@drawable/ic_launcher_background" />
     <foreground android:drawable="@drawable/ic_launcher_foreground_orange" />
+    <!-- Android 13+ 테마 아이콘: 전경 이미지의 모양(알파)만 써서 시스템 색으로 그립니다. -->
+    <monochrome android:drawable="@drawable/ic_launcher_foreground_orange" />
 </adaptive-icon>

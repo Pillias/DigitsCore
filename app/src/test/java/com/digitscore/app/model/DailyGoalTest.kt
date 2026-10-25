@@ -223,7 +223,20 @@ class DailyGoalTest {
         assertFalse(expiredState.isFreePassActive)
         assertEquals(0L, expiredState.remainingFreePassSeconds)
     }
+
+    @Test
+    fun otherGoalValuesDoNotLeakIntoProgress() {
+        val goal = DailyGoal(
+            dateString = "2026-10-20",
+            targetPackageName = "com.google.android.youtube",
+            appLimitMinutes = 30,
+            currentAppUsageMinutes = 12,
+            unlockLimitTarget = 40,
+            currentUnlockCount = 0
+        )
+        assertEquals(0f, goal.unlockProgressRatio, 0.0001f)
+        val noApp = DailyGoal(dateString = "2026-10-20", unlockLimitTarget = 40, currentUnlockCount = 55)
+        assertTrue(noApp.isAppLimitAchieved)
+        assertEquals(0f, noApp.appProgressRatio, 0.0001f)
+    }
 }
-
-
-

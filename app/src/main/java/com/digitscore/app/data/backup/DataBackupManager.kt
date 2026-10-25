@@ -251,7 +251,7 @@ object DataBackupManager {
         rootJson.put("coreIndexSamples", samplesArray)
         rootJson.put("hourlyStatistics", StatisticsBackup.export(db))
 
-        // 7. 최근 48시간 잠금해제 및 상호작용 이벤트
+        // 7. 최근 48시간 잠금 해제 및 상호작용 이벤트
         val now = System.currentTimeMillis()
         val interactionEvents = db.deviceInteractionEventDao().getBetween(now - 48 * 3_600_000L, now)
         val interactionArray = JSONArray()
@@ -339,7 +339,9 @@ object DataBackupManager {
                         productiveTimeMinutes = hObj.getLong("productiveTimeMinutes").coerceIn(0L, 1_440L),
                         idleMinutes = hObj.getLong("idleMinutes").coerceIn(0L, 1_440L),
                         unlockCount = hObj.getInt("unlockCount").coerceIn(0, 10_000),
-                        scoreModelVersion = hObj.optInt("scoreModelVersion", 1).coerceIn(1, 5),
+                        // 이후 모델 번호가 올라가도 복원 시 잘리지 않게 현재 번호를 상한으로 씁니다.
+                        scoreModelVersion = hObj.optInt("scoreModelVersion", 1)
+                            .coerceIn(1, com.digitscore.app.engine.ScoreModel.CURRENT_STORED),
                         coreIndexPresetId = CoreIndexPreset.fromId(
                             hObj.optString("coreIndexPresetId", CoreIndexPreset.BALANCED.id)
                         ).id,
@@ -569,7 +571,8 @@ object DataBackupManager {
                                     .coerceIn(1.0, 100.0),
                                 rollingLoad = obj.optDouble("rollingLoad", 0.0).coerceAtLeast(0.0),
                                 acuteLoad = obj.optDouble("acuteLoad", 0.0).coerceAtLeast(0.0),
-                                scoreModelVersion = obj.optInt("scoreModelVersion", 4).coerceIn(1, 5),
+                                scoreModelVersion = obj.optInt("scoreModelVersion", 4)
+                                    .coerceIn(1, com.digitscore.app.engine.ScoreModel.CURRENT_STORED),
                                 presetId = CoreIndexPreset.fromId(
                                     obj.optString("presetId", CoreIndexPreset.BALANCED.id)
                                 ).id

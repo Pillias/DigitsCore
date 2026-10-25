@@ -118,12 +118,27 @@ class CumulativeScoreEngineTest {
         // 50분 사용: 점수 변화 없음 (감점도 회복도 없음)
         val after50 = CumulativeScoreEngine.advance(initial, CumulativeActivity.EXEMPT_STUDY, 50.0)
         assertEquals(75.0, after50.signal, 1e-9)
-        assertEquals(50.0, after50.exemptMomentumMinutes, 1e-9)
+        assertEquals(50.0, after50.studyMomentumMinutes, 1e-9)
+        assertEquals(0.0, after50.exemptMomentumMinutes, 1e-9)
         assertEquals(0.0, after50.awakeRestMinutes, 0.0)
 
         // 50분 초과 시점부터 일반 감점 시작
         val after70 = CumulativeScoreEngine.advance(after50, CumulativeActivity.EXEMPT_STUDY, 20.0)
         assertTrue("Score should decrease after 50 minutes of study exempt use", after70.signal < after50.signal)
-        assertEquals(70.0, after70.exemptMomentumMinutes, 1e-9)
+        assertEquals(70.0, after70.studyMomentumMinutes, 1e-9)
+    }
+
+    @Test fun studyAndUtilityExemptCountersAreIndependent() {
+        val studied = CumulativeScoreEngine.advance(CumulativeScoreState(signal = 75.0), CumulativeActivity.EXEMPT_STUDY, 40.0)
+        val utility = CumulativeScoreEngine.advance(studied, CumulativeActivity.EXEMPT_UTILITY, 10.0)
+        assertEquals(75.0, utility.signal, 1e-9)
+        assertEquals(40.0, utility.studyMomentumMinutes, 1e-9)
+        assertEquals(10.0, utility.exemptMomentumMinutes, 1e-9)
+    }
+
+    @Test fun scoreModelStoredVersionTracksConfigVersion() {
+        assertEquals(ScoreModel.CURRENT_STORED, ScoreModel.current)
+        assertEquals(5, ScoreModel.storedVersion(2))
+        assertEquals(6, ScoreModel.storedVersion(3))
     }
 }

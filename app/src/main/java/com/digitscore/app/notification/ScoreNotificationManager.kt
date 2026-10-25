@@ -35,8 +35,9 @@ object ScoreNotificationManager {
     const val GOAL_CHANNEL_ID = "digitscore_goal_channel"
     const val NOTIFICATION_ID = 1001
     private const val GUIDANCE_NOTIFICATION_ID = 1002
-    private const val WAKE_PROMPT_NOTIFICATION_ID = 1003
     private const val GOAL_NOTIFICATION_ID = 1004
+    private const val GOAL_UNLOCK_NOTIFICATION_ID = 1007
+    private const val MORNING_BRIEFING_REQUEST_CODE = 21
     private const val MORNING_BRIEFING_NOTIFICATION_ID = 1005
 
     fun createNotificationChannel(context: Context) {
@@ -102,7 +103,8 @@ object ScoreNotificationManager {
     fun showGoalMilestoneNotification(
         context: Context,
         goal: com.digitscore.app.model.DailyGoal,
-        statusIconStyle: StatusIconStyle = StatusIconStyle.SCORE_PROPORTION
+        statusIconStyle: StatusIconStyle = StatusIconStyle.SCORE_PROPORTION,
+        forUnlock: Boolean = false
     ) {
         val strings = AppLocale.stringsContext(context)
         val launchIntent = Intent(context, MainActivity::class.java).apply {
@@ -116,17 +118,17 @@ object ScoreNotificationManager {
         )
 
         val title = strings.getString(R.string.goal_milestone_title)
-        val content = if (goal.targetPackageName != null && goal.appProgressRatio >= 0.8f) {
+        val content = if (!forUnlock && goal.targetPackageName != null && goal.appProgressRatio >= 0.8f) {
             strings.getString(
                 R.string.goal_milestone_content_app,
                 goal.targetAppName,
                 goal.currentAppUsageMinutes,
                 goal.appLimitMinutes
             )
-        } else if (goal.unlockProgressRatio >= 0.8f) {
+        } else if (forUnlock && goal.unlockProgressRatio >= 0.8f) {
             val isEn = AppLocale.currentLanguage(context) == AppLocale.ENGLISH
             if (isEn) "Unlocks: ${goal.currentUnlockCount} / ${goal.unlockLimitTarget}x (80% reached)"
-            else "언락: ${goal.currentUnlockCount} / ${goal.unlockLimitTarget}x (80% 도달)"
+            else "잠금 해제: ${goal.currentUnlockCount} / ${goal.unlockLimitTarget}x (80% 도달)"
         } else {
             strings.getString(
                 R.string.goal_milestone_content_score,
@@ -150,72 +152,8 @@ object ScoreNotificationManager {
             .build()
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(GOAL_NOTIFICATION_ID, notification)
-    }
-
-    fun showMorningWakePromptNotification(context: Context, timestamp: Long) {
-        val strings = AppLocale.stringsContext(context)
-        val launchIntent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            10,
-            launchIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val confirmIntent = PendingIntent.getService(
-            context,
-            11,
-            Intent(context, TrackerForegroundService::class.java).apply {
-                action = TrackerForegroundService.ACTION_CONFIRM_WAKE
-                putExtra("timestamp", timestamp)
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val snoozeIntent = PendingIntent.getService(
-            context,
-            12,
-            Intent(context, TrackerForegroundService::class.java).apply {
-                action = TrackerForegroundService.ACTION_SNOOZE_WAKE
-                putExtra("timestamp", timestamp)
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val currentScore = ScoreRepository.rollingScoreDetail.value?.finalScore ?: 80
-        val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, currentScore, StatusIconStyle.SCORE_PROPORTION)
-        val iconColor = DynamicIconGenerator.statusIconScoreColor(context, currentScore)
-
-        val notification = NotificationCompat.Builder(context, WAKE_PROMPT_CHANNEL_ID)
-            .setSmallIcon(iconCompat)
-            .setColor(iconColor)
-            .setContentTitle(strings.getString(R.string.wake_prompt_title))
-            .setContentText(strings.getString(R.string.wake_prompt_content))
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-            .addAction(
-                android.R.drawable.ic_media_play,
-                strings.getString(R.string.wake_prompt_action_start),
-                confirmIntent
-            )
-            .addAction(
-                android.R.drawable.ic_lock_idle_alarm,
-                strings.getString(R.string.wake_prompt_action_rest),
-                snoozeIntent
-            )
-            .build()
-
-        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(WAKE_PROMPT_NOTIFICATION_ID, notification)
-    }
-
-    fun cancelMorningWakePromptNotification(context: Context) {
-        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.cancel(WAKE_PROMPT_NOTIFICATION_ID)
+        // 앱 목표와 잠금 해제 목표 알림이 같은 주기에 함께 와도 서로 덮어쓰지 않게 ID를 나눕니다.
+        manager.notify(if (forUnlock) GOAL_UNLOCK_NOTIFICATION_ID else GOAL_NOTIFICATION_ID, notification)
     }
 
     fun showMorningBriefingHeadsUpNotification(context: Context) {
@@ -224,9 +162,11 @@ object ScoreNotificationManager {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra(com.digitscore.app.ui.MainActivity.EXTRA_SHOW_MORNING_BRIEFING, true)
         }
+        // 목표 알림(요청 코드 20)과 같은 PendingIntent로 합쳐지면 브리핑 표시 extra가 덮어써지므로
+        // 별도 요청 코드를 사용합니다.
         val pendingIntent = PendingIntent.getActivity(
             context,
-            20,
+            MORNING_BRIEFING_REQUEST_CODE,
             launchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -384,8 +324,8 @@ object ScoreNotificationManager {
         val recoveryActionLong = if (recMinutes != null && recMinutes > 0) {
             strings.getString(R.string.action_rest_recovery_long, recMinutes, stepTarget)
         } else if (guidance?.leadingAppName != null && guidance.leadingAppMinutes > 15) {
-            if (isEn) "Pausing managed apps like ${guidance.leadingAppName} (${guidance.leadingAppMinutes}m) will speed up recovery."
-            else "${guidance.leadingAppName}(${guidance.leadingAppMinutes}분) 등 몰입 관리 앱을 잠시 멈추면 회복이 빨라집니다."
+            if (isEn) "Pausing managed apps like ${guidance.leadingAppName} (${guidance.leadingAppMinutes}min) will speed up recovery."
+            else "${guidance.leadingAppName}(${guidance.leadingAppMinutes}min) 등 관리 앱을 잠시 멈추면 회복이 빨라집니다."
         } else {
             if (isEn) "Putting down the screen and resting will gradually restore your balance."
             else "화면 사용을 멈추고 휴식을 유지하면 점진적으로 회복됩니다."
@@ -393,7 +333,7 @@ object ScoreNotificationManager {
 
         val expandedText = buildList {
             if (dailyGoal != null && !dailyGoal.isDismissed) {
-                add(if (isEn) "Today's 3 Key Goals" else "오늘 3대 실천 목표")
+                add(if (isEn) "Today's 3 Key Goals" else "오늘의 목표")
                 val targetScore = dailyGoal.scoreTarget
                 val scoreDiff = (targetScore - score).coerceAtLeast(0)
                 if (scoreDiff > 0) {
@@ -406,12 +346,12 @@ object ScoreNotificationManager {
                     val appLimit = dailyGoal.appLimitMinutes
                     val appPercent = if (appLimit > 0) (appMins * 100 / appLimit) else 0
                     val warn = if (appMins > appLimit) (if (isEn) " [Over!]" else " [초과!]") else ""
-                    add("• ${dailyGoal.targetAppName}: ${appMins} / ${appLimit}m (${appPercent}%)$warn")
+                    add("• ${dailyGoal.targetAppName}: ${appMins} / ${appLimit}min (${appPercent}%)$warn")
                 }
                 val unlockTarget = dailyGoal.unlockLimitTarget
                 val unlockPercent = if (unlockTarget > 0) (unlockCount * 100 / unlockTarget) else 0
                 val warn = if (unlockCount > unlockTarget) (if (isEn) " [Over!]" else " [초과!]") else ""
-                add(if (isEn) "• Unlocks: ${unlockCount} / ${unlockTarget}x (${unlockPercent}%)$warn" else "• 언락: ${unlockCount} / ${unlockTarget}x (${unlockPercent}%)$warn")
+                add(if (isEn) "• Unlocks: ${unlockCount} / ${unlockTarget}x (${unlockPercent}%)$warn" else "• 잠금 해제: ${unlockCount} / ${unlockTarget}x (${unlockPercent}%)$warn")
                 add("")
                 add(contentText)
             } else {
@@ -503,7 +443,7 @@ object ScoreNotificationManager {
         dailyGoal: com.digitscore.app.model.DailyGoal?,
         score: Int
     ): String {
-        // 1. 오늘의 설정/배정된 3대 목표(코어 지수, 앱 1개 제한, 잠금해제 횟수) 진행 상태 안내
+        // 1. 오늘의 설정/배정된 오늘의 목표(코어 지수, 앱 1개 제한, 잠금 해제 횟수) 진행 상태 안내
         if (dailyGoal != null && !dailyGoal.isDismissed) {
             val isEn = AppLocale.currentLanguage(strings) == AppLocale.ENGLISH
             val diff = (dailyGoal.scoreTarget - score).coerceAtLeast(0)
@@ -519,13 +459,13 @@ object ScoreNotificationManager {
                 val appName = dailyGoal.targetAppName.ifBlank { if (isEn) "App" else "앱" }
                 val isOver = dailyGoal.currentAppUsageMinutes > dailyGoal.appLimitMinutes
                 val marker = if (isOver) "! " else ""
-                "$marker$appName ${dailyGoal.currentAppUsageMinutes}/${dailyGoal.appLimitMinutes}m"
+                "$marker$appName ${dailyGoal.currentAppUsageMinutes}/${dailyGoal.appLimitMinutes}min"
             } else null
 
             val isUnlockOver = dailyGoal.currentUnlockCount > dailyGoal.unlockLimitTarget
             val unlockMarker = if (isUnlockOver) "! " else ""
             val unlockPart = if (isEn) "${unlockMarker}Unlocks ${dailyGoal.currentUnlockCount}/${dailyGoal.unlockLimitTarget}x"
-            else "${unlockMarker}언락 ${dailyGoal.currentUnlockCount}/${dailyGoal.unlockLimitTarget}x"
+            else "${unlockMarker}잠금 해제 ${dailyGoal.currentUnlockCount}/${dailyGoal.unlockLimitTarget}x"
 
             return listOfNotNull(scorePart, appPart, unlockPart).joinToString(" · ")
         }

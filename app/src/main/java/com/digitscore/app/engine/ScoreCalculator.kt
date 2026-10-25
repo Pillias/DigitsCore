@@ -23,7 +23,27 @@ data class ScoreDetail(
     val distractingTimeMinutes: Long,
     val productiveTimeMinutes: Long,
     val lateNightDistractingMinutes: Long = 0L
-)
+) {
+    companion object {
+        /**
+         * 누적 코어 지수 화면·알림·위젯에 필요한 사용 시간 합계만 담은 상세 정보를 만듭니다.
+         * (이전 일일 점수 공식은 실행 경로에서 더 이상 계산하지 않습니다.)
+         */
+        fun usageSummary(appsUsage: List<AppUsage>, finalScore: Int): ScoreDetail = ScoreDetail(
+            finalScore = finalScore,
+            distractingPenalty = 0f,
+            productiveBonus = 0f,
+            idleBonus = 0f,
+            unlockPenalty = 0f,
+            grade = ScoreGrade.fromScore(finalScore),
+            totalScreenTimeMinutes = appsUsage.sumOf { it.usageTimeMillis.coerceAtLeast(0L) } / 60_000L,
+            distractingTimeMinutes = appsUsage.filter { it.categoryType.isPenalty }
+                .sumOf { it.usageTimeMillis.coerceAtLeast(0L) } / 60_000L,
+            productiveTimeMinutes = appsUsage.filter { it.categoryType.isBonus }
+                .sumOf { it.usageTimeMillis.coerceAtLeast(0L) } / 60_000L
+        )
+    }
+}
 
 enum class ScoreGrade(
     private val koreanText: String,
@@ -36,7 +56,7 @@ enum class ScoreGrade(
     B("B (양호)", "B (Balanced)", "좋은 흐름입니다. 관리 대상 앱을 조금만 줄여보세요.", "A good pattern. Try trimming managed apps a little."),
     C("C (주의)", "C (Watch)", "연속 사용과 잦은 화면 확인을 살펴보세요.", "Watch continuous use and frequent screen checks."),
     D("D (경고)", "D (Pause)", "잠시 스마트폰을 내려놓고 쉬어갈 때입니다.", "This is a good time to put your phone down for a break."),
-    F("F (집중 관리)", "F (Refocus)", "사용 흐름을 전환할 충분한 휴식이 필요합니다.", "A meaningful break can help reset your usage pattern.");
+    F("F (휴식 필요)", "F (Refocus)", "사용 흐름을 전환할 충분한 휴식이 필요합니다.", "A meaningful break can help reset your usage pattern.");
 
     val gradeText: String get() = if (com.digitscore.app.i18n.AppLocale.isCurrentEnglish) englishText else koreanText
     val description: String get() = if (com.digitscore.app.i18n.AppLocale.isCurrentEnglish) englishDescription else koreanDescription
@@ -66,7 +86,7 @@ object ScoreCalculator {
     }
 
     /**
-     * 앱 사용 목록, 화면 꺼짐(Idle) 시간, 언락 횟수를 기반으로 점수를 계산합니다.
+     * 앱 사용 목록, 화면 꺼짐(Idle) 시간, 잠금 해제 횟수를 기반으로 점수를 계산합니다.
      */
     fun calculateScore(
         appsUsage: List<AppUsage>,
@@ -130,7 +150,7 @@ object ScoreCalculator {
                 it.lateNightUsageMillis.coerceIn(0L, it.usageTimeMillis.coerceAtLeast(0L))
             } / 60_000L
 
-        // 방해 앱 총 페널티 (로그 가속 감점 + 심야 추가 감점)
+        // 관리 앱 총 페널티 (로그 가속 감점 + 심야 추가 감점)
         val overallDistractingPenalty = totalDistractingPenalty + totalLateNightPenalty
 
         // 2. 생산성 앱 보너스 (최대 상한선 적용)
@@ -148,7 +168,7 @@ object ScoreCalculator {
         val rawIdleBonus = (idleMinutes.coerceAtLeast(0L) / 10f) * rule.idleBonusPer10Minutes
         val idleBonus = min(rule.maxIdleBonus, rawIdleBonus)
 
-        // 4. 언락 초과 페널티
+        // 4. 잠금 해제 초과 페널티
         val excessUnlocks = max(0, unlockCount - rule.unlockPenaltyThreshold)
         val unlockPenalty = excessUnlocks * rule.unlockPenaltyPerCount
 
