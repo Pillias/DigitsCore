@@ -171,6 +171,8 @@
     <string name="weekly_report_channel_description">Notifies past week Core Index and goal achievements every Monday.</string>
     <string name="weekly_report_notification_title">Your Weekly Report is ready</string>
     <string name="weekly_report_notification_desc">Avg Core Index %1$sP · Goals met %2$d days</string>
+    <string name="weekly_report_notification_desc_no_goals">Avg Core Index %1$sP · No goal records</string>
+    <string name="goal_all_managed_apps">All managed apps</string>
     <string name="goal_limit_reached_title">%1$s limit reached</string>
     <string name="goal_limit_reached_content">Used %1$s for %2$dmin. You can close the app or use for 15min more.</string>
     <string name="goal_limit_action_more_15">15min more</string>

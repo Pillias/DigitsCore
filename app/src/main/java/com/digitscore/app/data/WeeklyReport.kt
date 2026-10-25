@@ -2,6 +2,7 @@ package com.digitscore.app.data
 
 import com.digitscore.app.data.entity.DailyAppUsageEntity
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
+import com.digitscore.app.model.DailyGoalDayRecord
 import com.digitscore.app.model.GoalRewardState
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -26,10 +27,14 @@ data class WeeklyReportData(
     val lowestScoreDay: Pair<String, Int>?,
 
     // 2. 오늘의 목표 달성 일수
-    val achievedDaysCount: Int,
-    val perfectDaysCount: Int,
-    val perfectStampsEarned: Int,
-    val freePassesEarned: Int,
+    val hasGoalHistory: Boolean = true,
+    val scoreGoalMetDays: Int = 0,
+    val appGoalMetDays: Int = 0,
+    val unlockGoalMetDays: Int = 0,
+    val achievedDaysCount: Int = scoreGoalMetDays,
+    val perfectDaysCount: Int = 0,
+    val perfectStampsEarned: Int = 0,
+    val freePassesEarned: Int = 0,
 
     // 3. 화면 시간 / 잠금 해제 / 짧은 확인
     val avgScreenTimeMinutes: Long,
@@ -68,6 +73,7 @@ object WeeklyReportCalculator {
         lastWeekRange: Pair<LocalDate, LocalDate>,
         histories: Map<String, DailyScoreHistoryEntity>,
         dailyAppUsage: List<DailyAppUsageEntity>,
+        dailyGoalRecords: List<DailyGoalDayRecord> = emptyList(),
         rewardState: GoalRewardState = GoalRewardState(),
         more15MinCount: Int = 0,
         stopForTodayCount: Int = 0
@@ -158,8 +164,14 @@ object WeeklyReportCalculator {
         val topIncreased = appDiffs.filter { it.diffMinutes > 0 }.maxByOrNull { it.diffMinutes }
         val topDecreased = appDiffs.filter { it.diffMinutes < 0 }.minByOrNull { it.diffMinutes }
 
-        val achievedDays = lastWeekHistories.count { it.finalScore >= 70 }
-        val perfectDays = lastWeekHistories.count { it.finalScore >= 80 }
+        val weekGoalRecords = dailyGoalRecords.filter { it.date in lastWeekDates }
+        val hasGoalHistory = weekGoalRecords.isNotEmpty()
+        val scoreGoalMetDays = weekGoalRecords.count { it.scoreMet }
+        val appGoalMetDays = weekGoalRecords.count { it.appMet }
+        val unlockGoalMetDays = weekGoalRecords.count { it.unlockMet }
+        val perfectDays = weekGoalRecords.count { it.perfect }
+        val stampsEarned = weekGoalRecords.sumOf { it.stampEarned }
+        val passesEarned = weekGoalRecords.sumOf { it.passEarned }
 
         return WeeklyReportData(
             weekStartDate = lastMon.toString(),
@@ -170,10 +182,14 @@ object WeeklyReportCalculator {
             scoreDiffVsPriorWeek = scoreDiff,
             highestScoreDay = highestDay,
             lowestScoreDay = lowestDay,
-            achievedDaysCount = achievedDays,
+            hasGoalHistory = hasGoalHistory,
+            scoreGoalMetDays = scoreGoalMetDays,
+            appGoalMetDays = appGoalMetDays,
+            unlockGoalMetDays = unlockGoalMetDays,
+            achievedDaysCount = scoreGoalMetDays,
             perfectDaysCount = perfectDays,
-            perfectStampsEarned = rewardState.perfectStamps,
-            freePassesEarned = rewardState.availableFreePasses,
+            perfectStampsEarned = stampsEarned,
+            freePassesEarned = passesEarned,
             avgScreenTimeMinutes = avgScreen,
             screenTimeDiffMinutes = avgScreen - priorAvgScreen,
             avgUnlockCount = avgUnlock,

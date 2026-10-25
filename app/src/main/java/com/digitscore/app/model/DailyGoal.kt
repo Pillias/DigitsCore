@@ -212,3 +212,14 @@ data class GoalRewardState(
         get() = if (isFreePassActive) ((activeFreePassUntil - System.currentTimeMillis()) / 1000L).coerceAtLeast(0L) else 0L
 }
 
+data class DailyGoalDayRecord(
+    val date: String,
+    val scoreMet: Boolean,
+    val appMet: Boolean,
+    val unlockMet: Boolean,
+    val perfect: Boolean,
+    val stampEarned: Int = 0,
+    val passEarned: Int = 0
+)
+
+

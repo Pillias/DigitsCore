@@ -44,6 +44,7 @@ fun WeeklyReportDialog(
             val histories = db.scoreDao().getRecentCoreIndexHistories(21).associateBy { it.dateString }
             val dailyApps = db.dailyAppUsageDao().getAll()
             val rewardState = DailyGoalStore.getRewardState(context)
+            val dailyGoalRecords = DailyGoalStore.getDailyGoalDayRecords(context)
             val (more15, stopToday) = com.digitscore.app.data.GoalLimitChoiceStore.getCountsForRange(
                 context,
                 range.first,
@@ -54,6 +55,7 @@ fun WeeklyReportDialog(
                 lastWeekRange = range,
                 histories = histories,
                 dailyAppUsage = dailyApps,
+                dailyGoalRecords = dailyGoalRecords,
                 rewardState = rewardState,
                 more15MinCount = more15,
                 stopForTodayCount = stopToday
@@ -187,21 +189,29 @@ fun WeeklyReportDialog(
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.outline
                                 )
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text(text = if (isEn) "Defense Line Met" else "지수 방어선 달성", fontSize = DigitsTextSize.body)
-                                    Text(text = if (isEn) "${report.achievedDaysCount} / ${report.recordedDaysCount} days" else "${report.achievedDaysCount} / ${report.recordedDaysCount}일", fontWeight = FontWeight.Bold, fontSize = DigitsTextSize.body)
-                                }
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text(text = if (isEn) "All Goals Kept" else "모두 지킨 날", fontSize = DigitsTextSize.body)
-                                    Text(text = if (isEn) "${report.perfectDaysCount} days" else "${report.perfectDaysCount}일", fontWeight = FontWeight.Bold, fontSize = DigitsTextSize.body)
-                                }
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text(text = if (isEn) "Stamps / Free Passes" else "받은 스탬프 / 자유권", fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
+                                if (!report.hasGoalHistory) {
                                     Text(
-                                        text = if (isEn) "${report.perfectStampsEarned} stamps · ${report.freePassesEarned} passes" else "${report.perfectStampsEarned}개 · ${report.freePassesEarned}장",
-                                        fontSize = DigitsTextSize.caption,
+                                        text = if (isEn) "No record" else "기록 없음",
+                                        fontSize = DigitsTextSize.body,
                                         color = MaterialTheme.colorScheme.outline
                                     )
+                                } else {
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text(text = if (isEn) "Defense Line Met" else "지수 방어선 달성", fontSize = DigitsTextSize.body)
+                                        Text(text = if (isEn) "${report.achievedDaysCount} / ${report.recordedDaysCount} days" else "${report.achievedDaysCount} / ${report.recordedDaysCount}일", fontWeight = FontWeight.Bold, fontSize = DigitsTextSize.body)
+                                    }
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text(text = if (isEn) "All Goals Kept" else "모두 지킨 날", fontSize = DigitsTextSize.body)
+                                        Text(text = if (isEn) "${report.perfectDaysCount} days" else "${report.perfectDaysCount}일", fontWeight = FontWeight.Bold, fontSize = DigitsTextSize.body)
+                                    }
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text(text = if (isEn) "Stamps / Free Passes" else "받은 스탬프 / 자유권", fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
+                                        Text(
+                                            text = if (isEn) "${report.perfectStampsEarned} stamps · ${report.freePassesEarned} passes" else "${report.perfectStampsEarned}개 · ${report.freePassesEarned}장",
+                                            fontSize = DigitsTextSize.caption,
+                                            color = MaterialTheme.colorScheme.outline
+                                        )
+                                    }
                                 }
                             }
                         }

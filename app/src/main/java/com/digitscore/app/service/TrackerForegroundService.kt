@@ -1330,6 +1330,7 @@ class TrackerForegroundService : Service() {
             val histories = db.scoreDao().getRecentCoreIndexHistories(21).associateBy { it.dateString }
             val dailyApps = db.dailyAppUsageDao().getAll()
             val rewardState = DailyGoalStore.getRewardState(applicationContext)
+            val dailyGoalRecords = DailyGoalStore.getDailyGoalDayRecords(applicationContext)
             val (more15, stopToday) = com.digitscore.app.data.GoalLimitChoiceStore.getCountsForRange(
                 applicationContext,
                 range.first,
@@ -1340,6 +1341,7 @@ class TrackerForegroundService : Service() {
                 lastWeekRange = range,
                 histories = histories,
                 dailyAppUsage = dailyApps,
+                dailyGoalRecords = dailyGoalRecords,
                 rewardState = rewardState,
                 more15MinCount = more15,
                 stopForTodayCount = stopToday

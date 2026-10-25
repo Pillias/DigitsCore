@@ -2,8 +2,10 @@ package com.digitscore.app.data
 
 import com.digitscore.app.data.entity.DailyAppUsageEntity
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
+import com.digitscore.app.model.DailyGoalDayRecord
 import com.digitscore.app.model.GoalRewardState
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -42,10 +44,17 @@ class WeeklyReportTest {
             DailyAppUsageEntity("2026-10-12", "com.kakao.talk", "KakaoTalk", 30 * 60_000L, 5, 2, 8 * 60_000L, 0L, 2)
         )
 
+        val goalRecords = listOf(
+            DailyGoalDayRecord("2026-10-19", scoreMet = true, appMet = true, unlockMet = false, perfect = false, stampEarned = 0, passEarned = 0),
+            DailyGoalDayRecord("2026-10-20", scoreMet = true, appMet = true, unlockMet = true, perfect = true, stampEarned = 1, passEarned = 0),
+            DailyGoalDayRecord("2026-10-21", scoreMet = true, appMet = true, unlockMet = true, perfect = true, stampEarned = 1, passEarned = 1)
+        )
+
         val report = WeeklyReportCalculator.calculate(
             lastWeekRange = range,
             histories = histories,
             dailyAppUsage = dailyApps,
+            dailyGoalRecords = goalRecords,
             rewardState = GoalRewardState(perfectStamps = 3, availableFreePasses = 1),
             more15MinCount = 2,
             stopForTodayCount = 1
@@ -61,10 +70,17 @@ class WeeklyReportTest {
         assertEquals("2026-10-19", report.lowestScoreDay?.first)
         assertEquals(75, report.lowestScoreDay?.second)
 
+        // Goal records assertions
+        assertTrue(report.hasGoalHistory)
+        assertEquals(3, report.scoreGoalMetDays)
+        assertEquals(3, report.appGoalMetDays)
+        assertEquals(2, report.unlockGoalMetDays)
+        assertEquals(2, report.perfectDaysCount)
+        assertEquals(2, report.perfectStampsEarned)
+        assertEquals(1, report.freePassesEarned)
+
         assertEquals(120L, report.avgScreenTimeMinutes) // (120 + 140 + 100) / 3 = 120
         assertEquals(33, report.avgUnlockCount) // (35 + 40 + 25) / 3 = 33
-        assertEquals(3, report.perfectStampsEarned)
-        assertEquals(1, report.freePassesEarned)
         assertEquals(2, report.more15MinCount)
         assertEquals(1, report.stopForTodayCount)
 
@@ -81,8 +97,10 @@ class WeeklyReportTest {
             dailyAppUsage = emptyList()
         )
 
-        org.junit.Assert.assertFalse(report.hasData)
+        assertFalse(report.hasData)
+        assertFalse(report.hasGoalHistory)
         assertEquals(0, report.recordedDaysCount)
+        assertEquals(0, report.scoreGoalMetDays)
         org.junit.Assert.assertNull(report.avgScore)
         org.junit.Assert.assertNull(report.scoreDiffVsPriorWeek)
     }

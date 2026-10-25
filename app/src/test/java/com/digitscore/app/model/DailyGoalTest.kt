@@ -304,4 +304,23 @@ class DailyGoalTest {
         )
         assertTrue(targets.isAllManagedApps)
     }
+
+    @Test
+    fun testDailyGoalDayRecordSerialization() {
+        val records = listOf(
+            DailyGoalDayRecord("2026-10-20", scoreMet = true, appMet = true, unlockMet = false, perfect = false, stampEarned = 0, passEarned = 0),
+            DailyGoalDayRecord("2026-10-21", scoreMet = true, appMet = true, unlockMet = true, perfect = true, stampEarned = 1, passEarned = 1)
+        )
+        val serialized = com.digitscore.app.data.DailyGoalStore.serializeGoalDayRecords(records)
+        val parsed = com.digitscore.app.data.DailyGoalStore.parseGoalDayRecords(serialized)
+        assertEquals(2, parsed.size)
+        assertEquals("2026-10-20", parsed[0].date)
+        assertTrue(parsed[0].scoreMet)
+        assertFalse(parsed[0].unlockMet)
+        assertEquals(0, parsed[0].stampEarned)
+        assertEquals("2026-10-21", parsed[1].date)
+        assertTrue(parsed[1].perfect)
+        assertEquals(1, parsed[1].stampEarned)
+        assertEquals(1, parsed[1].passEarned)
+    }
 }

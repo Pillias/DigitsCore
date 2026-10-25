@@ -141,7 +141,11 @@ object ScoreNotificationManager {
         )
 
         val avgStr = report.avgScore?.let { String.format(java.util.Locale.US, "%.0f", it) } ?: "--"
-        val desc = strings.getString(R.string.weekly_report_notification_desc, avgStr, report.achievedDaysCount)
+        val desc = if (report.hasGoalHistory) {
+            strings.getString(R.string.weekly_report_notification_desc, avgStr, report.scoreGoalMetDays)
+        } else {
+            strings.getString(R.string.weekly_report_notification_desc_no_goals, avgStr)
+        }
 
         val currentScore = report.avgScore?.toInt() ?: 80
         val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, currentScore, StatusIconStyle.SCORE_TIER)

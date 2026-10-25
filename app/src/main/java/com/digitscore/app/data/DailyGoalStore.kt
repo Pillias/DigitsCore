@@ -8,6 +8,7 @@ import com.digitscore.app.model.GoalDifficulty
 import com.digitscore.app.model.GoalRewardState
 import com.digitscore.app.model.YesterdayBriefingSummary
 import com.digitscore.app.model.YesterdayGoalResult
+import com.digitscore.app.model.DailyGoalDayRecord
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import org.json.JSONArray
@@ -595,6 +596,74 @@ object DailyGoalStore {
         ScoreRepository.updateYesterdayGoalResult(result)
     }
 
+    private const val KEY_GOAL_DAY_RECORDS_JSON = "goal_day_records_json"
+    private const val MAX_GOAL_RECORDS_RETENTION_DAYS = 35L
+
+    fun getDailyGoalDayRecords(context: Context): List<DailyGoalDayRecord> = synchronized(storeLock) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val json = prefs.getString(KEY_GOAL_DAY_RECORDS_JSON, null) ?: return emptyList()
+        parseGoalDayRecords(json)
+    }
+
+    fun appendDailyGoalRecord(context: Context, record: DailyGoalDayRecord) = synchronized(storeLock) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val existing = getDailyGoalDayRecords(context).filter { it.date != record.date }
+        val cutoffDate = runCatching {
+            java.time.LocalDate.parse(record.date).minusDays(MAX_GOAL_RECORDS_RETENTION_DAYS).toString()
+        }.getOrDefault("")
+        val updated = (existing + record)
+            .filter { it.date >= cutoffDate }
+            .sortedBy { it.date }
+        prefs.edit().putString(KEY_GOAL_DAY_RECORDS_JSON, serializeGoalDayRecords(updated)).apply()
+    }
+
+    fun clearDailyGoalRecords(context: Context) = synchronized(storeLock) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().remove(KEY_GOAL_DAY_RECORDS_JSON).apply()
+    }
+
+    fun pruneGoalDayRecordsBefore(context: Context, cutoffDate: String) = synchronized(storeLock) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val existing = getDailyGoalDayRecords(context)
+        val updated = existing.filter { it.date >= cutoffDate }
+        prefs.edit().putString(KEY_GOAL_DAY_RECORDS_JSON, serializeGoalDayRecords(updated)).apply()
+    }
+
+    internal fun parseGoalDayRecords(jsonStr: String): List<DailyGoalDayRecord> {
+        return runCatching {
+            val array = JSONArray(jsonStr)
+            (0 until array.length()).map { i ->
+                val obj = array.getJSONObject(i)
+                DailyGoalDayRecord(
+                    date = obj.getString("date"),
+                    scoreMet = obj.optBoolean("scoreMet"),
+                    appMet = obj.optBoolean("appMet"),
+                    unlockMet = obj.optBoolean("unlockMet"),
+                    perfect = obj.optBoolean("perfect"),
+                    stampEarned = obj.optInt("stampEarned", 0),
+                    passEarned = obj.optInt("passEarned", 0)
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    internal fun serializeGoalDayRecords(records: List<DailyGoalDayRecord>): String {
+        val array = JSONArray()
+        records.forEach { r ->
+            val obj = JSONObject().apply {
+                put("date", r.date)
+                put("scoreMet", r.scoreMet)
+                put("appMet", r.appMet)
+                put("unlockMet", r.unlockMet)
+                put("perfect", r.perfect)
+                put("stampEarned", r.stampEarned)
+                put("passEarned", r.passEarned)
+            }
+            array.put(obj)
+        }
+        return array.toString()
+    }
+
     /**
      * 난이도에 따른 목표치 동적 변환
      */
@@ -732,11 +801,16 @@ object DailyGoalStore {
                 val newStreak = if (yGoalResult.isStreakMaintained) currentRewardState.currentStreak + 1 else 0
                 var newStamps = currentRewardState.perfectStamps
                 var newPasses = currentRewardState.availableFreePasses
+                var stampEarned = 0
+                var passEarned = 0
                 if (yGoalResult.isPerfectDay) {
+                    stampEarned = 1
                     newStamps += 1
                     if (newStamps >= 3) {
                         newStamps = 0
+                        val passBefore = newPasses
                         newPasses = minOf(newPasses + 1, 2) // 최대 2장 스택
+                        passEarned = (newPasses - passBefore).coerceAtLeast(0)
                     }
                 }
                 val updatedReward = currentRewardState.copy(
@@ -746,6 +820,18 @@ object DailyGoalStore {
                     lastProcessedDate = yesterdayDate
                 )
                 saveRewardState(context, updatedReward)
+                appendDailyGoalRecord(
+                    context,
+                    DailyGoalDayRecord(
+                        date = yesterdayDate,
+                        scoreMet = yGoalResult.isScoreAchieved,
+                        appMet = yGoalResult.isAppLimitAchieved,
+                        unlockMet = yGoalResult.isUnlockLimitAchieved,
+                        perfect = yGoalResult.isPerfectDay,
+                        stampEarned = stampEarned,
+                        passEarned = passEarned
+                    )
+                )
             } else {
                 saveRewardState(context, currentRewardState.copy(lastProcessedDate = yesterdayDate))
             }
