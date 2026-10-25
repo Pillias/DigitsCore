@@ -16,7 +16,8 @@ data class UnlockInteractionResult(
 object UnlockInteractionResolver {
 
     const val MAX_DELAY_AFTER_UNLOCK_MILLIS = 60_000L
-    const val QUICK_CONFIRMATION_THRESHOLD_MILLIS = 60_000L
+    @Deprecated("Use HABITUAL_CHECK_THRESHOLD_MILLIS", ReplaceWith("HABITUAL_CHECK_THRESHOLD_MILLIS"))
+    const val QUICK_CONFIRMATION_THRESHOLD_MILLIS = HABITUAL_CHECK_THRESHOLD_MILLIS
 
     /**
      * 잠금 해제 직후 60초 안에 처음 전면에 온 앱(런처, DigitsCore 제외)을 판별합니다.
@@ -26,13 +27,15 @@ object UnlockInteractionResolver {
      * @param ignoredPackages 런처 및 DigitsCore 패키지 목록
      * @param lastProcessedUnlockTimestamp 이전 처리 커서 (이 시각 초과의 잠금 해제만 처리)
      * @param notifications 당일 도착한 앱 알림 이벤트 목록
+     * @param now 현재 시각 (기본값 System.currentTimeMillis())
      */
     fun resolveFirstAppsAfterUnlock(
         unlockTimestamps: List<Long>,
         segments: List<ForegroundUsageSegment>,
         ignoredPackages: Set<String>,
         lastProcessedUnlockTimestamp: Long = 0L,
-        notifications: List<AppNotificationEvent> = emptyList()
+        notifications: List<AppNotificationEvent> = emptyList(),
+        now: Long = System.currentTimeMillis()
     ): List<UnlockInteractionResult> {
         val pendingUnlocks = unlockTimestamps.filter { it > lastProcessedUnlockTimestamp }.sorted()
         if (pendingUnlocks.isEmpty() || segments.isEmpty()) return emptyList()
@@ -46,27 +49,48 @@ object UnlockInteractionResolver {
             val maxAllowedTime = unlockTime + MAX_DELAY_AFTER_UNLOCK_MILLIS
 
             // 잠금 해제 시점에 이미 활성화되어 있거나, 해제 후 60초 이내에 처음 포그라운드로 온 세그먼트
-            val firstSegment = validSegments.firstOrNull { segment ->
+            val firstSegmentIndex = validSegments.indexOfFirst { segment ->
                 (segment.startTimeMillis in unlockTime..maxAllowedTime) ||
                 (segment.startTimeMillis <= unlockTime && segment.endTimeMillis > unlockTime)
             }
 
-            if (firstSegment != null) {
-                val isQuick = firstSegment.durationMillis < QUICK_CONFIRMATION_THRESHOLD_MILLIS
-                // 잠금 해제 직전 60초 안에 이 앱의 알림이 도착했는지 검사
-                val isNotificationTriggered = notifications.any { notif ->
-                    notif.packageName == firstSegment.packageName &&
-                    notif.timestampMillis in (unlockTime - MAX_DELAY_AFTER_UNLOCK_MILLIS)..unlockTime
+            if (firstSegmentIndex == -1) {
+                // 아직 60초가 지나지 않았으면 다음 주기에 앱 진입을 확인할 수 있도록 커서를 멈춥니다.
+                if (now < maxAllowedTime) {
+                    break
                 }
-
-                results += UnlockInteractionResult(
-                    packageName = firstSegment.packageName,
-                    isQuick = isQuick,
-                    unlockTimestamp = unlockTime,
-                    appOpenTimestamp = maxOf(unlockTime, firstSegment.startTimeMillis),
-                    isNotificationTriggered = isNotificationTriggered
-                )
+                continue
             }
+
+            val firstSegment = validSegments[firstSegmentIndex]
+
+            // 첫 앱의 구간이 끝났거나(다음 구간 시작·화면 꺼짐) 잠금 해제 후 기준 시간이 지난 경우에만 확정
+            val hasNextSegment = (firstSegmentIndex < validSegments.lastIndex) ||
+                segments.any { it.startTimeMillis >= firstSegment.endTimeMillis }
+            val isDurationSufficient = firstSegment.durationMillis >= HABITUAL_CHECK_THRESHOLD_MILLIS
+            val isSessionEnded = hasNextSegment || firstSegment.endTimeMillis < now
+            val isThresholdPassed = (now - unlockTime) >= HABITUAL_CHECK_THRESHOLD_MILLIS
+
+            if (!isDurationSufficient && !isSessionEnded && !isThresholdPassed) {
+                // 진행 중인 미확정 세션 (duration < 7s, 아직 안 끝남, 해제 후 7s 미만)
+                // 다음 주기에 판정하기 위해 커서를 이 잠금 해제 앞에 둠
+                break
+            }
+
+            val isQuick = firstSegment.durationMillis < HABITUAL_CHECK_THRESHOLD_MILLIS
+            // 잠금 해제 직전 60초 안에 이 앱의 알림이 도착했는지 검사
+            val isNotificationTriggered = notifications.any { notif ->
+                notif.packageName == firstSegment.packageName &&
+                notif.timestampMillis in (unlockTime - MAX_DELAY_AFTER_UNLOCK_MILLIS)..unlockTime
+            }
+
+            results += UnlockInteractionResult(
+                packageName = firstSegment.packageName,
+                isQuick = isQuick,
+                unlockTimestamp = unlockTime,
+                appOpenTimestamp = maxOf(unlockTime, firstSegment.startTimeMillis),
+                isNotificationTriggered = isNotificationTriggered
+            )
         }
 
         return results

@@ -420,7 +420,7 @@ object UsageStatsHelper {
     fun resolvedHabitualUnlockTimestamps(
         events: List<DeviceInteractionEventEntity>,
         sessions: List<ForegroundUsageSessionEntity>,
-        thresholdMillis: Long = 7_000L
+        thresholdMillis: Long = HABITUAL_CHECK_THRESHOLD_MILLIS
     ): List<Long> {
         val unlockTimestamps = resolvedUnlockTimestamps(events)
         val validSessions = sessions.filter { s ->
@@ -577,7 +577,7 @@ object UsageStatsHelper {
 
         // 7초 이내 앱 미진입 또는 단기 확인 무의미한 열람(Glance / 짧은 확인) 집계
         val sessions = db.foregroundUsageSessionDao().getBetween(start, end)
-        val glanceThresholdMillis = 7_000L
+        val glanceThresholdMillis = HABITUAL_CHECK_THRESHOLD_MILLIS
         val glanceCount = resolvedHabitualUnlockTimestamps(
             events = events,
             sessions = sessions,

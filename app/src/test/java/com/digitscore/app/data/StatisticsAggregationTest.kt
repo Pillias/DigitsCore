@@ -21,13 +21,27 @@ class StatisticsAggregationTest {
         assertEquals(0, device.single { it.hour == 24*h }.opens)
     }
 
-    @Test fun habitualChecksIncludeExactlyFifteenSecondsButNotAnUnsettledOpening() {
-        val rows = aggregateUsageHours(listOf(session(0, 15_000), session(120_000, 121_000),
+    @Test fun habitualChecksIncludeExactlySevenSecondsButNotAnUnsettledOpening() {
+        val rows = aggregateUsageHours(listOf(session(0, 7_000), session(120_000, 121_000),
             session(299_000, 300_000)), 0, 300_000, 240_000)
         val total = rows.single { it.packageName.isEmpty() }
         assertEquals(3, total.opens)
         assertEquals(2, total.shortOpens)
-        assertEquals(17_000L, total.usageMillis)
+        assertEquals(9_000L, total.usageMillis)
+    }
+
+    @Test fun habitualChecks_6sIsShort_8sAnd14sAreNot() {
+        // 6초 세션: 짧은 확인 포함
+        val rows6s = aggregateUsageHours(listOf(session(0, 6_000)), 0, 10_000, 20_000)
+        assertEquals(1, rows6s.single { it.packageName.isEmpty() }.shortOpens)
+
+        // 8초 세션: 짧은 확인 제외
+        val rows8s = aggregateUsageHours(listOf(session(0, 8_000)), 0, 10_000, 20_000)
+        assertEquals(0, rows8s.single { it.packageName.isEmpty() }.shortOpens)
+
+        // 14초 세션: 짧은 확인 제외
+        val rows14s = aggregateUsageHours(listOf(session(0, 14_000)), 0, 20_000, 30_000)
+        assertEquals(0, rows14s.single { it.packageName.isEmpty() }.shortOpens)
     }
 
     @Test fun overlappingPipIsNotDoubleCountedAndRangeIsClipped() {

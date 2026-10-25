@@ -605,7 +605,8 @@ class TrackerForegroundService : Service() {
                     segments = usageSnapshot.foregroundSegments,
                     ignoredPackages = ignoredUnlockPkgs,
                     lastProcessedUnlockTimestamp = lastProcessedUnlockTimestamp,
-                    notifications = usageSnapshot.notificationEvents
+                    notifications = usageSnapshot.notificationEvents,
+                    now = now
                 )
                 val appDailyDao = db.appDailyInteractionDao()
                 val todayDateStr = com.digitscore.app.data.DailyGoalStore.getLogicalDateString()

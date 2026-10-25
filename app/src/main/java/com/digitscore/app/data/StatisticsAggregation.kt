@@ -3,7 +3,7 @@ package com.digitscore.app.data
 import com.digitscore.app.data.entity.*
 
 const val STAT_HOUR = 3_600_000L
-const val HABITUAL_CHECK_THRESHOLD_MILLIS = 15_000L
+const val HABITUAL_CHECK_THRESHOLD_MILLIS = 7_000L
 fun statisticHour(time: Long): Long = time - Math.floorMod(time, STAT_HOUR)
 
 /** Splits intervals at real hour boundaries. A session's opening belongs only to its original hour. */
