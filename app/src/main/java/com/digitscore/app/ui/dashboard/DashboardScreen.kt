@@ -2835,9 +2835,23 @@ fun UnlockDetailDialog(
 ) {
     val context = LocalContext.current
     var insights by remember { mutableStateOf<UnlockInsights?>(null) }
+    var topFirstApps by remember { mutableStateOf<List<Pair<String, com.digitscore.app.data.entity.AppDailyInteractionEntity>>>(emptyList()) }
     LaunchedEffect(unlockCount) {
         insights = withContext(Dispatchers.IO) {
             UsageStatsHelper.getRolling24HourUnlockInsights(context)
+        }
+        topFirstApps = withContext(Dispatchers.IO) {
+            val db = com.digitscore.app.data.DigitsDatabase.getInstance(context)
+            val todayDate = com.digitscore.app.data.DailyGoalStore.getLogicalDateString()
+            val list = db.appDailyInteractionDao().getTopFirstAfterUnlock(todayDate, 5)
+            val pm = context.packageManager
+            list.map { entity ->
+                val label = runCatching {
+                    val appInfo = pm.getApplicationInfo(entity.packageName, 0)
+                    pm.getApplicationLabel(appInfo).toString()
+                }.getOrDefault(entity.packageName)
+                label to entity
+            }
         }
     }
 
@@ -3054,6 +3068,52 @@ fun UnlockDetailDialog(
                                     fontSize = DigitsTextSize.tiny,
                                     color = MaterialTheme.colorScheme.outline
                                 )
+                            }
+                        }
+                    }
+
+                    // 잠금 해제 후 처음 연 앱 상위 5개
+                    if (topFirstApps.isNotEmpty()) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            shape = DigitsShape.md
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    text = if (isEn) "First App Opened After Unlock" else "잠금 해제 후 처음 연 앱",
+                                    fontSize = DigitsTextSize.label,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                                Text(
+                                    text = if (isEn) "Top 5 apps opened within 60s of unlocking."
+                                    else "잠금 해제 직후 60초 안에 처음 실행한 상위 5개 앱입니다.",
+                                    fontSize = DigitsTextSize.caption,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                topFirstApps.forEach { (appName, item) ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(appName, fontSize = DigitsTextSize.body, fontWeight = FontWeight.Medium)
+                                            Text(
+                                                text = if (isEn) "Quick glance: ${item.firstAfterUnlockQuickCount}x"
+                                                else "짧은 확인: ${item.firstAfterUnlockQuickCount}회",
+                                                fontSize = DigitsTextSize.caption,
+                                                color = MaterialTheme.colorScheme.outline
+                                            )
+                                        }
+                                        Text(
+                                            text = if (isEn) "${item.firstAfterUnlockCount}x" else "${item.firstAfterUnlockCount}회",
+                                            fontSize = DigitsTextSize.body,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

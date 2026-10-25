@@ -147,29 +147,39 @@ internal fun explorerWeekdayBuckets(
 
 internal data class ExplorerApp(
     val pkg: String, val name: String, val usage: Long, val opens: Int, val shortOpens: Int,
-    val loss: Double?, val impactFrom: Long?, val impactUntil: Long?
+    val loss: Double?, val impactFrom: Long?, val impactUntil: Long?,
+    val firstAfterUnlockCount: Int = 0
 )
 
 internal fun explorerApps(
     hours: List<UsageHourEntity>, impacts: List<ScoreImpactHourEntity>,
-    daily: List<DailyAppUsageEntity>, useDailyFallback: Boolean
+    daily: List<DailyAppUsageEntity>, useDailyFallback: Boolean,
+    interactions: List<AppDailyInteractionEntity> = emptyList()
 ): List<ExplorerApp> {
     val hourApps = hours.filter { it.packageName.isNotEmpty() }.groupBy { it.packageName }
     val lossApps = impacts.filter { it.packageName.isNotEmpty() }.groupBy { it.packageName }
     val days = daily.groupBy { it.packageName }
+    val inters = interactions.filter { it.packageName.isNotEmpty() }.groupBy { it.packageName }
     // For long periods, daily rows supply historical dates whose hourly archive did not exist yet.
     val zone = ZoneId.systemDefault()
     val knownDates = hours.filter { it.packageName.isEmpty() }.map {
         logicalDate(it.hour, zone).toString()
     }.toSet()
-    return (hourApps.keys + lossApps.keys + if (useDailyFallback) days.keys else emptySet()).map { pkg ->
+    return (hourApps.keys + lossApps.keys + (if (useDailyFallback) days.keys else emptySet()) + inters.keys).map { pkg ->
         val rows = hourApps[pkg].orEmpty()
         val fallback = if (useDailyFallback) days[pkg].orEmpty().filter { it.dateString !in knownDates } else emptyList()
         val loss = lossApps[pkg].orEmpty()
-        ExplorerApp(pkg, rows.lastOrNull()?.appName ?: fallback.lastOrNull()?.appName ?: pkg,
-            rows.sumOf { it.usageMillis } + fallback.sumOf { it.usageMillis },
-            rows.sumOf { it.opens } + fallback.sumOf { it.sessionCount },
-            rows.sumOf { it.shortOpens } + fallback.sumOf { it.shortSessionCount },
-            loss.takeIf { it.isNotEmpty() }?.sumOf { it.loss }, loss.minOfOrNull { it.firstAt }, loss.maxOfOrNull { it.lastAt })
+        val firstCount = inters[pkg]?.sumOf { it.firstAfterUnlockCount } ?: 0
+        ExplorerApp(
+            pkg = pkg,
+            name = rows.lastOrNull()?.appName ?: fallback.lastOrNull()?.appName ?: pkg,
+            usage = rows.sumOf { it.usageMillis } + fallback.sumOf { it.usageMillis },
+            opens = rows.sumOf { it.opens } + fallback.sumOf { it.sessionCount },
+            shortOpens = rows.sumOf { it.shortOpens } + fallback.sumOf { it.shortSessionCount },
+            loss = loss.takeIf { it.isNotEmpty() }?.sumOf { it.loss },
+            impactFrom = loss.minOfOrNull { it.firstAt },
+            impactUntil = loss.maxOfOrNull { it.lastAt },
+            firstAfterUnlockCount = firstCount
+        )
     }
 }

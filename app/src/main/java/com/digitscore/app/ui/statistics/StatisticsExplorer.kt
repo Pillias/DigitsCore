@@ -182,6 +182,9 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
     val dailyApps by remember(start, end) {
         db.dailyAppUsageDao().observeRange(dateLabel(start, "yyyy-MM-dd"), dateLabel(end - 1, "yyyy-MM-dd"))
     }.collectAsState(emptyList())
+    val dailyInteractions by remember(start, end) {
+        db.appDailyInteractionDao().observeByDateRange(dateLabel(start, "yyyy-MM-dd"), dateLabel(end, "yyyy-MM-dd"))
+    }.collectAsState(emptyList())
     val histories by db.scoreDao().getAllScoreHistories().collectAsState(emptyList())
     val rawAvailable = needIntraday && start >= now - 30L * 24 * STAT_HOUR
     val exactInteractions = needIntraday
@@ -260,8 +263,8 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
             dailyApps.filter { runCatching { LocalDate.parse(it.dateString).dayOfWeek == selectedDayOfWeek }.getOrDefault(false) }
         } else dailyApps
     }
-    val apps = remember(filteredUsageForApps, filteredImpactsForApps, filteredDailyApps, isRolling, isPeriod, isWeekday) {
-        explorerApps(filteredUsageForApps, filteredImpactsForApps, filteredDailyApps, isPeriod || isWeekday)
+    val apps = remember(filteredUsageForApps, filteredImpactsForApps, filteredDailyApps, dailyInteractions, isRolling, isPeriod, isWeekday) {
+        explorerApps(filteredUsageForApps, filteredImpactsForApps, filteredDailyApps, isPeriod || isWeekday, dailyInteractions)
     }
     val selectedSample = if (isRolling && selectedTime != null && selected != null)
         visibleSamples.filter { it.timestampMillis >= selected.start && it.timestampMillis < selected.end }
@@ -717,7 +720,12 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                         }
                         Text(appSectionTitle, fontWeight = FontWeight.Bold, fontSize = DigitsTextSize.titleLarge)
                         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf(label("사용 시간", "Usage"), label("점수 영향", "Impact"), label("실행", "Opens")).forEachIndexed { index, text ->
+                            listOf(
+                                label("사용 시간", "Usage"),
+                                label("점수 영향", "Impact"),
+                                label("실행", "Opens"),
+                                label("해제 후 첫 실행", "First Opened")
+                            ).forEachIndexed { index, text ->
                                 FilterChip(ranking == index, { ranking = index; allApps = false }, label = { Text(text) })
                             }
                         }
@@ -726,6 +734,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                 val ordered = when (ranking) {
                     1 -> apps.filter { it.loss != null && it.loss > 0 }.sortedByDescending { it.loss }
                     2 -> apps.filter { it.opens > 0 }.sortedByDescending { it.opens }
+                    3 -> apps.filter { it.firstAfterUnlockCount > 0 }.sortedByDescending { it.firstAfterUnlockCount }
                     else -> apps.filter { it.usage > 0 }.sortedByDescending { it.usage }
                 }
                 val maxValue = ordered.firstOrNull()?.let { appValue(it, ranking) } ?: 1.0
@@ -770,7 +779,12 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
 @Composable private fun Legend(color: Color, text: String) {
     Row(verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(7.dp).background(color, CircleShape)); Spacer(Modifier.width(4.dp)); Text(text, fontSize = DigitsTextSize.caption) }
 }
-private fun appValue(app: ExplorerApp, mode: Int) = when (mode) { 1 -> app.loss ?: 0.0; 2 -> app.opens.toDouble(); else -> app.usage.toDouble() }
+private fun appValue(app: ExplorerApp, mode: Int) = when (mode) {
+    1 -> app.loss ?: 0.0
+    2 -> app.opens.toDouble()
+    3 -> app.firstAfterUnlockCount.toDouble()
+    else -> app.usage.toDouble()
+}
 
 @Composable private fun AppRankingRow(
     app: ExplorerApp,
@@ -794,6 +808,8 @@ private fun appValue(app: ExplorerApp, mode: Int) = when (mode) { 1 -> app.loss 
                 val subtitle = when {
                     mode == 1 -> if (isPeriod) label("일 평균 −${points((app.loss ?: 0.0) / daysCount)} (총 −${points(app.loss ?: 0.0)})", "Daily −${points((app.loss ?: 0.0) / daysCount)}")
                                  else label("실제 감점 기여", "Recorded score loss")
+                    mode == 3 -> if (isPeriod) label("해제 후 첫 실행 총 ${app.firstAfterUnlockCount}회", "Total ${app.firstAfterUnlockCount}x first after unlock")
+                                 else label("잠금 해제 후 처음 연 앱", "First app opened after unlock")
                     isPeriod -> label(
                         "일 ${(app.opens.toFloat() / daysCount).roundToInt()}x · 짧은 확인 ${(app.shortOpens.toFloat() / daysCount).roundToInt()}x (총 ${app.opens}x)",
                         "Daily ${(app.opens.toFloat() / daysCount).roundToInt()}x · Brief ${(app.shortOpens.toFloat() / daysCount).roundToInt()}x (Total ${app.opens}x)"
@@ -808,6 +824,7 @@ private fun appValue(app: ExplorerApp, mode: Int) = when (mode) { 1 -> app.loss 
             val valueText = when (mode) {
                 1 -> if (isPeriod) "일 −${points((app.loss ?: 0.0) / daysCount)}" else "−${points(app.loss ?: 0.0)}"
                 2 -> if (isPeriod) "일 ${(app.opens.toFloat() / daysCount).roundToInt()}x" else "${app.opens}x"
+                3 -> if (isPeriod) "일 ${(app.firstAfterUnlockCount.toFloat() / daysCount).roundToInt()}x" else "${app.firstAfterUnlockCount}x"
                 else -> if (isPeriod) "일 ${minutes(app.usage / daysCount)}" else minutes(app.usage)
             }
             Text(valueText, color = color, fontWeight = FontWeight.Bold)

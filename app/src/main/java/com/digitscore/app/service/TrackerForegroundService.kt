@@ -82,6 +82,7 @@ class TrackerForegroundService : Service() {
     private var lastUsageQueryEndMillis: Long = 0L
     private var interactionBootstrapDone = false
     private var sessionBootstrapDone = false
+    private var lastProcessedUnlockTimestamp: Long = 0L
 
     private var cumulativeCoverageStart = UsageStatsHelper.getStartOfTodayMillis()
     private var lastAppWeightSignature: Int? = null
@@ -572,11 +573,53 @@ class TrackerForegroundService : Service() {
                 )
                 val rollingUnlockCount = rollingUnlockTimestamps.size
                 val todayInteractionEvents = interactionDao.getBetween(todayStart, now)
-                val finalUnlockCount = UsageStatsHelper.resolvedUnlockTimestamps(
+                val todayUnlocks = UsageStatsHelper.resolvedUnlockTimestamps(
                     todayInteractionEvents
-                ).size
+                )
+                val finalUnlockCount = todayUnlocks.size
                 todayUnlockCount = finalUnlockCount
                 ScoreRepository.updateUnlockCount(finalUnlockCount)
+
+                // 잠금 해제 직후 60초 안에 처음 연 앱 집계
+                if (lastProcessedUnlockTimestamp == 0L) {
+                    lastProcessedUnlockTimestamp = trackingPreferences.getLong("last_processed_unlock_time", 0L)
+                }
+                val ignoredUnlockPkgs = mutableSetOf("com.digitscore.app").apply {
+                    addAll(UsageStatsHelper.HOME_LAUNCHER_PACKAGES)
+                }
+                val newUnlockInteractions = com.digitscore.app.data.UnlockInteractionResolver.resolveFirstAppsAfterUnlock(
+                    unlockTimestamps = todayUnlocks,
+                    segments = usageSnapshot.foregroundSegments,
+                    ignoredPackages = ignoredUnlockPkgs,
+                    lastProcessedUnlockTimestamp = lastProcessedUnlockTimestamp
+                )
+                if (newUnlockInteractions.isNotEmpty()) {
+                    val appDailyDao = db.appDailyInteractionDao()
+                    val todayDateStr = com.digitscore.app.data.DailyGoalStore.getLogicalDateString()
+                    val existingList = appDailyDao.getByDate(todayDateStr)
+                    for (item in newUnlockInteractions) {
+                        val existing = existingList.firstOrNull { it.packageName == item.packageName }
+                        val updated = if (existing != null) {
+                            existing.copy(
+                                firstAfterUnlockCount = existing.firstAfterUnlockCount + 1,
+                                firstAfterUnlockQuickCount = if (item.isQuick) existing.firstAfterUnlockQuickCount + 1 else existing.firstAfterUnlockQuickCount,
+                                lastUpdatedTimestamp = now
+                            )
+                        } else {
+                            com.digitscore.app.data.entity.AppDailyInteractionEntity(
+                                dateString = todayDateStr,
+                                packageName = item.packageName,
+                                firstAfterUnlockCount = 1,
+                                firstAfterUnlockQuickCount = if (item.isQuick) 1 else 0,
+                                lastUpdatedTimestamp = now
+                            )
+                        }
+                        appDailyDao.insert(updated)
+                    }
+                    val maxProcessed = newUnlockInteractions.maxOf { it.unlockTimestamp }
+                    lastProcessedUnlockTimestamp = maxOf(lastProcessedUnlockTimestamp, maxProcessed)
+                    trackingPreferences.edit().putLong("last_processed_unlock_time", lastProcessedUnlockTimestamp).apply()
+                }
 
                 // 화면 OFF 이벤트로 실제 휴식 시간을 누적한다. 수면/권한 누락 시간을
                 // 단순히 "자정 이후 경과 시간 - 앱 사용 시간"으로 간주하지 않는다.
