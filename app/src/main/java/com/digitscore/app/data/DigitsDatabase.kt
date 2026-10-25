@@ -7,12 +7,14 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.digitscore.app.data.dao.AppDao
+import com.digitscore.app.data.dao.AppDailyInteractionDao
 import com.digitscore.app.data.dao.DailyAppUsageDao
 import com.digitscore.app.data.dao.ScoreDao
 import com.digitscore.app.data.dao.SettingsDao
 import com.digitscore.app.data.dao.ForegroundUsageSessionDao
 import com.digitscore.app.data.dao.CoreIndexSampleDao
 import com.digitscore.app.data.dao.DeviceInteractionEventDao
+import com.digitscore.app.data.entity.AppDailyInteractionEntity
 import com.digitscore.app.data.entity.AppWeightEntity
 import com.digitscore.app.data.entity.DailyAppUsageEntity
 import com.digitscore.app.data.entity.DailyScoreHistoryEntity
@@ -38,13 +40,14 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
         ForegroundUsageSessionEntity::class,
         CoreIndexSampleEntity::class,
         DeviceInteractionEventEntity::class,
+        AppDailyInteractionEntity::class,
         com.digitscore.app.data.entity.CumulativeScoreStateEntity::class,
         com.digitscore.app.data.entity.UsageHourEntity::class,
         com.digitscore.app.data.entity.ScoreHourEntity::class,
         com.digitscore.app.data.entity.ScoreImpactHourEntity::class,
         com.digitscore.app.data.entity.StatisticsStateEntity::class
     ],
-    version = 19,
+    version = 20,
     exportSchema = true
 )
 abstract class DigitsDatabase : RoomDatabase() {
@@ -55,6 +58,7 @@ abstract class DigitsDatabase : RoomDatabase() {
     abstract fun foregroundUsageSessionDao(): ForegroundUsageSessionDao
     abstract fun coreIndexSampleDao(): CoreIndexSampleDao
     abstract fun deviceInteractionEventDao(): DeviceInteractionEventDao
+    abstract fun appDailyInteractionDao(): AppDailyInteractionDao
     abstract fun cumulativeScoreStateDao(): com.digitscore.app.data.dao.CumulativeScoreStateDao
     abstract fun statisticsDao(): com.digitscore.app.data.dao.StatisticsDao
 
@@ -479,6 +483,27 @@ abstract class DigitsDatabase : RoomDatabase() {
             }
         }
 
+        internal val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `app_daily_interactions` (
+                        `dateString` TEXT NOT NULL,
+                        `packageName` TEXT NOT NULL,
+                        `firstAfterUnlockCount` INTEGER NOT NULL DEFAULT 0,
+                        `firstAfterUnlockQuickCount` INTEGER NOT NULL DEFAULT 0,
+                        `notificationCount` INTEGER NOT NULL DEFAULT 0,
+                        `notificationUnlockCount` INTEGER NOT NULL DEFAULT 0,
+                        `lastUpdatedTimestamp` INTEGER NOT NULL,
+                        PRIMARY KEY(`dateString`, `packageName`)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_app_daily_interactions_packageName` ON `app_daily_interactions` (`packageName`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_app_daily_interactions_dateString` ON `app_daily_interactions` (`dateString`)")
+            }
+        }
+
         @Volatile
         private var INSTANCE: DigitsDatabase? = null
 
@@ -511,7 +536,8 @@ abstract class DigitsDatabase : RoomDatabase() {
                         MIGRATION_15_16,
                         MIGRATION_16_17,
                         MIGRATION_17_18,
-                        MIGRATION_18_19
+                        MIGRATION_18_19,
+                        MIGRATION_19_20
                     )
                     .fallbackToDestructiveMigrationOnDowngrade()
                 if (passphrase != null) {

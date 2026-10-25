@@ -185,4 +185,25 @@ class DataBackupManagerSerializationTest {
         }
         assertEquals(AppCategoryType.NEUTRAL, fallback)
     }
+
+    @Test
+    fun testAppDailyInteractionEntity_serializationPreservesFields() {
+        val interaction = com.digitscore.app.data.entity.AppDailyInteractionEntity(
+            dateString = "2026-10-25",
+            packageName = "com.kakao.talk",
+            firstAfterUnlockCount = 12,
+            firstAfterUnlockQuickCount = 8,
+            notificationCount = 45,
+            notificationUnlockCount = 10,
+            lastUpdatedTimestamp = 1761350400000L
+        )
+
+        assertEquals("2026-10-25", interaction.dateString)
+        assertEquals("com.kakao.talk", interaction.packageName)
+        assertEquals(12, interaction.firstAfterUnlockCount)
+        assertEquals(8, interaction.firstAfterUnlockQuickCount)
+        assertEquals(45, interaction.notificationCount)
+        assertEquals(10, interaction.notificationUnlockCount)
+        assertEquals(1761350400000L, interaction.lastUpdatedTimestamp)
+    }
 }

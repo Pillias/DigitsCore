@@ -203,6 +203,21 @@ object DataBackupManager {
         }
         rootJson.put("dailyAppUsage", dailyAppsArray)
 
+        val appInteractions = db.appDailyInteractionDao().getAll()
+        val interactionsArray = JSONArray()
+        for (item in appInteractions) {
+            interactionsArray.put(JSONObject().apply {
+                put("dateString", item.dateString)
+                put("packageName", item.packageName)
+                put("firstAfterUnlockCount", item.firstAfterUnlockCount)
+                put("firstAfterUnlockQuickCount", item.firstAfterUnlockQuickCount)
+                put("notificationCount", item.notificationCount)
+                put("notificationUnlockCount", item.notificationUnlockCount)
+                put("lastUpdatedTimestamp", item.lastUpdatedTimestamp)
+            })
+        }
+        rootJson.put("appDailyInteractions", interactionsArray)
+
         val coverageArray = JSONArray()
         for (coverage in dailyCoverage) {
             coverageArray.put(JSONObject().apply {
@@ -501,6 +516,32 @@ object DataBackupManager {
                         )
                     )
                 }
+            }
+
+            if (rootJson.has("appDailyInteractions")) {
+                val interactionsArray = rootJson.getJSONArray("appDailyInteractions")
+                require(interactionsArray.length() <= 50_000) { "Too many app daily interactions" }
+                val interactions = buildList {
+                    for (i in 0 until interactionsArray.length()) {
+                        val obj = interactionsArray.getJSONObject(i)
+                        val dateString = obj.getString("dateString")
+                        val packageName = obj.getString("packageName").trim()
+                        require(DATE_PATTERN.matches(dateString)) { "Invalid interaction date" }
+                        require(packageName.length in 1..255) { "Invalid interaction package" }
+                        add(
+                            com.digitscore.app.data.entity.AppDailyInteractionEntity(
+                                dateString = dateString,
+                                packageName = packageName,
+                                firstAfterUnlockCount = obj.optInt("firstAfterUnlockCount", 0),
+                                firstAfterUnlockQuickCount = obj.optInt("firstAfterUnlockQuickCount", 0),
+                                notificationCount = obj.optInt("notificationCount", 0),
+                                notificationUnlockCount = obj.optInt("notificationUnlockCount", 0),
+                                lastUpdatedTimestamp = obj.optLong("lastUpdatedTimestamp", System.currentTimeMillis())
+                            )
+                        )
+                    }
+                }
+                db.appDailyInteractionDao().insertAll(interactions)
             }
 
             if (rootJson.has("foregroundUsageSessions")) {

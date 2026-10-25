@@ -21,9 +21,9 @@ object PrivacyDataManager {
             add(Calendar.DAY_OF_YEAR, -(safeDays - 1))
         }
         val cutoffDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cutoff.time)
-        DigitsDatabase.getInstance(context.applicationContext)
-            .dailyAppUsageDao()
-            .pruneBefore(cutoffDate)
+        val db = DigitsDatabase.getInstance(context.applicationContext)
+        db.dailyAppUsageDao().pruneBefore(cutoffDate)
+        db.appDailyInteractionDao().pruneBefore(cutoffDate)
     }
 
     /** 사용 기록만 삭제하고 앱 등급·점수 규칙 같은 사용자의 설정은 유지합니다. */
@@ -37,6 +37,7 @@ object PrivacyDataManager {
         TrackerForegroundService.stop(appContext)
         db.withTransaction {
             db.dailyAppUsageDao().deleteAllHistory()
+            db.appDailyInteractionDao().deleteAll()
             db.foregroundUsageSessionDao().deleteAll()
             db.coreIndexSampleDao().deleteAll()
             db.cumulativeScoreStateDao().deleteAll()
