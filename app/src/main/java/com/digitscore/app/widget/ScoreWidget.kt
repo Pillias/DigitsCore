@@ -166,7 +166,8 @@ class ScoreWidget : GlanceAppWidget() {
                         palette = palette,
                         strings = strings,
                         isEn = isEn,
-                        widgetWidth = currentSize.width
+                        widgetWidth = currentSize.width,
+                        isDarkSurface = isDarkSurface
                     )
                     // 2. 3x1 / 4x1 가로 슬림 바 위젯 (가로 185dp 이상 & 세로 125dp 미만)
                     currentSize.width >= 185.dp -> WideBarWidget(
@@ -365,7 +366,8 @@ private fun Square2x2Widget(
 
         // 하단 풋터 (오늘의 목표 달성 현황 캡슐)
         val goalSummaryText = if (targetAppName.isNotBlank()) {
-            "$targetAppName ${targetAppUsageMinutes}/${targetAppLimitMinutes}min"
+            val appStatus = if (targetAppUsageMinutes > targetAppLimitMinutes) (if (isEn) "Over" else "초과") else (if (isEn) "Met" else "달성")
+            "$targetAppName ${targetAppUsageMinutes}/${targetAppLimitMinutes}min ($appStatus)"
         } else {
             if (isEn) {
                 "Screen ${screenMinutes}min · ${unlockCount}/${unlockLimitTarget}x"
@@ -454,7 +456,9 @@ private fun WideBarWidget(
         } else {
             "${screenMinutes}min"
         }
-        val goalText = "${score}/${scoreTarget}P · $appGoalPart · ${unlockCount}/${unlockLimitTarget}x"
+        val isScoreAchieved = score >= scoreTarget
+        val scoreTag = if (isScoreAchieved) (if (isEn) "Met" else "달성") else (if (isEn) "Below" else "미달")
+        val goalText = "${score}/${scoreTarget}P($scoreTag) · $appGoalPart · ${unlockCount}/${unlockLimitTarget}x"
         Column(
             modifier = GlanceModifier
                 .fillMaxWidth()
@@ -492,7 +496,8 @@ private fun LargeWidget(
     palette: WidgetPalette,
     strings: Context,
     isEn: Boolean,
-    widgetWidth: Dp
+    widgetWidth: Dp,
+    isDarkSurface: Boolean = true
 ) {
     // 상단: 지수 정보 + 24시간 미니 스파크라인 나란히
     Row(
@@ -544,10 +549,18 @@ private fun LargeWidget(
 
     Spacer(GlanceModifier.height(5.dp))
 
-    // 중단: 오늘의 목표 3분할 캡슐 통계
+    // 중단: 오늘의 목표 3분할 캡슐 통계 (달성 표시 포함)
     val metricWidth = ((widgetWidth - 28.dp) / 3).coerceAtLeast(28.dp)
     val appMetricLabel = if (targetAppName.isNotBlank()) targetAppName else strings.getString(R.string.widget_managed)
     val appMetricVal = if (targetAppName.isNotBlank()) "${targetAppUsageMinutes}/${targetAppLimitMinutes}min" else managedTime
+
+    val isScoreAchieved = score >= scoreTarget
+    val isAppExceeded = if (targetAppName.isNotBlank()) targetAppUsageMinutes > targetAppLimitMinutes else false
+    val isUnlockExceeded = unlockCount > unlockLimitTarget
+
+    val greenColor = Color(com.digitscore.app.ui.theme.ScorePalette.textArgb(100, onDark = isDarkSurface))
+    val redColor = Color(com.digitscore.app.ui.theme.ScorePalette.textArgb(0, onDark = isDarkSurface))
+
     Row(
         modifier = GlanceModifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
@@ -555,18 +568,26 @@ private fun LargeWidget(
         StatMetric(
             label = if (isEn) "Defense" else "지수 방어",
             value = "${score}/${scoreTarget}P",
+            statusText = if (isScoreAchieved) (if (isEn) "Met" else "달성") else (if (isEn) "Below" else "미달"),
+            statusColor = if (isScoreAchieved) greenColor else redColor,
             palette = palette,
             width = metricWidth
         )
         StatMetric(
             label = appMetricLabel,
             value = appMetricVal,
+            statusText = if (targetAppName.isNotBlank()) {
+                if (isAppExceeded) (if (isEn) "Over" else "초과") else (if (isEn) "Met" else "달성")
+            } else null,
+            statusColor = if (isAppExceeded) redColor else greenColor,
             palette = palette,
             width = metricWidth
         )
         StatMetric(
             label = strings.getString(R.string.widget_unlocks),
             value = "${unlockCount}/${unlockLimitTarget}x",
+            statusText = if (isUnlockExceeded) (if (isEn) "Over" else "초과") else (if (isEn) "Met" else "달성"),
+            statusColor = if (isUnlockExceeded) redColor else greenColor,
             palette = palette,
             width = metricWidth
         )
@@ -594,7 +615,14 @@ private fun Gauge(bitmap: android.graphics.Bitmap, accessibility: String, size: 
 }
 
 @Composable
-private fun StatMetric(label: String, value: String, palette: WidgetPalette, width: Dp) {
+private fun StatMetric(
+    label: String,
+    value: String,
+    statusText: String? = null,
+    statusColor: Color? = null,
+    palette: WidgetPalette,
+    width: Dp
+) {
     Column(
         modifier = GlanceModifier
             .width(width)
@@ -613,6 +641,13 @@ private fun StatMetric(label: String, value: String, palette: WidgetPalette, wid
             style = widgetTextStyle(palette.primary, 9, FontWeight.Bold, TextAlign.Center),
             maxLines = 1
         )
+        if (statusText != null) {
+            Text(
+                statusText,
+                style = widgetTextStyle(statusColor ?: palette.secondary, 8, FontWeight.Bold, TextAlign.Center),
+                maxLines = 1
+            )
+        }
     }
 }
 
