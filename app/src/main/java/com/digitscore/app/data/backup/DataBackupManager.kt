@@ -519,6 +519,7 @@ object DataBackupManager {
             }
 
             if (rootJson.has("appDailyInteractions")) {
+                db.appDailyInteractionDao().deleteAll()
                 val interactionsArray = rootJson.getJSONArray("appDailyInteractions")
                 require(interactionsArray.length() <= 50_000) { "Too many app daily interactions" }
                 val interactions = buildList {

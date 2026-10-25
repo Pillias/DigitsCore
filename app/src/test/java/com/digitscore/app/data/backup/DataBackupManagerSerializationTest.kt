@@ -206,4 +206,22 @@ class DataBackupManagerSerializationTest {
         assertEquals(10, interaction.notificationUnlockCount)
         assertEquals(1761350400000L, interaction.lastUpdatedTimestamp)
     }
+
+    @Test
+    fun testLegacyBackupWithoutAppDailyInteractionsKey_isCompatible() {
+        val legacyJsonString = """
+            {
+                "version": 2,
+                "scoreHistory": [],
+                "settings": {
+                    "isTrackingEnabled": true
+                },
+                "appWeights": []
+            }
+        """.trimIndent()
+
+        val json = org.json.JSONObject(legacyJsonString)
+        assertFalse("Legacy backups do not have appDailyInteractions key", json.has("appDailyInteractions"))
+        assertEquals(2, json.getInt("version"))
+    }
 }

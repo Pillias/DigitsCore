@@ -393,11 +393,17 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                         ) {
                             if (selected != null) {
                                 val s = selected.score
-                                val scoreInfo = if (s != null) {
+                                val isImportedDay = remember(selected.start) {
+                                    val dateStr = logicalDate(selected.start, zone).toString()
+                                    com.digitscore.app.data.UsageHistoryImporter.isImportedDate(context, dateStr)
+                                }
+                                val scoreInfo = if (isImportedDay) {
+                                    label("불러온 기록", "Imported history")
+                                } else if (s != null) {
                                     if (isRolling || s.low == s.high) label("점수 ${points(s.last)}P", "Score ${points(s.last)}P")
                                     else label("최저 ${points(s.low)} ~ 최고 ${points(s.high)}", "Low ${points(s.low)} ~ High ${points(s.high)}")
                                 } else if ((selected.usage ?: 0L) > 0L) {
-                                    label("불러온 기록", "Imported history")
+                                    label("기록 없음", "No score record")
                                 } else label("점수 ${points(displayed ?: 80.0)}P", "Score ${points(displayed ?: 80.0)}P")
                                 val usageInfo = label("화면 ${minutes(selected.usage ?: 0L)} (관리 ${minutes(selected.managed)})", "Screen ${minutes(selected.usage ?: 0L)} (${minutes(selected.managed)})")
                                 val unlockInfo = label("잠금 ${selected.unlocks ?: 0}x (${selected.shortOpens}x)", "Unlocks ${selected.unlocks ?: 0}x (${selected.shortOpens}x)")

@@ -141,6 +141,7 @@ class MainActivity : ComponentActivity() {
                                                 val dao = DigitsDatabase.getInstance(applicationContext).settingsDao()
                                                 val current = dao.getSettings() ?: UserSettingsEntity()
                                                 dao.insertOrUpdateSettings(current.copy(isTrackingEnabled = true))
+                                                com.digitscore.app.data.UsageHistoryImporter.markFirstTrackingStarted(applicationContext)
                                                 TrackerForegroundService.start(applicationContext)
                                             }
                                             navController.navigate(Screen.Dashboard.route) {

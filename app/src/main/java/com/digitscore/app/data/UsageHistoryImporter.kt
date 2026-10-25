@@ -21,6 +21,40 @@ object UsageHistoryImporter {
 
     private const val PREFS_NAME = "com.digitscore.app.HISTORY_IMPORTER"
     private const val KEY_AUTO_IMPORTED = "auto_imported"
+    const val KEY_FIRST_TRACKING_STARTED = "first_tracking_started"
+    const val KEY_IMPORTED_DATES = "imported_dates"
+
+    fun markFirstTrackingStarted(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_FIRST_TRACKING_STARTED, true).apply()
+    }
+
+    fun isFirstTrackingStarted(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_FIRST_TRACKING_STARTED, false)
+    }
+
+    fun getImportedDates(context: Context): Set<String> {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getStringSet(KEY_IMPORTED_DATES, emptySet()) ?: emptySet()
+    }
+
+    fun isImportedDate(context: Context, dateString: String): Boolean {
+        return getImportedDates(context).contains(dateString)
+    }
+
+    fun clearImportedDates(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().remove(KEY_IMPORTED_DATES).apply()
+    }
+
+    fun recordImportedDates(context: Context, dates: Collection<String>) {
+        if (dates.isEmpty()) return
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val existing = getImportedDates(context).toMutableSet()
+        existing.addAll(dates)
+        prefs.edit().putStringSet(KEY_IMPORTED_DATES, existing).apply()
+    }
 
     data class ImportResult(
         val importedDaysCount: Int,
@@ -103,6 +137,9 @@ object UsageHistoryImporter {
         }
 
         importedDates.sort()
+        if (importedDates.isNotEmpty()) {
+            recordImportedDates(context, importedDates)
+        }
         val result = ImportResult(
             importedDaysCount = importedDates.size,
             startDateString = importedDates.firstOrNull(),
@@ -122,6 +159,10 @@ object UsageHistoryImporter {
         zone: ZoneId = ZoneId.systemDefault()
     ): ImportResult? {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (!prefs.getBoolean(KEY_FIRST_TRACKING_STARTED, false)) {
+            // 설치 후 첫 추적 시작 플래그가 없으면(기존 업데이트 사용자) 자동 실행하지 않고 반환
+            return null
+        }
         if (prefs.getBoolean(KEY_AUTO_IMPORTED, false)) return null
         return importPastHistory(context, db, zone)
     }

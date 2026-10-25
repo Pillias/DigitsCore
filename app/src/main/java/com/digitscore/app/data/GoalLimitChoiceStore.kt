@@ -43,6 +43,7 @@ object GoalLimitChoiceStore {
         timestampMillis: Long = System.currentTimeMillis()
     ) = synchronized(lock) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        cleanupNonTodayKeys(prefs, dateString)
         val existing = parseRecords(prefs.getString(KEY_RECORDS_JSON, null))
 
         val newRecord = GoalLimitChoiceRecord(
@@ -229,6 +230,7 @@ object GoalLimitChoiceStore {
 
     fun pruneBefore(context: Context, cutoffDate: String) = synchronized(lock) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        cleanupNonTodayKeys(prefs, DailyGoalStore.getLogicalDateString())
         val existing = parseRecords(prefs.getString(KEY_RECORDS_JSON, null))
         val updated = existing.filter { it.dateString >= cutoffDate }
         prefs.edit().putString(KEY_RECORDS_JSON, serializeRecords(updated)).apply()
@@ -242,6 +244,7 @@ object GoalLimitChoiceStore {
 
     fun incrementMore15ResendCount(context: Context, dateString: String, packageName: String): Int = synchronized(lock) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        cleanupNonTodayKeys(prefs, dateString)
         val current = prefs.getInt("${PREFIX_RESEND_COUNT}${dateString}_$packageName", 0)
         val next = current + 1
         prefs.edit().putInt("${PREFIX_RESEND_COUNT}${dateString}_$packageName", next).apply()
@@ -251,6 +254,7 @@ object GoalLimitChoiceStore {
     // 오늘은 여기까지 관리
     fun setStopToday(context: Context, dateString: String, packageName: String, active: Boolean) = synchronized(lock) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        cleanupNonTodayKeys(prefs, dateString)
         prefs.edit().putBoolean("${PREFIX_STOP_TODAY}${dateString}_$packageName", active).apply()
     }
 
