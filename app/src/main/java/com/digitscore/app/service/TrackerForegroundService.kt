@@ -881,10 +881,15 @@ class TrackerForegroundService : Service() {
                     ScoreRepository.updateYesterdayGoalResult(com.digitscore.app.data.DailyGoalStore.getYesterdayGoalResult(applicationContext))
                     ScoreRepository.updateRewardState(com.digitscore.app.data.DailyGoalStore.getRewardState(applicationContext))
 
-                    val todayApp = currentGoal.targetPackageName?.let { pkg ->
-                        todayAppsUsage.firstOrNull { it.packageName == pkg }
+                    val appMins = if (currentGoal.isAllManagedApps) {
+                        (todayAppsUsage.filter { it.categoryType.canonical == com.digitscore.app.model.AppCategoryType.DISTRACTING }
+                            .sumOf { it.usageTimeMillis } / 60_000L).toInt()
+                    } else {
+                        val todayApp = currentGoal.targetPackageName?.let { pkg ->
+                            todayAppsUsage.firstOrNull { it.packageName == pkg }
+                        }
+                        ((todayApp?.usageTimeMillis ?: 0L) / 60_000L).toInt()
                     }
-                    val appMins = ((todayApp?.usageTimeMillis ?: 0L) / 60_000L).toInt()
 
                     val updatedGoal = currentGoal.copy(
                         currentScore = rollingScoreDetail.finalScore,

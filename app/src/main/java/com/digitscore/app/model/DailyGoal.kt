@@ -26,7 +26,9 @@ data class CustomGoalTargets(
     val targetAppName: String = "",
     val appLimitMinutes: Int = 30,
     val unlockLimitTarget: Int = 40
-)
+) {
+    val isAllManagedApps: Boolean get() = targetPackageName == DailyGoal.PACKAGE_ALL_MANAGED
+}
 
 /**
  * 데일리 복합 맞춤 목표 세트
@@ -72,6 +74,11 @@ data class DailyGoal(
     val notifiedUnlockMilestone80: Boolean = false, // 잠금 해제 80% 근접 알림 발송 여부
     val notifiedLimitReached: Boolean = false // 특정 앱 100% 한도 도달 알림 발송 여부
 ) {
+    companion object {
+        const val PACKAGE_ALL_MANAGED = "__all_managed__"
+    }
+
+    val isAllManagedApps: Boolean get() = targetPackageName == PACKAGE_ALL_MANAGED
     // 하위 호환(단일 목표) 값은 같은 종류의 목표일 때만 대체값으로 사용합니다.
     // 다른 목표의 값(예: 앱 사용 분)이 잠금 해제 진행률에 섞이지 않게 합니다.
     private val appLimitValue: Int

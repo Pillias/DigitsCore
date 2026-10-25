@@ -32,6 +32,7 @@ object DailyGoalStore {
     private const val KEY_TARGET_APP = "goal_target_app"
     private const val KEY_APP_LIMIT = "goal_app_limit"
     private const val KEY_CURRENT_APP = "goal_current_app"
+    private const val KEY_APP_GOAL_SCOPE = "goal_app_scope"
 
     // 3. 잠금 해제 목표
     private const val KEY_UNLOCK_TARGET = "goal_unlock_target"
@@ -145,12 +146,20 @@ object DailyGoalStore {
         val savedDate = prefs.getString(KEY_DATE, null) ?: return null
         if (savedDate != todayDate) return null
 
+        val scope = prefs.getString(KEY_APP_GOAL_SCOPE, "SINGLE")
+        val targetPkg = if (scope == "ALL_MANAGED") DailyGoal.PACKAGE_ALL_MANAGED else prefs.getString(KEY_TARGET_PKG, null)
+        val targetAppName = if (targetPkg == DailyGoal.PACKAGE_ALL_MANAGED) {
+            prefs.getString(KEY_TARGET_APP, "").takeIf { !it.isNullOrBlank() } ?: "관리 앱 전체"
+        } else {
+            prefs.getString(KEY_TARGET_APP, "") ?: ""
+        }
+
         return DailyGoal(
             dateString = savedDate,
             scoreTarget = prefs.getInt(KEY_SCORE_TARGET, 70),
             currentScore = prefs.getInt(KEY_CURRENT_SCORE, 80),
-            targetPackageName = prefs.getString(KEY_TARGET_PKG, null),
-            targetAppName = prefs.getString(KEY_TARGET_APP, "") ?: "",
+            targetPackageName = targetPkg,
+            targetAppName = targetAppName,
             appLimitMinutes = prefs.getInt(KEY_APP_LIMIT, 30),
             currentAppUsageMinutes = prefs.getInt(KEY_CURRENT_APP, 0),
             unlockLimitTarget = prefs.getInt(KEY_UNLOCK_TARGET, 40),
@@ -171,6 +180,7 @@ object DailyGoalStore {
             .putInt(KEY_CURRENT_SCORE, goal.currentScore)
             .putString(KEY_TARGET_PKG, goal.targetPackageName)
             .putString(KEY_TARGET_APP, goal.targetAppName)
+            .putString(KEY_APP_GOAL_SCOPE, if (goal.isAllManagedApps) "ALL_MANAGED" else "SINGLE")
             .putInt(KEY_APP_LIMIT, goal.appLimitMinutes)
             .putInt(KEY_CURRENT_APP, goal.currentAppUsageMinutes)
             .putInt(KEY_UNLOCK_TARGET, goal.unlockLimitTarget)
@@ -669,7 +679,11 @@ object DailyGoalStore {
         // 2. 어제 목표 달성 여부 평가 (YesterdayGoalResult 생성)
         val yGoal = getYesterdayGoal(context, yesterdayDate)
         val yTargetApp = yGoal?.targetPackageName?.let { pkg -> yesterdayApps.firstOrNull { it.packageName == pkg } }
-        val yAppMins = ((yTargetApp?.usageMillis ?: 0L) / 60_000L).toInt()
+        val yAppMins = if (yGoal?.isAllManagedApps == true) {
+            (yesterdayApps.filter { it.categoryLevel >= 3 }.sumOf { it.usageMillis } / 60_000L).toInt()
+        } else {
+            ((yTargetApp?.usageMillis ?: 0L) / 60_000L).toInt()
+        }
 
         val yGoalResult = if (yGoal != null) {
             val isScoreAchieved = yesterdayScore >= yGoal.scoreTarget

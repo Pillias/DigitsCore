@@ -272,4 +272,36 @@ class DailyGoalTest {
         assertEquals(20, weekdayTargets.appLimitMinutes)
         assertEquals(60, weekendTargets.appLimitMinutes)
     }
+
+    @Test
+    fun testAllManagedAppsGoal() {
+        val allManagedGoal = DailyGoal(
+            dateString = "2026-10-25",
+            scoreTarget = 70,
+            currentScore = 78,
+            targetPackageName = DailyGoal.PACKAGE_ALL_MANAGED,
+            targetAppName = "관리 앱 전체",
+            appLimitMinutes = 60,
+            currentAppUsageMinutes = 45,
+            unlockLimitTarget = 40,
+            currentUnlockCount = 20
+        )
+
+        assertTrue(allManagedGoal.isAllManagedApps)
+        assertEquals(DailyGoalType.APP_USAGE_LIMIT, allManagedGoal.type)
+        assertTrue(allManagedGoal.isAppLimitAchieved)
+        assertEquals(45f / 60f, allManagedGoal.appProgressRatio, 0.001f)
+
+        val exceeded = allManagedGoal.copy(currentAppUsageMinutes = 65)
+        assertFalse(exceeded.isAppLimitAchieved)
+        assertEquals(65f / 60f, exceeded.appProgressRatio, 0.001f)
+
+        val targets = CustomGoalTargets(
+            scoreTarget = 70,
+            targetPackageName = DailyGoal.PACKAGE_ALL_MANAGED,
+            targetAppName = "관리 앱 전체",
+            appLimitMinutes = 60
+        )
+        assertTrue(targets.isAllManagedApps)
+    }
 }

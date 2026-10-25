@@ -612,6 +612,7 @@ private fun ThreeGoalsDashboardCard(
     onUnlockClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
     var showDetailDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
     var showGoalHelp by remember { mutableStateOf(false) }
@@ -622,8 +623,9 @@ private fun ThreeGoalsDashboardCard(
     val pointsNeeded = (targetScore - currentScore).coerceAtLeast(0)
     val isAchieved = currentScore >= targetScore
 
-    // 2. 관리 앱 1개 제한 목표
-    val targetAppName = dailyGoal?.targetAppName?.ifBlank { null }
+    // 2. 관리 앱 제한 목표 (앱 1개 또는 관리 앱 전체)
+    val isAllManaged = dailyGoal?.isAllManagedApps == true
+    val targetAppName = if (isAllManaged) (if (isEn) "All managed apps" else "관리 앱 전체") else dailyGoal?.targetAppName?.ifBlank { null }
     val appLimit = dailyGoal?.appLimitMinutes ?: 30
     val appMins = dailyGoal?.currentAppUsageMinutes ?: 0
     val appRatio = if (appLimit > 0) (appMins.toFloat() / appLimit.toFloat()) else 0f
@@ -633,8 +635,6 @@ private fun ThreeGoalsDashboardCard(
     val unlockLimit = dailyGoal?.unlockLimitTarget ?: 100
     val unlockRatio = (unlockCount.toFloat() / unlockLimit.toFloat())
     val isUnlockExceeded = unlockCount > unlockLimit
-
-    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
 
     Card(
         modifier = Modifier
@@ -1329,18 +1329,31 @@ private fun EditThreeGoalsDialog(
             GoalHistory(rows.map { it.finalScore }, rows.map { it.unlockCount }, loaded = true)
         }
     }
-    // 고른 앱의 최근 7일(오늘 제외) 하루 사용 시간
+    // 고른 앱 또는 관리 앱 전체의 최근 7일(오늘 제외) 하루 사용 시간
     val appHistory by androidx.compose.runtime.produceState<List<Int>?>(null, selectedPkg) {
         val pkg = selectedPkg
         value = if (pkg == null) emptyList() else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val today = java.time.LocalDate.parse(com.digitscore.app.data.DailyGoalStore.getLogicalDateString())
-            com.digitscore.app.data.DigitsDatabase.getInstance(context).dailyAppUsageDao()
-                .getForPackageSince(pkg, today.minusDays(7).toString())
-                .filter { it.dateString < today.toString() }
-                .map { (it.usageMillis / 60_000L).toInt() }
+            val db = com.digitscore.app.data.DigitsDatabase.getInstance(context)
+            if (pkg == com.digitscore.app.model.DailyGoal.PACKAGE_ALL_MANAGED) {
+                val allRows = db.dailyAppUsageDao().getAll()
+                    .filter { it.dateString >= today.minusDays(7).toString() && it.dateString < today.toString() && it.categoryLevel >= 3 }
+                allRows.groupBy { it.dateString }.values.map { dayList ->
+                    dayList.sumOf { (it.usageMillis / 60_000L).toInt() }
+                }
+            } else {
+                db.dailyAppUsageDao()
+                    .getForPackageSince(pkg, today.minusDays(7).toString())
+                    .filter { it.dateString < today.toString() }
+                    .map { (it.usageMillis / 60_000L).toInt() }
+            }
         }
     }
-    val todayAppMinutes = ((appsUsage.firstOrNull { it.packageName == selectedPkg }?.usageTimeMillis ?: 0L) / 60_000L).toInt()
+    val todayAppMinutes = if (selectedPkg == com.digitscore.app.model.DailyGoal.PACKAGE_ALL_MANAGED) {
+        (appsUsage.filter { it.categoryType.canonical == com.digitscore.app.model.AppCategoryType.DISTRACTING }.sumOf { it.usageTimeMillis } / 60_000L).toInt()
+    } else {
+        ((appsUsage.firstOrNull { it.packageName == selectedPkg }?.usageTimeMillis ?: 0L) / 60_000L).toInt()
+    }
 
     val scoreSpec = remember(history, currentScore) { com.digitscore.app.model.GoalRanges.score(currentScore, history.finalScores) }
     val unlockSpec = remember(history, todayUnlocks) { com.digitscore.app.model.GoalRanges.unlockLimit(todayUnlocks, history.unlocks) }
@@ -1508,7 +1521,37 @@ private fun EditThreeGoalsDialog(
                         }
                     }
 
-                    if (candidateApps.isNotEmpty()) {
+                    // 범위 선택: 앱 1개 vs 관리 앱 전체
+                    val isAllManaged = selectedPkg == com.digitscore.app.model.DailyGoal.PACKAGE_ALL_MANAGED
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        FilterChip(
+                            selected = !isAllManaged,
+                            onClick = {
+                                if (isAllManaged) {
+                                    appTouched = false
+                                    selectedPkg = candidateApps.firstOrNull()?.first
+                                    selectedAppName = candidateApps.firstOrNull()?.second ?: ""
+                                }
+                            },
+                            label = { Text(if (isEn) "Single app" else "앱 1개", fontSize = DigitsTextSize.caption) }
+                        )
+                        FilterChip(
+                            selected = isAllManaged,
+                            onClick = {
+                                if (!isAllManaged) {
+                                    appTouched = false
+                                    selectedPkg = com.digitscore.app.model.DailyGoal.PACKAGE_ALL_MANAGED
+                                    selectedAppName = if (isEn) "All managed apps" else "관리 앱 전체"
+                                }
+                            },
+                            label = { Text(if (isEn) "All managed apps" else "관리 앱 전체", fontSize = DigitsTextSize.caption) }
+                        )
+                    }
+
+                    if (!isAllManaged && candidateApps.isNotEmpty()) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
