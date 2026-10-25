@@ -1,6 +1,7 @@
 package com.digitscore.app.data
 
 import android.content.Context
+import com.digitscore.app.R
 import com.digitscore.app.model.AppCandidate
 import com.digitscore.app.model.DailyGoal
 import com.digitscore.app.model.DailyGoalType
@@ -150,7 +151,7 @@ object DailyGoalStore {
         val scope = prefs.getString(KEY_APP_GOAL_SCOPE, "SINGLE")
         val targetPkg = if (scope == "ALL_MANAGED") DailyGoal.PACKAGE_ALL_MANAGED else prefs.getString(KEY_TARGET_PKG, null)
         val targetAppName = if (targetPkg == DailyGoal.PACKAGE_ALL_MANAGED) {
-            prefs.getString(KEY_TARGET_APP, "").takeIf { !it.isNullOrBlank() } ?: "관리 앱 전체"
+            prefs.getString(KEY_TARGET_APP, "").takeIf { !it.isNullOrBlank() } ?: context.getString(R.string.goal_all_managed_apps)
         } else {
             prefs.getString(KEY_TARGET_APP, "") ?: ""
         }
@@ -272,10 +273,15 @@ object DailyGoalStore {
     fun getWeekdayGoalTargets(context: Context): com.digitscore.app.model.CustomGoalTargets? {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         if (!prefs.contains(KEY_WEEKDAY_SCORE_TARGET)) return null
+        val pkg = prefs.getString(KEY_WEEKDAY_TARGET_PKG, null)
+        val name = prefs.getString(KEY_WEEKDAY_TARGET_APP, "") ?: ""
+        val targetName = if (pkg == DailyGoal.PACKAGE_ALL_MANAGED && name.isBlank()) {
+            context.getString(R.string.goal_all_managed_apps)
+        } else name
         return com.digitscore.app.model.CustomGoalTargets(
             scoreTarget = prefs.getInt(KEY_WEEKDAY_SCORE_TARGET, 70),
-            targetPackageName = prefs.getString(KEY_WEEKDAY_TARGET_PKG, null),
-            targetAppName = prefs.getString(KEY_WEEKDAY_TARGET_APP, "") ?: "",
+            targetPackageName = pkg,
+            targetAppName = targetName,
             appLimitMinutes = prefs.getInt(KEY_WEEKDAY_APP_LIMIT, 30),
             unlockLimitTarget = prefs.getInt(KEY_WEEKDAY_UNLOCK_TARGET, 40)
         )
@@ -295,10 +301,15 @@ object DailyGoalStore {
     fun getWeekendGoalTargets(context: Context): com.digitscore.app.model.CustomGoalTargets? {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         if (!prefs.contains(KEY_WEEKEND_SCORE_TARGET)) return null
+        val pkg = prefs.getString(KEY_WEEKEND_TARGET_PKG, null)
+        val name = prefs.getString(KEY_WEEKEND_TARGET_APP, "") ?: ""
+        val targetName = if (pkg == DailyGoal.PACKAGE_ALL_MANAGED && name.isBlank()) {
+            context.getString(R.string.goal_all_managed_apps)
+        } else name
         return com.digitscore.app.model.CustomGoalTargets(
             scoreTarget = prefs.getInt(KEY_WEEKEND_SCORE_TARGET, 70),
-            targetPackageName = prefs.getString(KEY_WEEKEND_TARGET_PKG, null),
-            targetAppName = prefs.getString(KEY_WEEKEND_TARGET_APP, "") ?: "",
+            targetPackageName = pkg,
+            targetAppName = targetName,
             appLimitMinutes = prefs.getInt(KEY_WEEKEND_APP_LIMIT, 30),
             unlockLimitTarget = prefs.getInt(KEY_WEEKEND_UNLOCK_TARGET, 40)
         )

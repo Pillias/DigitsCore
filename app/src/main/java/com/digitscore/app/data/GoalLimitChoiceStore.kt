@@ -106,20 +106,132 @@ object GoalLimitChoiceStore {
         }
     }
 
-    // 15min 더 연장 대기 관리
-    fun setMore15Snooze(context: Context, packageName: String, snoozeUntilMillis: Long) = synchronized(lock) {
+    // 15min 더 연장 대기 관리 (05:00 기준 날짜별 격리)
+    fun setMore15Snooze(
+        context: Context,
+        packageName: String,
+        snoozeUntilMillis: Long
+    ) = setMore15Snooze(context, DailyGoalStore.getLogicalDateString(), packageName, snoozeUntilMillis)
+
+    fun setMore15Snooze(
+        context: Context,
+        dateString: String,
+        packageName: String,
+        snoozeUntilMillis: Long
+    ) = synchronized(lock) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putLong(PREFIX_SNOOZE + packageName, snoozeUntilMillis).apply()
+        cleanupNonTodayKeys(prefs, dateString)
+        prefs.edit()
+            .putLong("${PREFIX_SNOOZE}${dateString}_$packageName", snoozeUntilMillis)
+            .apply()
     }
 
-    fun getMore15Snooze(context: Context, packageName: String): Long = synchronized(lock) {
+    fun getMore15Snooze(
+        context: Context,
+        packageName: String
+    ): Long = getMore15Snooze(context, DailyGoalStore.getLogicalDateString(), packageName)
+
+    fun getMore15Snooze(
+        context: Context,
+        dateString: String,
+        packageName: String
+    ): Long = synchronized(lock) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getLong(PREFIX_SNOOZE + packageName, 0L)
+        return prefs.getLong("${PREFIX_SNOOZE}${dateString}_$packageName", 0L)
     }
 
-    fun clearMore15Snooze(context: Context, packageName: String) = synchronized(lock) {
+    fun clearMore15Snooze(
+        context: Context,
+        packageName: String
+    ) = clearMore15Snooze(context, DailyGoalStore.getLogicalDateString(), packageName)
+
+    fun clearMore15Snooze(
+        context: Context,
+        dateString: String,
+        packageName: String
+    ) = synchronized(lock) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().remove(PREFIX_SNOOZE + packageName).apply()
+        prefs.edit()
+            .remove("${PREFIX_SNOOZE}${dateString}_$packageName")
+            .remove(PREFIX_SNOOZE + packageName)
+            .apply()
+    }
+
+    fun pruneExpiredSnoozes(
+        context: Context,
+        currentDateString: String = DailyGoalStore.getLogicalDateString(),
+        activePackage: String?,
+        now: Long = System.currentTimeMillis()
+    ) = synchronized(lock) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val allKeys = prefs.all.keys
+        val editor = prefs.edit()
+        var changed = false
+        for (key in allKeys) {
+            if (key.startsWith(PREFIX_SNOOZE)) {
+                val snoozeUntil = prefs.getLong(key, 0L)
+                val rest = key.removePrefix(PREFIX_SNOOZE)
+                if (!rest.startsWith(currentDateString)) {
+                    editor.remove(key)
+                    changed = true
+                } else if (snoozeUntil in 1..now) {
+                    val pkg = rest.removePrefix("${currentDateString}_")
+                    if (activePackage != pkg) {
+                        editor.remove(key)
+                        changed = true
+                    }
+                }
+            }
+        }
+        if (changed) {
+            editor.apply()
+        }
+    }
+
+    private fun cleanupNonTodayKeys(prefs: android.content.SharedPreferences, todayDate: String) {
+        val allKeys = prefs.all.keys
+        val editor = prefs.edit()
+        var changed = false
+        for (key in allKeys) {
+            when {
+                key.startsWith(PREFIX_SNOOZE) -> {
+                    val rest = key.removePrefix(PREFIX_SNOOZE)
+                    if (!rest.startsWith(todayDate)) {
+                        editor.remove(key)
+                        changed = true
+                    }
+                }
+                key.startsWith(PREFIX_RESEND_COUNT) -> {
+                    val rest = key.removePrefix(PREFIX_RESEND_COUNT)
+                    if (!rest.startsWith(todayDate)) {
+                        editor.remove(key)
+                        changed = true
+                    }
+                }
+                key.startsWith(PREFIX_STOP_TODAY) -> {
+                    val rest = key.removePrefix(PREFIX_STOP_TODAY)
+                    if (!rest.startsWith(todayDate)) {
+                        editor.remove(key)
+                        changed = true
+                    }
+                }
+            }
+        }
+        if (changed) {
+            editor.apply()
+        }
+    }
+
+    fun clearAll(context: Context) = synchronized(lock) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().clear().apply()
+    }
+
+    fun pruneBefore(context: Context, cutoffDate: String) = synchronized(lock) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val existing = parseRecords(prefs.getString(KEY_RECORDS_JSON, null))
+        val updated = existing.filter { it.dateString >= cutoffDate }
+        prefs.edit().putString(KEY_RECORDS_JSON, serializeRecords(updated)).apply()
     }
 
     // 15min 더 재발송 횟수 관리 (하루 최대 3회)

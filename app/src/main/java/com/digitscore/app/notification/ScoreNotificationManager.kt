@@ -228,7 +228,11 @@ object ScoreNotificationManager {
     ) {
         val strings = AppLocale.stringsContext(context)
         val pkg = goal.targetPackageName ?: return
-        val rawAppName = goal.targetAppName.ifEmpty { pkg.substringAfterLast('.') }
+        val rawAppName = if (goal.isAllManagedApps) {
+            strings.getString(R.string.goal_all_managed_apps)
+        } else {
+            goal.targetAppName.ifEmpty { pkg.substringAfterLast('.') }
+        }
         val appName = if (rawAppName.length > 10) rawAppName.take(9) + "…" else rawAppName
 
         val more15Intent = Intent(context, com.digitscore.app.receiver.GoalLimitActionReceiver::class.java).apply {

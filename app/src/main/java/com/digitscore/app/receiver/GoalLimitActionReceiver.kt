@@ -41,6 +41,7 @@ class GoalLimitActionReceiver : BroadcastReceiver() {
                 // 15분 뒤 같은 앱을 계속 쓰고 있으면 화면 신호등을 한 번 켜고 같은 알림을 다시 보냄
                 GoalLimitChoiceStore.setMore15Snooze(
                     context = context,
+                    dateString = todayDate,
                     packageName = packageName,
                     snoozeUntilMillis = now + 15 * 60_000L
                 )
