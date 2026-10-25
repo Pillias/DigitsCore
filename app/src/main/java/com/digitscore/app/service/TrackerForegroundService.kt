@@ -1102,7 +1102,7 @@ class TrackerForegroundService : Service() {
                         val timeRules = com.digitscore.app.data.TimeRuleStore.getRules(applicationContext)
                         val activeTimeRule = com.digitscore.app.engine.TimeRuleEngine.getActiveRule(timeRules, java.time.LocalDateTime.now())
                         val baseManagedTargetMins = com.digitscore.app.notification.EdgeLightingOverlayManager.getManagedTriggerMinutes(applicationContext)
-                        val managedTargetMins = activeTimeRule?.lightingMinutes ?: baseManagedTargetMins
+                        val managedTargetMins = if (activeTimeRule != null) minOf(activeTimeRule.lightingMinutes, baseManagedTargetMins) else baseManagedTargetMins
                         val studyTargetMins = com.digitscore.app.notification.EdgeLightingOverlayManager.getStudyTriggerMinutes(applicationContext)
 
                         val effectiveManagedMinutes = if (isManaged) chainedManagedMinutes else 0.0
@@ -1193,7 +1193,7 @@ class TrackerForegroundService : Service() {
                                 val displayMins = maxOf(managedTargetMins, effectiveManagedMinutes.toInt())
                                 val isDominantApp = currentAppChainMinutes >= managedTargetMins * 0.5
                                 val appTitle = if (isDominantApp) activeAppName else if (isEn) "Managed apps" else "관리앱 합산"
-                                val rulePrefix = if (activeTimeRule != null) "[${activeTimeRule.name}] " else ""
+                                val rulePrefix = if (activeTimeRule != null) "[${activeTimeRule.displayName(isEn)}] " else ""
                                 val label = if (isEn) "● $rulePrefix$appTitle · ${displayMins}min continuous · Overuse" else "● $rulePrefix$appTitle · ${displayMins}min 연속 · 과몰입 주의"
                                 com.digitscore.app.notification.EdgeLightingOverlayManager.showEdgeWarning(
                                     applicationContext,

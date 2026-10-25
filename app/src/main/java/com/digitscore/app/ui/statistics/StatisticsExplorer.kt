@@ -781,8 +781,8 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                 label("사용 시간", "Usage"),
                                 label("점수 영향", "Impact"),
                                 label("실행", "Opens"),
-                                label("해제 후 첫 실행", "First Opened"),
-                                label("알림 잠금", "Notif Unlocks")
+                                label("처음 연 앱", "First opened"),
+                                label("알림 잠금 해제", "Notification unlocks")
                             ).forEachIndexed { index, text ->
                                 FilterChip(ranking == index, { ranking = index; allApps = false }, label = { Text(text) })
                             }
@@ -868,9 +868,9 @@ private fun appValue(app: ExplorerApp, mode: Int) = when (mode) {
                 val subtitle = when {
                     mode == 1 -> if (isPeriod) label("일 평균 −${points((app.loss ?: 0.0) / daysCount)} (총 −${points(app.loss ?: 0.0)})", "Daily −${points((app.loss ?: 0.0) / daysCount)}")
                                  else label("실제 감점 기여", "Recorded score loss")
-                    mode == 3 -> if (isPeriod) label("해제 후 첫 실행 총 ${app.firstAfterUnlockCount}회", "Total ${app.firstAfterUnlockCount}x first after unlock")
+                    mode == 3 -> if (isPeriod) label("처음 연 앱 총 ${app.firstAfterUnlockCount}x", "Total ${app.firstAfterUnlockCount}x first opened")
                                  else label("잠금 해제 후 처음 연 앱", "First app opened after unlock")
-                    mode == 4 -> if (isPeriod) label("알림이 부른 잠금 총 ${app.notificationUnlockCount}회", "Total ${app.notificationUnlockCount}x notif unlocks")
+                    mode == 4 -> if (isPeriod) label("알림 잠금 해제 총 ${app.notificationUnlockCount}x", "Total ${app.notificationUnlockCount}x notification unlocks")
                                  else label("알림이 부른 잠금 해제", "Notification-triggered unlock")
                     isPeriod -> label(
                         "일 ${(app.opens.toFloat() / daysCount).roundToInt()}x · 짧은 확인 ${(app.shortOpens.toFloat() / daysCount).roundToInt()}x (총 ${app.opens}x)",
@@ -884,11 +884,11 @@ private fun appValue(app: ExplorerApp, mode: Int) = when (mode) {
                 Text(subtitle, fontSize = DigitsTextSize.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             val valueText = when (mode) {
-                1 -> if (isPeriod) "일 −${points((app.loss ?: 0.0) / daysCount)}" else "−${points(app.loss ?: 0.0)}"
-                2 -> if (isPeriod) "일 ${(app.opens.toFloat() / daysCount).roundToInt()}x" else "${app.opens}x"
-                3 -> if (isPeriod) "일 ${(app.firstAfterUnlockCount.toFloat() / daysCount).roundToInt()}x" else "${app.firstAfterUnlockCount}x"
-                4 -> if (isPeriod) "일 ${(app.notificationUnlockCount.toFloat() / daysCount).roundToInt()}x" else "${app.notificationUnlockCount}x"
-                else -> if (isPeriod) "일 ${minutes(app.usage / daysCount)}" else minutes(app.usage)
+                1 -> if (isPeriod) label("일 −${points((app.loss ?: 0.0) / daysCount)}", "−${points((app.loss ?: 0.0) / daysCount)}/day") else "−${points(app.loss ?: 0.0)}"
+                2 -> if (isPeriod) label("일 ${(app.opens.toFloat() / daysCount).roundToInt()}x", "${(app.opens.toFloat() / daysCount).roundToInt()}x/day") else "${app.opens}x"
+                3 -> if (isPeriod) label("일 ${(app.firstAfterUnlockCount.toFloat() / daysCount).roundToInt()}x", "${(app.firstAfterUnlockCount.toFloat() / daysCount).roundToInt()}x/day") else "${app.firstAfterUnlockCount}x"
+                4 -> if (isPeriod) label("일 ${(app.notificationUnlockCount.toFloat() / daysCount).roundToInt()}x", "${(app.notificationUnlockCount.toFloat() / daysCount).roundToInt()}x/day") else "${app.notificationUnlockCount}x"
+                else -> if (isPeriod) label("일 ${minutes(app.usage / daysCount)}", "${minutes(app.usage / daysCount)}/day") else minutes(app.usage)
             }
             Text(valueText, color = color, fontWeight = FontWeight.Bold)
             Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, Modifier.size(18.dp))

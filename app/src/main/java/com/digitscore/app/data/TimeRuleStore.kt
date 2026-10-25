@@ -38,7 +38,7 @@ object TimeRuleStore {
                 list.add(
                     TimeRule(
                         id = obj.optString("id", java.util.UUID.randomUUID().toString()),
-                        name = obj.optString("name", "업무"),
+                        name = obj.optString("name", TimeRule.PRESET_WORK),
                         enabled = obj.optBoolean("enabled", true),
                         daysOfWeek = if (days.isEmpty()) DayOfWeek.values().toSet() else days,
                         startHour = obj.optInt("startHour", 9),
@@ -106,12 +106,10 @@ object TimeRuleStore {
         suggestedSleepStartHour: Int = 22,
         suggestedSleepStartMinute: Int = 0
     ): List<TimeRule> {
-        val workName = if (isEn) "Work" else "업무"
-        val sleepName = if (isEn) "Sleep prep" else "수면 준비"
         return listOf(
             TimeRule(
-                id = "preset_work",
-                name = workName,
+                id = TimeRule.PRESET_WORK,
+                name = TimeRule.PRESET_WORK,
                 enabled = false,
                 daysOfWeek = setOf(
                     DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
@@ -124,8 +122,8 @@ object TimeRuleStore {
                 lightingMinutes = 10
             ),
             TimeRule(
-                id = "preset_sleep",
-                name = sleepName,
+                id = TimeRule.PRESET_SLEEP,
+                name = TimeRule.PRESET_SLEEP,
                 enabled = false,
                 daysOfWeek = DayOfWeek.values().toSet(),
                 startHour = suggestedSleepStartHour,

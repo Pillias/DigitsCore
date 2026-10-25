@@ -172,4 +172,30 @@ class TimeRuleEngineTest {
         val monday8pm = LocalDateTime.of(2026, 10, 26, 20, 0)
         assertNull(TimeRuleEngine.getActiveRule(listOf(lenientRule, strictRule), monday8pm))
     }
+
+    @Test
+    fun testTimeRuleDisplayNameAndPresets() {
+        val workRule = TimeRule(name = TimeRule.PRESET_WORK)
+        val sleepRule = TimeRule(name = TimeRule.PRESET_SLEEP)
+        val customRule = TimeRule(name = "집중 회의")
+
+        assertEquals("Work", workRule.displayName(isEn = true))
+        assertEquals("업무", workRule.displayName(isEn = false))
+        assertEquals("Sleep prep", sleepRule.displayName(isEn = true))
+        assertEquals("수면 준비", sleepRule.displayName(isEn = false))
+        assertEquals("집중 회의", customRule.displayName(isEn = true))
+        assertEquals("집중 회의", customRule.displayName(isEn = false))
+    }
+
+    @Test
+    fun testSameStartAndEndTimeCalculation() {
+        val sameTimeRule = TimeRule(
+            startHour = 9,
+            startMinute = 0,
+            endHour = 9,
+            endMinute = 0
+        )
+        // startMinuteOfDay == endMinuteOfDay means 24h window
+        assertEquals(sameTimeRule.startMinuteOfDay, sameTimeRule.endMinuteOfDay)
+    }
 }

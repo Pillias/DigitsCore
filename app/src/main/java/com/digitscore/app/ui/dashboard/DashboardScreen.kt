@@ -247,8 +247,15 @@ fun DashboardScreen(
     val grade = ScoreGrade.fromScore(currentScore)
 
     val timeRules = remember { com.digitscore.app.data.TimeRuleStore.getRules(context) }
-    val activeTimeRule = remember(timeRules) {
-        com.digitscore.app.engine.TimeRuleEngine.getActiveRule(timeRules, java.time.LocalDateTime.now())
+    var currentTime by remember { mutableStateOf(java.time.LocalDateTime.now()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(60_000L)
+            currentTime = java.time.LocalDateTime.now()
+        }
+    }
+    val activeTimeRule = remember(timeRules, currentTime.minute, currentTime.hour, currentTime.dayOfWeek) {
+        com.digitscore.app.engine.TimeRuleEngine.getActiveRule(timeRules, currentTime)
     }
 
     Scaffold(
@@ -335,7 +342,7 @@ fun DashboardScreen(
                                         tint = MaterialTheme.colorScheme.onSecondaryContainer
                                     )
                                     Text(
-                                        text = "${activeTimeRule.name} · ${if (isEn) "Lighting" else "신호등"} ${activeTimeRule.lightingMinutes}min",
+                                        text = "${activeTimeRule.displayName(isEn)} · ${if (isEn) "Lighting" else "신호등"} ${activeTimeRule.lightingMinutes}min",
                                         fontSize = DigitsTextSize.caption,
                                         fontWeight = FontWeight.Medium,
                                         color = MaterialTheme.colorScheme.onSecondaryContainer

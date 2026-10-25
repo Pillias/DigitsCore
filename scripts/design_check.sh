@@ -20,7 +20,7 @@ echo "FontWeight SemiBold/ExtraBold/Black: $(grep -rhoE 'FontWeight\.(SemiBold|E
 echo "Filled/Outlined 아이콘: $(grep -rhoE 'Icons\.(Default|Filled|Outlined)\.' --include=*.kt "$UI" | wc -l | tr -d ' ')"
 
 echo "== 쓰지 않는 용어 (docs/GLOSSARY.md)"
-for w in "누적 피로도" "연속 사용 가속 (min)" "언락" "잠금해제" "코어지수" "화면시간" "사용시간" "몰입 관리" "몰입관리" "방해 앱" "습관성 오픈" "습관적 열람" "순간 확인" "짧은 실행" "3대 실천 목표" "실천 목표" "집중 관리할 앱" "프리셋" "스트릭" "퍼펙트 데이" "올 클리어" "OS 감지 알림" "병렬 화면" "Immersion Management"; do
+for w in "누적 피로도" "연속 사용 가속 (min)" "언락" "잠금해제" "코어지수" "화면시간" "사용시간" "몰입 관리" "몰입관리" "방해 앱" "습관성 오픈" "습관적 열람" "순간 확인" "짧은 실행" "3대 실천 목표" "실천 목표" "집중 관리할 앱" "프리셋" "스트릭" "퍼펙트 데이" "올 클리어" "OS 감지 알림" "병렬 화면" "Immersion Management" "주간 보고서" "첫 실행 앱" "알림 유발 잠금" "스케줄 규칙" "전체 관리 한도" "과거 기록" "이전 기록"; do
   n=$(grep -rhoF "$w" --include=*.kt --include=*.xml "$SRC" | wc -l | tr -d ' ')
   if [ "$n" != "0" ]; then echo "  $w: $n"; fail=1; fi
 done

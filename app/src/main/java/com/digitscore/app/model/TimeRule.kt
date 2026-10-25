@@ -10,7 +10,7 @@ import java.time.DayOfWeek
  */
 data class TimeRule(
     val id: String = java.util.UUID.randomUUID().toString(),
-    val name: String = "업무",
+    val name: String = PRESET_WORK,
     val enabled: Boolean = true,
     val daysOfWeek: Set<DayOfWeek> = setOf(
         DayOfWeek.MONDAY,
@@ -28,4 +28,15 @@ data class TimeRule(
     val startMinuteOfDay: Int get() = startHour * 60 + startMinute
     val endMinuteOfDay: Int get() = endHour * 60 + endMinute
     val isOvernight: Boolean get() = endMinuteOfDay <= startMinuteOfDay
+
+    fun displayName(isEn: Boolean): String = when (name) {
+        PRESET_WORK, "업무", "Work" -> if (isEn) "Work" else "업무"
+        PRESET_SLEEP, "수면 준비", "Sleep prep" -> if (isEn) "Sleep prep" else "수면 준비"
+        else -> name
+    }
+
+    companion object {
+        const val PRESET_WORK = "preset_work"
+        const val PRESET_SLEEP = "preset_sleep"
+    }
 }

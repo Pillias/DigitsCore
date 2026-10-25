@@ -120,9 +120,11 @@
 
 | 채널 ID | 이름 | 중요도 | 용도 |
 |---|---|---|---|
-| `digitscore_running` | 실시간 코어 지수 | LOW | 상시 상태바 아이콘 및 코어 지수 알림 |
-| `digitscore_wake_prompt` | 기상 확인 | DEFAULT | 아침 기상 감지 시 헤드업 브리핑 안내 |
-| `digitscore_goal` | 목표 코칭 | HIGH | 목표 80% 근접 코칭 및 100% 한도 도달 선택 카드 |
+| `digitscore_status_channel` | 실시간 코어 지수 | LOW | 상시 상태바 아이콘 및 코어 지수 알림 |
+| `digitscore_guidance_channel` | 코어 지수 안내 | DEFAULT | 점수 급락 또는 30분 연속 사용 안내 |
+| `digitscore_soft_guidance_v2` | 부드러운 사용 경고 | LOW | 소리·진동 없는 알림창 전용 경고 |
+| `digitscore_wake_prompt_channel` | 기상 확인 | HIGH | 아침 기상 감지 시 헤드업 브리핑 안내 |
+| `digitscore_goal_channel` | 오늘의 목표 | DEFAULT | 목표 한도 도달 알림 및 선택 카드 |
 | `digitscore_weekly_report` | 주간 리포트 | DEFAULT | 매주 월요일 05:00 이후 지난주 결산 안내 |
 
 ## 검수

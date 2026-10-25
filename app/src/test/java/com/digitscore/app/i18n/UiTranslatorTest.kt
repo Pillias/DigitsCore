@@ -27,7 +27,7 @@ class UiTranslatorTest {
                 "주별 흐름 · 월요일 기준",
                 "일별 마지막 지수 · 날짜를 눌러 상세 보기",
                 "좌우로 스크롤하고 날짜를 누르면 하루 중 상세 흐름을 확인할 수 있습니다.",
-                "이전 기록",
+                "지난 기록",
                 "다음 기록",
                 "최근 24시간",
                 "최근 24시간 앱 사용 현황",
@@ -240,6 +240,43 @@ class UiTranslatorTest {
             supportTexts.forEach { source ->
                 val english = UiTranslator.translate(source)
                 assertFalse("Untranslated Korean remains in: $english", english.contains(Regex("[가-힣]")))
+            }
+        } finally {
+            Locale.setDefault(previous)
+        }
+    }
+
+    @Test
+    fun englishModeTranslatesDynamicParityStrings() {
+        val workPreset = com.digitscore.app.model.TimeRule(name = com.digitscore.app.model.TimeRule.PRESET_WORK)
+        val sleepPreset = com.digitscore.app.model.TimeRule(name = com.digitscore.app.model.TimeRule.PRESET_SLEEP)
+
+        assertEquals("Work", workPreset.displayName(isEn = true))
+        assertEquals("Sleep prep", sleepPreset.displayName(isEn = true))
+        assertEquals("Work", com.digitscore.app.model.TimeRule(name = "Work").displayName(isEn = true))
+        assertEquals("Work", com.digitscore.app.model.TimeRule(name = "업무").displayName(isEn = true))
+        assertEquals("업무", workPreset.displayName(isEn = false))
+        assertEquals("수면 준비", sleepPreset.displayName(isEn = false))
+
+        val badgeTextEn = "${workPreset.displayName(isEn = true)} · Lighting ${workPreset.lightingMinutes}min"
+        assertFalse(badgeTextEn.contains(Regex("[가-힣]")))
+
+        val previous = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.ENGLISH)
+            val dynamicTexts = listOf(
+                "관리 앱 전체",
+                "15min 연장 한도 도달",
+                "오늘은 여기까지",
+                "15min 더",
+                "주간 리포트",
+                "시간대 규칙",
+                "시간대 규칙 추가",
+                "시간대 규칙 수정"
+            )
+            dynamicTexts.forEach { text ->
+                val translated = UiTranslator.translate(text)
+                assertFalse("Untranslated Korean remains in: $translated", translated.contains(Regex("[가-힣]")))
             }
         } finally {
             Locale.setDefault(previous)

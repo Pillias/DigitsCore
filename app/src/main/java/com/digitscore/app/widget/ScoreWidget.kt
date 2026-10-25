@@ -433,7 +433,7 @@ private fun WideBarWidget(
             }
             Text(
                 text = if (continuousMinutes > 0L) "${continuousMinutes}min" else if (isEn) "Target ${scoreTarget}P" else "목표 ${scoreTarget}P",
-                style = widgetTextStyle(palette.secondary, 8, FontWeight.Normal),
+                style = widgetTextStyle(palette.secondary, 9, FontWeight.Normal),
                 maxLines = 1
             )
         }
@@ -456,9 +456,7 @@ private fun WideBarWidget(
         } else {
             "${screenMinutes}min"
         }
-        val isScoreAchieved = score >= scoreTarget
-        val scoreTag = if (isScoreAchieved) (if (isEn) "Met" else "달성") else (if (isEn) "Below" else "미달")
-        val goalText = "${score}/${scoreTarget}P($scoreTag) · $appGoalPart · ${unlockCount}/${unlockLimitTarget}x"
+        val goalText = "${score}/${scoreTarget}P · $appGoalPart · ${unlockCount}/${unlockLimitTarget}x"
         Column(
             modifier = GlanceModifier
                 .fillMaxWidth()
@@ -531,7 +529,7 @@ private fun LargeWidget(
                 } else {
                     if (isEn) "Target ${scoreTarget}P" else "목표 ${scoreTarget}P"
                 },
-                style = widgetTextStyle(palette.secondary, 8),
+                style = widgetTextStyle(palette.secondary, 9),
                 maxLines = 1
             )
         }
@@ -568,14 +566,16 @@ private fun LargeWidget(
         StatMetric(
             label = if (isEn) "Defense" else "지수 방어",
             value = "${score}/${scoreTarget}P",
-            statusText = if (isScoreAchieved) (if (isEn) "Met" else "달성") else (if (isEn) "Below" else "미달"),
-            statusColor = if (isScoreAchieved) greenColor else redColor,
+            valueColor = if (isScoreAchieved) greenColor else redColor,
+            statusText = null,
+            statusColor = null,
             palette = palette,
             width = metricWidth
         )
         StatMetric(
             label = appMetricLabel,
             value = appMetricVal,
+            valueColor = null,
             statusText = if (targetAppName.isNotBlank()) {
                 if (isAppExceeded) (if (isEn) "Over" else "초과") else (if (isEn) "Met" else "달성")
             } else null,
@@ -586,6 +586,7 @@ private fun LargeWidget(
         StatMetric(
             label = strings.getString(R.string.widget_unlocks),
             value = "${unlockCount}/${unlockLimitTarget}x",
+            valueColor = null,
             statusText = if (isUnlockExceeded) (if (isEn) "Over" else "초과") else (if (isEn) "Met" else "달성"),
             statusColor = if (isUnlockExceeded) redColor else greenColor,
             palette = palette,
@@ -618,6 +619,7 @@ private fun Gauge(bitmap: android.graphics.Bitmap, accessibility: String, size: 
 private fun StatMetric(
     label: String,
     value: String,
+    valueColor: Color? = null,
     statusText: String? = null,
     statusColor: Color? = null,
     palette: WidgetPalette,
@@ -633,18 +635,18 @@ private fun StatMetric(
     ) {
         Text(
             label,
-            style = widgetTextStyle(palette.secondary, 8),
+            style = widgetTextStyle(palette.secondary, 9),
             maxLines = 1
         )
         Text(
             value,
-            style = widgetTextStyle(palette.primary, 9, FontWeight.Bold, TextAlign.Center),
+            style = widgetTextStyle(valueColor ?: palette.primary, 9, FontWeight.Bold, TextAlign.Center),
             maxLines = 1
         )
         if (statusText != null) {
             Text(
                 statusText,
-                style = widgetTextStyle(statusColor ?: palette.secondary, 8, FontWeight.Bold, TextAlign.Center),
+                style = widgetTextStyle(statusColor ?: palette.secondary, 9, FontWeight.Bold, TextAlign.Center),
                 maxLines = 1
             )
         }

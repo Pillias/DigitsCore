@@ -60,6 +60,7 @@ fun TimeRuleSection(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var rules by remember { mutableStateOf(TimeRuleStore.getRules(context)) }
     var editingRule by remember { mutableStateOf<TimeRule?>(null) }
     var isNewRule by remember { mutableStateOf(false) }
@@ -102,7 +103,7 @@ fun TimeRuleSection(
                         onClick = {
                             editingRule = TimeRule(
                                 id = java.util.UUID.randomUUID().toString(),
-                                name = if (isEn) "Work" else "업무",
+                                name = TimeRule.PRESET_WORK,
                                 enabled = true
                             )
                             isNewRule = true
@@ -138,24 +139,62 @@ fun TimeRuleSection(
                         modifier = Modifier.weight(1f),
                         shape = DigitsShape.sm
                     ) {
-                        Text(
-                            text = if (isEn) "+ Work (10min)" else "+ 업무 (10min)",
-                            fontSize = DigitsTextSize.caption
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (isEn) "Work (10min)" else "업무 (10min)",
+                                fontSize = DigitsTextSize.caption
+                            )
+                        }
                     }
                     OutlinedButton(
                         onClick = {
-                            val preset = TimeRuleStore.getDefaultPresetRules(isEn)[1].copy(enabled = true)
-                            TimeRuleStore.addRule(context, preset)
-                            refreshRules()
+                            scope.launch {
+                                val db = DigitsDatabase.getInstance(context)
+                                val learned = withContext(Dispatchers.IO) {
+                                    CumulativeScoreStore.getLearnedBedtimeMinute(db)
+                                }
+                                val (startH, startM) = if (learned != null) {
+                                    val prepMinute = (learned - 60 + 1440) % 1440
+                                    (prepMinute / 60) to (prepMinute % 60)
+                                } else {
+                                    23 to 0
+                                }
+                                val preset = TimeRuleStore.getDefaultPresetRules(
+                                    isEn = isEn,
+                                    suggestedSleepStartHour = startH,
+                                    suggestedSleepStartMinute = startM
+                                )[1].copy(enabled = true)
+                                TimeRuleStore.addRule(context, preset)
+                                refreshRules()
+                            }
                         },
                         modifier = Modifier.weight(1f),
                         shape = DigitsShape.sm
                     ) {
-                        Text(
-                            text = if (isEn) "+ Sleep prep (5min)" else "+ 수면 준비 (5min)",
-                            fontSize = DigitsTextSize.caption
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (isEn) "Sleep prep (5min)" else "수면 준비 (5min)",
+                                fontSize = DigitsTextSize.caption
+                            )
+                        }
                     }
                 }
             } else {
@@ -232,7 +271,7 @@ private fun TimeRuleItemRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
-                    text = rule.name,
+                    text = rule.displayName(isEn),
                     fontWeight = FontWeight.Bold,
                     fontSize = DigitsTextSize.body,
                     color = if (rule.enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
@@ -277,7 +316,7 @@ private fun EditTimeRuleDialog(
     onDelete: (() -> Unit)?
 ) {
     val context = LocalContext.current
-    var name by remember { mutableStateOf(initialRule.name) }
+    var name by remember { mutableStateOf(initialRule.displayName(isEn)) }
     var daysOfWeek by remember { mutableStateOf(initialRule.daysOfWeek) }
     var startHour by remember { mutableIntStateOf(initialRule.startHour) }
     var startMinute by remember { mutableIntStateOf(initialRule.startMinute) }
@@ -473,7 +512,14 @@ private fun EditTimeRuleDialog(
                         }
                     }
                 }
-                if (endHour * 60 + endMinute <= startHour * 60 + startMinute) {
+                val isSameTime = (startHour * 60 + startMinute == endHour * 60 + endMinute)
+                if (isSameTime) {
+                    Text(
+                        text = if (isEn) "Start and end times cannot be the same (24-hour rules not allowed)" else "시작 시간과 종료 시간이 같을 수 없습니다 (24시간 규칙 불가)",
+                        fontSize = DigitsTextSize.caption,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                } else if (endHour * 60 + endMinute < startHour * 60 + startMinute) {
                     Text(
                         text = if (isEn) "Overnight window (ends next day)" else "자정 넘김 (다음 날 아침 종료)",
                         fontSize = DigitsTextSize.caption,
@@ -503,11 +549,19 @@ private fun EditTimeRuleDialog(
             }
         },
         confirmButton = {
+            val isSameTime = (startHour * 60 + startMinute == endHour * 60 + endMinute)
             Button(
                 onClick = {
+                    if (isSameTime) return@Button
+                    val finalName = when (name.trim()) {
+                        "Work", "업무" -> TimeRule.PRESET_WORK
+                        "Sleep prep", "수면 준비" -> TimeRule.PRESET_SLEEP
+                        "" -> if (isEn) "Custom Rule" else "시간대 규칙"
+                        else -> name.trim()
+                    }
                     onSave(
                         initialRule.copy(
-                            name = name.ifBlank { if (isEn) "Custom Rule" else "시간대 규칙" },
+                            name = finalName,
                             daysOfWeek = daysOfWeek,
                             startHour = startHour,
                             startMinute = startMinute,
@@ -517,6 +571,7 @@ private fun EditTimeRuleDialog(
                         )
                     )
                 },
+                enabled = !isSameTime,
                 shape = DigitsShape.sm
             ) {
                 Text(if (isEn) "Save" else "저장", fontSize = DigitsTextSize.body, fontWeight = FontWeight.Bold)
