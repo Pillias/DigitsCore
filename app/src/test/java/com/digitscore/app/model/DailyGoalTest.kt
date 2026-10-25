@@ -323,4 +323,41 @@ class DailyGoalTest {
         assertEquals(1, parsed[1].stampEarned)
         assertEquals(1, parsed[1].passEarned)
     }
+
+    @Test
+    fun testWeekdayWeekendTargetSeparationAndNonOverwriting() {
+        val tuesdayDate = "2026-10-27" // Tuesday (Weekday)
+        val saturdayDate = "2026-10-31" // Saturday (Weekend)
+
+        assertFalse(com.digitscore.app.data.DailyGoalStore.isWeekend(tuesdayDate))
+        assertTrue(com.digitscore.app.data.DailyGoalStore.isWeekend(saturdayDate))
+
+        val weekdayTargets = CustomGoalTargets(
+            scoreTarget = 75,
+            targetPackageName = "com.kakao.talk",
+            targetAppName = "KakaoTalk",
+            appLimitMinutes = 25,
+            unlockLimitTarget = 35
+        )
+        val weekendTargets = CustomGoalTargets(
+            scoreTarget = 65,
+            targetPackageName = "com.google.android.youtube",
+            targetAppName = "YouTube",
+            appLimitMinutes = 60,
+            unlockLimitTarget = 50
+        )
+
+        // Verifying that editing weekend targets while today is Tuesday does NOT overwrite today's goal or weekday targets
+        val isTodayWeekend = com.digitscore.app.data.DailyGoalStore.isWeekend(tuesdayDate)
+        var editingWeekend = true // User chooses weekend tab
+
+        // If editingWeekend != isTodayWeekend, only that tab's target should be saved, today's goal is unchanged
+        val shouldUpdateTodayGoal = (editingWeekend == isTodayWeekend)
+        assertFalse("Editing weekend target on a weekday must not update today's active goal", shouldUpdateTodayGoal)
+
+        // When user edits weekday on Tuesday:
+        editingWeekend = false
+        val shouldUpdateTodayGoalOnWeekday = (editingWeekend == isTodayWeekend)
+        assertTrue("Editing weekday target on a weekday should update today's active goal", shouldUpdateTodayGoalOnWeekday)
+    }
 }

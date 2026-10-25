@@ -1672,8 +1672,14 @@ private fun EditThreeGoalsDialog(
                         } else {
                             com.digitscore.app.data.DailyGoalStore.saveWeekdayGoalTargets(context, targets)
                         }
+                        if (editingWeekend == isTodayWeekend) {
+                            onSave(selectedScore, selectedPkg, selectedAppName, selectedAppLimit, selectedUnlockLimit)
+                        } else {
+                            onDismiss()
+                        }
+                    } else {
+                        onSave(selectedScore, selectedPkg, selectedAppName, selectedAppLimit, selectedUnlockLimit)
                     }
-                    onSave(selectedScore, selectedPkg, selectedAppName, selectedAppLimit, selectedUnlockLimit)
                 }
             ) {
                 Text(if (isEn) "Save goals" else "목표 저장", fontWeight = FontWeight.Bold)
