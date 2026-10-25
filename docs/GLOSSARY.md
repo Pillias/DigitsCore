@@ -24,6 +24,12 @@
 | 화면 테두리 경고 | 화면 신호등 (초록불·빨간불) | Screen light | 엣지 라이팅 |
 | 알림 이벤트 | 받은 알림 | Received notifications | OS 감지 알림 |
 | 여러 앱 동시 표시 | 분할 화면 | Split screen | 병렬 화면 |
+| 매주 월요일 주간 결산 | 주간 리포트 | Weekly report | 주간 보고서 |
+| 잠금 해제 직후 60초 내 실행된 첫 앱 | 잠금 해제 후 처음 연 앱 | First app after unlock | 첫 실행 앱 |
+| 알림 수신 후 60초 내 잠금 해제로 이어진 행동 | 알림이 부른 잠금 해제 | Notification-triggered unlocks | 알림 유발 잠금 |
+| 특정 시간대 화면 신호등 간격 규칙 | 시간대 규칙 | Time-of-day rules | 스케줄 규칙 |
+| 관리 등급 앱 합산 한도 목표 | 관리 앱 전체 한도 | All managed apps limit | 전체 관리 한도 |
+| 설치 첫날 기기에서 가져온 과거 사용 기록 | 불러온 기록 | Imported history | 과거 기록, 이전 기록 |
 
 ## 단위
 

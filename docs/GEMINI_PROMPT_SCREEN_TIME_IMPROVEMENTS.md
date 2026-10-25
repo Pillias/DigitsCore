@@ -159,3 +159,33 @@ DigitsCore의 정체성은 "얼마나 썼나"가 아니라 "지금 사용과 휴
 - 캡처 파일 이름 목록
 - 기기 확인이 필요한 항목: 이벤트 12의 패키지 이름 유무, 과거 기록 보관 일수(삼성·Pixel)
 - 코어 지수 계산에 영향을 줄 수 있어 `DEBATE.md`로 넘긴 안건이 있으면 그 내용
+
+---
+
+## 구현 결과 보고서 (Implementation Report)
+
+### 1. 제안별 구현 상태 요약 (10/10 완료)
+
+| 제안 번호 | 제안명 | 상태 | 커밋 해시 | 주요 구현 내용 |
+|---|---|---|---|---|
+| Step 0 | DB 마이그레이션 v20 | **완료** | `9d7bf84` | `app_daily_interactions` 테이블 추가, Room v20 스키마, `MIGRATION_19_20`, 백업/복원/삭제 연동 |
+| 제안 1 | OS 불일치 세분화 | **완료** | `4c8d8c3` | `ScreenTimeReconciliationCalculator`, 대시보드 화면 시간 상세에 OS 불일치(백그라운드 미측정·오프스크린 오디오·시스템 데몬 등) 원인 카드 추가 |
+| 제안 3 | 잠금 해제 후 처음 연 앱 | **완료** | `d9ef8d1` | `UnlockInteractionResolver` (잠금 해제 후 60초 내 전면 앱 집계), 통계 랭킹 칩 및 잠금 해제 상세 다이얼로그 연동 |
+| 제안 7 | 요일별 목표 (평일·주말) | **완료** | `b4117cd` | `DailyGoalStore` 평일/주말 맞춤 목표 분리 키 저장, 대시보드 목표 수정 다이얼로그 평일·주말 토글 연동 |
+| 제안 2 | 주간 리포트 | **완료** | `82faf31` | `WeeklyReportCalculator` 순수 함수, 매주 월요일 05:00 알림(`digitscore_weekly_report`), 5종 카드 리포트 다이얼로그 |
+| 제안 5 | 한도 도달 시 선택 카드 | **완료** | `0b64d40` | 앱 한도 100% 도달 알림 및 "15min 더" / "오늘은 여기까지" 액션, `GoalLimitActionReceiver`, 화면 신호등 연동, 선택 이력 저장 |
+| 제안 4 | 알림이 부른 잠금 해제 | **완료** | `698cdfd` | `UsageStatsHelper` 이벤트 12 패키지 수집, 알림 후 60초 내 잠금 해제 판정, 통계 랭킹 칩 및 시스템 알림 설정 딥링크 제공 |
+| 제안 8 | 관리 앱 묶음 한도 | **완료** | `ff02762` | `DailyGoal.PACKAGE_ALL_MANAGED`, 관리 앱 전체 합산 사용 시간 한도 목표, 범위 선택 칩 ("앱 1개" / "관리 앱 전체") |
+| 제안 6 | 시간대 규칙 (업무·수면 준비) | **완료** | `048f5ae` | `TimeRuleEngine` (요일, 자정 넘김, 짧은 간격 우선 판정), `TimeRuleStore`, 설정 알림 탭 시간대 규칙 섹션, 대시보드 상단 배지 연동 |
+| 제안 10 | 설치 첫날 지난 기록 불러오기 | **완료** | `084938e` | `UsageHistoryImporter` (기기 과거 최대 7일 사용량 안전 임포트, 코어 지수 왜곡 방지), 설정 데이터 탭 버튼, 통계 "불러온 기록" 표시 |
+| 제안 9 | 위젯에 목표 진행 | **완료** | `cc80487` | `ScoreWidget` 4열 이상 가로형/대형 위젯에 오늘의 목표 3가지(방어선 P, 관리 앱 min, 잠금 해제 x) 실시간 수치 및 달성/초과 표시 |
+
+### 2. 코어 지수 및 권한 원칙 준수 결과
+- **코어 지수 계산 무결성**: 점수 계산 엔진(`CumulativeScoreEngine.kt`, `CumulativeTimeline.kt`, `RestPhasePolicy.kt`, `CumulativeScoreStore.kt`)의 점수/감점/가속/회복 알고리즘에 일절 변경 없음.
+- **권한 원칙 준수**: 앱 차단, AccessibilityService, PIN 잠금, 신규 `uses-permission` 추가 0건.
+- **디자인 시스템 및 용어 준수**: `STRICT=1 ./scripts/design_check.sh` 기준 위반 0건 유지 (글자 크기 직접 지정 0, 모서리 직접 지정 0, 금지 용어 0, 화면 내 기호 문자 0).
+
+### 3. 검증 지표
+- **단위 테스트**: 전 모듈 단위 테스트 100% 통과 (`BUILD SUCCESSFUL`, 실패 0).
+- **Room DB 마이그레이션**: version 19 -> 20 스키마 파일 생성 및 백업/복원 호환 검증 완료.
+- **문서 동기화**: `docs/DESIGN_SYSTEM.md`, `docs/GLOSSARY.md`, `README.md` 동기화 완료.
