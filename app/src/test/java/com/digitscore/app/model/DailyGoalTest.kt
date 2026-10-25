@@ -239,4 +239,37 @@ class DailyGoalTest {
         assertTrue(noApp.isAppLimitAchieved)
         assertEquals(0f, noApp.appProgressRatio, 0.0001f)
     }
+
+    @Test
+    fun testSeparateWeekdayWeekendLogic() {
+        // Saturday & Sunday are weekends
+        assertTrue(com.digitscore.app.data.DailyGoalStore.isWeekend("2026-10-24"))
+        assertTrue(com.digitscore.app.data.DailyGoalStore.isWeekend("2026-10-25"))
+
+        // Monday & Friday are weekdays
+        assertFalse(com.digitscore.app.data.DailyGoalStore.isWeekend("2026-10-26"))
+        assertFalse(com.digitscore.app.data.DailyGoalStore.isWeekend("2026-10-23"))
+
+        val weekdayTargets = CustomGoalTargets(
+            scoreTarget = 75,
+            targetPackageName = "com.kakao.talk",
+            targetAppName = "KakaoTalk",
+            appLimitMinutes = 20,
+            unlockLimitTarget = 30
+        )
+        val weekendTargets = CustomGoalTargets(
+            scoreTarget = 65,
+            targetPackageName = "com.google.android.youtube",
+            targetAppName = "YouTube",
+            appLimitMinutes = 60,
+            unlockLimitTarget = 50
+        )
+
+        assertEquals(75, weekdayTargets.scoreTarget)
+        assertEquals(65, weekendTargets.scoreTarget)
+        assertEquals("com.kakao.talk", weekdayTargets.targetPackageName)
+        assertEquals("com.google.android.youtube", weekendTargets.targetPackageName)
+        assertEquals(20, weekdayTargets.appLimitMinutes)
+        assertEquals(60, weekendTargets.appLimitMinutes)
+    }
 }

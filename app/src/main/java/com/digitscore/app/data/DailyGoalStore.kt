@@ -67,6 +67,21 @@ object DailyGoalStore {
     // 어제 목표 결과 스냅샷 캐시
     private const val KEY_Y_RESULT_JSON = "y_result_json"
 
+    // 평일/주말 개별 목표 키
+    private const val KEY_SEPARATE_WEEKDAY_WEEKEND = "goal_separate_weekday_weekend"
+
+    private const val KEY_WEEKDAY_SCORE_TARGET = "goal_weekday_score_target"
+    private const val KEY_WEEKDAY_APP_LIMIT = "goal_weekday_app_limit"
+    private const val KEY_WEEKDAY_UNLOCK_TARGET = "goal_weekday_unlock_target"
+    private const val KEY_WEEKDAY_TARGET_PKG = "goal_weekday_target_pkg"
+    private const val KEY_WEEKDAY_TARGET_APP = "goal_weekday_target_app"
+
+    private const val KEY_WEEKEND_SCORE_TARGET = "goal_weekend_score_target"
+    private const val KEY_WEEKEND_APP_LIMIT = "goal_weekend_app_limit"
+    private const val KEY_WEEKEND_UNLOCK_TARGET = "goal_weekend_unlock_target"
+    private const val KEY_WEEKEND_TARGET_PKG = "goal_weekend_target_pkg"
+    private const val KEY_WEEKEND_TARGET_APP = "goal_weekend_target_app"
+
     // 연속 달성 & 자유권 보상 키
     private const val KEY_REWARD_STREAK = "reward_current_streak"
     private const val KEY_REWARD_PERFECT_STAMPS = "reward_perfect_stamps"
@@ -209,9 +224,86 @@ object DailyGoalStore {
             unlockLimitTarget = unlockLimitTarget,
             isAutoAssigned = false
         )
+        if (isSeparateWeekdayWeekend(context)) {
+            val targets = com.digitscore.app.model.CustomGoalTargets(
+                scoreTarget = scoreTarget,
+                targetPackageName = targetPackageName,
+                targetAppName = targetAppName,
+                appLimitMinutes = appLimitMinutes,
+                unlockLimitTarget = unlockLimitTarget
+            )
+            if (isWeekend(todayDate)) {
+                saveWeekendGoalTargets(context, targets)
+            } else {
+                saveWeekdayGoalTargets(context, targets)
+            }
+        }
         saveGoal(context, updated)
         markBriefingCompleted(context, todayDate)
         ScoreRepository.updateDailyGoal(updated)
+    }
+
+    fun isSeparateWeekdayWeekend(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_SEPARATE_WEEKDAY_WEEKEND, false)
+    }
+
+    fun setSeparateWeekdayWeekend(context: Context, enabled: Boolean) = synchronized(storeLock) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_SEPARATE_WEEKDAY_WEEKEND, enabled).apply()
+    }
+
+    fun getWeekdayGoalTargets(context: Context): com.digitscore.app.model.CustomGoalTargets? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (!prefs.contains(KEY_WEEKDAY_SCORE_TARGET)) return null
+        return com.digitscore.app.model.CustomGoalTargets(
+            scoreTarget = prefs.getInt(KEY_WEEKDAY_SCORE_TARGET, 70),
+            targetPackageName = prefs.getString(KEY_WEEKDAY_TARGET_PKG, null),
+            targetAppName = prefs.getString(KEY_WEEKDAY_TARGET_APP, "") ?: "",
+            appLimitMinutes = prefs.getInt(KEY_WEEKDAY_APP_LIMIT, 30),
+            unlockLimitTarget = prefs.getInt(KEY_WEEKDAY_UNLOCK_TARGET, 40)
+        )
+    }
+
+    fun saveWeekdayGoalTargets(context: Context, targets: com.digitscore.app.model.CustomGoalTargets) = synchronized(storeLock) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putInt(KEY_WEEKDAY_SCORE_TARGET, targets.scoreTarget)
+            .putString(KEY_WEEKDAY_TARGET_PKG, targets.targetPackageName)
+            .putString(KEY_WEEKDAY_TARGET_APP, targets.targetAppName)
+            .putInt(KEY_WEEKDAY_APP_LIMIT, targets.appLimitMinutes)
+            .putInt(KEY_WEEKDAY_UNLOCK_TARGET, targets.unlockLimitTarget)
+            .apply()
+    }
+
+    fun getWeekendGoalTargets(context: Context): com.digitscore.app.model.CustomGoalTargets? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (!prefs.contains(KEY_WEEKEND_SCORE_TARGET)) return null
+        return com.digitscore.app.model.CustomGoalTargets(
+            scoreTarget = prefs.getInt(KEY_WEEKEND_SCORE_TARGET, 70),
+            targetPackageName = prefs.getString(KEY_WEEKEND_TARGET_PKG, null),
+            targetAppName = prefs.getString(KEY_WEEKEND_TARGET_APP, "") ?: "",
+            appLimitMinutes = prefs.getInt(KEY_WEEKEND_APP_LIMIT, 30),
+            unlockLimitTarget = prefs.getInt(KEY_WEEKEND_UNLOCK_TARGET, 40)
+        )
+    }
+
+    fun saveWeekendGoalTargets(context: Context, targets: com.digitscore.app.model.CustomGoalTargets) = synchronized(storeLock) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putInt(KEY_WEEKEND_SCORE_TARGET, targets.scoreTarget)
+            .putString(KEY_WEEKEND_TARGET_PKG, targets.targetPackageName)
+            .putString(KEY_WEEKEND_TARGET_APP, targets.targetAppName)
+            .putInt(KEY_WEEKEND_APP_LIMIT, targets.appLimitMinutes)
+            .putInt(KEY_WEEKEND_UNLOCK_TARGET, targets.unlockLimitTarget)
+            .apply()
+    }
+
+    fun isWeekend(dateString: String = getLogicalDateString()): Boolean {
+        return runCatching {
+            val date = java.time.LocalDate.parse(dateString)
+            date.dayOfWeek == java.time.DayOfWeek.SATURDAY || date.dayOfWeek == java.time.DayOfWeek.SUNDAY
+        }.getOrDefault(false)
     }
 
     fun setDismissed(context: Context, dismissed: Boolean) = synchronized(storeLock) {
@@ -748,19 +840,39 @@ object DailyGoalStore {
             else -> 50
         }.coerceIn(45, 150)
 
-        val generatedGoal = DailyGoal(
-            dateString = todayDate,
-            scoreTarget = recommendedScoreTarget,
-            currentScore = yesterdayScore,
-            targetPackageName = topApp?.packageName,
-            targetAppName = topApp?.appName ?: "",
-            appLimitMinutes = defaultAppLimit,
-            currentAppUsageMinutes = 0,
-            unlockLimitTarget = recommendedUnlockTarget,
-            currentUnlockCount = 0,
-            isAutoAssigned = true,
-            isDismissed = false
-        )
+        val customTargets = if (isSeparateWeekdayWeekend(context)) {
+            if (isWeekend(todayDate)) getWeekendGoalTargets(context) else getWeekdayGoalTargets(context)
+        } else null
+
+        val generatedGoal = if (customTargets != null) {
+            DailyGoal(
+                dateString = todayDate,
+                scoreTarget = customTargets.scoreTarget,
+                currentScore = yesterdayScore,
+                targetPackageName = customTargets.targetPackageName,
+                targetAppName = customTargets.targetAppName,
+                appLimitMinutes = customTargets.appLimitMinutes,
+                currentAppUsageMinutes = 0,
+                unlockLimitTarget = customTargets.unlockLimitTarget,
+                currentUnlockCount = 0,
+                isAutoAssigned = false,
+                isDismissed = false
+            )
+        } else {
+            DailyGoal(
+                dateString = todayDate,
+                scoreTarget = recommendedScoreTarget,
+                currentScore = yesterdayScore,
+                targetPackageName = topApp?.packageName,
+                targetAppName = topApp?.appName ?: "",
+                appLimitMinutes = defaultAppLimit,
+                currentAppUsageMinutes = 0,
+                unlockLimitTarget = recommendedUnlockTarget,
+                currentUnlockCount = 0,
+                isAutoAssigned = true,
+                isDismissed = false
+            )
+        }
 
         saveGoal(context, generatedGoal)
         return summary to generatedGoal

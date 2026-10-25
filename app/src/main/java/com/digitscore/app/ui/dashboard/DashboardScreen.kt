@@ -68,6 +68,7 @@ import androidx.compose.material.icons.rounded.HelpOutline
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -1371,6 +1372,12 @@ private fun EditThreeGoalsDialog(
         list
     }
 
+    var isSeparateWeekdayWeekend by remember {
+        mutableStateOf(com.digitscore.app.data.DailyGoalStore.isSeparateWeekdayWeekend(context))
+    }
+    val isTodayWeekend = remember { com.digitscore.app.data.DailyGoalStore.isWeekend() }
+    var editingWeekend by remember { mutableStateOf(isTodayWeekend) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -1383,6 +1390,84 @@ private fun EditThreeGoalsDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // 평일·주말 따로 스위치
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isEn) "Separate weekday / weekend" else "평일·주말 따로",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = DigitsTextSize.body
+                        )
+                        Text(
+                            text = if (isEn) "Set different goals for weekdays and weekends" else "평일과 주말의 목표를 구분하여 설정합니다.",
+                            fontSize = DigitsTextSize.caption,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = isSeparateWeekdayWeekend,
+                        onCheckedChange = { checked ->
+                            isSeparateWeekdayWeekend = checked
+                            com.digitscore.app.data.DailyGoalStore.setSeparateWeekdayWeekend(context, checked)
+                        }
+                    )
+                }
+
+                if (isSeparateWeekdayWeekend) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = !editingWeekend,
+                            onClick = {
+                                if (editingWeekend) {
+                                    com.digitscore.app.data.DailyGoalStore.saveWeekendGoalTargets(
+                                        context,
+                                        com.digitscore.app.model.CustomGoalTargets(selectedScore, selectedPkg, selectedAppName, selectedAppLimit, selectedUnlockLimit)
+                                    )
+                                    editingWeekend = false
+                                    val wd = com.digitscore.app.data.DailyGoalStore.getWeekdayGoalTargets(context)
+                                    if (wd != null) {
+                                        selectedScore = wd.scoreTarget
+                                        selectedPkg = wd.targetPackageName
+                                        selectedAppName = wd.targetAppName
+                                        selectedAppLimit = wd.appLimitMinutes
+                                        selectedUnlockLimit = wd.unlockLimitTarget
+                                    }
+                                }
+                            },
+                            label = { Text(if (isEn) "Weekday (Mon-Fri)" else "평일 (월~금)") }
+                        )
+                        FilterChip(
+                            selected = editingWeekend,
+                            onClick = {
+                                if (!editingWeekend) {
+                                    com.digitscore.app.data.DailyGoalStore.saveWeekdayGoalTargets(
+                                        context,
+                                        com.digitscore.app.model.CustomGoalTargets(selectedScore, selectedPkg, selectedAppName, selectedAppLimit, selectedUnlockLimit)
+                                    )
+                                    editingWeekend = true
+                                    val we = com.digitscore.app.data.DailyGoalStore.getWeekendGoalTargets(context)
+                                    if (we != null) {
+                                        selectedScore = we.scoreTarget
+                                        selectedPkg = we.targetPackageName
+                                        selectedAppName = we.targetAppName
+                                        selectedAppLimit = we.appLimitMinutes
+                                        selectedUnlockLimit = we.unlockLimitTarget
+                                    }
+                                }
+                            },
+                            label = { Text(if (isEn) "Weekend (Sat-Sun)" else "주말 (토~일)") }
+                        )
+                    }
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
                 // 1. 지수 방어선 목표
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(
@@ -1494,6 +1579,14 @@ private fun EditThreeGoalsDialog(
         confirmButton = {
             Button(
                 onClick = {
+                    if (isSeparateWeekdayWeekend) {
+                        val targets = com.digitscore.app.model.CustomGoalTargets(selectedScore, selectedPkg, selectedAppName, selectedAppLimit, selectedUnlockLimit)
+                        if (editingWeekend) {
+                            com.digitscore.app.data.DailyGoalStore.saveWeekendGoalTargets(context, targets)
+                        } else {
+                            com.digitscore.app.data.DailyGoalStore.saveWeekdayGoalTargets(context, targets)
+                        }
+                    }
                     onSave(selectedScore, selectedPkg, selectedAppName, selectedAppLimit, selectedUnlockLimit)
                 }
             ) {

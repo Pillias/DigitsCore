@@ -20,6 +20,14 @@ data class AppCandidate(
     val recentAvgMinutes: Long = 0L
 )
 
+data class CustomGoalTargets(
+    val scoreTarget: Int = 70,
+    val targetPackageName: String? = null,
+    val targetAppName: String = "",
+    val appLimitMinutes: Int = 30,
+    val unlockLimitTarget: Int = 40
+)
+
 /**
  * 데일리 복합 맞춤 목표 세트
  * (코어 지수 방어, 특정 앱 시간 제한, 잠금 해제 횟수 조절을 함께 관리)
