@@ -148,7 +148,9 @@ internal fun explorerWeekdayBuckets(
 internal data class ExplorerApp(
     val pkg: String, val name: String, val usage: Long, val opens: Int, val shortOpens: Int,
     val loss: Double?, val impactFrom: Long?, val impactUntil: Long?,
-    val firstAfterUnlockCount: Int = 0
+    val firstAfterUnlockCount: Int = 0,
+    val notificationUnlockCount: Int = 0,
+    val notificationCount: Int = 0
 )
 
 internal fun explorerApps(
@@ -170,6 +172,8 @@ internal fun explorerApps(
         val fallback = if (useDailyFallback) days[pkg].orEmpty().filter { it.dateString !in knownDates } else emptyList()
         val loss = lossApps[pkg].orEmpty()
         val firstCount = inters[pkg]?.sumOf { it.firstAfterUnlockCount } ?: 0
+        val notifUnlockCount = inters[pkg]?.sumOf { it.notificationUnlockCount } ?: 0
+        val notifCount = inters[pkg]?.sumOf { it.notificationCount } ?: 0
         ExplorerApp(
             pkg = pkg,
             name = rows.lastOrNull()?.appName ?: fallback.lastOrNull()?.appName ?: pkg,
@@ -179,7 +183,9 @@ internal fun explorerApps(
             loss = loss.takeIf { it.isNotEmpty() }?.sumOf { it.loss },
             impactFrom = loss.minOfOrNull { it.firstAt },
             impactUntil = loss.maxOfOrNull { it.lastAt },
-            firstAfterUnlockCount = firstCount
+            firstAfterUnlockCount = firstCount,
+            notificationUnlockCount = notifUnlockCount,
+            notificationCount = notifCount
         )
     }
 }

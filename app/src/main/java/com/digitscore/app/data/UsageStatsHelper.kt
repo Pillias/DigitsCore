@@ -29,6 +29,7 @@ data class TodayUsageSnapshot(
     val observableUnlockedMillis: Long = 0L,
     val endingState: ForegroundTrackerState = ForegroundTrackerState(),
     val interactionEvents: List<DeviceInteractionEventEntity> = emptyList(),
+    val notificationEvents: List<AppNotificationEvent> = emptyList(),
     val queriedEventCount: Int = 0,
     val queryDurationMillis: Long = 0L,
     val queryWindowMillis: Long = 0L,
@@ -107,6 +108,7 @@ object UsageStatsHelper {
     private data class QueriedUsageEvents(
         val timelineEvents: List<ForegroundTimelineEvent>,
         val interactionEvents: List<DeviceInteractionEventEntity>,
+        val notificationEvents: List<AppNotificationEvent>,
         val rawEventCount: Int,
         val queryDurationMillis: Long
     )
@@ -286,12 +288,14 @@ object UsageStatsHelper {
             ?: return QueriedUsageEvents(
                 emptyList(),
                 emptyList(),
+                emptyList(),
                 0,
                 SystemClock.elapsedRealtime() - queryStartedAt
             )
         val androidEvent = UsageEvents.Event()
         val timelineEvents = mutableListOf<ForegroundTimelineEvent>()
         val interactionEvents = mutableListOf<DeviceInteractionEventEntity>()
+        val notificationEvents = mutableListOf<AppNotificationEvent>()
         var rawEventCount = 0
 
         while (usageEvents.hasNextEvent()) {
@@ -302,6 +306,10 @@ object UsageStatsHelper {
                     androidEvent.timeStamp,
                     DeviceInteractionEventEntity.NOTIFICATION_INTERRUPTION
                 )
+                val pkg = androidEvent.packageName
+                if (!pkg.isNullOrEmpty() && pkg !in IGNORED_SYSTEM_PACKAGES) {
+                    notificationEvents += AppNotificationEvent(pkg, androidEvent.timeStamp)
+                }
                 continue
             }
             val type = when (androidEvent.eventType) {
@@ -352,6 +360,7 @@ object UsageStatsHelper {
         return QueriedUsageEvents(
             timelineEvents = timelineEvents,
             interactionEvents = interactionEvents,
+            notificationEvents = notificationEvents,
             rawEventCount = rawEventCount,
             queryDurationMillis = SystemClock.elapsedRealtime() - queryStartedAt
         )
@@ -640,6 +649,7 @@ object UsageStatsHelper {
             appWeightMap = appWeightMap,
             exclusiveUsage = exclusiveUsage,
             interactionEvents = queried.interactionEvents.filter { it.timestampMillis in startTime..endTime },
+            notificationEvents = queried.notificationEvents.filter { it.timestampMillis in startTime..endTime },
             queriedEventCount = queried.rawEventCount,
             queryDurationMillis = queried.queryDurationMillis,
             queryWindowMillis = endTime - queryStart,
@@ -676,6 +686,7 @@ object UsageStatsHelper {
             appWeightMap = appWeightMap,
             exclusiveUsage = exclusiveUsage,
             interactionEvents = queried.interactionEvents.filter { it.timestampMillis in startTime..endTime },
+            notificationEvents = queried.notificationEvents.filter { it.timestampMillis in startTime..endTime },
             queriedEventCount = queried.rawEventCount,
             queryDurationMillis = queried.queryDurationMillis,
             queryWindowMillis = endTime - startTime,
@@ -688,6 +699,7 @@ object UsageStatsHelper {
         appWeightMap: Map<String, AppWeightEntity>,
         exclusiveUsage: ForegroundUsageResult,
         interactionEvents: List<DeviceInteractionEventEntity>,
+        notificationEvents: List<AppNotificationEvent> = emptyList(),
         queriedEventCount: Int,
         queryDurationMillis: Long,
         queryWindowMillis: Long,
@@ -745,6 +757,7 @@ object UsageStatsHelper {
             observableUnlockedMillis = exclusiveUsage.observableUnlockedMillis,
             endingState = exclusiveUsage.endingState,
             interactionEvents = interactionEvents,
+            notificationEvents = notificationEvents,
             queriedEventCount = queriedEventCount,
             queryDurationMillis = queryDurationMillis,
             queryWindowMillis = queryWindowMillis,
@@ -802,6 +815,9 @@ object UsageStatsHelper {
         val interactions = (base.interactionEvents + delta.interactionEvents)
             .distinctBy { it.timestampMillis to it.eventType }
             .sortedBy { it.timestampMillis }
+        val notifs = (base.notificationEvents + delta.notificationEvents)
+            .distinctBy { it.packageName to it.timestampMillis }
+            .sortedBy { it.timestampMillis }
         val sessionSummaries = sessionSummariesByPackage(segments)
         return TodayUsageSnapshot(
             appsUsage = apps.values.map { app ->
@@ -819,6 +835,7 @@ object UsageStatsHelper {
             observableUnlockedMillis = base.observableUnlockedMillis + delta.observableUnlockedMillis,
             endingState = delta.endingState,
             interactionEvents = interactions,
+            notificationEvents = notifs,
             queriedEventCount = delta.queriedEventCount,
             queryDurationMillis = delta.queryDurationMillis,
             queryWindowMillis = delta.queryWindowMillis,

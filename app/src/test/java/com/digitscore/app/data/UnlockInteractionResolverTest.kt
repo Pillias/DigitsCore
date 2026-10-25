@@ -81,4 +81,50 @@ class UnlockInteractionResolverTest {
         assertEquals(1, results.size)
         assertEquals("com.app.new", results[0].packageName)
     }
+
+    @Test
+    fun resolveFirstAppsAfterUnlock_notificationTriggeredUnlock_samePackageWithin60s() {
+        val unlockTimestamps = listOf(100_000L)
+        val segments = listOf(
+            ForegroundUsageSegment("com.kakao.talk", 102_000L, 120_000L)
+        )
+        val notifications = listOf(
+            AppNotificationEvent("com.kakao.talk", 85_000L) // 15s before unlock (within 60s)
+        )
+
+        val results = UnlockInteractionResolver.resolveFirstAppsAfterUnlock(
+            unlockTimestamps = unlockTimestamps,
+            segments = segments,
+            ignoredPackages = ignoredPackages,
+            notifications = notifications
+        )
+
+        assertEquals(1, results.size)
+        assertEquals("com.kakao.talk", results[0].packageName)
+        assertTrue(results[0].isNotificationTriggered)
+    }
+
+    @Test
+    fun resolveFirstAppsAfterUnlock_notificationNotTriggered_differentPackageOrOld() {
+        val unlockTimestamps = listOf(100_000L)
+        val segments = listOf(
+            ForegroundUsageSegment("com.kakao.talk", 102_000L, 120_000L)
+        )
+        // Notification for a different package within 60s, and notification for same package > 60s ago
+        val notifications = listOf(
+            AppNotificationEvent("com.instagram.android", 90_000L),
+            AppNotificationEvent("com.kakao.talk", 30_000L) // 70s before unlock (> 60s)
+        )
+
+        val results = UnlockInteractionResolver.resolveFirstAppsAfterUnlock(
+            unlockTimestamps = unlockTimestamps,
+            segments = segments,
+            ignoredPackages = ignoredPackages,
+            notifications = notifications
+        )
+
+        assertEquals(1, results.size)
+        assertEquals("com.kakao.talk", results[0].packageName)
+        org.junit.Assert.assertFalse(results[0].isNotificationTriggered)
+    }
 }

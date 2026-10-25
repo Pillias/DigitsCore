@@ -762,7 +762,8 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                 label("사용 시간", "Usage"),
                                 label("점수 영향", "Impact"),
                                 label("실행", "Opens"),
-                                label("해제 후 첫 실행", "First Opened")
+                                label("해제 후 첫 실행", "First Opened"),
+                                label("알림 잠금", "Notif Unlocks")
                             ).forEachIndexed { index, text ->
                                 FilterChip(ranking == index, { ranking = index; allApps = false }, label = { Text(text) })
                             }
@@ -773,6 +774,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                     1 -> apps.filter { it.loss != null && it.loss > 0 }.sortedByDescending { it.loss }
                     2 -> apps.filter { it.opens > 0 }.sortedByDescending { it.opens }
                     3 -> apps.filter { it.firstAfterUnlockCount > 0 }.sortedByDescending { it.firstAfterUnlockCount }
+                    4 -> apps.filter { it.notificationUnlockCount > 0 }.sortedByDescending { it.notificationUnlockCount }
                     else -> apps.filter { it.usage > 0 }.sortedByDescending { it.usage }
                 }
                 val maxValue = ordered.firstOrNull()?.let { appValue(it, ranking) } ?: 1.0
@@ -821,6 +823,7 @@ private fun appValue(app: ExplorerApp, mode: Int) = when (mode) {
     1 -> app.loss ?: 0.0
     2 -> app.opens.toDouble()
     3 -> app.firstAfterUnlockCount.toDouble()
+    4 -> app.notificationUnlockCount.toDouble()
     else -> app.usage.toDouble()
 }
 
@@ -848,6 +851,8 @@ private fun appValue(app: ExplorerApp, mode: Int) = when (mode) {
                                  else label("실제 감점 기여", "Recorded score loss")
                     mode == 3 -> if (isPeriod) label("해제 후 첫 실행 총 ${app.firstAfterUnlockCount}회", "Total ${app.firstAfterUnlockCount}x first after unlock")
                                  else label("잠금 해제 후 처음 연 앱", "First app opened after unlock")
+                    mode == 4 -> if (isPeriod) label("알림이 부른 잠금 총 ${app.notificationUnlockCount}회", "Total ${app.notificationUnlockCount}x notif unlocks")
+                                 else label("알림이 부른 잠금 해제", "Notification-triggered unlock")
                     isPeriod -> label(
                         "일 ${(app.opens.toFloat() / daysCount).roundToInt()}x · 짧은 확인 ${(app.shortOpens.toFloat() / daysCount).roundToInt()}x (총 ${app.opens}x)",
                         "Daily ${(app.opens.toFloat() / daysCount).roundToInt()}x · Brief ${(app.shortOpens.toFloat() / daysCount).roundToInt()}x (Total ${app.opens}x)"
@@ -863,6 +868,7 @@ private fun appValue(app: ExplorerApp, mode: Int) = when (mode) {
                 1 -> if (isPeriod) "일 −${points((app.loss ?: 0.0) / daysCount)}" else "−${points(app.loss ?: 0.0)}"
                 2 -> if (isPeriod) "일 ${(app.opens.toFloat() / daysCount).roundToInt()}x" else "${app.opens}x"
                 3 -> if (isPeriod) "일 ${(app.firstAfterUnlockCount.toFloat() / daysCount).roundToInt()}x" else "${app.firstAfterUnlockCount}x"
+                4 -> if (isPeriod) "일 ${(app.notificationUnlockCount.toFloat() / daysCount).roundToInt()}x" else "${app.notificationUnlockCount}x"
                 else -> if (isPeriod) "일 ${minutes(app.usage / daysCount)}" else minutes(app.usage)
             }
             Text(valueText, color = color, fontWeight = FontWeight.Bold)

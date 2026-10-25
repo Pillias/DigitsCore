@@ -2929,23 +2929,34 @@ fun UnlockDetailDialog(
     val context = LocalContext.current
     var insights by remember { mutableStateOf<UnlockInsights?>(null) }
     var topFirstApps by remember { mutableStateOf<List<Pair<String, com.digitscore.app.data.entity.AppDailyInteractionEntity>>>(emptyList()) }
+    var topNotificationUnlocks by remember { mutableStateOf<List<Pair<String, com.digitscore.app.data.entity.AppDailyInteractionEntity>>>(emptyList()) }
+    var topNotifications by remember { mutableStateOf<List<Pair<String, com.digitscore.app.data.entity.AppDailyInteractionEntity>>>(emptyList()) }
     LaunchedEffect(unlockCount) {
         insights = withContext(Dispatchers.IO) {
             UsageStatsHelper.getRolling24HourUnlockInsights(context)
         }
-        topFirstApps = withContext(Dispatchers.IO) {
+        val (firsts, notifUnlocks, notifs) = withContext(Dispatchers.IO) {
             val db = com.digitscore.app.data.DigitsDatabase.getInstance(context)
             val todayDate = com.digitscore.app.data.DailyGoalStore.getLogicalDateString()
-            val list = db.appDailyInteractionDao().getTopFirstAfterUnlock(todayDate, 5)
             val pm = context.packageManager
-            list.map { entity ->
+
+            fun mapLabels(list: List<com.digitscore.app.data.entity.AppDailyInteractionEntity>) = list.map { entity ->
                 val label = runCatching {
                     val appInfo = pm.getApplicationInfo(entity.packageName, 0)
                     pm.getApplicationLabel(appInfo).toString()
                 }.getOrDefault(entity.packageName)
                 label to entity
             }
+
+            Triple(
+                mapLabels(db.appDailyInteractionDao().getTopFirstAfterUnlock(todayDate, 5)),
+                mapLabels(db.appDailyInteractionDao().getTopNotificationUnlock(todayDate, 5)),
+                mapLabels(db.appDailyInteractionDao().getTopNotifications(todayDate, 5))
+            )
         }
+        topFirstApps = firsts
+        topNotificationUnlocks = notifUnlocks
+        topNotifications = notifs
     }
 
     val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
@@ -3202,6 +3213,112 @@ fun UnlockDetailDialog(
                                         }
                                         Text(
                                             text = if (isEn) "${item.firstAfterUnlockCount}x" else "${item.firstAfterUnlockCount}회",
+                                            fontSize = DigitsTextSize.body,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 알림이 부른 잠금 해제 상위 5개
+                    if (topNotificationUnlocks.isNotEmpty()) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            shape = DigitsShape.md
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    text = if (isEn) "Notification-Triggered Unlocks" else "알림이 부른 잠금 해제",
+                                    fontSize = DigitsTextSize.label,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                                Text(
+                                    text = if (isEn) "Apps opened within 60s of receiving a notification."
+                                    else "알림을 받은 뒤 60초 안에 잠금을 풀고 실행한 상위 5개 앱입니다.",
+                                    fontSize = DigitsTextSize.caption,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+
+                                val top = topNotificationUnlocks.first()
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(MaterialTheme.colorScheme.surface, DigitsShape.sm)
+                                        .padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = if (isEn) "Turning off ${top.first}'s notifications could reduce ~${top.second.notificationUnlockCount} unlocks per day."
+                                        else "${top.first} 알림을 끄면 하루 약 ${top.second.notificationUnlockCount}회 잠금 해제를 줄일 수 있습니다.",
+                                        fontSize = DigitsTextSize.caption,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    TextButton(
+                                        onClick = {
+                                            val intent = android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                                putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, top.second.packageName)
+                                                flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                                            }
+                                            runCatching { context.startActivity(intent) }
+                                        },
+                                        modifier = Modifier.align(Alignment.End)
+                                    ) {
+                                        Text(if (isEn) "Notification settings" else "알림 설정 열기", fontSize = DigitsTextSize.caption)
+                                    }
+                                }
+
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                topNotificationUnlocks.forEach { (appName, item) ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(appName, modifier = Modifier.weight(1f), fontSize = DigitsTextSize.body, fontWeight = FontWeight.Medium)
+                                        Text(
+                                            text = if (isEn) "${item.notificationUnlockCount}x" else "${item.notificationUnlockCount}회",
+                                            fontSize = DigitsTextSize.body,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 알림을 많이 보낸 앱 상위 5개
+                    if (topNotifications.isNotEmpty()) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            shape = DigitsShape.md
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    text = if (isEn) "Top Notification Apps" else "알림을 많이 보낸 앱",
+                                    fontSize = DigitsTextSize.label,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                                Text(
+                                    text = if (isEn) "Apps that sent the most notifications today."
+                                    else "오늘 알림을 가장 많이 보낸 상위 5개 앱입니다.",
+                                    fontSize = DigitsTextSize.caption,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                topNotifications.forEach { (appName, item) ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(appName, modifier = Modifier.weight(1f), fontSize = DigitsTextSize.body, fontWeight = FontWeight.Medium)
+                                        Text(
+                                            text = if (isEn) "${item.notificationCount}x" else "${item.notificationCount}회",
                                             fontSize = DigitsTextSize.body,
                                             fontWeight = FontWeight.Bold
                                         )
