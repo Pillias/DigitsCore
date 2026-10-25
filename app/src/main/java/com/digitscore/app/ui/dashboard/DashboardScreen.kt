@@ -80,6 +80,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -2849,8 +2850,13 @@ fun ScreenTimeDetailDialog(
 
     val context = LocalContext.current
     val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
-    val reconciliation = remember(totalScreenMillis) {
-        ScreenTimeReconciliationCalculator.queryReconciliation(context, totalScreenMillis)
+    val reconciliation by produceState(
+        initialValue = ScreenTimeReconciliationCalculator.calculate(totalScreenMillis, totalScreenMillis, 0L, 0L, 0L),
+        key1 = totalScreenMillis
+    ) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            ScreenTimeReconciliationCalculator.queryReconciliation(context, totalScreenMillis)
+        }
     }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -2922,14 +2928,27 @@ fun ScreenTimeDetailDialog(
                             )
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(text = if (isEn) "DigitsCore (since 05:00)" else "DigitsCore (05:00 기준)", fontSize = DigitsTextSize.label)
+                                Text(
+                                    text = if (reconciliation.isLateNightRange) {
+                                        if (isEn) "DigitsCore (since yesterday 05:00)" else "DigitsCore (어제 05:00 기준)"
+                                    } else {
+                                        if (isEn) "DigitsCore (since 05:00)" else "DigitsCore (05:00 기준)"
+                                    },
+                                    fontSize = DigitsTextSize.label
+                                )
                                 Text(text = com.digitscore.app.i18n.formatMinutesSmallUnit(reconciliation.digitsCoreMinutes.toLong()), fontSize = DigitsTextSize.label, fontWeight = FontWeight.Bold)
                             }
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text(text = if (isEn) "OS estimate (since midnight)" else "OS 기준 추정치 (자정부터)", fontSize = DigitsTextSize.label)
                                 Text(text = com.digitscore.app.i18n.formatMinutesSmallUnit(reconciliation.osEstimatedMinutes.toLong()), fontSize = DigitsTextSize.label, fontWeight = FontWeight.Bold)
                             }
-                            if (reconciliation.midnightToDawnMinutes > 0) {
+                            if (reconciliation.isLateNightRange && reconciliation.yesterdayUsageMinutes > 0) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(text = if (isEn) "Yesterday 05:00-midnight usage" else "어제 05:00~자정 사용분", fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
+                                    Text(text = com.digitscore.app.i18n.formatMinutesSmallUnit(reconciliation.yesterdayUsageMinutes.toLong()), fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
+                                }
+                            }
+                            if (!reconciliation.isLateNightRange && reconciliation.midnightToDawnMinutes > 0) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text(text = if (isEn) "00:00-05:00 usage" else "00:00~05:00 사용분", fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
                                     Text(text = com.digitscore.app.i18n.formatMinutesSmallUnit(reconciliation.midnightToDawnMinutes.toLong()), fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
@@ -2950,7 +2969,7 @@ fun ScreenTimeDetailDialog(
                             if (reconciliation.otherMinutes != 0) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text(text = if (isEn) "Other difference" else "기타 차이", fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
-                                    Text(text = com.digitscore.app.i18n.formatMinutesSmallUnit(reconciliation.otherMinutes.toLong()), fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
+                                    Text(text = com.digitscore.app.i18n.formatSignedMinutesSmallUnit(reconciliation.otherMinutes.toLong()), fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
                                 }
                             }
                         }

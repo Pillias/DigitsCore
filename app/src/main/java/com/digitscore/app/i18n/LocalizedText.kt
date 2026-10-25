@@ -970,6 +970,17 @@ fun formatMinutesSmallUnit(minutes: Long, unitSize: TextUnit = 0.7.em): Annotate
 }
 
 /**
+ * 부호(+/-)를 포함하여 숫자는 본래 크기·굵기로, 뒤의 "min" 단위만 작은 글씨로 렌더링하는 AnnotatedString 헬퍼입니다.
+ */
+fun formatSignedMinutesSmallUnit(minutes: Long, unitSize: TextUnit = 0.7.em): AnnotatedString = buildAnnotatedString {
+    val prefix = if (minutes > 0) "+" else if (minutes < 0) "-" else ""
+    append("$prefix${kotlin.math.abs(minutes)}")
+    withStyle(SpanStyle(fontSize = unitSize, fontWeight = FontWeight.Medium)) {
+        append("min")
+    }
+}
+
+/**
  * 목표치 대비 분("현재/목표min [suffix]")을 렌더링하는 AnnotatedString 헬퍼입니다.
  */
 fun formatGoalMinutesSmallUnit(

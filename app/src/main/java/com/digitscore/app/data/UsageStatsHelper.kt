@@ -657,6 +657,28 @@ object UsageStatsHelper {
         )
     }
 
+    /**
+     * 자정부터 현재까지의 OS 추정치 집계용 이벤트 기반 전면 사용 결과를 조회합니다.
+     */
+    internal fun queryEventBasedUsage(
+        context: Context,
+        startTime: Long,
+        endTime: Long
+    ): ForegroundUsageResult? {
+        val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+            ?: return null
+        if (endTime <= startTime) return null
+
+        val queryStart = (startTime - FOREGROUND_STATE_LOOKBACK_MILLIS).coerceAtLeast(0L)
+        val queried = queryUsageEvents(usageStatsManager, queryStart, endTime)
+        return ForegroundUsageAggregator.aggregate(
+            startTimeMillis = startTime,
+            endTimeMillis = endTime,
+            lateNightEndTimeMillis = endTime,
+            events = queried.timelineEvents
+        )
+    }
+
     /** 마지막 처리 시점 이후의 짧은 구간만 읽어 기존 일일 스냅샷에 합칠 조각을 만듭니다. */
     fun getIncrementalUsageSnapshot(
         context: Context,

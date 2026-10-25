@@ -60,4 +60,50 @@ class ScreenTimeReconciliationTest {
         assertEquals(0, result.differenceMinutes)
         assertEquals(0, result.otherMinutes)
     }
+
+    @Test
+    fun calculate_lateNightRange_accountsForYesterdayUsage() {
+        // Between 00:00 and 05:00:
+        // DigitsCore = 330min (300min yesterday 05:00~midnight + 30min after midnight)
+        // OS (since midnight) = 35min (30min apps + 5min launcher)
+        // Diff = 35 - 330 = -295min
+        // Yesterday usage = 300min
+        // Launcher = 5min
+        // Accounted = 5 - 300 = -295min
+        // Other = 0min
+        val result = ScreenTimeReconciliationCalculator.calculate(
+            digitsCoreMillis = 330 * 60_000L,
+            osEstimatedMillis = 35 * 60_000L,
+            midnightToDawnMillis = 0L,
+            launcherMillis = 5 * 60_000L,
+            splitScreenDeduplicatedMillis = 0L,
+            yesterdayUsageMillis = 300 * 60_000L,
+            isLateNightRange = true
+        )
+
+        assertEquals(330, result.digitsCoreMinutes)
+        assertEquals(35, result.osEstimatedMinutes)
+        assertEquals(300, result.yesterdayUsageMinutes)
+        assertEquals(5, result.launcherMinutes)
+        assertEquals(-295, result.differenceMinutes)
+        assertEquals(0, result.otherMinutes)
+        org.junit.Assert.assertTrue(result.isLateNightRange)
+    }
+
+    @Test
+    fun calculate_negativeOtherMinutes() {
+        // DigitsCore = 100min
+        // OS = 120min -> Diff = 20min
+        // Accounted = Dawn 10min + Launcher 15min = 25min
+        // Other = 20 - 25 = -5min
+        val result = ScreenTimeReconciliationCalculator.calculate(
+            digitsCoreMillis = 100 * 60_000L,
+            osEstimatedMillis = 120 * 60_000L,
+            midnightToDawnMillis = 10 * 60_000L,
+            launcherMillis = 15 * 60_000L,
+            splitScreenDeduplicatedMillis = 0L
+        )
+
+        assertEquals(-5, result.otherMinutes)
+    }
 }
