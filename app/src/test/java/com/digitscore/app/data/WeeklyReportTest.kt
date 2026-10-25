@@ -34,8 +34,10 @@ class WeeklyReportTest {
             "2026-10-19" to DailyScoreHistoryEntity("2026-10-19", 75, 120, 30, 20, 100, 35, 4, "balanced"),
             "2026-10-20" to DailyScoreHistoryEntity("2026-10-20", 80, 140, 40, 30, 90, 40, 4, "balanced"),
             "2026-10-21" to DailyScoreHistoryEntity("2026-10-21", 85, 100, 20, 40, 120, 25, 4, "balanced"),
-            // Prior week history
-            "2026-10-12" to DailyScoreHistoryEntity("2026-10-12", 70, 150, 50, 10, 80, 50, 4, "balanced")
+            // Prior week history (3 days)
+            "2026-10-12" to DailyScoreHistoryEntity("2026-10-12", 70, 150, 50, 10, 80, 50, 4, "balanced"),
+            "2026-10-13" to DailyScoreHistoryEntity("2026-10-13", 70, 150, 50, 10, 80, 50, 4, "balanced"),
+            "2026-10-14" to DailyScoreHistoryEntity("2026-10-14", 70, 150, 50, 10, 80, 50, 4, "balanced")
         )
 
         val dailyApps = listOf(
@@ -86,6 +88,29 @@ class WeeklyReportTest {
 
         assertNotNull(report.topIncreasedApp)
         assertEquals("com.kakao.talk", report.topIncreasedApp?.packageName)
+    }
+
+    @Test
+    fun testWeeklyReportCalculation_noPriorWeekData() {
+        val range = LocalDate.parse("2026-10-19") to LocalDate.parse("2026-10-25")
+        val histories = mapOf(
+            "2026-10-19" to DailyScoreHistoryEntity("2026-10-19", 75, 120, 30, 20, 100, 35, 4, "balanced"),
+            "2026-10-20" to DailyScoreHistoryEntity("2026-10-20", 80, 140, 40, 30, 90, 40, 4, "balanced")
+        )
+        val report = WeeklyReportCalculator.calculate(
+            lastWeekRange = range,
+            histories = histories,
+            dailyAppUsage = emptyList()
+        )
+
+        assertTrue(report.hasData)
+        assertEquals(2, report.recordedDaysCount)
+        org.junit.Assert.assertNull(report.scoreDiffVsPriorWeek)
+        org.junit.Assert.assertNull(report.screenTimeDiffMinutes)
+        org.junit.Assert.assertNull(report.unlockDiffCount)
+        org.junit.Assert.assertNull(report.shortSessionDiffCount)
+        org.junit.Assert.assertNull(report.topIncreasedApp)
+        org.junit.Assert.assertNull(report.topDecreasedApp)
     }
 
     @Test

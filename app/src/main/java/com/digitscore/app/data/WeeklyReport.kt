@@ -38,11 +38,11 @@ data class WeeklyReportData(
 
     // 3. 화면 시간 / 잠금 해제 / 짧은 확인
     val avgScreenTimeMinutes: Long,
-    val screenTimeDiffMinutes: Long,
+    val screenTimeDiffMinutes: Long?,
     val avgUnlockCount: Int,
-    val unlockDiffCount: Int,
+    val unlockDiffCount: Int?,
     val avgShortSessionCount: Int,
-    val shortSessionDiffCount: Int,
+    val shortSessionDiffCount: Int?,
 
     // 4. 앱 사용 증감
     val topIncreasedApp: AppChange?,
@@ -145,24 +145,33 @@ object WeeklyReportCalculator {
         val priorWeekShortOpens = priorWeekApps.sumOf { it.shortSessionCount }
         val priorAvgShortOpens = if (priorRecordedDays > 0) priorWeekShortOpens / priorRecordedDays else 0
 
-        // 앱별 사용량 증감
-        val lastAppUsageByPkg = lastWeekApps.groupBy { it.packageName }.mapValues { (_, records) ->
-            records.first().appName to (records.sumOf { it.usageMillis } / 60_000L)
-        }
-        val priorAppUsageByPkg = priorWeekApps.groupBy { it.packageName }.mapValues { (_, records) ->
-            records.first().appName to (records.sumOf { it.usageMillis } / 60_000L)
-        }
+        val screenTimeDiff = if (priorRecordedDays > 0) avgScreen - priorAvgScreen else null
+        val unlockDiff = if (priorRecordedDays > 0) avgUnlock - priorAvgUnlock else null
+        val shortSessionDiff = if (priorRecordedDays > 0) avgShortOpens - priorAvgShortOpens else null
 
-        val allPkgs = (lastAppUsageByPkg.keys + priorAppUsageByPkg.keys).distinct()
-        val appDiffs = allPkgs.map { pkg ->
-            val lastUsage = lastAppUsageByPkg[pkg]?.second ?: 0L
-            val priorUsage = priorAppUsageByPkg[pkg]?.second ?: 0L
-            val appName = lastAppUsageByPkg[pkg]?.first ?: priorAppUsageByPkg[pkg]?.first ?: pkg
-            AppChange(packageName = pkg, appName = appName, diffMinutes = lastUsage - priorUsage)
+        // 앱별 사용량 증감: 기록된 날 기준 하루 평균으로 비교, 양쪽 모두 3일 이상 기록 시에만 노출
+        val (topIncreased, topDecreased) = if (recordedDays >= 3 && priorRecordedDays >= 3) {
+            val lastAppUsageByPkg = lastWeekApps.groupBy { it.packageName }.mapValues { (_, records) ->
+                records.first().appName to (records.sumOf { it.usageMillis } / 60_000L)
+            }
+            val priorAppUsageByPkg = priorWeekApps.groupBy { it.packageName }.mapValues { (_, records) ->
+                records.first().appName to (records.sumOf { it.usageMillis } / 60_000L)
+            }
+            val allPkgs = (lastAppUsageByPkg.keys + priorAppUsageByPkg.keys).distinct()
+            val appDiffs = allPkgs.map { pkg ->
+                val lastTotal = lastAppUsageByPkg[pkg]?.second ?: 0L
+                val priorTotal = priorAppUsageByPkg[pkg]?.second ?: 0L
+                val lastAvg = kotlin.math.round(lastTotal.toDouble() / recordedDays).toLong()
+                val priorAvg = kotlin.math.round(priorTotal.toDouble() / priorRecordedDays).toLong()
+                val appName = lastAppUsageByPkg[pkg]?.first ?: priorAppUsageByPkg[pkg]?.first ?: pkg
+                AppChange(packageName = pkg, appName = appName, diffMinutes = lastAvg - priorAvg)
+            }
+            val inc = appDiffs.filter { it.diffMinutes > 0 }.maxByOrNull { it.diffMinutes }
+            val dec = appDiffs.filter { it.diffMinutes < 0 }.minByOrNull { it.diffMinutes }
+            inc to dec
+        } else {
+            null to null
         }
-
-        val topIncreased = appDiffs.filter { it.diffMinutes > 0 }.maxByOrNull { it.diffMinutes }
-        val topDecreased = appDiffs.filter { it.diffMinutes < 0 }.minByOrNull { it.diffMinutes }
 
         val weekGoalRecords = dailyGoalRecords.filter { it.date in lastWeekDates }
         val hasGoalHistory = weekGoalRecords.isNotEmpty()
@@ -191,11 +200,11 @@ object WeeklyReportCalculator {
             perfectStampsEarned = stampsEarned,
             freePassesEarned = passesEarned,
             avgScreenTimeMinutes = avgScreen,
-            screenTimeDiffMinutes = avgScreen - priorAvgScreen,
+            screenTimeDiffMinutes = screenTimeDiff,
             avgUnlockCount = avgUnlock,
-            unlockDiffCount = avgUnlock - priorAvgUnlock,
+            unlockDiffCount = unlockDiff,
             avgShortSessionCount = avgShortOpens,
-            shortSessionDiffCount = avgShortOpens - priorAvgShortOpens,
+            shortSessionDiffCount = shortSessionDiff,
             topIncreasedApp = topIncreased,
             topDecreasedApp = topDecreased,
             more15MinCount = more15MinCount,
