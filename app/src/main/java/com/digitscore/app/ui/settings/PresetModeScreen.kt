@@ -35,6 +35,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.digitscore.app.notification.EdgeLightingOverlayManager
+import com.digitscore.app.notification.ScoreNotificationManager
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.AlertDialog
@@ -1237,6 +1238,47 @@ fun PresetModeScreen(
                                 )
                             }
                         }
+                    }
+                }
+            }
+
+            if (selectedCategoryTab == 1) item {
+                var weeklyReportEnabled by remember {
+                    mutableStateOf(ScoreNotificationManager.isWeeklyReportNotificationEnabled(context))
+                }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = DigitsShape.lg,
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (isEn) "Weekly Report Alert" else "주간 리포트 알림",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = DigitsTextSize.bodyLarge
+                            )
+                            Text(
+                                text = if (isEn) "Sends a summary of past week's Core Index and goal achievements every Monday morning."
+                                else "매주 월요일 아침 지난주 코어 지수 및 목표 달성 요약을 알림으로 받아봅니다.",
+                                fontSize = DigitsTextSize.label,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        androidx.compose.material3.Switch(
+                            checked = weeklyReportEnabled,
+                            onCheckedChange = { checked ->
+                                weeklyReportEnabled = checked
+                                ScoreNotificationManager.setWeeklyReportNotificationEnabled(context, checked)
+                            }
+                        )
                     }
                 }
             }

@@ -167,5 +167,9 @@
     <string name="morning_briefing_prompt_title">Set Today\'s Goals</string>
     <string name="morning_briefing_prompt_content">Tap to review today\'s Core Index defense line and app limit</string>
     <string name="morning_briefing_prompt_action">Set Goals</string>
+    <string name="weekly_report_channel_name">DigitsCore Weekly Report</string>
+    <string name="weekly_report_channel_description">Notifies past week Core Index and goal achievements every Monday.</string>
+    <string name="weekly_report_notification_title">Your Weekly Report is ready</string>
+    <string name="weekly_report_notification_desc">Avg Core Index %1$sP · Goals met %2$d days</string>
     <string name="confirm">OK</string>
 </resources>

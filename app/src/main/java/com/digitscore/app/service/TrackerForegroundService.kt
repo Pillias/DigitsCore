@@ -898,6 +898,9 @@ class TrackerForegroundService : Service() {
                     android.util.Log.w("DigitsCoreGoal", "Failed to update daily goal progress", e)
                 }
 
+                // 주간 리포트 발송 검사 (매주 월요일 05:00 이후 첫 활성화 시점)
+                checkAndSendWeeklyReport(db, now)
+
                 // Glance는 이 프로세스의 Repository가 초기화된 뒤 실행될 수 있으므로 계산 결과를
                 // 먼저 영구 snapshot으로 확정합니다. 표시값이 바뀌면 즉시, 그대로여도 5분마다
                 // launcher에 재전송하여 OEM이 놓친 갱신을 복구합니다.
@@ -1228,6 +1231,36 @@ class TrackerForegroundService : Service() {
             add(Calendar.DAY_OF_YEAR, -(safeDays - 1))
         }
         return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(calendar.time)
+    }
+
+    private fun checkAndSendWeeklyReport(db: DigitsDatabase, now: Long) {
+        val todayDate = DailyGoalStore.getLogicalDateString()
+        val localDate = runCatching { java.time.LocalDate.parse(todayDate) }.getOrNull() ?: return
+        if (localDate.dayOfWeek != java.time.DayOfWeek.MONDAY) return
+        if (!ScoreNotificationManager.isWeeklyReportNotificationEnabled(applicationContext)) return
+
+        val yearWeek = "${localDate.year}-W${java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR.getFrom(localDate)}"
+        val lastSentWeek = trackingPreferences.getString("last_sent_weekly_report_week", null)
+        if (lastSentWeek == yearWeek) return
+
+        serviceScope.launch(Dispatchers.IO) {
+            val range = com.digitscore.app.data.WeeklyReportCalculator.getLastWeekRange(localDate)
+            val histories = db.scoreDao().getRecentCoreIndexHistories(21).associateBy { it.dateString }
+            val dailyApps = db.dailyAppUsageDao().getAll()
+            val rewardState = DailyGoalStore.getRewardState(applicationContext)
+
+            val report = com.digitscore.app.data.WeeklyReportCalculator.calculate(
+                lastWeekRange = range,
+                histories = histories,
+                dailyAppUsage = dailyApps,
+                rewardState = rewardState
+            )
+
+            if (report.hasData) {
+                ScoreNotificationManager.showWeeklyReportNotification(applicationContext, report)
+                trackingPreferences.edit().putString("last_sent_weekly_report_week", yearWeek).apply()
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

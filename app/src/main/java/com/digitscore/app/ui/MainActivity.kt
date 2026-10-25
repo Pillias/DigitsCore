@@ -61,9 +61,11 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_SHOW_MORNING_BRIEFING = "com.digitscore.app.extra.SHOW_MORNING_BRIEFING"
+        const val EXTRA_SHOW_WEEKLY_REPORT = "com.digitscore.app.extra.SHOW_WEEKLY_REPORT"
     }
 
     private var forceShowMorningBriefing by mutableStateOf(false)
+    private var forceShowWeeklyReport by mutableStateOf(false)
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -77,6 +79,11 @@ class MainActivity : ComponentActivity() {
             // 처리한 요청은 지워 화면 회전·다크모드·언어 변경으로 Activity가 다시 만들어져도
             // 브리핑이 또 열리지 않게 합니다.
             intent.removeExtra(EXTRA_SHOW_MORNING_BRIEFING)
+        }
+        if (intent?.action == com.digitscore.app.notification.ScoreNotificationManager.ACTION_OPEN_WEEKLY_REPORT ||
+            intent?.getBooleanExtra(EXTRA_SHOW_WEEKLY_REPORT, false) == true) {
+            forceShowWeeklyReport = true
+            intent.removeExtra(EXTRA_SHOW_WEEKLY_REPORT)
         }
     }
 
@@ -188,6 +195,11 @@ class MainActivity : ComponentActivity() {
                                         }
                                     )
                                 }
+                            }
+                            if (forceShowWeeklyReport) {
+                                com.digitscore.app.ui.dashboard.WeeklyReportDialog(
+                                    onDismiss = { forceShowWeeklyReport = false }
+                                )
                             }
                         }
                     }

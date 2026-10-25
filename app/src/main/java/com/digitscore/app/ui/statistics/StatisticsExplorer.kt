@@ -712,6 +712,44 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                     }
                 }
                 item {
+                    var showWeeklyReport by remember { mutableStateOf(false) }
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp)
+                            .clickable { showWeeklyReport = true },
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        shape = DigitsShape.md
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = label("지난주 주간 리포트", "Past Weekly Report"),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = DigitsTextSize.body
+                                )
+                                Text(
+                                    text = label("코어 지수 평균과 목표 달성 돌아보기", "Review past week's Core Index & goals"),
+                                    fontSize = DigitsTextSize.caption,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, Modifier.size(20.dp))
+                        }
+                    }
+                    if (showWeeklyReport) {
+                        com.digitscore.app.ui.dashboard.WeeklyReportDialog(
+                            onDismiss = { showWeeklyReport = false }
+                        )
+                    }
+                }
+                item {
                     Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         val appSectionTitle = when {
                             isWeekday && selected != null -> label("${weekdayName(selected.start.toInt(), isEn)} 주요 앱", "${weekdayName(selected.start.toInt(), isEn)} Top Apps")

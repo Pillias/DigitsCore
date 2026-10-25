@@ -33,12 +33,25 @@ object ScoreNotificationManager {
     const val SOFT_GUIDANCE_CHANNEL_ID = "digitscore_soft_guidance_v2"
     const val WAKE_PROMPT_CHANNEL_ID = "digitscore_wake_prompt_channel"
     const val GOAL_CHANNEL_ID = "digitscore_goal_channel"
+    const val WEEKLY_REPORT_CHANNEL_ID = "digitscore_weekly_report"
     const val NOTIFICATION_ID = 1001
     private const val GUIDANCE_NOTIFICATION_ID = 1002
     private const val GOAL_NOTIFICATION_ID = 1004
     private const val GOAL_UNLOCK_NOTIFICATION_ID = 1007
     private const val MORNING_BRIEFING_REQUEST_CODE = 21
     private const val MORNING_BRIEFING_NOTIFICATION_ID = 1005
+    const val NOTIFICATION_ID_WEEKLY_REPORT = 1008
+    const val ACTION_OPEN_WEEKLY_REPORT = "com.digitscore.app.action.OPEN_WEEKLY_REPORT"
+
+    fun isWeeklyReportNotificationEnabled(context: Context): Boolean {
+        val prefs = context.getSharedPreferences("notification_prefs", Context.MODE_PRIVATE)
+        return prefs.getBoolean("weekly_report_enabled", true)
+    }
+
+    fun setWeeklyReportNotificationEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences("notification_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("weekly_report_enabled", enabled).apply()
+    }
 
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -97,7 +110,54 @@ object ScoreNotificationManager {
                     enableVibration(false)
                 }
             )
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    WEEKLY_REPORT_CHANNEL_ID,
+                    strings.getString(R.string.weekly_report_channel_name),
+                    NotificationManager.IMPORTANCE_DEFAULT
+                ).apply {
+                    description = strings.getString(R.string.weekly_report_channel_description)
+                    enableVibration(false)
+                }
+            )
         }
+    }
+
+    fun showWeeklyReportNotification(
+        context: Context,
+        report: com.digitscore.app.data.WeeklyReportData
+    ) {
+        val strings = AppLocale.stringsContext(context)
+        val launchIntent = Intent(context, MainActivity::class.java).apply {
+            action = ACTION_OPEN_WEEKLY_REPORT
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            NOTIFICATION_ID_WEEKLY_REPORT,
+            launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val avgStr = report.avgScore?.let { String.format(java.util.Locale.US, "%.0f", it) } ?: "--"
+        val desc = strings.getString(R.string.weekly_report_notification_desc, avgStr, report.achievedDaysCount)
+
+        val currentScore = report.avgScore?.toInt() ?: 80
+        val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, currentScore, StatusIconStyle.SCORE_TIER)
+        val iconColor = DynamicIconGenerator.statusIconScoreColor(context, currentScore)
+
+        val notification = NotificationCompat.Builder(context, WEEKLY_REPORT_CHANNEL_ID)
+            .setSmallIcon(iconCompat)
+            .setColor(iconColor)
+            .setContentTitle(strings.getString(R.string.weekly_report_notification_title))
+            .setContentText(desc)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .build()
+
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(NOTIFICATION_ID_WEEKLY_REPORT, notification)
     }
 
     fun showGoalMilestoneNotification(

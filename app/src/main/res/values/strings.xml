@@ -167,5 +167,9 @@
     <string name="morning_briefing_prompt_title">오늘의 목표 설정하기</string>
     <string name="morning_briefing_prompt_content">터치하여 오늘의 코어 지수 방어선과 앱 사용 목표를 확인하세요</string>
     <string name="morning_briefing_prompt_action">목표 설정하기</string>
+    <string name="weekly_report_channel_name">DigitsCore 주간 리포트</string>
+    <string name="weekly_report_channel_description">매주 월요일 지난주 코어 지수 및 목표 달성 리포트를 안내합니다.</string>
+    <string name="weekly_report_notification_title">지난주 주간 리포트가 도착했습니다</string>
+    <string name="weekly_report_notification_desc">코어 지수 평균 %1$sP · 목표 달성 %2$d일</string>
     <string name="confirm">확인</string>
 </resources>
