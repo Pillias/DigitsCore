@@ -121,6 +121,11 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".receiver.GoalLimitActionReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
 
         <provider
             android:name="androidx.core.content.FileProvider"

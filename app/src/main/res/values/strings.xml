@@ -171,5 +171,9 @@
     <string name="weekly_report_channel_description">매주 월요일 지난주 코어 지수 및 목표 달성 리포트를 안내합니다.</string>
     <string name="weekly_report_notification_title">지난주 주간 리포트가 도착했습니다</string>
     <string name="weekly_report_notification_desc">코어 지수 평균 %1$sP · 목표 달성 %2$d일</string>
+    <string name="goal_limit_reached_title">%1$s 한도 도달</string>
+    <string name="goal_limit_reached_content">%1$s %2$dmin 사용. 앱을 닫거나 15min 더 쓸 수 있습니다.</string>
+    <string name="goal_limit_action_more_15">15min 더</string>
+    <string name="goal_limit_action_stop_today">오늘은 여기까지</string>
     <string name="confirm">확인</string>
 </resources>

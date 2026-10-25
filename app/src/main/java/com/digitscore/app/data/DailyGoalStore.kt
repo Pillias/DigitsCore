@@ -41,6 +41,7 @@ object DailyGoalStore {
     private const val KEY_DISMISSED = "goal_dismissed"
     private const val KEY_NOTIFIED_80 = "goal_notified_80"
     private const val KEY_NOTIFIED_UNLOCK_80 = "goal_notified_unlock_80"
+    private const val KEY_NOTIFIED_LIMIT_REACHED = "goal_notified_limit_reached"
 
     private const val KEY_YESTERDAY_SCORE = "y_score"
     private const val KEY_YESTERDAY_SCREEN_MINS = "y_screen_mins"
@@ -157,7 +158,8 @@ object DailyGoalStore {
             isAutoAssigned = prefs.getBoolean(KEY_AUTO_ASSIGNED, true),
             isDismissed = prefs.getBoolean(KEY_DISMISSED, false),
             notifiedMilestone80 = prefs.getBoolean(KEY_NOTIFIED_80, false),
-            notifiedUnlockMilestone80 = prefs.getBoolean(KEY_NOTIFIED_UNLOCK_80, false)
+            notifiedUnlockMilestone80 = prefs.getBoolean(KEY_NOTIFIED_UNLOCK_80, false),
+            notifiedLimitReached = prefs.getBoolean(KEY_NOTIFIED_LIMIT_REACHED, false)
         )
     }
 
@@ -177,6 +179,7 @@ object DailyGoalStore {
             .putBoolean(KEY_DISMISSED, goal.isDismissed)
             .putBoolean(KEY_NOTIFIED_80, goal.notifiedMilestone80)
             .putBoolean(KEY_NOTIFIED_UNLOCK_80, goal.notifiedUnlockMilestone80)
+            .putBoolean(KEY_NOTIFIED_LIMIT_REACHED, goal.notifiedLimitReached)
             .apply()
     }
 
@@ -188,7 +191,8 @@ object DailyGoalStore {
         currentAppMins: Int? = null,
         currentUnlock: Int? = null,
         notifiedMilestone80: Boolean? = null,
-        notifiedUnlockMilestone80: Boolean? = null
+        notifiedUnlockMilestone80: Boolean? = null,
+        notifiedLimitReached: Boolean? = null
     ) = synchronized(storeLock) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val savedDate = prefs.getString(KEY_DATE, null)
@@ -202,6 +206,7 @@ object DailyGoalStore {
         currentUnlock?.let { editor.putInt(KEY_CURRENT_UNLOCK, it) }
         notifiedMilestone80?.let { editor.putBoolean(KEY_NOTIFIED_80, it) }
         notifiedUnlockMilestone80?.let { editor.putBoolean(KEY_NOTIFIED_UNLOCK_80, it) }
+        notifiedLimitReached?.let { editor.putBoolean(KEY_NOTIFIED_LIMIT_REACHED, it) }
         editor.apply()
     }
 

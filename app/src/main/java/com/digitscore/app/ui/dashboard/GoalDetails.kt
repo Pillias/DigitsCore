@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.digitscore.app.data.DailyGoalStore
 import com.digitscore.app.data.DigitsDatabase
+import com.digitscore.app.data.GoalLimitChoiceStore
 import com.digitscore.app.i18n.AppLocale
 import com.digitscore.app.i18n.Text
 import com.digitscore.app.ui.theme.DigitsTextSize
@@ -101,6 +102,11 @@ internal fun GoalItemDetailDialog(
             goalTrend(kind, today, target, scores, unlocks, appMinutes)
         }
     }
+
+    val todayDate = DailyGoalStore.getLogicalDateString()
+    val todayChoiceSummary = if (kind == GoalKind.APP && appPackage != null) {
+        GoalLimitChoiceStore.getTodaySummaryText(context, todayDate, appPackage, isEn)
+    } else null
 
     val title = when (kind) {
         GoalKind.SCORE -> if (isEn) "Score floor" else "지수 방어선"
@@ -199,6 +205,11 @@ internal fun GoalItemDetailDialog(
                 GoalSection(if (isEn) "How to achieve" else "달성 방법") {
                     howTo.forEach { line ->
                         Text("• $line", fontSize = DigitsTextSize.body, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+                todayChoiceSummary?.let { summary ->
+                    GoalSection(if (isEn) "Today's limit decision" else "오늘 한도 선택 기록") {
+                        Text(summary, fontSize = DigitsTextSize.body, color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
                 GoalSection(if (isEn) "Last 7 days" else "최근 7일") {

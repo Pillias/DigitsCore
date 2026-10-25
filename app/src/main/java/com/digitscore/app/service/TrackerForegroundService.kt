@@ -880,9 +880,17 @@ class TrackerForegroundService : Service() {
                         }
                     }
 
+                    // 100% 한도 도달 시 선택 카드 알림 발송 (앱 사용량 목표, 하루 1회)
+                    val isAppAt100 = currentGoal.targetPackageName != null && updatedGoal.appProgressRatio >= 1.0f
+                    val notifyAppLimit100 = notificationsOn && isAppAt100 && !updatedGoal.notifiedLimitReached
+                    if (notifyAppLimit100) {
+                        ScoreNotificationManager.showGoalLimitReachedNotification(applicationContext, updatedGoal)
+                    }
+
                     val finalGoal = updatedGoal.copy(
                         notifiedMilestone80 = updatedGoal.notifiedMilestone80 || notifyApp80,
-                        notifiedUnlockMilestone80 = updatedGoal.notifiedUnlockMilestone80 || notifyUnlock80
+                        notifiedUnlockMilestone80 = updatedGoal.notifiedUnlockMilestone80 || notifyUnlock80,
+                        notifiedLimitReached = updatedGoal.notifiedLimitReached || notifyAppLimit100
                     )
                     com.digitscore.app.data.DailyGoalStore.updateProgress(
                         applicationContext,
@@ -890,7 +898,8 @@ class TrackerForegroundService : Service() {
                         currentAppMins = finalGoal.currentAppUsageMinutes,
                         currentUnlock = finalGoal.currentUnlockCount,
                         notifiedMilestone80 = if (notifyApp80) true else null,
-                        notifiedUnlockMilestone80 = if (notifyUnlock80) true else null
+                        notifiedUnlockMilestone80 = if (notifyUnlock80) true else null,
+                        notifiedLimitReached = if (notifyAppLimit100) true else null
                     )
                     ScoreRepository.updateDailyGoal(finalGoal)
                     activeGoal = finalGoal
@@ -1047,6 +1056,25 @@ class TrackerForegroundService : Service() {
 
                         val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(applicationContext) == com.digitscore.app.i18n.AppLocale.ENGLISH
 
+                        // 15min 더 연장 만료 후 계속 사용 시 화면 신호등 및 재발송 (하루 최대 3회)
+                        val snoozeUntil = com.digitscore.app.data.GoalLimitChoiceStore.getMore15Snooze(applicationContext, activePkg)
+                        if (snoozeUntil in 1..now) {
+                            val resendCount = com.digitscore.app.data.GoalLimitChoiceStore.getMore15ResendCount(applicationContext, currentDateString, activePkg)
+                            if (resendCount < 3) {
+                                val label = if (isEn) "● $activeAppName · 15min extended limit reached" else "● $activeAppName · 15min 연장 한도 도달"
+                                com.digitscore.app.notification.EdgeLightingOverlayManager.showEdgeWarning(
+                                    applicationContext,
+                                    isStudyGreen = false,
+                                    labelText = label
+                                )
+                                activeGoal?.let { g ->
+                                    ScoreNotificationManager.showGoalLimitReachedNotification(applicationContext, g, resendCount + 1)
+                                }
+                                com.digitscore.app.data.GoalLimitChoiceStore.incrementMore15ResendCount(applicationContext, currentDateString, activePkg)
+                            }
+                            com.digitscore.app.data.GoalLimitChoiceStore.clearMore15Snooze(applicationContext, activePkg)
+                        }
+
                         if (isStudy && effectiveStudyMinutes >= studyTargetMins) {
                             val repeatIntervalMins = (studyTargetMins / 2).coerceAtLeast(1)
                             val cooldownMillis = repeatIntervalMins * 60_000L
@@ -1066,7 +1094,8 @@ class TrackerForegroundService : Service() {
                                 lastEdgeWarningIsStudy = true
                             }
                         } else if (isManaged && effectiveManagedMinutes >= managedTargetMins) {
-                            val repeatIntervalMins = (managedTargetMins / 2).coerceAtLeast(1)
+                            val isStopToday = com.digitscore.app.data.GoalLimitChoiceStore.isStopTodayActive(applicationContext, currentDateString, activePkg)
+                            val repeatIntervalMins = if (isStopToday) 5 else (managedTargetMins / 2).coerceAtLeast(1)
                             val cooldownMillis = repeatIntervalMins * 60_000L
                             val isSameWarningTarget = lastEdgeWarningIsStudy == false
                             val canTrigger = !isSameWarningTarget || (now - lastEdgeWarningAtMillis) >= cooldownMillis
@@ -1248,12 +1277,19 @@ class TrackerForegroundService : Service() {
             val histories = db.scoreDao().getRecentCoreIndexHistories(21).associateBy { it.dateString }
             val dailyApps = db.dailyAppUsageDao().getAll()
             val rewardState = DailyGoalStore.getRewardState(applicationContext)
+            val (more15, stopToday) = com.digitscore.app.data.GoalLimitChoiceStore.getCountsForRange(
+                applicationContext,
+                range.first,
+                range.second
+            )
 
             val report = com.digitscore.app.data.WeeklyReportCalculator.calculate(
                 lastWeekRange = range,
                 histories = histories,
                 dailyAppUsage = dailyApps,
-                rewardState = rewardState
+                rewardState = rewardState,
+                more15MinCount = more15,
+                stopForTodayCount = stopToday
             )
 
             if (report.hasData) {

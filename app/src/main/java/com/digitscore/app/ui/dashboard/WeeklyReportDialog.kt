@@ -44,12 +44,19 @@ fun WeeklyReportDialog(
             val histories = db.scoreDao().getRecentCoreIndexHistories(21).associateBy { it.dateString }
             val dailyApps = db.dailyAppUsageDao().getAll()
             val rewardState = DailyGoalStore.getRewardState(context)
+            val (more15, stopToday) = com.digitscore.app.data.GoalLimitChoiceStore.getCountsForRange(
+                context,
+                range.first,
+                range.second
+            )
 
             WeeklyReportCalculator.calculate(
                 lastWeekRange = range,
                 histories = histories,
                 dailyAppUsage = dailyApps,
-                rewardState = rewardState
+                rewardState = rewardState,
+                more15MinCount = more15,
+                stopForTodayCount = stopToday
             )
         }
         isLoading = false

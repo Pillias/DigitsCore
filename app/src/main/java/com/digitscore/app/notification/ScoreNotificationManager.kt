@@ -38,9 +38,10 @@ object ScoreNotificationManager {
     private const val GUIDANCE_NOTIFICATION_ID = 1002
     private const val GOAL_NOTIFICATION_ID = 1004
     private const val GOAL_UNLOCK_NOTIFICATION_ID = 1007
+    const val NOTIFICATION_ID_WEEKLY_REPORT = 1008
+    const val NOTIFICATION_ID_GOAL_LIMIT = 1009
     private const val MORNING_BRIEFING_REQUEST_CODE = 21
     private const val MORNING_BRIEFING_NOTIFICATION_ID = 1005
-    const val NOTIFICATION_ID_WEEKLY_REPORT = 1008
     const val ACTION_OPEN_WEEKLY_REPORT = "com.digitscore.app.action.OPEN_WEEKLY_REPORT"
 
     fun isWeeklyReportNotificationEnabled(context: Context): Boolean {
@@ -214,6 +215,83 @@ object ScoreNotificationManager {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         // 앱 목표와 잠금 해제 목표 알림이 같은 주기에 함께 와도 서로 덮어쓰지 않게 ID를 나눕니다.
         manager.notify(if (forUnlock) GOAL_UNLOCK_NOTIFICATION_ID else GOAL_NOTIFICATION_ID, notification)
+    }
+
+    fun showGoalLimitReachedNotification(
+        context: Context,
+        goal: com.digitscore.app.model.DailyGoal,
+        resendCount: Int = 0
+    ) {
+        val strings = AppLocale.stringsContext(context)
+        val pkg = goal.targetPackageName ?: return
+        val rawAppName = goal.targetAppName.ifEmpty { pkg.substringAfterLast('.') }
+        val appName = if (rawAppName.length > 10) rawAppName.take(9) + "…" else rawAppName
+
+        val more15Intent = Intent(context, com.digitscore.app.receiver.GoalLimitActionReceiver::class.java).apply {
+            action = com.digitscore.app.receiver.GoalLimitActionReceiver.ACTION_GOAL_LIMIT_MORE_15
+            putExtra(com.digitscore.app.receiver.GoalLimitActionReceiver.EXTRA_PACKAGE_NAME, pkg)
+            putExtra(com.digitscore.app.receiver.GoalLimitActionReceiver.EXTRA_APP_NAME, appName)
+        }
+        val more15PendingIntent = PendingIntent.getBroadcast(
+            context,
+            101,
+            more15Intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val stopTodayIntent = Intent(context, com.digitscore.app.receiver.GoalLimitActionReceiver::class.java).apply {
+            action = com.digitscore.app.receiver.GoalLimitActionReceiver.ACTION_GOAL_LIMIT_STOP_TODAY
+            putExtra(com.digitscore.app.receiver.GoalLimitActionReceiver.EXTRA_PACKAGE_NAME, pkg)
+            putExtra(com.digitscore.app.receiver.GoalLimitActionReceiver.EXTRA_APP_NAME, appName)
+        }
+        val stopTodayPendingIntent = PendingIntent.getBroadcast(
+            context,
+            102,
+            stopTodayIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val launchIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val contentPendingIntent = PendingIntent.getActivity(
+            context,
+            103,
+            launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val title = strings.getString(R.string.goal_limit_reached_title, appName)
+        val content = strings.getString(R.string.goal_limit_reached_content, appName, goal.appLimitMinutes)
+
+        val currentScore = goal.currentScore
+        val iconCompat = DynamicIconGenerator.createScoreIconCompat(context, currentScore, StatusIconStyle.SCORE_TIER)
+        val iconColor = DynamicIconGenerator.statusIconScoreColor(context, currentScore)
+
+        val builder = NotificationCompat.Builder(context, GOAL_CHANNEL_ID)
+            .setSmallIcon(iconCompat)
+            .setColor(iconColor)
+            .setContentTitle(title)
+            .setContentText(content)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(contentPendingIntent)
+
+        if (resendCount < 3) {
+            builder.addAction(
+                0,
+                strings.getString(R.string.goal_limit_action_more_15),
+                more15PendingIntent
+            )
+        }
+        builder.addAction(
+            0,
+            strings.getString(R.string.goal_limit_action_stop_today),
+            stopTodayPendingIntent
+        )
+
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(NOTIFICATION_ID_GOAL_LIMIT, builder.build())
     }
 
     fun showMorningBriefingHeadsUpNotification(context: Context) {
