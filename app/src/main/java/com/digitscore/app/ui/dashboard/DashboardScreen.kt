@@ -245,6 +245,11 @@ fun DashboardScreen(
         ?: com.digitscore.app.engine.CumulativeScoreConfig.CURRENT.initialScore.toInt()
     val grade = ScoreGrade.fromScore(currentScore)
 
+    val timeRules = remember { com.digitscore.app.data.TimeRuleStore.getRules(context) }
+    val activeTimeRule = remember(timeRules) {
+        com.digitscore.app.engine.TimeRuleEngine.getActiveRule(timeRules, java.time.LocalDateTime.now())
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -302,6 +307,44 @@ fun DashboardScreen(
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // 0. 활성 시간대 규칙 안내 줄
+                if (activeTimeRule != null) {
+                    item {
+                        val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 2.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                shape = DigitsShape.xs,
+                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.HourglassBottom,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(12.dp),
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                    Text(
+                                        text = "${activeTimeRule.name} · ${if (isEn) "Lighting" else "신호등"} ${activeTimeRule.lightingMinutes}min",
+                                        fontSize = DigitsTextSize.caption,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // 1. 코어 지수 게이지 + 최근 7일 스파크라인을 결합한 통합 히어로 카드
                 item {
                     CoreIndexHeroCard(

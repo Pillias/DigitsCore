@@ -1089,7 +1089,10 @@ class TrackerForegroundService : Service() {
                             }
                         val activeAppName = if (rawAppName.length > 10) rawAppName.take(9) + "…" else rawAppName
 
-                        val managedTargetMins = com.digitscore.app.notification.EdgeLightingOverlayManager.getManagedTriggerMinutes(applicationContext)
+                        val timeRules = com.digitscore.app.data.TimeRuleStore.getRules(applicationContext)
+                        val activeTimeRule = com.digitscore.app.engine.TimeRuleEngine.getActiveRule(timeRules, java.time.LocalDateTime.now())
+                        val baseManagedTargetMins = com.digitscore.app.notification.EdgeLightingOverlayManager.getManagedTriggerMinutes(applicationContext)
+                        val managedTargetMins = activeTimeRule?.lightingMinutes ?: baseManagedTargetMins
                         val studyTargetMins = com.digitscore.app.notification.EdgeLightingOverlayManager.getStudyTriggerMinutes(applicationContext)
 
                         val effectiveManagedMinutes = if (isManaged) chainedManagedMinutes else 0.0
@@ -1144,7 +1147,8 @@ class TrackerForegroundService : Service() {
                                 val displayMins = maxOf(managedTargetMins, effectiveManagedMinutes.toInt())
                                 val isDominantApp = currentAppChainMinutes >= managedTargetMins * 0.5
                                 val appTitle = if (isDominantApp) activeAppName else if (isEn) "Managed apps" else "관리앱 합산"
-                                val label = if (isEn) "● $appTitle · ${displayMins}min continuous · Overuse" else "● $appTitle · ${displayMins}min 연속 · 과몰입 주의"
+                                val rulePrefix = if (activeTimeRule != null) "[${activeTimeRule.name}] " else ""
+                                val label = if (isEn) "● $rulePrefix$appTitle · ${displayMins}min continuous · Overuse" else "● $rulePrefix$appTitle · ${displayMins}min 연속 · 과몰입 주의"
                                 com.digitscore.app.notification.EdgeLightingOverlayManager.showEdgeWarning(
                                     applicationContext,
                                     isStudyGreen = false,

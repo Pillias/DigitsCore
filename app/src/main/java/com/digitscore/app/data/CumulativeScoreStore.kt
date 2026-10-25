@@ -86,6 +86,15 @@ object CumulativeScoreStore {
         return RestPhasePolicy.learn(history, zone).also { windowCache = Triple(db, key, it) }
     }
 
+    suspend fun getLearnedBedtimeMinute(
+        db: DigitsDatabase,
+        nowMillis: Long = System.currentTimeMillis(),
+        zone: ZoneId = ZoneId.systemDefault()
+    ): Int? {
+        val window = learnedRestWindow(db, nowMillis, zone)
+        return if (window.learnedNights > 0) window.bedtimeMinute else null
+    }
+
     suspend fun update(
         db: DigitsDatabase,
         nowMillis: Long,

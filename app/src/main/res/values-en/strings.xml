@@ -175,5 +175,9 @@
     <string name="goal_limit_reached_content">Used %1$s for %2$dmin. You can close the app or use for 15min more.</string>
     <string name="goal_limit_action_more_15">15min more</string>
     <string name="goal_limit_action_stop_today">Done for today</string>
+    <string name="time_rules_title">Time-of-day Rules</string>
+    <string name="time_rules_desc">Stricter screen lighting intervals during specific hours (up to 3)</string>
+    <string name="time_rules_add">Add rule</string>
+    <string name="time_rules_edit">Edit rule</string>
     <string name="confirm">OK</string>
 </resources>

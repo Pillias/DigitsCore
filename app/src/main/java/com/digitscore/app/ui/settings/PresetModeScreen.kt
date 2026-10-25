@@ -1056,6 +1056,9 @@ fun PresetModeScreen(
                 }
             }
 
+            if (selectedCategoryTab == 2) item {
+                TimeRuleSection(isEn = isEn)
+            }
 
             if (selectedCategoryTab == 2) item {
                 Card(
