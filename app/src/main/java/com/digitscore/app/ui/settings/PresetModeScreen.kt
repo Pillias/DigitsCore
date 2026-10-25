@@ -1629,6 +1629,86 @@ fun PresetModeScreen(
             }
 
             if (selectedCategoryTab == 3) item {
+                var isImportingHistory by remember { mutableStateOf(false) }
+                var importResultDialogMessage by remember { mutableStateOf<String?>(null) }
+                val importScope = rememberCoroutineScope()
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = DigitsShape.lg,
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = if (isEn) "Import Past History" else "지난 기록 불러오기",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = DigitsTextSize.bodyLarge
+                        )
+                        Text(
+                            text = if (isEn) "Imports up to 7 days of recent app usage stored on your device. Past scores are not created; Core Index begins from today."
+                            else "기기에 남은 최근 최대 7일간의 앱 사용 기록을 가져옵니다. 과거 점수는 생성하지 않으며 코어 지수는 오늘부터 시작합니다.",
+                            fontSize = DigitsTextSize.label,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+
+                        Button(
+                            onClick = {
+                                if (!isImportingHistory) {
+                                    isImportingHistory = true
+                                    importScope.launch {
+                                        val result = com.digitscore.app.data.UsageHistoryImporter.importPastHistory(context, db)
+                                        importResultDialogMessage = result.message(isEn)
+                                        isImportingHistory = false
+                                    }
+                                }
+                            },
+                            enabled = !isImportingHistory,
+                            shape = DigitsShape.sm,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = if (isImportingHistory) (if (isEn) "Importing..." else "불러오는 중…") else (if (isEn) "Import Past Usage History" else "지난 사용 기록 불러오기"),
+                                fontSize = DigitsTextSize.body,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                importResultDialogMessage?.let { msg ->
+                    AlertDialog(
+                        onDismissRequest = { importResultDialogMessage = null },
+                        title = {
+                            Text(
+                                text = if (isEn) "Import Result" else "기록 불러오기 결과",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = DigitsTextSize.headline
+                            )
+                        },
+                        text = {
+                            Text(
+                                text = msg,
+                                fontSize = DigitsTextSize.body
+                            )
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = { importResultDialogMessage = null },
+                                shape = DigitsShape.sm
+                            ) {
+                                Text(if (isEn) "OK" else "확인", fontSize = DigitsTextSize.body, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    )
+                }
+            }
+
+            if (selectedCategoryTab == 3) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = DigitsShape.lg,

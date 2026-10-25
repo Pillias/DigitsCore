@@ -183,6 +183,14 @@ class TrackerForegroundService : Service() {
             trackingPreferences.edit().putBoolean("cumulative_tracking_paused", false).apply()
         }
         restoreTodayHistory()
+        serviceScope.launch(Dispatchers.IO) {
+            try {
+                val db = DigitsDatabase.getInstance(applicationContext)
+                com.digitscore.app.data.UsageHistoryImporter.maybeImportOnFirstRun(applicationContext, db)
+            } catch (e: Exception) {
+                android.util.Log.w("DigitsCoreTracker", "First-run usage history import skipped", e)
+            }
+        }
         startPeriodicTracking()
     }
 

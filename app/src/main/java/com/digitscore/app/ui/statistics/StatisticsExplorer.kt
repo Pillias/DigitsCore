@@ -332,23 +332,34 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                 modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp)
                             )
 
+                            val isImportedDay = selected != null && selected.score == null && (selected.usage ?: 0L) > 0L
                             val targetScore = if (selected != null) {
                                 selectedSample?.exactScore ?: selected.score?.last ?: 80.0
                             } else if (isRolling) {
                                 liveScore?.exactScore ?: latest?.last ?: 80.0
                             } else {
-                                buckets.lastOrNull()?.score?.last ?: 80.0
+                                buckets.lastOrNull { it.score != null }?.score?.last ?: 80.0
                             }
 
                             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(
-                                    text = points(targetScore),
-                                    fontSize = DigitsTextSize.hero,
-                                    fontWeight = FontWeight.Bold,
-                                    color = com.digitscore.app.ui.theme.scoreTextColor(targetScore.roundToInt()),
-                                    modifier = Modifier.testTag("statistics-score")
-                                )
-                                if (selected != null && isPeriod) {
+                                if (isImportedDay) {
+                                    Text(
+                                        text = "—",
+                                        fontSize = DigitsTextSize.hero,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.outline,
+                                        modifier = Modifier.testTag("statistics-score")
+                                    )
+                                } else {
+                                    Text(
+                                        text = points(targetScore),
+                                        fontSize = DigitsTextSize.hero,
+                                        fontWeight = FontWeight.Bold,
+                                        color = com.digitscore.app.ui.theme.scoreTextColor(targetScore.roundToInt()),
+                                        modifier = Modifier.testTag("statistics-score")
+                                    )
+                                }
+                                if (selected != null && isPeriod && !isImportedDay) {
                                     val openS = selected.score?.first ?: targetScore
                                     val diffVal = targetScore - openS
                                     val isUp = diffVal >= 0
@@ -385,6 +396,8 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                 val scoreInfo = if (s != null) {
                                     if (isRolling || s.low == s.high) label("점수 ${points(s.last)}P", "Score ${points(s.last)}P")
                                     else label("최저 ${points(s.low)} ~ 최고 ${points(s.high)}", "Low ${points(s.low)} ~ High ${points(s.high)}")
+                                } else if ((selected.usage ?: 0L) > 0L) {
+                                    label("불러온 기록", "Imported history")
                                 } else label("점수 ${points(displayed ?: 80.0)}P", "Score ${points(displayed ?: 80.0)}P")
                                 val usageInfo = label("화면 ${minutes(selected.usage ?: 0L)} (관리 ${minutes(selected.managed)})", "Screen ${minutes(selected.usage ?: 0L)} (${minutes(selected.managed)})")
                                 val unlockInfo = label("잠금 ${selected.unlocks ?: 0}x (${selected.shortOpens}x)", "Unlocks ${selected.unlocks ?: 0}x (${selected.shortOpens}x)")
