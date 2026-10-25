@@ -95,6 +95,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import com.digitscore.app.i18n.AppLocale
 import com.digitscore.app.data.entity.CoreIndexSampleEntity
+import com.digitscore.app.data.ScreenTimeReconciliationCalculator
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -2663,6 +2664,9 @@ fun ScreenTimeDetailDialog(
 
     val context = LocalContext.current
     val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
+    val reconciliation = remember(totalScreenMillis) {
+        ScreenTimeReconciliationCalculator.queryReconciliation(context, totalScreenMillis)
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -2705,6 +2709,64 @@ fun ScreenTimeDetailDialog(
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text(text = if (isEn) "General apps" else "일반 앱", fontSize = DigitsTextSize.label)
                                 Text(text = formatInsightDuration(neutralMillis + productiveMillis), fontSize = DigitsTextSize.label, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.outline)
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    // 디지털 웰빙과 숫자가 다른 이유
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        shape = DigitsShape.md
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = if (isEn) "Why this differs from Digital Wellbeing" else "디지털 웰빙과 숫자가 다른 이유",
+                                fontSize = DigitsTextSize.label,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                            Text(
+                                text = if (isEn)
+                                    "Digital Wellbeing counts from midnight and includes launcher time. DigitsCore counts from 05:00 and excludes launcher."
+                                else
+                                    "디지털 웰빙은 자정부터 세고 홈 화면 시간도 포함합니다. DigitsCore는 05:00부터 세고 홈 화면은 빼서 숫자가 다를 수 있습니다.",
+                                fontSize = DigitsTextSize.caption,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(text = if (isEn) "DigitsCore (since 05:00)" else "DigitsCore (05:00 기준)", fontSize = DigitsTextSize.label)
+                                Text(text = com.digitscore.app.i18n.formatMinutesSmallUnit(reconciliation.digitsCoreMinutes.toLong()), fontSize = DigitsTextSize.label, fontWeight = FontWeight.Bold)
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(text = if (isEn) "OS estimate (since midnight)" else "OS 기준 추정치 (자정부터)", fontSize = DigitsTextSize.label)
+                                Text(text = com.digitscore.app.i18n.formatMinutesSmallUnit(reconciliation.osEstimatedMinutes.toLong()), fontSize = DigitsTextSize.label, fontWeight = FontWeight.Bold)
+                            }
+                            if (reconciliation.midnightToDawnMinutes > 0) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(text = if (isEn) "00:00-05:00 usage" else "00:00~05:00 사용분", fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
+                                    Text(text = com.digitscore.app.i18n.formatMinutesSmallUnit(reconciliation.midnightToDawnMinutes.toLong()), fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
+                                }
+                            }
+                            if (reconciliation.launcherMinutes > 0) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(text = if (isEn) "Home screen (launcher)" else "홈 화면(런처) 머문 시간", fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
+                                    Text(text = com.digitscore.app.i18n.formatMinutesSmallUnit(reconciliation.launcherMinutes.toLong()), fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
+                                }
+                            }
+                            if (reconciliation.splitScreenDeduplicatedMinutes > 0) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(text = if (isEn) "Split screen deduplication" else "분할 화면·PiP 중복 제거분", fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
+                                    Text(text = com.digitscore.app.i18n.formatMinutesSmallUnit(reconciliation.splitScreenDeduplicatedMinutes.toLong()), fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
+                                }
+                            }
+                            if (reconciliation.otherMinutes != 0) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(text = if (isEn) "Other difference" else "기타 차이", fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
+                                    Text(text = com.digitscore.app.i18n.formatMinutesSmallUnit(reconciliation.otherMinutes.toLong()), fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
+                                }
                             }
                         }
                     }
