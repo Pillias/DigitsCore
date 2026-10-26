@@ -159,7 +159,7 @@ internal fun explorerApps(
     interactions: List<AppDailyInteractionEntity> = emptyList()
 ): List<ExplorerApp> {
     val hourApps = hours.filter { it.packageName.isNotEmpty() }.groupBy { it.packageName }
-    val lossApps = impacts.filter { it.packageName.isNotEmpty() }.groupBy { it.packageName }
+    val lossApps = impacts.filter { it.packageName.isNotEmpty() && it.packageName != com.digitscore.app.data.StatisticsStore.UNLOCK_IMPACT_KEY }.groupBy { it.packageName }
     val days = daily.groupBy { it.packageName }
     val inters = interactions.filter { it.packageName.isNotEmpty() }.groupBy { it.packageName }
     // For long periods, daily rows supply historical dates whose hourly archive did not exist yet.

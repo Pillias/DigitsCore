@@ -42,6 +42,7 @@ import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.HourglassBottom
+import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Whatshot
 import androidx.compose.material.icons.rounded.StarOutline
 import androidx.compose.material.icons.rounded.ConfirmationNumber
@@ -109,12 +110,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.R
 import com.digitscore.app.i18n.localizedGrade
+import com.digitscore.app.i18n.coachActionText
 import com.digitscore.app.i18n.UiTranslator
 import com.digitscore.app.data.AppUsageInsights
 import com.digitscore.app.data.UnlockInsights
 import com.digitscore.app.data.UsageStatsHelper
 import com.digitscore.app.data.entity.AppWeightEntity
-import com.digitscore.app.engine.ScoreGrade
+import com.digitscore.app.model.ScoreTier
 import com.digitscore.app.engine.RollingScoreDetail
 import com.digitscore.app.engine.ScoreFlow
 import com.digitscore.app.engine.CoreIndexGuidance
@@ -244,7 +246,54 @@ fun DashboardScreen(
     val lastSavedScore = remember { com.digitscore.app.widget.WidgetSnapshotStore.read(context)?.score }
     val currentScore = rollingScoreDetail?.finalScore ?: lastSavedScore
         ?: com.digitscore.app.engine.CumulativeScoreConfig.CURRENT.initialScore.toInt()
-    val grade = ScoreGrade.fromScore(currentScore)
+    val grade = ScoreTier.fromScore(currentScore)
+
+    // 쉬는 동안 오른 P: 화면을 다시 켠 뒤 첫 진입에 한 번만 보여 줍니다.
+    val restGain = remember(rollingSamples, currentScore) {
+        com.digitscore.app.data.RestGainNotice.latest(
+            rollingSamples, rollingScoreDetail?.exactScore ?: currentScore.toDouble(), System.currentTimeMillis()
+        )
+    }
+    val restGainPrefs = remember { context.getSharedPreferences("dashboard_notices", android.content.Context.MODE_PRIVATE) }
+    val restGainPoints = remember(restGain?.restStartMillis) {
+        restGain?.takeIf { restGainPrefs.getLong("rest_gain_shown_start", 0L) != it.restStartMillis }?.points
+    }
+    LaunchedEffect(restGain?.restStartMillis) {
+        restGain?.let { restGainPrefs.edit().putLong("rest_gain_shown_start", it.restStartMillis).apply() }
+    }
+
+    // 평소 이 시간 비교: 최근 14일 같은 시각 지수 중간값 (표본 7일 미만이면 null)
+    val usualDiff by produceState<Int?>(initialValue = null, currentScore) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val now = System.currentTimeMillis()
+                com.digitscore.app.data.UsualScoreComparison.difference(
+                    db.coreIndexSampleDao().getSince(now - 15 * 24 * 3_600_000L),
+                    rollingScoreDetail?.exactScore ?: currentScore.toDouble(),
+                    now
+                )
+            }.getOrNull()
+        }
+    }
+
+    // 최근 24시간 지수 변화의 원인별 분해 (엔진이 남긴 시간별 감점·회복을 더함, 비례 배분 없음)
+    val indexBreakdown by produceState(
+        initialValue = com.digitscore.app.data.CoreIndexBreakdown.EMPTY,
+        currentScore, unlockCount, appsUsage
+    ) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val end = System.currentTimeMillis()
+                val startHour = com.digitscore.app.data.statisticHour(end) - 23 * com.digitscore.app.data.STAT_HOUR
+                val managed = appsUsage
+                    .filter { it.categoryType.canonical == com.digitscore.app.model.AppCategoryType.DISTRACTING }
+                    .map { it.packageName }.toSet()
+                com.digitscore.app.data.CoreIndexBreakdown.from(
+                    db.statisticsDao().impactsBetween(startHour, end + com.digitscore.app.data.STAT_HOUR)
+                ) { it in managed }
+            }.getOrDefault(com.digitscore.app.data.CoreIndexBreakdown.EMPTY)
+        }
+    }
 
     val timeRules = remember { com.digitscore.app.data.TimeRuleStore.getRules(context) }
     var currentTime by remember { mutableStateOf(java.time.LocalDateTime.now()) }
@@ -361,20 +410,24 @@ fun DashboardScreen(
                         rollingScore = rollingScoreDetail,
                         samples = rollingSamples,
                         guidance = guidance,
+                        usualDiff = usualDiff,
+                        restGainPoints = restGainPoints,
                         onScoreDetailClick = { showScoreDetailModal = true },
                         onTrendDetailClick = onNavigateToStatistics
                     )
                 }
 
-                // 3. 주요 3단 통계 카드 (화면, 잠금 해제, 관리)
+                // 3. 요약 3칸: 최근 24시간 지수를 움직인 원인 (앱 사용 · 잠금 해제 · 쉼, ±P)
                 item {
                     ScoreStatsRow(
+                        breakdown = indexBreakdown,
                         screenTimeMillis = rollingUsageSummary.totalScreenTimeMillis,
                         unlockCount = unlockCount,
                         distractingMillis = rollingUsageSummary.managedTimeMillis,
                         onScreenTimeClick = { showScreenTimeModal = true },
                         onUnlockClick = { showUnlockModal = true },
-                        onDistractingClick = { showDistractingModal = true }
+                        onDistractingClick = { showDistractingModal = true },
+                        onRestClick = { showScoreDetailModal = true }
                     )
                 }
 
@@ -442,7 +495,11 @@ fun DashboardScreen(
                                 )
                             } else {
                                 // 이름이 없는 시스템 구성요소(패키지명만 있는 앱)는 요약에서 뺍니다.
-                                val topApps = appsUsage.filter { it.appName.isNotBlank() && it.appName != it.packageName }.take(3)
+                                // 지수에 준 영향(−P)이 큰 앱부터 보여 줍니다(분해 기록이 없으면 사용 시간 순).
+                                val impactByPkg = indexBreakdown.perApp.toMap()
+                                val topApps = appsUsage.filter { it.appName.isNotBlank() && it.appName != it.packageName }
+                                    .sortedBy { impactByPkg[it.packageName] ?: 0.0 }
+                                    .take(3)
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -479,6 +536,16 @@ fun DashboardScreen(
                                                     maxLines = 1,
                                                     softWrap = false
                                                 )
+                                                impactByPkg[app.packageName]?.let { impact ->
+                                                    Text(
+                                                        text = formatPoints(impact),
+                                                        fontSize = DigitsTextSize.caption,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = pointsColor(impact),
+                                                        maxLines = 1,
+                                                        softWrap = false
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -1764,10 +1831,12 @@ private fun GuidanceSummaryCard(guidance: CoreIndexGuidance, onClick: () -> Unit
 @Composable
 private fun CoreIndexHeroCard(
     score: Int,
-    grade: ScoreGrade,
+    grade: ScoreTier,
     rollingScore: RollingScoreDetail?,
     samples: List<CoreIndexSampleEntity>,
     guidance: CoreIndexGuidance?,
+    usualDiff: Int? = null,
+    restGainPoints: Int? = null,
     onScoreDetailClick: () -> Unit,
     onTrendDetailClick: () -> Unit
 ) {
@@ -1823,6 +1892,30 @@ private fun CoreIndexHeroCard(
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                             maxLines = 1
+                        )
+                    }
+                    // 평소와 비교 한 줄 (쉬고 돌아온 직후에는 '쉬는 동안 +nP'를 한 번 보여 줌)
+                    val compareText: String? = when {
+                        restGainPoints != null -> if (isEn) "+${restGainPoints}P while resting" else "쉬는 동안 +${restGainPoints}P"
+                        usualDiff == null -> null
+                        usualDiff > 0 -> if (isEn) "+${usualDiff}P vs usual" else "평소보다 +${usualDiff}P"
+                        usualDiff < 0 -> if (isEn) "${usualDiff}P vs usual" else "평소보다 ${usualDiff}P"
+                        else -> if (isEn) "Same as usual" else "평소와 같음"
+                    }
+                    compareText?.let {
+                        val positive = restGainPoints != null || (usualDiff ?: 0) > 0
+                        val negative = restGainPoints == null && (usualDiff ?: 0) < 0
+                        Text(
+                            text = it,
+                            fontSize = DigitsTextSize.tiny,
+                            fontWeight = FontWeight.Medium,
+                            color = when {
+                                positive -> ScoreGreenText
+                                negative -> ScoreRedText
+                                else -> MaterialTheme.colorScheme.outline
+                            },
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
@@ -1951,7 +2044,7 @@ private fun CoreIndexHeroCard(
                         "What is the Core Index?\n" +
                         "A score from 1 to 99 that shows your phone-use balance right now. It starts at 75, goes down while you use the phone and goes up while the screen is off. It is not reset at midnight or 05:00; it keeps going from where it was.\n" +
                         "• Managed apps lower it faster, and faster still after 30min in a row. Study and Tool apps do not lower it within their limits.\n" +
-                        "• Colors: 80+ green, 60–79 yellow, 40–59 orange, below 40 red. Levels: S 90+, A 80+, B 70+, C 55+, D 40+, F below 40.\n\n" +
+                        "• Levels and colors: Stable 80+ (green), Fair 60–79 (yellow), Caution 40–59 (orange), Rest below 40 (red).\n\n" +
                         "Reading the chart\n" +
                         "• The line shows the last 24 hours. Thin vertical lines mark every 3 hours; the 05:00 line starts a new day.\n" +
                         "• The highest and lowest points show the score and the time (HH:mm)."
@@ -1959,7 +2052,7 @@ private fun CoreIndexHeroCard(
                         "코어 지수란?\n" +
                         "지금의 스마트폰 사용 균형을 1~99로 나타낸 점수입니다. 75에서 시작해 화면을 쓰는 동안 내려가고, 화면을 끄고 쉬는 동안 올라갑니다. 자정이나 05:00에 초기화되지 않고 이전 값에서 계속 이어집니다.\n" +
                         "• 관리 앱은 더 빨리 내려가고, 30min 넘게 이어 쓰면 더 빨라집니다. 권장·필수 앱은 정해진 시간 안에서는 내려가지 않습니다.\n" +
-                        "• 색: 80 이상 초록, 60~79 노랑, 40~59 주황, 40 미만 빨강. 지수 단계는 S 90 이상, A 80 이상, B 70 이상, C 55 이상, D 40 이상, F 40 미만입니다.\n\n" +
+                        "• 지수 단계와 색: 안정 80 이상(초록), 보통 60~79(노랑), 주의 40~59(주황), 휴식 필요 40 미만(빨강).\n\n" +
                         "차트 읽기\n" +
                         "• 최근 24시간의 변화를 선으로 보여 줍니다. 가는 세로선은 3시간 간격, 05:00 선은 하루가 바뀌는 시점입니다.\n" +
                         "• 가장 높은 점과 낮은 점에 점수와 시각(HH:mm)을 표시합니다."
@@ -2386,29 +2479,21 @@ private fun guidanceCauseText(guidance: CoreIndexGuidance): String {
 private fun guidanceRecommendationText(guidance: CoreIndexGuidance): String {
     val context = LocalContext.current
     val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
-    return if (isEn) {
-        when (guidance.recommendation) {
-            CoreIndexRecommendation.KEEP_BALANCE -> "Keep up this healthy pace and mindfully plan your next check."
-            CoreIndexRecommendation.TAKE_TEN_MINUTE_BREAK -> "Take a 10min break away from your screen now."
-            CoreIndexRecommendation.TAKE_QUIET_BREAK -> "Silence notifications and take a screen-free rest."
-            CoreIndexRecommendation.BATCH_PHONE_CHECKS -> "Try batching your next two phone checks into one."
-            CoreIndexRecommendation.WIND_DOWN -> "Time to wind down late-night screen time and dim the brightness."
-        }
-    } else {
-        when (guidance.recommendation) {
-            CoreIndexRecommendation.KEEP_BALANCE -> "지금의 흐름을 유지하고 다음 확인을 의식적으로 선택해보세요."
-            CoreIndexRecommendation.TAKE_TEN_MINUTE_BREAK -> "지금 한 번, 10min 동안 화면을 내려놓아 보세요."
-            CoreIndexRecommendation.TAKE_QUIET_BREAK -> "알림을 잠시 두고 화면 없는 휴식을 시작해보세요."
-            CoreIndexRecommendation.BATCH_PHONE_CHECKS -> "다음 확인 두 번을 한 번으로 묶어보세요."
-            CoreIndexRecommendation.WIND_DOWN -> "심야 사용을 마치고 화면 밝기를 내려놓을 시간입니다."
-        }
-    }
+    // 할 일 한 줄: 행동과 결과(P)를 항상 함께 말합니다.
+    return context.coachActionText(
+        com.digitscore.app.engine.CoachActionPlanner.plan(
+            recommendation = guidance.recommendation,
+            recoveryMinutes = guidance.recoveryMinutes,
+            recoveryTargetScore = guidance.recoveryTargetScore,
+            currentScore = guidance.currentScore
+        )
+    )
 }
 
 @Composable
 private fun ScoreGaugeCard(
     score: Int,
-    grade: ScoreGrade,
+    grade: ScoreTier,
     rollingScore: RollingScoreDetail?,
     onClick: () -> Unit
 ) {
@@ -2554,45 +2639,95 @@ private fun ScoreDetailAffordance() {
 
 @Composable
 private fun ScoreStatsRow(
+    breakdown: com.digitscore.app.data.CoreIndexBreakdown,
     screenTimeMillis: Long,
     unlockCount: Int,
     distractingMillis: Long,
     onScreenTimeClick: () -> Unit,
     onUnlockClick: () -> Unit,
-    onDistractingClick: () -> Unit
+    onDistractingClick: () -> Unit,
+    onRestClick: () -> Unit
 ) {
     val context = LocalContext.current
     val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
     val screenMinutes = screenTimeMillis / 60_000L
     val distractingMinutes = distractingMillis / 60_000L
+    val hasBreakdown = breakdown != com.digitscore.app.data.CoreIndexBreakdown.EMPTY
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(IntrinsicSize.Min),
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        StatisticCard(
-            label = if (isEn) "Screen" else "화면",
-            value = com.digitscore.app.i18n.formatMinutesSmallUnit(screenMinutes),
-            icon = Icons.Rounded.PhoneAndroid,
-            onClick = onScreenTimeClick,
-            modifier = Modifier.weight(1f).fillMaxHeight()
-        )
-        StatisticCard(
-            label = if (isEn) "Unlocks" else "잠금 해제",
-            value = "${unlockCount}x",
-            icon = Icons.Rounded.LockOpen,
-            onClick = onUnlockClick,
-            modifier = Modifier.weight(1f).fillMaxHeight()
-        )
-        StatisticCard(
-            label = if (isEn) "Managed" else "관리",
-            value = com.digitscore.app.i18n.formatMinutesSmallUnit(distractingMinutes),
-            icon = Icons.Rounded.HourglassBottom,
-            onClick = onDistractingClick,
-            modifier = Modifier.weight(1f).fillMaxHeight()
-        )
+        if (hasBreakdown) {
+            // 큰 글자는 지수에 준 영향(P), 작은 글자는 원값
+            StatisticCard(
+                label = if (isEn) "App use" else "앱 사용",
+                value = formatPoints(breakdown.appUse),
+                valueColor = pointsColor(breakdown.appUse),
+                caption = com.digitscore.app.i18n.formatMinutesSmallUnit(screenMinutes).toString(),
+                icon = Icons.Rounded.PhoneAndroid,
+                onClick = onScreenTimeClick,
+                modifier = Modifier.weight(1f).fillMaxHeight()
+            )
+            StatisticCard(
+                label = if (isEn) "Unlocks" else "잠금 해제",
+                value = formatPoints(breakdown.unlocks),
+                valueColor = pointsColor(breakdown.unlocks),
+                caption = "${unlockCount}x",
+                icon = Icons.Rounded.LockOpen,
+                onClick = onUnlockClick,
+                modifier = Modifier.weight(1f).fillMaxHeight()
+            )
+            StatisticCard(
+                label = if (isEn) "Rest" else "쉼",
+                value = formatPoints(breakdown.rest),
+                valueColor = pointsColor(breakdown.rest),
+                caption = if (isEn) "Screen off" else "화면 꺼짐",
+                icon = Icons.Rounded.Bedtime,
+                onClick = onRestClick,
+                modifier = Modifier.weight(1f).fillMaxHeight()
+            )
+        } else {
+            // 분해 기록이 쌓이기 전에는 원값을 보여 줍니다.
+            StatisticCard(
+                label = if (isEn) "Screen" else "화면",
+                value = com.digitscore.app.i18n.formatMinutesSmallUnit(screenMinutes),
+                icon = Icons.Rounded.PhoneAndroid,
+                onClick = onScreenTimeClick,
+                modifier = Modifier.weight(1f).fillMaxHeight()
+            )
+            StatisticCard(
+                label = if (isEn) "Unlocks" else "잠금 해제",
+                value = "${unlockCount}x",
+                icon = Icons.Rounded.LockOpen,
+                onClick = onUnlockClick,
+                modifier = Modifier.weight(1f).fillMaxHeight()
+            )
+            StatisticCard(
+                label = if (isEn) "Managed" else "관리",
+                value = com.digitscore.app.i18n.formatMinutesSmallUnit(distractingMinutes),
+                icon = Icons.Rounded.HourglassBottom,
+                onClick = onDistractingClick,
+                modifier = Modifier.weight(1f).fillMaxHeight()
+            )
+        }
     }
+}
+
+/** 지수 영향 표기: 1P 미만은 소수 한 자리, 그 이상은 정수. 예) -6P, +0.4P, 0P */
+internal fun formatPoints(value: Double): String {
+    val abs = kotlin.math.abs(value)
+    if (abs < 0.05) return "0P"
+    val body = if (abs < 1.0) String.format(java.util.Locale.US, "%.1f", abs) else kotlin.math.round(abs).toInt().toString()
+    return (if (value > 0) "+" else "-") + body + "P"
+}
+
+@Composable
+private fun pointsColor(value: Double): androidx.compose.ui.graphics.Color = when {
+    value <= -0.05 -> ScoreRedText
+    value >= 0.05 -> ScoreGreenText
+    else -> MaterialTheme.colorScheme.onSurface
 }
 
 @Composable
@@ -2601,7 +2736,9 @@ private fun StatisticCard(
     value: Any,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    valueColor: androidx.compose.ui.graphics.Color? = null,
+    caption: String? = null
 ) {
     Card(
         modifier = modifier.clickable(onClick = onClick),
@@ -2653,7 +2790,16 @@ private fun StatisticCard(
                     text = value.toString(),
                     fontSize = DigitsTextSize.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = valueColor ?: MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+            caption?.let {
+                Text(
+                    text = it,
+                    fontSize = DigitsTextSize.caption,
+                    color = MaterialTheme.colorScheme.outline,
                     maxLines = 1,
                     softWrap = false
                 )

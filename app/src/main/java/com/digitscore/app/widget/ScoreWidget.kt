@@ -39,10 +39,11 @@ import com.digitscore.app.R
 import com.digitscore.app.data.DigitsDatabase
 import com.digitscore.app.data.ScoreRepository
 import com.digitscore.app.engine.ScoreFlow
-import com.digitscore.app.engine.ScoreGrade
+import com.digitscore.app.model.ScoreTier
 import com.digitscore.app.engine.CoreIndexRecommendation
 import com.digitscore.app.i18n.AppLocale
 import com.digitscore.app.i18n.localizedGrade
+import com.digitscore.app.i18n.coachActionText
 import com.digitscore.app.notification.DynamicIconGenerator
 import com.digitscore.app.notification.StatusIconStyle
 import com.digitscore.app.ui.MainActivity
@@ -71,7 +72,7 @@ class ScoreWidget : GlanceAppWidget() {
         val score = persistedSnapshot?.score
             ?: rollingScoreDetail?.finalScore
             ?: 75
-        val grade = ScoreGrade.fromScore(score)
+        val grade = ScoreTier.fromScore(score)
         val screenMinutes = persistedSnapshot?.screenMinutes
             ?: scoreDetail?.totalScreenTimeMinutes
             ?: 0L
@@ -95,12 +96,16 @@ class ScoreWidget : GlanceAppWidget() {
                 ScoreFlow.CALIBRATING, null -> R.string.widget_state_calibrating
             }
         )
-        val keyMessage = widgetKeyMessage(
-            strings = strings,
-            recommendation = persistedSnapshot?.recommendation,
-            recoveryMinutes = persistedSnapshot?.recoveryMinutes,
-            fallback = stateText
-        )
+        val keyMessage = persistedSnapshot?.let {
+            strings.coachActionText(
+                com.digitscore.app.engine.CoachActionPlanner.plan(
+                    recommendation = it.recommendation,
+                    recoveryMinutes = it.recoveryMinutes,
+                    recoveryTargetScore = it.recoveryTargetScore,
+                    currentScore = score
+                )
+            )
+        } ?: stateText
         val continuousMinutes = persistedSnapshot?.continuousUsageMinutes
             ?: rollingScoreDetail?.continuousUsageMinutes
             ?: 0L
@@ -328,7 +333,7 @@ private fun Square2x2Widget(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = "${score}P",
-                        style = widgetTextStyle(palette.accent, 17, FontWeight.Bold),
+                        style = widgetTextStyle(palette.accent, 20, FontWeight.Bold),
                         maxLines = 1
                     )
                     Spacer(GlanceModifier.width(5.dp))
@@ -352,43 +357,15 @@ private fun Square2x2Widget(
             }
         }
 
-        Spacer(GlanceModifier.height(3.dp))
+        Spacer(GlanceModifier.height(4.dp))
 
-        // 중단 (24시간 미니 추세선)
+        // 2x2는 지수에 집중: 숫자·단계와 24시간 추세선만 둡니다(목표 상세는 4칸 이상 위젯·앱에서).
         Image(
             provider = ImageProvider(sparklineBitmap),
             contentDescription = null,
-            modifier = GlanceModifier.fillMaxWidth().height(36.dp),
+            modifier = GlanceModifier.fillMaxWidth().height(48.dp),
             contentScale = ContentScale.FillBounds
         )
-
-        Spacer(GlanceModifier.height(3.dp))
-
-        // 하단 풋터 (오늘의 목표 달성 현황 캡슐)
-        val goalSummaryText = if (targetAppName.isNotBlank()) {
-            val appStatus = if (targetAppUsageMinutes > targetAppLimitMinutes) (if (isEn) "Over" else "초과") else (if (isEn) "Met" else "달성")
-            "$targetAppName ${targetAppUsageMinutes}/${targetAppLimitMinutes}min ($appStatus)"
-        } else {
-            if (isEn) {
-                "Screen ${screenMinutes}min · ${unlockCount}/${unlockLimitTarget}x"
-            } else {
-                "화면 ${screenMinutes}min · 잠금 ${unlockCount}/${unlockLimitTarget}x"
-            }
-        }
-        Column(
-            modifier = GlanceModifier
-                .fillMaxWidth()
-                .background(palette.chip)
-                .cornerRadius(7.dp)
-                .padding(horizontal = 6.dp, vertical = 4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = goalSummaryText,
-                style = widgetTextStyle(palette.primary, 9, FontWeight.Medium, TextAlign.Center),
-                maxLines = 1
-            )
-        }
     }
 }
 
@@ -664,24 +641,6 @@ private fun widgetTextStyle(
     fontWeight = fontWeight,
     textAlign = textAlign
 )
-
-private fun widgetKeyMessage(
-    strings: Context,
-    recommendation: CoreIndexRecommendation?,
-    recoveryMinutes: Int?,
-    fallback: String
-): String = when (recommendation) {
-    CoreIndexRecommendation.TAKE_TEN_MINUTE_BREAK ->
-        strings.getString(R.string.widget_action_ten_minute_break)
-    CoreIndexRecommendation.TAKE_QUIET_BREAK -> recoveryMinutes?.let {
-        strings.getString(R.string.widget_action_recovery, it)
-    } ?: strings.getString(R.string.widget_action_quiet_break)
-    CoreIndexRecommendation.BATCH_PHONE_CHECKS ->
-        strings.getString(R.string.widget_action_batch_checks)
-    CoreIndexRecommendation.WIND_DOWN -> strings.getString(R.string.widget_action_wind_down)
-    CoreIndexRecommendation.KEEP_BALANCE -> strings.getString(R.string.widget_action_keep_balance)
-    null -> fallback
-}
 
 private fun lightWidgetAccent(score: Int): Color =
     Color(com.digitscore.app.ui.theme.ScorePalette.textArgb(score, onDark = false))

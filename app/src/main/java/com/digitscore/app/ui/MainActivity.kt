@@ -1,5 +1,7 @@
 package com.digitscore.app.ui
 
+import com.digitscore.app.BuildConfig
+
 import android.os.Bundle
 import android.content.Context
 import android.content.Intent
@@ -85,7 +87,8 @@ class MainActivity : ComponentActivity() {
             forceShowWeeklyReport = true
             intent.removeExtra(EXTRA_SHOW_WEEKLY_REPORT)
         }
-        if (intent?.getBooleanExtra("show_goal_limit_notification", false) == true) {
+        // 아래 두 분기는 에뮬레이터 캡처·점검용입니다. 출시 빌드에서는 다른 앱이 보낸 인텐트로 실행되지 않게 막습니다.
+        if (BuildConfig.DEBUG && intent?.getBooleanExtra("show_goal_limit_notification", false) == true) {
             val baseGoal = com.digitscore.app.data.DailyGoalStore.getGoal(this)
                 ?: com.digitscore.app.model.DailyGoal(dateString = com.digitscore.app.data.DailyGoalStore.getLogicalDateString())
             val goal = baseGoal.copy(
@@ -95,7 +98,7 @@ class MainActivity : ComponentActivity() {
             com.digitscore.app.notification.ScoreNotificationManager.showGoalLimitReachedNotification(this, goal)
             intent.removeExtra("show_goal_limit_notification")
         }
-        if (intent?.getBooleanExtra("pin_widget", false) == true) {
+        if (BuildConfig.DEBUG && intent?.getBooleanExtra("pin_widget", false) == true) {
             val appWidgetManager = getSystemService(android.appwidget.AppWidgetManager::class.java)
             val myProvider = android.content.ComponentName(this, com.digitscore.app.widget.ScoreWidgetReceiver::class.java)
             if (appWidgetManager != null && appWidgetManager.isRequestPinAppWidgetSupported) {
@@ -217,7 +220,8 @@ class MainActivity : ComponentActivity() {
                             }
                             if (forceShowWeeklyReport) {
                                 com.digitscore.app.ui.dashboard.WeeklyReportDialog(
-                                    onDismiss = { forceShowWeeklyReport = false }
+                                    onDismiss = { forceShowWeeklyReport = false },
+                                    onOpenStatistics = { navController.navigate(Screen.Statistics.route) }
                                 )
                             }
                         }

@@ -50,7 +50,11 @@ data class WeeklyReportData(
 
     // 5. 한도 도달 선택 기록
     val more15MinCount: Int = 0,
-    val stopForTodayCount: Int = 0
+    val stopForTodayCount: Int = 0,
+
+    // 6. 지수 중심 요약: 직전 4주 평균 대비 차이, 지수를 움직인 이유(하루 평균 P)
+    val scoreDiffVsPriorFourWeeks: Double? = null,
+    val causeBreakdownPerDay: CoreIndexBreakdown? = null
 )
 
 object WeeklyReportCalculator {
@@ -76,7 +80,10 @@ object WeeklyReportCalculator {
         dailyGoalRecords: List<DailyGoalDayRecord> = emptyList(),
         rewardState: GoalRewardState = GoalRewardState(),
         more15MinCount: Int = 0,
-        stopForTodayCount: Int = 0
+        stopForTodayCount: Int = 0,
+        /** 지난주(월 05:00 ~ 다음 월 05:00)의 시간별 감점·회복 */
+        weekImpacts: List<com.digitscore.app.data.entity.ScoreImpactHourEntity> = emptyList(),
+        isManaged: (String) -> Boolean = { false }
     ): WeeklyReportData {
         val (lastMon, lastSun) = lastWeekRange
         val (priorMon, priorSun) = getPriorWeekRange(lastMon)
@@ -108,6 +115,12 @@ object WeeklyReportCalculator {
 
         val scoreDiff = if (avgScore != null && priorAvgScore != null) {
             avgScore - priorAvgScore
+        } else null
+
+        // 직전 4주(28일) 평균 대비
+        val priorFourWeekScores = (1..28).mapNotNull { histories[lastMon.minusDays(it.toLong()).toString()]?.finalScore }
+        val scoreDiffFourWeeks = if (avgScore != null && priorFourWeekScores.isNotEmpty()) {
+            avgScore - priorFourWeekScores.average()
         } else null
 
         val highestDay = lastWeekHistories.maxByOrNull { it.finalScore }?.let {
@@ -208,7 +221,15 @@ object WeeklyReportCalculator {
             topIncreasedApp = topIncreased,
             topDecreasedApp = topDecreased,
             more15MinCount = more15MinCount,
-            stopForTodayCount = stopForTodayCount
+            stopForTodayCount = stopForTodayCount,
+            scoreDiffVsPriorFourWeeks = scoreDiffFourWeeks,
+            causeBreakdownPerDay = if (weekImpacts.isNotEmpty() && recordedDays > 0) {
+                CoreIndexBreakdown.from(weekImpacts, isManaged).let { b ->
+                    val d = recordedDays.toDouble()
+                    CoreIndexBreakdown(b.managedApps / d, b.otherApps / d, b.unlocks / d, b.rest / d,
+                        b.perApp.map { it.first to it.second / d })
+                }
+            } else null
         )
     }
 }

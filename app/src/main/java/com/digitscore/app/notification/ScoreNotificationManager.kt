@@ -12,7 +12,7 @@ import androidx.core.app.NotificationCompat
 import com.digitscore.app.R
 import com.digitscore.app.engine.ScoreDetail
 import com.digitscore.app.engine.RollingScoreDetail
-import com.digitscore.app.engine.ScoreGrade
+import com.digitscore.app.model.ScoreTier
 import com.digitscore.app.engine.CoreIndexCause
 import com.digitscore.app.engine.CoreIndexGuidance
 import com.digitscore.app.engine.CoreIndexRecommendation
@@ -21,6 +21,7 @@ import com.digitscore.app.engine.RapidUsageAlertReason
 import com.digitscore.app.i18n.AppLocale
 import com.digitscore.app.i18n.localizedGrade
 import com.digitscore.app.i18n.localizedGradeDescription
+import com.digitscore.app.i18n.coachActionText
 import com.digitscore.app.ui.MainActivity
 import com.digitscore.app.service.TrackerForegroundService
 import com.digitscore.app.model.RapidUsageAlertConfig
@@ -435,7 +436,7 @@ object ScoreNotificationManager {
         )
 
         val score = rollingScoreDetail?.finalScore ?: 75
-        val grade = ScoreGrade.fromScore(score)
+        val grade = ScoreTier.fromScore(score)
 
         val title = strings.getString(R.string.notification_title, score, strings.localizedGrade(grade))
         val contentText = strings.getString(
@@ -586,20 +587,19 @@ object ScoreNotificationManager {
     private fun notificationActionMessage(
         strings: Context,
         guidance: CoreIndexGuidance?,
-        grade: ScoreGrade,
+        grade: ScoreTier,
         dailyGoal: com.digitscore.app.model.DailyGoal?,
         score: Int
     ): String {
         // 1. 오늘의 설정/배정된 오늘의 목표(코어 지수, 앱 1개 제한, 잠금 해제 횟수) 진행 상태 안내
         if (dailyGoal != null && !dailyGoal.isDismissed) {
             val isEn = AppLocale.currentLanguage(strings) == AppLocale.ENGLISH
-            val diff = (dailyGoal.scoreTarget - score).coerceAtLeast(0)
-            val scorePart = if (diff > 0) {
-                if (isEn) "Target ${dailyGoal.scoreTarget}P (+${diff}P)"
-                else "목표 ${dailyGoal.scoreTarget}P (+${diff}P)"
+            // 지수 방어선까지 남은 여유(P). 방어선은 하루 마지막 점수로 판정하므로 낮에는 달성/미달 대신 여유로 말합니다.
+            val margin = score - dailyGoal.scoreTarget
+            val scorePart = if (margin >= 0) {
+                if (isEn) "${margin}P above your defense line" else "방어선까지 여유 ${margin}P"
             } else {
-                if (isEn) "Target ${dailyGoal.scoreTarget}P (Achieved ✓)"
-                else "목표 ${dailyGoal.scoreTarget}P (달성 ✓)"
+                if (isEn) "${-margin}P to your defense line" else "방어선까지 ${-margin}P"
             }
 
             val appPart = if (dailyGoal.targetPackageName != null) {
@@ -619,19 +619,17 @@ object ScoreNotificationManager {
 
 
         // 2. 목표가 없거나 처리 중일 때: 코칭 추천 메시지
-        return when (guidance?.recommendation) {
-            CoreIndexRecommendation.TAKE_TEN_MINUTE_BREAK ->
-                strings.getString(R.string.notification_action_ten_minute_break)
-            CoreIndexRecommendation.TAKE_QUIET_BREAK ->
-                strings.getString(R.string.notification_action_quiet_break)
-            CoreIndexRecommendation.BATCH_PHONE_CHECKS ->
-                strings.getString(R.string.notification_action_batch_checks)
-            CoreIndexRecommendation.WIND_DOWN ->
-                strings.getString(R.string.notification_action_wind_down)
-            CoreIndexRecommendation.KEEP_BALANCE ->
-                strings.getString(R.string.notification_action_keep_balance)
-            null -> strings.localizedGradeDescription(grade)
-        }
+        // 할 일 한 줄: 대시보드·위젯과 같은 문구(행동 + 결과 P)
+        return guidance?.let {
+            strings.coachActionText(
+                com.digitscore.app.engine.CoachActionPlanner.plan(
+                    recommendation = it.recommendation,
+                    recoveryMinutes = it.recoveryMinutes,
+                    recoveryTargetScore = it.recoveryTargetScore,
+                    currentScore = score
+                )
+            )
+        } ?: strings.localizedGradeDescription(grade)
     }
 
     private fun notificationCauseMessage(

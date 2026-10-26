@@ -992,6 +992,7 @@ class TrackerForegroundService : Service() {
                     continuousUsageMinutes = rollingScoreDetail.continuousUsageMinutes,
                     recommendation = guidance.recommendation,
                     recoveryMinutes = guidance.recoveryMinutes,
+                    recoveryTargetScore = guidance.recoveryTargetScore,
                     scoreTarget = activeGoal?.scoreTarget ?: 75,
                     targetAppName = activeGoal?.targetAppName ?: "",
                     targetAppUsageMinutes = activeGoal?.currentAppUsageMinutes ?: 0,

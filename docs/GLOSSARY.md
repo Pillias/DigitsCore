@@ -5,7 +5,7 @@
 | 개념 | 표준어 (한국어) | 영어 | 쓰지 않는 말 |
 |---|---|---|---|
 | 점수 이름 | 코어 지수 | Core Index | 코어지수 |
-| 점수 등급 S~F | 지수 단계 | Level | 등급(점수에 대해) |
+| 코어 지수 4단계 (80/60/40) | 지수 단계: 안정·보통·주의·휴식 필요 | Level: Stable·Fair·Caution·Rest | 등급(점수에 대해), S~F |
 | 앱 분류 4단계 | 앱 등급: 권장·필수·일반·관리 | App grade: Study·Tool·Daily·Limit | 집중(등급명), 면제 |
 | 관리 등급 앱 | 관리 앱 | Managed apps | 몰입 관리 앱, 몰입관리, 방해 앱, Immersion Management |
 | 잠금을 푸는 행동 | 잠금 해제 | Unlocks | 언락, 잠금해제 |

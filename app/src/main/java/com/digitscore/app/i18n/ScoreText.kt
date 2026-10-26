@@ -2,26 +2,24 @@ package com.digitscore.app.i18n
 
 import android.content.Context
 import com.digitscore.app.R
-import com.digitscore.app.engine.ScoreGrade
+import com.digitscore.app.model.ScoreTier
 
-fun Context.localizedGrade(grade: ScoreGrade): String = getString(
-    when (grade) {
-        ScoreGrade.S -> R.string.grade_s
-        ScoreGrade.A -> R.string.grade_a
-        ScoreGrade.B -> R.string.grade_b
-        ScoreGrade.C -> R.string.grade_c
-        ScoreGrade.D -> R.string.grade_d
-        ScoreGrade.F -> R.string.grade_f
+/** 지수 단계 이름 (안정·보통·주의·휴식 필요). */
+fun Context.localizedGrade(tier: ScoreTier): String = getString(
+    when (tier) {
+        ScoreTier.STABLE -> R.string.tier_stable
+        ScoreTier.FAIR -> R.string.tier_fair
+        ScoreTier.CAUTION -> R.string.tier_caution
+        ScoreTier.REST -> R.string.tier_rest
     }
 )
 
-fun Context.localizedGradeDescription(grade: ScoreGrade): String = getString(
-    when (grade) {
-        ScoreGrade.S -> R.string.grade_s_description
-        ScoreGrade.A -> R.string.grade_a_description
-        ScoreGrade.B -> R.string.grade_b_description
-        ScoreGrade.C -> R.string.grade_c_description
-        ScoreGrade.D -> R.string.grade_d_description
-        ScoreGrade.F -> R.string.grade_f_description
+/** 지수 단계별 한 줄 설명. */
+fun Context.localizedGradeDescription(tier: ScoreTier): String = getString(
+    when (tier) {
+        ScoreTier.STABLE -> R.string.tier_stable_description
+        ScoreTier.FAIR -> R.string.tier_fair_description
+        ScoreTier.CAUTION -> R.string.tier_caution_description
+        ScoreTier.REST -> R.string.tier_rest_description
     }
 )

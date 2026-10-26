@@ -18,6 +18,7 @@ data class WidgetSnapshot(
     val continuousUsageMinutes: Long = 0L,
     val recommendation: CoreIndexRecommendation = CoreIndexRecommendation.KEEP_BALANCE,
     val recoveryMinutes: Int? = null,
+    val recoveryTargetScore: Int? = null,
     val scoreTarget: Int = 75,
     val targetAppName: String = "",
     val targetAppUsageMinutes: Int = 0,
@@ -50,6 +51,7 @@ data class WidgetSnapshot(
             continuousUsageMinutes == other.continuousUsageMinutes &&
             recommendation == other.recommendation &&
             recoveryMinutes == other.recoveryMinutes &&
+            recoveryTargetScore == other.recoveryTargetScore &&
             scoreTarget == other.scoreTarget &&
             targetAppName == other.targetAppName &&
             targetAppUsageMinutes == other.targetAppUsageMinutes &&
@@ -69,6 +71,7 @@ object WidgetSnapshotStore {
     private const val KEY_CONTINUOUS_USAGE_MINUTES = "continuous_usage_minutes"
     private const val KEY_RECOMMENDATION = "recommendation"
     private const val KEY_RECOVERY_MINUTES = "recovery_minutes"
+    private const val KEY_RECOVERY_TARGET = "recovery_target_score"
     private const val KEY_SCORE_TARGET = "score_target"
     private const val KEY_TARGET_APP_NAME = "target_app_name"
     private const val KEY_TARGET_APP_USAGE_MINUTES = "target_app_usage_minutes"
@@ -93,6 +96,8 @@ object WidgetSnapshotStore {
             .apply {
                 value.recoveryMinutes?.let { putInt(KEY_RECOVERY_MINUTES, it) }
                     ?: remove(KEY_RECOVERY_MINUTES)
+                value.recoveryTargetScore?.let { putInt(KEY_RECOVERY_TARGET, it) }
+                    ?: remove(KEY_RECOVERY_TARGET)
             }
             .putInt(KEY_SCORE_TARGET, value.scoreTarget)
             .putString(KEY_TARGET_APP_NAME, value.targetAppName)
@@ -126,6 +131,9 @@ object WidgetSnapshotStore {
             recommendation = recommendation,
             recoveryMinutes = if (preferences.contains(KEY_RECOVERY_MINUTES)) {
                 preferences.getInt(KEY_RECOVERY_MINUTES, 0)
+            } else null,
+            recoveryTargetScore = if (preferences.contains(KEY_RECOVERY_TARGET)) {
+                preferences.getInt(KEY_RECOVERY_TARGET, 0)
             } else null,
             scoreTarget = preferences.getInt(KEY_SCORE_TARGET, 75),
             targetAppName = preferences.getString(KEY_TARGET_APP_NAME, "") ?: "",

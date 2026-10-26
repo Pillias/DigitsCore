@@ -23,12 +23,15 @@ import com.digitscore.app.ui.theme.ScoreRedText
 import com.digitscore.app.ui.theme.ScoreYellowText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 import java.util.Locale
 
 @Composable
 fun WeeklyReportDialog(
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /** 상세 통계로 이동 (null이면 버튼을 숨김) */
+    onOpenStatistics: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val isEn = AppLocale.currentLanguage(context) == AppLocale.ENGLISH
@@ -41,7 +44,18 @@ fun WeeklyReportDialog(
             val todayDate = DailyGoalStore.getLogicalDateString()
             val localDate = runCatching { LocalDate.parse(todayDate) }.getOrDefault(LocalDate.now())
             val range = WeeklyReportCalculator.getLastWeekRange(localDate)
-            val histories = db.scoreDao().getRecentCoreIndexHistories(21).associateBy { it.dateString }
+            // 직전 4주 평균 비교를 위해 지난주 + 4주(약 35일)를 읽습니다.
+            val histories = db.scoreDao().getRecentCoreIndexHistories(42).associateBy { it.dateString }
+            val zone = java.time.ZoneId.systemDefault()
+            fun dayStart(d: LocalDate) = d.atTime(5, 0).atZone(zone).toInstant().toEpochMilli()
+            val weekImpacts = runCatching {
+                db.statisticsDao().impactsBetween(dayStart(range.first), dayStart(range.second.plusDays(1)))
+            }.getOrDefault(emptyList())
+            val managedPkgs = runCatching {
+                db.appDao().getAllAppWeights().first()
+                    .filter { it.categoryType.canonical == com.digitscore.app.model.AppCategoryType.DISTRACTING }
+                    .map { it.packageName }.toSet()
+            }.getOrDefault(emptySet())
             val (priorMon, _) = WeeklyReportCalculator.getPriorWeekRange(range.first)
             val dailyApps = db.dailyAppUsageDao().getRange(priorMon.toString(), range.second.toString())
             val rewardState = DailyGoalStore.getRewardState(context)
@@ -59,7 +73,9 @@ fun WeeklyReportDialog(
                 dailyGoalRecords = dailyGoalRecords,
                 rewardState = rewardState,
                 more15MinCount = more15,
-                stopForTodayCount = stopToday
+                stopForTodayCount = stopToday,
+                weekImpacts = weekImpacts,
+                isManaged = { it in managedPkgs }
             )
         }
         isLoading = false
@@ -144,13 +160,19 @@ fun WeeklyReportDialog(
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                 }
-                                report.scoreDiffVsPriorWeek?.let { diff ->
+                                // 비교는 하나만: 직전 4주 평균 대비(없으면 그 전 주 대비)
+                                val fourWeek = report.scoreDiffVsPriorFourWeeks
+                                (fourWeek ?: report.scoreDiffVsPriorWeek)?.let { diff ->
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Text(
-                                            text = if (isEn) "Change vs Prior Week" else "지난주 대비 변화",
+                                            text = if (fourWeek != null) {
+                                                if (isEn) "vs prior 4 weeks" else "직전 4주 평균 대비"
+                                            } else {
+                                                if (isEn) "Change vs Prior Week" else "지난주 대비 변화"
+                                            },
                                             fontSize = DigitsTextSize.caption,
                                             color = MaterialTheme.colorScheme.outline
                                         )
@@ -173,6 +195,43 @@ fun WeeklyReportDialog(
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                         Text(text = if (isEn) "Lowest" else "최저점", fontSize = DigitsTextSize.caption)
                                         Text(text = "${report.lowestScoreDay.first} (${report.lowestScoreDay.second}P)", fontSize = DigitsTextSize.caption, fontWeight = FontWeight.Medium)
+                                    }
+                                }
+                            }
+                        }
+
+                        // 1-1. 지수를 움직인 이유 (하루 평균 P)
+                        report.causeBreakdownPerDay?.let { cause ->
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                shape = DigitsShape.md
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(
+                                        text = if (isEn) "What Moved the Index (daily avg)" else "지수를 움직인 이유 (하루 평균)",
+                                        fontSize = DigitsTextSize.label,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                    listOf(
+                                        (if (isEn) "App use" else "앱 사용") to cause.appUse,
+                                        (if (isEn) "Unlocks" else "잠금 해제") to cause.unlocks,
+                                        (if (isEn) "Rest" else "쉼") to cause.rest
+                                    ).forEach { (name, value) ->
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text(text = name, fontSize = DigitsTextSize.caption)
+                                            val sign = if (value > 0.05) "+" else ""
+                                            Text(
+                                                text = "$sign${String.format(Locale.US, "%.1fP", value)}",
+                                                fontSize = DigitsTextSize.caption,
+                                                fontWeight = FontWeight.Bold,
+                                                color = when {
+                                                    value <= -0.05 -> ScoreRedText
+                                                    value >= 0.05 -> ScoreGreenText
+                                                    else -> MaterialTheme.colorScheme.onSurface
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -328,6 +387,13 @@ fun WeeklyReportDialog(
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text(if (isEn) "Close" else "닫기")
+            }
+        },
+        dismissButton = onOpenStatistics?.let { open ->
+            {
+                TextButton(onClick = { onDismiss(); open() }) {
+                    Text(if (isEn) "View statistics" else "상세 통계 보기")
+                }
             }
         }
     )

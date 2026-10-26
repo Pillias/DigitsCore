@@ -521,7 +521,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                             LegendItem({ Box(Modifier.size(7.dp).background(com.digitscore.app.ui.theme.ChartScreen, DigitsShape.bar)) }, label("화면 시간", "Screen time"))
                             LegendItem({ Box(Modifier.size(7.dp).background(com.digitscore.app.ui.theme.ChartManaged, DigitsShape.bar)) }, label("관리 앱", "Managed apps"))
                             LegendItem({ Box(Modifier.size(7.dp).background(com.digitscore.app.ui.theme.ChartUnlock, CircleShape)) }, label("잠금 해제", "Unlocks"))
-                            LegendItem({ Box(Modifier.width(9.dp).height(2.dp).background(MaterialTheme.colorScheme.outline)) }, label("기준 75P", "Baseline 75P"))
+                            LegendItem({ Box(Modifier.width(9.dp).height(2.dp).background(MaterialTheme.colorScheme.outline)) }, label("지수 방어선", "Defense line"))
                         }
                     }
                 }
@@ -575,6 +575,32 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                         onZoom = { zoom = it.coerceIn(0.5f, 4f) },
                         onSelect = { selectedTime = it }
                     )
+                    // 하루 그래프 원인 표시: 크게 내린 때(원인 앱) 최대 2곳, 크게 오른 때(화면 꺼짐) 1곳
+                    if (isRolling) {
+                        val highlights = remember(visibleImpacts) { com.digitscore.app.data.DayMovementHighlights.from(visibleImpacts) }
+                        if (highlights.isNotEmpty()) {
+                            val names = remember(apps) { apps.associate { it.pkg to it.name } }
+                            Column(
+                                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                highlights.forEach { h ->
+                                    val pts = kotlin.math.round(h.points).toInt()
+                                    val sign = if (pts > 0) "+" else ""
+                                    val cause = if (h.isRise) label("화면 꺼짐", "Screen off")
+                                        else h.packageName?.let { names[it] ?: it.substringAfterLast('.') } ?: label("앱 사용", "App use")
+                                    Text(
+                                        text = "${dateLabel(h.hour, "HH:mm")} $cause $sign${pts}P",
+                                        fontSize = DigitsTextSize.label,
+                                        fontWeight = FontWeight.Medium,
+                                        color = if (h.isRise) ScoreGreenText else ScoreRedText,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
                     // 서브바: 기간 날짜 라벨 및 선택 해제 / 최신으로 가기 액션
                     Row(
                         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
@@ -913,6 +939,9 @@ private fun ExplorerChart(
 ) {
     val primary = MaterialTheme.colorScheme.primary
     val muted = MaterialTheme.colorScheme.outline
+    // 기준 점선: 오늘 정한 지수 방어선 (목표가 없으면 75P)
+    val chartContext = LocalContext.current
+    val baseline = remember { (com.digitscore.app.data.DailyGoalStore.getGoal(chartContext)?.scoreTarget ?: 75).toDouble() }
     // 차트 위 최고·최저 글자색 (테마별 대비 확보)
     val highTextArgb = ScoreGreenText.toArgb()
     val lowTextArgb = ScoreRedText.toArgb()
@@ -1005,9 +1034,9 @@ private fun ExplorerChart(
                         drawLine(muted.copy(alpha = 0.12f), Offset(0f, y(it)), Offset(size.width, y(it)), 1.dp.toPx())
                     }
 
-                    // 75P 목표 기준선 (점선)
-                    if (75.0 in low..high) {
-                        val y75 = y(75.0)
+                    // 지수 방어선 기준선 (점선)
+                    if (baseline in low..high) {
+                        val y75 = y(baseline)
                         drawLine(
                             color = muted.copy(alpha = 0.35f),
                             start = Offset(0f, y75),
@@ -1379,15 +1408,15 @@ private fun ExplorerChart(
                     drawContext.canvas.nativeCanvas.drawText(valScore.roundToInt().toString(), 6.dp.toPx(), y(valScore) + 4.dp.toPx(), paint)
                 }
 
-                // 75P 목표 기준 라벨
-                if (75.0 in low..high) {
-                    val y75 = y(75.0)
+                // 지수 방어선 기준 라벨
+                if (baseline in low..high) {
+                    val y75 = y(baseline)
                     val targetPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                         color = muted.toArgb()
                         textSize = DigitsTextSize.micro.toPx()
                         isFakeBoldText = true
                     }
-                    drawContext.canvas.nativeCanvas.drawText("75P", 6.dp.toPx(), y75 + 3.dp.toPx(), targetPaint)
+                    drawContext.canvas.nativeCanvas.drawText("${baseline.roundToInt()}P", 6.dp.toPx(), y75 + 3.dp.toPx(), targetPaint)
                 }
 
                 // 토스 첨부1 우측 현재 가격 박스 배지
