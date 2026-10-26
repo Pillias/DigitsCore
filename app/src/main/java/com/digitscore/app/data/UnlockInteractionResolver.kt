@@ -16,6 +16,8 @@ data class UnlockInteractionResult(
 object UnlockInteractionResolver {
 
     const val MAX_DELAY_AFTER_UNLOCK_MILLIS = 60_000L
+    /** 사용 기록 끝 시각과 진행 중 구간 끝의 오차 허용치 */
+    const val SEGMENT_END_TOLERANCE_MILLIS = 1_000L
     @Deprecated("Use HABITUAL_CHECK_THRESHOLD_MILLIS", ReplaceWith("HABITUAL_CHECK_THRESHOLD_MILLIS"))
     const val QUICK_CONFIRMATION_THRESHOLD_MILLIS = HABITUAL_CHECK_THRESHOLD_MILLIS
 
@@ -27,7 +29,7 @@ object UnlockInteractionResolver {
      * @param ignoredPackages 런처 및 DigitsCore 패키지 목록
      * @param lastProcessedUnlockTimestamp 이전 처리 커서 (이 시각 초과의 잠금 해제만 처리)
      * @param notifications 당일 도착한 앱 알림 이벤트 목록
-     * @param now 현재 시각 (기본값 System.currentTimeMillis())
+     * @param now 사용 기록을 읽은 끝 시각(서비스의 collectionEnd). 진행 중인 구간의 끝이 이 값과 같습니다.
      */
     fun resolveFirstAppsAfterUnlock(
         unlockTimestamps: List<Long>,
@@ -64,16 +66,16 @@ object UnlockInteractionResolver {
 
             val firstSegment = validSegments[firstSegmentIndex]
 
-            // 첫 앱의 구간이 끝났거나(다음 구간 시작·화면 꺼짐) 잠금 해제 후 기준 시간이 지난 경우에만 확정
+            // 첫 앱 구간이 7초 이상이면 짧은 확인이 아니므로 바로 확정합니다.
+            // 7초 미만이면 그 구간이 끝난 경우(다음 구간 시작 또는 데이터 끝보다 앞서 종료)에만 확정합니다.
+            // [now]는 사용 기록을 읽은 끝 시각이며, 진행 중인 구간의 끝은 이 값과 같습니다.
             val hasNextSegment = (firstSegmentIndex < validSegments.lastIndex) ||
-                segments.any { it.startTimeMillis >= firstSegment.endTimeMillis }
+                segments.any { it.startTimeMillis >= firstSegment.endTimeMillis && it !== firstSegment }
             val isDurationSufficient = firstSegment.durationMillis >= HABITUAL_CHECK_THRESHOLD_MILLIS
-            val isSessionEnded = hasNextSegment || firstSegment.endTimeMillis < now
-            val isThresholdPassed = (now - unlockTime) >= HABITUAL_CHECK_THRESHOLD_MILLIS
+            val isSessionEnded = hasNextSegment || firstSegment.endTimeMillis < now - SEGMENT_END_TOLERANCE_MILLIS
 
-            if (!isDurationSufficient && !isSessionEnded && !isThresholdPassed) {
-                // 진행 중인 미확정 세션 (duration < 7s, 아직 안 끝남, 해제 후 7s 미만)
-                // 다음 주기에 판정하기 위해 커서를 이 잠금 해제 앞에 둠
+            if (!isDurationSufficient && !isSessionEnded) {
+                // 진행 중인 7초 미만 구간: 다음 주기에 다시 판정하도록 이 잠금 해제에서 멈춥니다.
                 break
             }
 

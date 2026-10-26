@@ -332,7 +332,10 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                 modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp)
                             )
 
-                            val isImportedDay = selected != null && selected.score == null && (selected.usage ?: 0L) > 0L
+                            // 불러온 날 판정은 저장된 날짜 목록 하나로만 합니다(점수 유무로 추측하지 않음).
+                            val isImportedDay = remember(selected?.start) {
+                                selected?.let { com.digitscore.app.data.UsageHistoryImporter.isImportedDate(context, logicalDate(it.start, zone).toString()) } ?: false
+                            }
                             val targetScore = if (selected != null) {
                                 selectedSample?.exactScore ?: selected.score?.last ?: 80.0
                             } else if (isRolling) {

@@ -97,6 +97,28 @@ class UnlockInteractionResolverTest {
     }
 
     @Test
+    fun resolveFirstAppsAfterUnlock_lateOpenedAppStillRunningIsNotCountedQuick() {
+        // 잠금 해제 50초 뒤에 연 앱이 아직 3초째 열려 있음: 해제 후 7초가 지났어도 확정하지 않음
+        val running = UnlockInteractionResolver.resolveFirstAppsAfterUnlock(
+            unlockTimestamps = listOf(100_000L),
+            segments = listOf(ForegroundUsageSegment("com.kakao.talk", 150_000L, 153_000L)),
+            ignoredPackages = ignoredPackages,
+            now = 153_000L
+        )
+        assertEquals(0, running.size)
+
+        // 5초 만에 화면을 끔: 데이터 끝(180초)보다 앞서 끝났으므로 짧은 확인으로 확정
+        val ended = UnlockInteractionResolver.resolveFirstAppsAfterUnlock(
+            unlockTimestamps = listOf(100_000L),
+            segments = listOf(ForegroundUsageSegment("com.kakao.talk", 150_000L, 155_000L)),
+            ignoredPackages = ignoredPackages,
+            now = 180_000L
+        )
+        assertEquals(1, ended.size)
+        org.junit.Assert.assertTrue(ended[0].isQuick)
+    }
+
+    @Test
     fun resolveFirstAppsAfterUnlock_appOpenedWithin60s_notQuick() {
         val unlockTimestamps = listOf(100_000L)
         val segments = listOf(

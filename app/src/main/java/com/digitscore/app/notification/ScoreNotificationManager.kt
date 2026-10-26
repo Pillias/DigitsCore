@@ -233,7 +233,8 @@ object ScoreNotificationManager {
         } else {
             goal.targetAppName.ifEmpty { pkg.substringAfterLast('.') }
         }
-        val appName = if (rawAppName.length > 10) rawAppName.take(9) + "…" else rawAppName
+        // 관리 앱 전체는 정해진 문구라 자르지 않습니다. 앱 이름만 길이를 줄입니다.
+        val appName = if (!goal.isAllManagedApps && rawAppName.length > 10) rawAppName.take(9) + "…" else rawAppName
 
         val more15Intent = Intent(context, com.digitscore.app.receiver.GoalLimitActionReceiver::class.java).apply {
             action = com.digitscore.app.receiver.GoalLimitActionReceiver.ACTION_GOAL_LIMIT_MORE_15

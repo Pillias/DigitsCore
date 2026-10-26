@@ -597,7 +597,7 @@ class TrackerForegroundService : Service() {
                 if (lastProcessedNotificationTimestamp == 0L) {
                     lastProcessedNotificationTimestamp = trackingPreferences.getLong("last_processed_notification_time", 0L)
                 }
-                val ignoredUnlockPkgs = mutableSetOf("com.digitscore.app").apply {
+                val ignoredUnlockPkgs = UsageStatsHelper.SELF_PACKAGES.toMutableSet().apply {
                     addAll(UsageStatsHelper.HOME_LAUNCHER_PACKAGES)
                 }
                 val newUnlockInteractions = com.digitscore.app.data.UnlockInteractionResolver.resolveFirstAppsAfterUnlock(
@@ -606,7 +606,7 @@ class TrackerForegroundService : Service() {
                     ignoredPackages = ignoredUnlockPkgs,
                     lastProcessedUnlockTimestamp = lastProcessedUnlockTimestamp,
                     notifications = usageSnapshot.notificationEvents,
-                    now = now
+                    now = collectionEnd
                 )
                 val appDailyDao = db.appDailyInteractionDao()
                 val todayDateStr = com.digitscore.app.data.DailyGoalStore.getLogicalDateString()

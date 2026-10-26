@@ -4,6 +4,7 @@ import android.app.TimePickerDialog
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -137,7 +138,8 @@ fun TimeRuleSection(
                             refreshRules()
                         },
                         modifier = Modifier.weight(1f),
-                        shape = DigitsShape.sm
+                        shape = DigitsShape.sm,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -151,7 +153,9 @@ fun TimeRuleSection(
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = if (isEn) "Work (10min)" else "업무 (10min)",
-                                fontSize = DigitsTextSize.caption
+                                fontSize = DigitsTextSize.caption,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }
@@ -178,7 +182,8 @@ fun TimeRuleSection(
                             }
                         },
                         modifier = Modifier.weight(1f),
-                        shape = DigitsShape.sm
+                        shape = DigitsShape.sm,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -192,7 +197,9 @@ fun TimeRuleSection(
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = if (isEn) "Sleep prep (5min)" else "수면 준비 (5min)",
-                                fontSize = DigitsTextSize.caption
+                                fontSize = DigitsTextSize.caption,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }
