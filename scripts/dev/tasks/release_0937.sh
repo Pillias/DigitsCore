@@ -1,0 +1,49 @@
+#!/bin/bash
+# DigitsCore v0.9.37 릴리스: 테스트 → 서명된 AAB/APK 빌드 → 커밋·푸시 → GitHub 릴리스
+set -euo pipefail
+cd "$(dirname "$0")/../../.."
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17
+export PATH="$JAVA_HOME/bin:$PATH"
+STEP="${1:-build}"
+
+if [ "$STEP" = "build" ]; then
+  echo "== 1. 작업 트리 확인"; git status --short
+  test "$(git branch --show-current)" = "feature/core-index-focus"
+  if find . -path ./.git -prune -o -path ./scripts/dev/out -prune -o -path '*/build' -prune -o -name '*-1.*' -print | grep -q .; then echo "중복 -1 파일 있음"; exit 1; fi
+  echo "== 2. 버전 기준 맞추기 (0.9.36 발행됨 → 릴리스 빌드가 0.9.37/937로 올림)"
+  python3 - <<'PY'
+import re
+p='version.properties'; s=open(p).read()
+s=re.sub(r'(?m)^PATCH=.*$','PATCH=36',s); s=re.sub(r'(?m)^VERSION_CODE=.*$','VERSION_CODE=936',s); s=re.sub(r'(?m)^DEBUG_BUILD=.*$','DEBUG_BUILD=0',s)
+open(p,'w').write(s)
+PY
+  git add docs/release-notes scripts/dev/tasks
+  git commit -q -m "docs: v0.9.37 출시 노트, 릴리스 스크립트${TR:-}" || true
+  echo "== 3. 단위 테스트"; ./gradlew :app:testDebugUnitTest --no-daemon -q
+  echo "== 4. 디자인 점검"; STRICT=1 bash scripts/design_check.sh
+  echo "== 5. 릴리스 빌드 (PATCH 자동 +1)"; ./gradlew :app:bundleRelease :app:assembleRelease --no-daemon -q
+  V="$(grep '^MAJOR=' version.properties | cut -d= -f2).$(grep '^MINOR=' version.properties | cut -d= -f2).$(grep '^PATCH=' version.properties | cut -d= -f2)"
+  echo "버전: $V (code $(grep '^VERSION_CODE=' version.properties | cut -d= -f2))"
+  APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
+  cp app/build/outputs/bundle/release/app-release.aab "DigitsCore-v${V}-release.aab"
+  cp "$APK" "DigitsCore-v${V}-release.apk"
+  echo "== 6. 서명 확인 (업로드 키 SHA1 A6:CD:47:42:...:6C:8A 여야 함)"
+  keytool -printcert -jarfile "DigitsCore-v${V}-release.aab" | grep -E "SHA1|Owner"
+  BT=$(ls -d "$(grep '^sdk.dir=' local.properties | cut -d= -f2)"/build-tools/* | sort -V | tail -1)
+  "$BT/apksigner" verify --print-certs "DigitsCore-v${V}-release.apk" | grep -E "SHA-1|Signer #1 certificate DN"
+  ls -la "DigitsCore-v${V}-release.aab" "DigitsCore-v${V}-release.apk"
+  echo "== 7. 버전 커밋"
+  git add version.properties
+  git commit -m "release: v${V} (versionCode $(grep '^VERSION_CODE=' version.properties | cut -d= -f2)) - core index focus, unlock pacing (score v3)${TR:-}"
+  git branch -f "release/v${V}"
+  echo "BUILD_DONE v${V}"
+fi
+
+if [ "$STEP" = "publish" ]; then
+  V="$(grep '^MAJOR=' version.properties | cut -d= -f2).$(grep '^MINOR=' version.properties | cut -d= -f2).$(grep '^PATCH=' version.properties | cut -d= -f2)"
+  git push origin feature/core-index-focus "release/v${V}"
+  gh release create "v${V}" "DigitsCore-v${V}-release.apk" "DigitsCore-v${V}-release.aab" \
+    --target "release/v${V}" --title "DigitsCore v${V}" --notes-file "docs/release-notes/v${V}.md"
+  gh release view "v${V}" --json url,assets --jq '.url, (.assets[].name)'
+  echo "PUBLISH_DONE"
+fi
