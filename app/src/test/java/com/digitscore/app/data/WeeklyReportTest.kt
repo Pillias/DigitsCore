@@ -129,4 +129,25 @@ class WeeklyReportTest {
         org.junit.Assert.assertNull(report.avgScore)
         org.junit.Assert.assertNull(report.scoreDiffVsPriorWeek)
     }
+    @Test
+    fun indexCentredSummaryComparesWithPriorFourWeeksAndSplitsCauses() {
+        val range = LocalDate.parse("2026-10-19") to LocalDate.parse("2026-10-25")
+        fun h(d: String, score: Int) = d to DailyScoreHistoryEntity(d, score, 120, 30, 20, 100, 35, 4, "balanced")
+        val histories = mapOf(
+            h("2026-10-19", 80), h("2026-10-20", 80),
+            // 직전 4주: 9/21 ~ 10/18
+            h("2026-10-18", 70), h("2026-10-05", 74), h("2026-09-21", 72)
+        )
+        val impacts = listOf(
+            com.digitscore.app.data.entity.ScoreImpactHourEntity(0, "", loss = 10.0, recovery = 12.0, firstAt = 0, lastAt = 0),
+            com.digitscore.app.data.entity.ScoreImpactHourEntity(0, "game", loss = 9.0, firstAt = 0, lastAt = 0),
+            com.digitscore.app.data.entity.ScoreImpactHourEntity(0, StatisticsStore.UNLOCK_IMPACT_KEY, loss = 1.0, recovery = 0.4, firstAt = 0, lastAt = 0)
+        )
+        val report = WeeklyReportCalculator.calculate(range, histories, emptyList(), weekImpacts = impacts, isManaged = { it == "game" })
+        assertEquals(8.0, report.scoreDiffVsPriorFourWeeks!!, 1e-9)
+        val cause = report.causeBreakdownPerDay!!
+        assertEquals(-4.5, cause.appUse, 1e-9) // 2일 기록: -9 / 2
+        assertEquals(-0.3, cause.unlocks, 1e-9)
+        assertEquals(5.8, cause.rest, 1e-9)
+    }
 }

@@ -13,7 +13,7 @@ import kotlin.math.pow
  * - 단일 휴식 모델: 화면 꺼짐/미사용 시 speedUp() 스케일러에 따른 자연 회복 단일화
  */
 data class CumulativeScoreConfig(
-    val version: Int = 2,
+    val version: Int = 3,
     val initialScore: Double = 75.0,
     val targetEquilibriumScore: Double = 75.0,
     val normalLossPerMinute: Double = 0.012,
@@ -32,7 +32,13 @@ data class CumulativeScoreConfig(
     val momentumRestDecayRate: Double = 2.0,
     val awakeRestCapMinutes: Double = 180.0,
     val utilityExemptLimitMinutes: Double = 30.0,
-    val studyExemptLimitMinutes: Double = 50.0
+    val studyExemptLimitMinutes: Double = 50.0,
+    // v3: 잠금 해제 간격 (DEBATE 안건 18). 직전에 화면을 꺼 둔 시간이 기준보다 짧으면 감점, 길면 미세 가점.
+    val unlockReferenceMinutes: Double = 12.0,
+    val unlockMaxLoss: Double = 0.05,
+    val unlockMaxGain: Double = 0.02,
+    val unlockDailyLossCap: Double = 3.0,
+    val unlockDailyGainCap: Double = 1.0
 ) {
     init {
         require(version > 0 && initialScore in 1.0..99.0)
@@ -42,7 +48,12 @@ data class CumulativeScoreConfig(
         require(accelerationStepMinutes > 0 && accelerationStartMinutes >= 0)
         require(burdenHalfLifeAwakeHours > 0 && burdenRecoveryDivisor > 0)
         require(momentumRestDecayRate > 0 && awakeRestCapMinutes > 0)
+        require(unlockReferenceMinutes > 0 && listOf(unlockMaxLoss, unlockMaxGain, unlockDailyLossCap, unlockDailyGainCap)
+            .all { it.isFinite() && it >= 0 })
     }
+
+    /** v3부터 잠금 해제 간격을 점수에 반영합니다. */
+    val unlockPacingEnabled: Boolean get() = version >= 3
 
     fun displayed(signal: Double): Double = signal.coerceIn(1.0, 99.0)
     fun signalForScore(score: Double): Double = score.coerceIn(1.0, 99.0)
@@ -54,7 +65,7 @@ data class CumulativeScoreConfig(
 
 /**
  * 저장소(DB·통계·백업)에 기록하는 점수 모델 번호.
- * - 1~4: 이전 일일/롤링 모델, 5: 누적 모델 v2(75점 피벗, 현재)
+ * - 1~4: 이전 일일/롤링 모델, 5: 누적 모델 v2(75점 피벗), 6: v3(잠금 해제 간격 반영, 현재)
  * - 계수 미세 조정은 번호를 올리지 않습니다. 기준점·감점/회복 구조처럼 점수의 의미가 바뀌는
  *   변경일 때만 [CumulativeScoreConfig.version]을 올리고, 저장 번호는 그에 맞춰 1씩 증가합니다.
  *   (차트는 번호가 다른 기록을 회색으로 구분하므로, 잦은 변경은 피합니다.)
@@ -64,7 +75,7 @@ object ScoreModel {
     private const val V2_STORED_VERSION = 5
     fun storedVersion(configVersion: Int): Int = V2_STORED_VERSION + (configVersion - 2).coerceAtLeast(0)
     /** 현재 계산 설정의 저장 번호. 컴파일 상수가 필요한 곳은 [CURRENT_STORED]를 사용합니다. */
-    const val CURRENT_STORED = 5
+    const val CURRENT_STORED = 6
     val current: Int get() = storedVersion(CumulativeScoreConfig.CURRENT.version)
 }
 
@@ -96,6 +107,14 @@ enum class CumulativeActivity {
  * 75점 피벗 속도 스케일링을 통해 50~90점대 중앙 반응 및 75점 균형점을 유지합니다.
  */
 object CumulativeScoreEngine {
+    // 75점 피벗 속도 스케일러 (정규화된 가동 배율)
+    // 75점에서 1.0, 30점에서 2.8 (강력 반등), 90점에서 0.4 (과도 상승 방지)
+    fun speedUp(signal: Double, config: CumulativeScoreConfig = CumulativeScoreConfig.CURRENT): Double =
+        ((100.0 - signal) / (100.0 - config.targetEquilibriumScore)).coerceIn(0.1, 4.0)
+    // 75점에서 1.0, 30점에서 0.4 (하방 지지 저항), 90점에서 1.2 (하강 중력)
+    fun speedDown(signal: Double, config: CumulativeScoreConfig = CumulativeScoreConfig.CURRENT): Double =
+        (signal / config.targetEquilibriumScore).coerceIn(0.1, 2.0)
+
     fun advance(
         state: CumulativeScoreState,
         activity: CumulativeActivity,
@@ -113,11 +132,8 @@ object CumulativeScoreEngine {
         var em = state.exemptMomentumMinutes
         var sm = state.studyMomentumMinutes
 
-        // 75점 피벗 속도 스케일러 (정규화된 가동 배율)
-        // 75점에서 1.0, 30점에서 2.8 (강력 반등), 90점에서 0.4 (과도 상승 방지)
-        fun speedUp() = ((100.0 - s) / (100.0 - config.targetEquilibriumScore)).coerceIn(0.1, 4.0)
-        // 75점에서 1.0, 30점에서 0.4 (하방 지지 저항), 90점에서 1.2 (하강 중력)
-        fun speedDown() = (s / config.targetEquilibriumScore).coerceIn(0.1, 2.0)
+        fun speedUp() = CumulativeScoreEngine.speedUp(s, config)
+        fun speedDown() = CumulativeScoreEngine.speedDown(s, config)
 
         if (config.openingLoss > 0.0) {
             repeat(openings) {

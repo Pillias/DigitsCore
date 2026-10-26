@@ -24,17 +24,20 @@ class CoreIndexCoachTest {
     }
 
     @Test
-    fun guidanceUsesCustomUnlockThreshold() {
+    fun frequentUnlocksFollowTheHourlyPace() {
         val now = java.util.Calendar.getInstance().apply {
             set(java.util.Calendar.HOUR_OF_DAY, 14)
         }.timeInMillis
         val detail = RollingScoreCalculator.calculate(emptyList(), now, calibrationUsageMillis = 3_600_000L)
-        val guidance = CoreIndexCoach.create(detail, detail.finalScore, emptyList(),
-            emptyList(), (1..25).map { now - it * 60_000L }, emptyList(), now,
-            CoreIndexPreset.BALANCED,
-            scoringConfig = com.digitscore.app.model.CoreIndexScoringConfig(unlockThreshold = 50))
-        assertTrue(guidance.cause != CoreIndexCause.FREQUENT_UNLOCKS)
-        assertTrue(guidance.recommendation != CoreIndexRecommendation.BATCH_PHONE_CHECKS)
+        // 최근 1시간 8회(기준 시간당 5회보다 조금 많음, 2배 미만) → 잦은 확인 아님
+        val calm = CoreIndexCoach.create(detail, detail.finalScore, emptyList(),
+            emptyList(), (1..8).map { now - it * 7 * 60_000L }, emptyList(), now, CoreIndexPreset.BALANCED)
+        assertTrue(calm.cause != CoreIndexCause.FREQUENT_UNLOCKS)
+        assertTrue(calm.recommendation != CoreIndexRecommendation.BATCH_PHONE_CHECKS)
+        // 최근 1시간 12회 → 잦은 확인
+        val busy = CoreIndexCoach.create(detail, detail.finalScore, emptyList(),
+            emptyList(), (1..12).map { now - it * 4 * 60_000L }, emptyList(), now, CoreIndexPreset.BALANCED)
+        assertTrue(busy.cause == CoreIndexCause.FREQUENT_UNLOCKS || busy.cause == CoreIndexCause.CALIBRATING)
     }
 
     @Test

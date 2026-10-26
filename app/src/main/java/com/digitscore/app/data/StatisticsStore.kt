@@ -8,6 +8,9 @@ import com.digitscore.app.engine.ScoreMovement
 object StatisticsStore {
     const val RETENTION = 365L * 24 * STAT_HOUR
 
+    /** score_impact_hourly에서 잠금 해제 간격 점수를 담는 가상 패키지 키. 앱 목록에서는 제외합니다. */
+    const val UNLOCK_IMPACT_KEY = "#unlock"
+
     suspend fun recordMovements(db: DigitsDatabase, movements: List<ScoreMovement>) {
         val dao = db.statisticsDao()
         val scores = linkedMapOf<Long, ScoreHourEntity>()
@@ -21,13 +24,16 @@ object StatisticsStore {
             scores[hour] = mergeScoreHours(scores[hour] ?: dao.score(hour, model), point)
             val loss = (m.before - m.after).coerceAtLeast(0.0)
             val gain = (m.after - m.before).coerceAtLeast(0.0)
-            for (pkg in listOf("") + listOf(m.packageName).filter { it.isNotBlank() && loss > 0 }) {
+            // 잠금 해제 간격 점수(v3)는 앱이 아니라 별도 키에 감점·가점을 모두 남깁니다(앱 순위에서는 제외).
+            val keys = if (m.unlock) listOf("", UNLOCK_IMPACT_KEY)
+            else listOf("") + listOf(m.packageName).filter { it.isNotBlank() && loss > 0 }
+            for (pkg in keys) {
                 val key = hour to pkg
                 val old = impacts[key] ?: dao.impact(hour, pkg)
                     ?: ScoreImpactHourEntity(hour, pkg, firstAt = m.start, lastAt = last)
                 impacts[key] = old.copy(
                     loss = old.loss + loss,
-                    recovery = old.recovery + if (pkg.isEmpty()) gain else 0.0,
+                    recovery = old.recovery + if (pkg.isEmpty() || pkg == UNLOCK_IMPACT_KEY) gain else 0.0,
                     observedMillis = old.observedMillis + if (pkg.isEmpty()) m.end - m.start else 0,
                     firstAt = minOf(old.firstAt, m.start), lastAt = maxOf(old.lastAt, last)
                 )

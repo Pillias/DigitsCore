@@ -15,7 +15,9 @@ data class CumulativeRecord(
     val restingConfirmedUntil: Long = 0L,
     val briefingHandledAt: Long = 0L,
     val suggestionSnoozes: Map<String, Long> = emptyMap(),
-    val lateSleepAnchorAt: Long = 0L
+    val lateSleepAnchorAt: Long = 0L,
+    /** 잠금 해제 간격 점수(v3)를 정산 호출 사이에 잇는 값 */
+    val unlockLedger: UnlockPacingLedger = UnlockPacingLedger()
 ) {
     fun encode(): String = JSONObject().apply {
         put("version", configVersion)
@@ -32,6 +34,11 @@ data class CumulativeRecord(
         put("briefing", briefingHandledAt)
         put("suggestions", JSONObject(suggestionSnoozes))
         put("lateSleepAnchor", lateSleepAnchorAt)
+        put("unlockLastUseEnd", unlockLedger.lastUseEndAt)
+        put("unlockLastSleep", unlockLedger.lastSleepAt)
+        put("unlockDay", unlockLedger.dayKey)
+        put("unlockDayLoss", unlockLedger.dayLoss)
+        put("unlockDayGain", unlockLedger.dayGain)
     }.toString()
 
     companion object {
@@ -57,7 +64,14 @@ data class CumulativeRecord(
                 obj.optLong("restingUntil"), obj.optLong("briefing"),
                 obj.optJSONObject("suggestions")?.let { map ->
                     map.keys().asSequence().associateWith { map.getLong(it) }
-                } ?: emptyMap(), obj.optLong("lateSleepAnchor"))
+                } ?: emptyMap(), obj.optLong("lateSleepAnchor"),
+                UnlockPacingLedger(
+                    lastUseEndAt = obj.optLong("unlockLastUseEnd").coerceAtLeast(0L),
+                    lastSleepAt = obj.optLong("unlockLastSleep").coerceAtLeast(0L),
+                    dayKey = obj.optString("unlockDay", ""),
+                    dayLoss = obj.optDouble("unlockDayLoss", 0.0).takeIf { it.isFinite() && it >= 0.0 } ?: 0.0,
+                    dayGain = obj.optDouble("unlockDayGain", 0.0).takeIf { it.isFinite() && it >= 0.0 } ?: 0.0
+                ))
         }
     }
 }
@@ -142,6 +156,11 @@ object CumulativeScoreStore {
         val movements = mutableListOf<ScoreMovement>()
         val window = learnedRestWindow(db, nowMillis, zone)
         val lateAnchor = RestPhasePolicy.lateSleepAnchor(uses, zone) ?: record.lateSleepAnchorAt
+        // 잠금 해제 간격 점수(v3): 실제 잠금 해제 이벤트만 씁니다(보관 25시간). 이벤트가 없으면 뉴트럴.
+        val unlockTimes = UsageStatsHelper.resolvedUnlockTimestamps(
+            db.deviceInteractionEventDao().getBetween(processStart - 30_000L, settledEnd)
+        )
+        var nextLedger = record.unlockLedger
         val next = CumulativeTimeline.advance(start, settledEnd, uses, { ts ->
             RestPhasePolicy.activityAt(
                 timestamp = ts,
@@ -151,13 +170,20 @@ object CumulativeScoreStore {
                 restingConfirmedUntil = record.restingConfirmedUntil,
                 lateSleepAnchorAt = lateAnchor
             )
-        }, onMovement = { movements.add(it) }, penaltyFreeWindows = penaltyFreeWindows)
+        }, onMovement = { movements.add(it) }, penaltyFreeWindows = penaltyFreeWindows,
+            unlocks = unlockTimes, unlockLedger = record.unlockLedger,
+            onUnlockLedger = { nextLedger = it },
+            dayKeyOf = { ts -> logicalDateKey(ts, zone) })
         // Attribution and cursor commit together: re-polling/restarting cannot charge twice.
         StatisticsStore.recordMovements(db, movements)
-        val updated = record.copy(checkpoint = next, lateSleepAnchorAt = lateAnchor)
+        val updated = record.copy(checkpoint = next, lateSleepAnchorAt = lateAnchor, unlockLedger = nextLedger)
         dao.put(CumulativeScoreStateEntity(payload = updated.encode()))
         updated to detail(updated, sleeping = false)
     }
+
+    /** 05:00 기준 논리적 날짜 키 */
+    internal fun logicalDateKey(ts: Long, zone: ZoneId): String =
+        java.time.Instant.ofEpochMilli(ts).atZone(zone).minusHours(5).toLocalDate().toString()
 
     fun detail(record: CumulativeRecord, sleeping: Boolean = false): RollingScoreDetail {
         val state = record.checkpoint.state
@@ -242,7 +268,12 @@ object CumulativeScoreStore {
         var copy = state
         for (minute in 1..720) {
             copy = CumulativeScoreEngine.advance(copy, CumulativeActivity.AWAKE_REST, 1.0)
-            if (CumulativeScoreConfig.CURRENT.displayed(copy.signal) >= targetScore) return minute
+            // 쉬고 다시 켤 때의 잠금 해제 1회(v3)도 계산에 넣습니다. 가점은 하루 상한에 막힐 수 있어 빼고, 감점만 반영합니다.
+            val config = CumulativeScoreConfig.CURRENT
+            val unlockCost = if (config.unlockPacingEnabled) {
+                minOf(0.0, UnlockPacingPolicy.rawDelta(minute * CumulativeTimeline.MINUTE, copy.signal, config))
+            } else 0.0
+            if (config.displayed(copy.signal + unlockCost) >= targetScore) return minute
         }
         return null
     }

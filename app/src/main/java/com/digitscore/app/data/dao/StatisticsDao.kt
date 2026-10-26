@@ -27,6 +27,8 @@ interface StatisticsDao {
     suspend fun score(hour: Long, model: Int): ScoreHourEntity?
     @Query("SELECT * FROM score_impact_hourly WHERE hour = :hour AND packageName = :pkg")
     suspend fun impact(hour: Long, pkg: String): ScoreImpactHourEntity?
+    @Query("SELECT * FROM score_impact_hourly WHERE hour >= :start AND hour < :end")
+    suspend fun impactsBetween(start: Long, end: Long): List<ScoreImpactHourEntity>
     @Query("SELECT * FROM statistics_state WHERE id = 1")
     suspend fun state(): StatisticsStateEntity?
     @Insert(onConflict = OnConflictStrategy.REPLACE)
