@@ -85,6 +85,24 @@ class MainActivity : ComponentActivity() {
             forceShowWeeklyReport = true
             intent.removeExtra(EXTRA_SHOW_WEEKLY_REPORT)
         }
+        if (intent?.getBooleanExtra("show_goal_limit_notification", false) == true) {
+            val baseGoal = com.digitscore.app.data.DailyGoalStore.getGoal(this)
+                ?: com.digitscore.app.model.DailyGoal(dateString = com.digitscore.app.data.DailyGoalStore.getLogicalDateString())
+            val goal = baseGoal.copy(
+                targetPackageName = com.digitscore.app.model.DailyGoal.PACKAGE_ALL_MANAGED,
+                appLimitMinutes = 30
+            )
+            com.digitscore.app.notification.ScoreNotificationManager.showGoalLimitReachedNotification(this, goal)
+            intent.removeExtra("show_goal_limit_notification")
+        }
+        if (intent?.getBooleanExtra("pin_widget", false) == true) {
+            val appWidgetManager = getSystemService(android.appwidget.AppWidgetManager::class.java)
+            val myProvider = android.content.ComponentName(this, com.digitscore.app.widget.ScoreWidgetReceiver::class.java)
+            if (appWidgetManager != null && appWidgetManager.isRequestPinAppWidgetSupported) {
+                appWidgetManager.requestPinAppWidget(myProvider, null, null)
+            }
+            intent.removeExtra("pin_widget")
+        }
     }
 
     override fun attachBaseContext(newBase: Context) {
