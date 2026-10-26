@@ -32,3 +32,8 @@ Claude outputs/
 
 # 에뮬레이터 개발 작업 로그
 scripts/dev/out/
+
+# 스토어 아이콘 시안 (로컬 보관)
+store_assets/_drafts/
+# 개발 작업 대기열 (실행용 임시 스크립트)
+scripts/dev/queue/

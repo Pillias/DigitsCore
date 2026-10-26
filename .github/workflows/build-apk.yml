@@ -92,9 +92,6 @@ jobs:
       - name: Verify Bundle Exists
         run: test -f app/build/outputs/bundle/release/app-release.aab
 
-      - name: Publish Release AAB Asset (on Tag)
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: app/build/outputs/bundle/release/app-release.aab
+      # CI의 AAB는 업로드 키 없이 만들어져 서명되지 않으므로 릴리스에 붙이지 않습니다.
+      # Play용 서명 AAB는 로컬에서 만들어 DigitsCore-vX.Y.Z-release.aab 이름으로 올립니다.
 
