@@ -2660,30 +2660,32 @@ private fun ScoreStatsRow(
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         if (hasBreakdown) {
-            // 큰 글자는 지수에 준 영향(P), 작은 글자는 원값
+            // 큰 글자는 실제 사용량(시간·횟수), 아래 줄은 그만큼이 지수에 준 효과(±P)
+            val restMinutes = (24 * 60L - screenMinutes).coerceAtLeast(0L)
+            fun effect(value: Double) = (if (isEn) "Index " else "지수 ") + formatPoints(value)
             StatisticCard(
                 label = if (isEn) "App use" else "앱 사용",
-                value = formatPoints(breakdown.appUse),
-                valueColor = pointsColor(breakdown.appUse),
-                caption = com.digitscore.app.i18n.formatMinutesSmallUnit(screenMinutes).toString(),
+                value = com.digitscore.app.i18n.formatMinutesSmallUnit(screenMinutes),
+                caption = effect(breakdown.appUse),
+                captionColor = pointsColor(breakdown.appUse),
                 icon = Icons.Rounded.PhoneAndroid,
                 onClick = onScreenTimeClick,
                 modifier = Modifier.weight(1f).fillMaxHeight()
             )
             StatisticCard(
                 label = if (isEn) "Unlocks" else "잠금 해제",
-                value = formatPoints(breakdown.unlocks),
-                valueColor = pointsColor(breakdown.unlocks),
-                caption = "${unlockCount}x",
+                value = "${unlockCount}x",
+                caption = effect(breakdown.unlocks),
+                captionColor = pointsColor(breakdown.unlocks),
                 icon = Icons.Rounded.LockOpen,
                 onClick = onUnlockClick,
                 modifier = Modifier.weight(1f).fillMaxHeight()
             )
             StatisticCard(
                 label = if (isEn) "Rest" else "쉼",
-                value = formatPoints(breakdown.rest),
-                valueColor = pointsColor(breakdown.rest),
-                caption = if (isEn) "Screen off" else "화면 꺼짐",
+                value = com.digitscore.app.i18n.formatMinutesSmallUnit(restMinutes),
+                caption = effect(breakdown.rest),
+                captionColor = pointsColor(breakdown.rest),
                 icon = Icons.Rounded.Bedtime,
                 onClick = onRestClick,
                 modifier = Modifier.weight(1f).fillMaxHeight()
@@ -2738,7 +2740,8 @@ private fun StatisticCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     valueColor: androidx.compose.ui.graphics.Color? = null,
-    caption: String? = null
+    caption: String? = null,
+    captionColor: androidx.compose.ui.graphics.Color? = null
 ) {
     Card(
         modifier = modifier.clickable(onClick = onClick),
@@ -2799,7 +2802,8 @@ private fun StatisticCard(
                 Text(
                     text = it,
                     fontSize = DigitsTextSize.caption,
-                    color = MaterialTheme.colorScheme.outline,
+                    fontWeight = if (captionColor != null) FontWeight.Bold else null,
+                    color = captionColor ?: MaterialTheme.colorScheme.outline,
                     maxLines = 1,
                     softWrap = false
                 )
