@@ -186,4 +186,6 @@
     <string name="coach_rest_generic">화면을 끄고 쉬면 지수가 올라갑니다</string>
     <string name="coach_target_score">%1$dP</string>
     <string name="coach_target_tier">%1$s(%2$dP)</string>
+    <string name="coach_target_defense">방어선 %1$dP</string>
+    <string name="coach_rest_for_gain">화면 끄고 %1$dmin 쉬면 +%2$sP</string>
 </resources>

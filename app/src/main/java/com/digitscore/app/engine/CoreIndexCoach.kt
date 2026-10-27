@@ -40,7 +40,11 @@ data class CoreIndexGuidance(
     val previousSevenDayAverage: Int? = null,
     val recommendation: CoreIndexRecommendation = CoreIndexRecommendation.KEEP_BALANCE,
     /** 안내를 만든 시점의 표시 지수. 할 일 한 줄(`CoachActionPlanner`)이 씁니다. */
-    val currentScore: Int = 0
+    val currentScore: Int = 0,
+    /** 오늘의 지수 방어선 (목표가 없으면 null) */
+    val defenseLine: Int? = null,
+    /** 1시간 안에 닿는 목표가 없을 때 30min 쉬면 오르는 P */
+    val shortRestGain: Double? = null
 )
 
 /** 숫자만 보여주지 않고 현재 원인, 예상 회복, 개인 과거 비교를 한 가지 행동으로 연결합니다. */
@@ -58,7 +62,8 @@ object CoreIndexCoach {
         nowMillis: Long,
         preset: CoreIndexPreset,
         scoringConfig: CoreIndexScoringConfig = preset.defaultScoringConfig,
-        cumulativeState: CumulativeScoreState? = null
+        cumulativeState: CumulativeScoreState? = null,
+        defenseLine: Int? = null
     ): CoreIndexGuidance {
         val appNames = apps.associate { it.packageName to it.appName }
         val recentStart = nowMillis - 2 * 60 * 60_000L
@@ -96,10 +101,18 @@ object CoreIndexCoach {
             frequentUnlocks -> CoreIndexRecommendation.BATCH_PHONE_CHECKS
             else -> CoreIndexRecommendation.KEEP_BALANCE
         }
-        val target = CoachActionPlanner.recoveryTarget(detail.finalScore)
+        // 누적 모델: 1시간 안에 닿는 가까운 목표만 안내합니다(방어선 → 단계 경계 → +3/+2/+1P).
+        val chosen = cumulativeState?.let { state ->
+            CoachActionPlanner.chooseRecovery(detail.finalScore, defenseLine) { t ->
+                com.digitscore.app.data.CumulativeScoreStore.awakeRecoveryMinutes(state, t, CoachActionPlanner.MAX_RECOVERY_MINUTES)
+            }
+        }
+        val shortRestGain = if (cumulativeState != null && chosen == null) {
+            com.digitscore.app.data.CumulativeScoreStore.awakeRecoveryGain(cumulativeState, CoachActionPlanner.SHORT_REST_MINUTES)
+        } else null
+        val target = chosen?.first ?: CoachActionPlanner.recoveryTarget(detail.finalScore)
         val recovery = if (cumulativeState != null) {
-            if (target > detail.finalScore) com.digitscore.app.data.CumulativeScoreStore.awakeRecoveryMinutes(cumulativeState, target)
-            else null
+            chosen?.second
         } else if (target > detail.finalScore && detail.flow != ScoreFlow.CALIBRATING) {
             (5..180 step 5).firstOrNull { minutes ->
                 val future = nowMillis + minutes * 60_000L
@@ -137,7 +150,9 @@ object CoreIndexCoach {
             recentSevenDayAverage = recent.takeIf { it.isNotEmpty() }?.average()?.roundToInt(),
             previousSevenDayAverage = previous.takeIf { it.isNotEmpty() }?.average()?.roundToInt(),
             recommendation = recommendation,
-            currentScore = detail.finalScore
+            currentScore = detail.finalScore,
+            defenseLine = defenseLine,
+            shortRestGain = shortRestGain
         )
     }
 }

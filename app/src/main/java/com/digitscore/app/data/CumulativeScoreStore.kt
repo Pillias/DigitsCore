@@ -264,9 +264,9 @@ object CumulativeScoreStore {
             suggestionSnoozes = record.suggestionSnoozes + (packageName to until)).encode()))
     }
 
-    fun awakeRecoveryMinutes(state: CumulativeScoreState, targetScore: Int): Int? {
+    fun awakeRecoveryMinutes(state: CumulativeScoreState, targetScore: Int, maxMinutes: Int = 720): Int? {
         var copy = state
-        for (minute in 1..720) {
+        for (minute in 1..maxMinutes) {
             copy = CumulativeScoreEngine.advance(copy, CumulativeActivity.AWAKE_REST, 1.0)
             // 쉬고 다시 켤 때의 잠금 해제 1회(v3)도 계산에 넣습니다. 가점은 하루 상한에 막힐 수 있어 빼고, 감점만 반영합니다.
             val config = CumulativeScoreConfig.CURRENT
@@ -276,5 +276,15 @@ object CumulativeScoreStore {
             if (config.displayed(copy.signal + unlockCost) >= targetScore) return minute
         }
         return null
+    }
+
+    /** 화면을 끄고 [minutes]분 쉬면 오르는 지수(소수). 다시 켤 때의 잠금 해제 감점도 반영합니다. */
+    fun awakeRecoveryGain(state: CumulativeScoreState, minutes: Int): Double {
+        val config = CumulativeScoreConfig.CURRENT
+        val after = CumulativeScoreEngine.advance(state, CumulativeActivity.AWAKE_REST, minutes.toDouble())
+        val unlockCost = if (config.unlockPacingEnabled) {
+            minOf(0.0, UnlockPacingPolicy.rawDelta(minutes * CumulativeTimeline.MINUTE, after.signal, config))
+        } else 0.0
+        return config.displayed(after.signal + unlockCost) - config.displayed(state.signal)
     }
 }

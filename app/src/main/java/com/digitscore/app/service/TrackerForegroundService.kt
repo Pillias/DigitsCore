@@ -851,7 +851,8 @@ class TrackerForegroundService : Service() {
                     nowMillis = now,
                     preset = coreIndexPreset,
                     scoringConfig = scoringConfig,
-                    cumulativeState = cumulativeRecord.checkpoint.state
+                    cumulativeState = cumulativeRecord.checkpoint.state,
+                    defenseLine = DailyGoalStore.getGoal(applicationContext)?.scoreTarget
                 )
                 ScoreRepository.updateCoreIndexGuidance(guidance)
 

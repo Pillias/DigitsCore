@@ -423,6 +423,10 @@ fun DashboardScreen(
                 item {
                     ScoreStatsRow(
                         breakdown = indexBreakdown,
+                        longestRest = remember(rollingSamples) {
+                            val now = System.currentTimeMillis()
+                            com.digitscore.app.data.LongestRest.find(rollingSamples, now - 24 * 3_600_000L, now)
+                        },
                         screenTimeMillis = rollingUsageSummary.totalScreenTimeMillis,
                         unlockCount = unlockCount,
                         distractingMillis = rollingUsageSummary.managedTimeMillis,
@@ -2486,7 +2490,9 @@ private fun guidanceRecommendationText(guidance: CoreIndexGuidance): String {
             recommendation = guidance.recommendation,
             recoveryMinutes = guidance.recoveryMinutes,
             recoveryTargetScore = guidance.recoveryTargetScore,
-            currentScore = guidance.currentScore
+            currentScore = guidance.currentScore,
+            defenseLine = guidance.defenseLine,
+            shortRestGain = guidance.shortRestGain
         )
     )
 }
@@ -2641,6 +2647,7 @@ private fun ScoreDetailAffordance() {
 @Composable
 private fun ScoreStatsRow(
     breakdown: com.digitscore.app.data.CoreIndexBreakdown,
+    longestRest: com.digitscore.app.data.LongestRest.Rest?,
     screenTimeMillis: Long,
     unlockCount: Int,
     distractingMillis: Long,
@@ -2662,15 +2669,15 @@ private fun ScoreStatsRow(
     ) {
         if (hasBreakdown) {
             // 큰 글자는 실제 사용량(시간·횟수), 아래 줄은 그만큼이 지수에 준 효과(±P)
-            val restMinutes = (24 * 60L - screenMinutes).coerceAtLeast(0L)
+            // 관리 앱(가장 큰 감점 원인) · 잠금 해제 · 가장 긴 쉼(길게 쉴수록 크게 오름)
             fun effect(value: Double) = (if (isEn) "Index " else "지수 ") + formatPoints(value)
             StatisticCard(
-                label = if (isEn) "App use" else "앱 사용",
-                value = com.digitscore.app.i18n.formatMinutesSmallUnit(screenMinutes),
-                caption = effect(breakdown.appUse),
-                captionColor = pointsColor(breakdown.appUse),
-                icon = Icons.Rounded.PhoneAndroid,
-                onClick = onScreenTimeClick,
+                label = if (isEn) "Managed" else "관리 앱",
+                value = com.digitscore.app.i18n.formatMinutesSmallUnit(distractingMinutes),
+                caption = effect(breakdown.managedApps),
+                captionColor = pointsColor(breakdown.managedApps),
+                icon = Icons.Rounded.HourglassBottom,
+                onClick = onDistractingClick,
                 modifier = Modifier.weight(1f).fillMaxHeight()
             )
             StatisticCard(
@@ -2683,10 +2690,11 @@ private fun ScoreStatsRow(
                 modifier = Modifier.weight(1f).fillMaxHeight()
             )
             StatisticCard(
-                label = if (isEn) "Rest" else "쉼",
-                value = com.digitscore.app.i18n.formatMinutesSmallUnit(restMinutes),
-                caption = effect(breakdown.rest),
-                captionColor = pointsColor(breakdown.rest),
+                label = if (isEn) "Longest rest" else "가장 긴 쉼",
+                // 가장 길게 쉰 한 번과 그동안 오른 지수 (24시간 전체 회복이 아님)
+                value = com.digitscore.app.i18n.formatMinutesSmallUnit(longestRest?.minutes ?: 0L),
+                caption = effect(longestRest?.gain?.coerceAtLeast(0.0) ?: 0.0),
+                captionColor = pointsColor(longestRest?.gain?.coerceAtLeast(0.0) ?: 0.0),
                 icon = Icons.Rounded.Bedtime,
                 onClick = onRestClick,
                 modifier = Modifier.weight(1f).fillMaxHeight()

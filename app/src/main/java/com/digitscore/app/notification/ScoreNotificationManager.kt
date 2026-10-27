@@ -626,7 +626,9 @@ object ScoreNotificationManager {
                     recommendation = it.recommendation,
                     recoveryMinutes = it.recoveryMinutes,
                     recoveryTargetScore = it.recoveryTargetScore,
-                    currentScore = score
+                    currentScore = score,
+                    defenseLine = it.defenseLine,
+                    shortRestGain = it.shortRestGain
                 )
             )
         } ?: strings.localizedGradeDescription(grade)

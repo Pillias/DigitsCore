@@ -186,4 +186,6 @@
     <string name="coach_rest_generic">Turning the screen off raises your index</string>
     <string name="coach_target_score">%1$dP</string>
     <string name="coach_target_tier">%1$s (%2$dP)</string>
+    <string name="coach_target_defense">your %1$dP defense line</string>
+    <string name="coach_rest_for_gain">Screen off for %1$dmin for +%2$sP</string>
 </resources>

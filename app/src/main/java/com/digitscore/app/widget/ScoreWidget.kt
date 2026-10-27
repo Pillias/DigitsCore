@@ -102,7 +102,8 @@ class ScoreWidget : GlanceAppWidget() {
                     recommendation = it.recommendation,
                     recoveryMinutes = it.recoveryMinutes,
                     recoveryTargetScore = it.recoveryTargetScore,
-                    currentScore = score
+                    currentScore = score,
+                    defenseLine = it.scoreTarget
                 )
             )
         } ?: stateText
