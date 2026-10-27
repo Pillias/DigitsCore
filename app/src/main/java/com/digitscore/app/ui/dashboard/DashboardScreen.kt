@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -96,6 +97,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import com.digitscore.app.i18n.AppLocale
 import com.digitscore.app.data.entity.CoreIndexSampleEntity
 import com.digitscore.app.data.ScreenTimeReconciliationCalculator
@@ -500,53 +502,49 @@ fun DashboardScreen(
                                 val topApps = appsUsage.filter { it.appName.isNotBlank() && it.appName != it.packageName }
                                     .sortedBy { impactByPkg[it.packageName] ?: 0.0 }
                                     .take(3)
-                                Row(
+                                // 한 앱 = 한 줄: 이름(줄어듦) · 사용 시간 · 지수 효과(고정 폭)
+                                Column(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     topApps.forEach { app ->
                                         val mins = (app.usageTimeMillis / 60_000L).coerceAtLeast(1L)
-                                        Surface(
-                                            shape = DigitsShape.sm,
-                                            color = MaterialTheme.colorScheme.tile,
+                                        Row(
                                             modifier = Modifier
-                                                .weight(1f, fill = false)
+                                                .fillMaxWidth()
+                                                .background(MaterialTheme.colorScheme.tile, DigitsShape.sm)
                                                 .clickable { selectedAppDetail = app }
+                                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
-                                            Row(
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                            ) {
-                                                Text(
-                                                    text = app.appName,
-                                                    fontSize = DigitsTextSize.caption,
-                                                    fontWeight = FontWeight.Medium,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    // 이름이 먼저 줄어들고 사용 시간 숫자는 잘리지 않습니다.
-                                                    modifier = Modifier.weight(1f, fill = false)
-                                                )
-                                                Text(
-                                                    text = com.digitscore.app.i18n.formatReadableMinutes(mins, isEn, compact = true),
-                                                    fontSize = DigitsTextSize.caption,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = appRatingColor(app.categoryType),
-                                                    maxLines = 1,
-                                                    softWrap = false
-                                                )
-                                                impactByPkg[app.packageName]?.let { impact ->
-                                                    Text(
-                                                        text = formatPoints(impact),
-                                                        fontSize = DigitsTextSize.caption,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = pointsColor(impact),
-                                                        maxLines = 1,
-                                                        softWrap = false
-                                                    )
-                                                }
-                                            }
+                                            Text(
+                                                text = app.appName,
+                                                fontSize = DigitsTextSize.label,
+                                                fontWeight = FontWeight.Medium,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            com.digitscore.app.i18n.Text(
+                                                text = com.digitscore.app.i18n.formatMinutesSmallUnit(mins),
+                                                fontSize = DigitsTextSize.label,
+                                                fontWeight = FontWeight.Bold,
+                                                color = appRatingColor(app.categoryType),
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                            val impact = impactByPkg[app.packageName]
+                                            Text(
+                                                text = (if (isEn) "Index " else "지수 ") + formatPoints(impact ?: 0.0),
+                                                fontSize = DigitsTextSize.caption,
+                                                fontWeight = FontWeight.Bold,
+                                                color = impact?.let { pointsColor(it) } ?: MaterialTheme.colorScheme.outline,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                textAlign = TextAlign.End,
+                                                modifier = Modifier.widthIn(min = 64.dp)
+                                            )
                                         }
                                     }
                                 }
@@ -1548,13 +1546,15 @@ private fun EditThreeGoalsDialog(
                     )
                 }
 
-                if (isSeparateWeekdayWeekend) {
+                // 스위치를 켜고 꺼도 아래 내용이 움직이지 않도록 평일·주말 칩 자리는 항상 둡니다(꺼지면 비활성).
+                run {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         FilterChip(
-                            selected = !editingWeekend,
+                            enabled = isSeparateWeekdayWeekend,
+                            selected = isSeparateWeekdayWeekend && !editingWeekend,
                             onClick = {
                                 if (editingWeekend) {
                                     com.digitscore.app.data.DailyGoalStore.saveWeekendGoalTargets(
@@ -1575,7 +1575,8 @@ private fun EditThreeGoalsDialog(
                             label = { Text(if (isEn) "Weekday (Mon-Fri)" else "평일 (월~금)") }
                         )
                         FilterChip(
-                            selected = editingWeekend,
+                            enabled = isSeparateWeekdayWeekend,
+                            selected = isSeparateWeekdayWeekend && editingWeekend,
                             onClick = {
                                 if (!editingWeekend) {
                                     com.digitscore.app.data.DailyGoalStore.saveWeekdayGoalTargets(
