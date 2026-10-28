@@ -7,6 +7,8 @@ import com.digitscore.app.model.DailyGoal
 import com.digitscore.app.model.DailyGoalType
 import com.digitscore.app.model.GoalDifficulty
 import com.digitscore.app.model.GoalRewardState
+import com.digitscore.app.model.PersonalBest
+import com.digitscore.app.model.StreakRewards
 import com.digitscore.app.model.YesterdayBriefingSummary
 import com.digitscore.app.model.YesterdayGoalResult
 import com.digitscore.app.model.DailyGoalDayRecord
@@ -93,6 +95,11 @@ object DailyGoalStore {
     private const val KEY_REWARD_ACTIVE_UNTIL = "reward_active_until"
     private const val KEY_REWARD_WINDOWS = "reward_free_pass_windows"
     private const val KEY_REWARD_LAST_PROCESSED_DATE = "reward_last_processed_date"
+    private const val KEY_REWARD_STAGE = "reward_salamander_stage"
+    private const val KEY_REWARD_BEST_STREAK = "reward_best_streak"
+    private const val KEY_PERSONAL_BEST_JSON = "personal_best_json"
+    private const val KEY_PERSONAL_BEST_LAST_DATE = "personal_best_last_date"
+    private const val KEY_PERSONAL_BEST_BACKFILLED = "personal_best_backfilled"
 
 
     /**
@@ -451,8 +458,36 @@ object DailyGoalStore {
             perfectStamps = prefs.getInt(KEY_REWARD_PERFECT_STAMPS, 0),
             availableFreePasses = prefs.getInt(KEY_REWARD_FREE_PASSES, 0),
             activeFreePassUntil = prefs.getLong(KEY_REWARD_ACTIVE_UNTIL, 0L),
-            lastProcessedDate = prefs.getString(KEY_REWARD_LAST_PROCESSED_DATE, null)
+            lastProcessedDate = prefs.getString(KEY_REWARD_LAST_PROCESSED_DATE, null),
+            // 단계 저장 전(이전 버전) 사용자는 지금 연속 일수에 맞는 단계로 시작합니다.
+            salamanderStage = if (prefs.contains(KEY_REWARD_STAGE)) prefs.getInt(KEY_REWARD_STAGE, 1)
+                else StreakRewards.stageForStreak(prefs.getInt(KEY_REWARD_STREAK, 0)),
+            bestStreak = prefs.getInt(KEY_REWARD_BEST_STREAK, 0)
         )
+    }
+
+    fun getPersonalBest(context: Context): PersonalBest {
+        val raw = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_PERSONAL_BEST_JSON, null) ?: return PersonalBest()
+        return runCatching {
+            val o = JSONObject(raw)
+            PersonalBest(
+                minManagedMinutes = if (o.has("minManaged")) o.getLong("minManaged") else null,
+                minManagedDate = o.optString("minManagedDate").takeIf { it.isNotBlank() },
+                minUnlocks = if (o.has("minUnlocks")) o.getInt("minUnlocks") else null,
+                minUnlocksDate = o.optString("minUnlocksDate").takeIf { it.isNotBlank() }
+            )
+        }.getOrDefault(PersonalBest())
+    }
+
+    fun savePersonalBest(context: Context, pb: PersonalBest) {
+        val o = JSONObject()
+        pb.minManagedMinutes?.let { o.put("minManaged", it) }
+        pb.minManagedDate?.let { o.put("minManagedDate", it) }
+        pb.minUnlocks?.let { o.put("minUnlocks", it) }
+        pb.minUnlocksDate?.let { o.put("minUnlocksDate", it) }
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString(KEY_PERSONAL_BEST_JSON, o.toString()).apply()
     }
 
     fun saveRewardState(context: Context, state: GoalRewardState) = synchronized(storeLock) {
@@ -463,6 +498,8 @@ object DailyGoalStore {
             .putInt(KEY_REWARD_FREE_PASSES, state.availableFreePasses)
             .putLong(KEY_REWARD_ACTIVE_UNTIL, state.activeFreePassUntil)
             .putString(KEY_REWARD_LAST_PROCESSED_DATE, state.lastProcessedDate)
+            .putInt(KEY_REWARD_STAGE, state.salamanderStage)
+            .putInt(KEY_REWARD_BEST_STREAK, state.bestStreak)
             .apply()
         ScoreRepository.updateRewardState(state)
     }
@@ -652,7 +689,8 @@ object DailyGoalStore {
                     unlockMet = obj.optBoolean("unlockMet"),
                     perfect = obj.optBoolean("perfect"),
                     stampEarned = obj.optInt("stampEarned", 0),
-                    passEarned = obj.optInt("passEarned", 0)
+                    passEarned = obj.optInt("passEarned", 0),
+                    shieldUsed = obj.optBoolean("shieldUsed", false)
                 )
             }
         }.getOrDefault(emptyList())
@@ -669,6 +707,7 @@ object DailyGoalStore {
                 put("perfect", r.perfect)
                 put("stampEarned", r.stampEarned)
                 put("passEarned", r.passEarned)
+                if (r.shieldUsed) put("shieldUsed", true)
             }
             array.put(obj)
         }
@@ -809,27 +848,15 @@ object DailyGoalStore {
         val currentRewardState = getRewardState(context)
         if (currentRewardState.lastProcessedDate != yesterdayDate) {
             if (yGoalResult.hasGoal) {
-                val newStreak = if (yGoalResult.isStreakMaintained) currentRewardState.currentStreak + 1 else 0
-                var newStamps = currentRewardState.perfectStamps
-                var newPasses = currentRewardState.availableFreePasses
-                var stampEarned = 0
-                var passEarned = 0
-                if (yGoalResult.isPerfectDay) {
-                    stampEarned = 1
-                    newStamps += 1
-                    if (newStamps >= 3) {
-                        newStamps = 0
-                        val passBefore = newPasses
-                        newPasses = minOf(newPasses + 1, 2) // 최대 2장 스택
-                        passEarned = (newPasses - passBefore).coerceAtLeast(0)
-                    }
-                }
-                val updatedReward = currentRewardState.copy(
-                    currentStreak = newStreak,
-                    perfectStamps = newStamps,
-                    availableFreePasses = newPasses,
-                    lastProcessedDate = yesterdayDate
+                val settled = StreakRewards.settle(
+                    currentRewardState,
+                    maintained = yGoalResult.isStreakMaintained,
+                    perfect = yGoalResult.isPerfectDay,
+                    date = yesterdayDate
                 )
+                val updatedReward = settled.state
+                val stampEarned = settled.stampEarned
+                val passEarned = settled.shieldEarned
                 saveRewardState(context, updatedReward)
                 appendDailyGoalRecord(
                     context,
@@ -840,7 +867,8 @@ object DailyGoalStore {
                         unlockMet = yGoalResult.isUnlockLimitAchieved,
                         perfect = yGoalResult.isPerfectDay,
                         stampEarned = stampEarned,
-                        passEarned = passEarned
+                        passEarned = passEarned,
+                        shieldUsed = settled.shieldUsed
                     )
                 )
             } else {
@@ -848,6 +876,31 @@ object DailyGoalStore {
             }
         } else {
             ScoreRepository.updateRewardState(currentRewardState)
+        }
+
+        // 개인 기록 (관리 앱 최소 · 잠금 해제 최소): 날짜당 1회, 첫 실행 시 최근 기록으로 채움
+        runCatching {
+            val pbPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            var pb = getPersonalBest(context)
+            if (!pbPrefs.getBoolean(KEY_PERSONAL_BEST_BACKFILLED, false)) {
+                pastHistories.filter { it.dateString < yesterdayDate }.forEach { h ->
+                    pb = PersonalBest.update(
+                        pb, h.dateString, h.totalScreenTimeMinutes, h.distractingTimeMinutes, h.unlockCount,
+                        UsageHistoryImporter.isImportedDate(context, h.dateString)
+                    ).first
+                }
+                pbPrefs.edit().putBoolean(KEY_PERSONAL_BEST_BACKFILLED, true).apply()
+                savePersonalBest(context, pb)
+            }
+            if (yesterdayScoreEntity != null && pbPrefs.getString(KEY_PERSONAL_BEST_LAST_DATE, null) != yesterdayDate) {
+                pb = PersonalBest.update(
+                    pb, yesterdayDate, yesterdayScoreEntity.totalScreenTimeMinutes,
+                    yesterdayScoreEntity.distractingTimeMinutes, yesterdayScoreEntity.unlockCount,
+                    UsageHistoryImporter.isImportedDate(context, yesterdayDate)
+                ).first
+                savePersonalBest(context, pb)
+                pbPrefs.edit().putString(KEY_PERSONAL_BEST_LAST_DATE, yesterdayDate).apply()
+            }
         }
 
         // 최근 14일간 앱별 통계 종합 (05:00 논리적 날짜 기준)

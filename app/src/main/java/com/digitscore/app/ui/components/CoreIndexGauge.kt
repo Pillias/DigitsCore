@@ -2,7 +2,7 @@ package com.digitscore.app.ui.components
 
 import com.digitscore.app.ui.theme.scoreTextColor
 import com.digitscore.app.ui.theme.DigitsTextSize
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
@@ -12,7 +12,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -41,14 +42,17 @@ fun CoreIndexGauge(
     score: Int,
     grade: String,
     modifier: Modifier = Modifier,
-    iconSize: Dp = 52.dp
+    iconSize: Dp = 52.dp,
+    /** 달성 순간(단계 상승 등)에 링을 0부터 한 번 부드럽게 채웁니다 (평가 R-3). */
+    celebrate: Boolean = false
 ) {
     val normalizedScore = score.coerceIn(0, 100)
-    val animatedScore by animateFloatAsState(
-        targetValue = normalizedScore.toFloat(),
-        animationSpec = tween(durationMillis = 700),
-        label = "coreIndexGauge"
-    )
+    val anim = remember { Animatable(if (celebrate) 0f else normalizedScore.toFloat()) }
+    LaunchedEffect(normalizedScore, celebrate) {
+        if (celebrate) anim.snapTo(0f)
+        anim.animateTo(normalizedScore.toFloat(), tween(durationMillis = if (celebrate) 1400 else 700))
+    }
+    val animatedScore = anim.value
     val tierColor = coreIndexTierColor(normalizedScore)
 
     Column(

@@ -263,7 +263,7 @@ fun MorningBriefingDialog(
                                                 tint = MaterialTheme.colorScheme.onPrimaryContainer
                                             )
                                             Text(
-                                                text = if (english) "Free Pass x${rewardState.availableFreePasses}" else "자유권 ${rewardState.availableFreePasses}장",
+                                                text = if (english) "Shield x${rewardState.streakShields}" else "보호권 ${rewardState.streakShields}장",
                                                 fontSize = DigitsTextSize.tiny,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -276,7 +276,12 @@ fun MorningBriefingDialog(
 
                         // 어제 결과 판정 텍스트
                         if (yesterdayGoalResult != null && yesterdayGoalResult.hasGoal) {
+                            val shieldUsed = remember(yesterdayGoalResult.dateString) {
+                                com.digitscore.app.data.DailyGoalStore.getDailyGoalDayRecords(context)
+                                    .any { it.date == yesterdayGoalResult.dateString && it.shieldUsed }
+                            }
                             val bannerMessage = when {
+                                shieldUsed -> if (english) "A shield kept your streak. Back on track today." else "보호권 1장으로 연속 기록을 지켰습니다. 오늘 다시 이어가요."
                                 yesterdayGoalResult.isPerfectDay -> if (english) "All 3 goals met." else "목표 3개를 모두 달성했습니다."
                                 yesterdayGoalResult.isStreakMaintained -> if (english) "${yesterdayGoalResult.achievedCount} Goals Cleared! Shield streak maintained." else "${yesterdayGoalResult.achievedCount}개 달성! 훌륭하게 방어했습니다 (연속 달성 유지)"
                                 else -> if (english) "Good effort yesterday! Ready to recover today?" else "아쉽지만 좋은 시도였습니다. 오늘 다시 회복해볼까요?"

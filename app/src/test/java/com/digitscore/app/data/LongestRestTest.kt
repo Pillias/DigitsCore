@@ -30,4 +30,12 @@ class LongestRestTest {
         assertEquals(60L, rest.minutes)
         assertEquals(1.2, rest.gain, 1e-9)
     }
+
+    @Test
+    fun todayStartsAtFiveAm() {
+        val z = java.time.ZoneId.of("Asia/Seoul")
+        val at = { h: Int, d: Int -> java.time.LocalDateTime.of(2026, 10, d, h, 0).atZone(z).toInstant().toEpochMilli() }
+        assertEquals(at(5, 28), LongestRest.todayStartMillis(at(9, 28), z))
+        assertEquals(at(5, 27), LongestRest.todayStartMillis(at(3, 28), z))
+    }
 }

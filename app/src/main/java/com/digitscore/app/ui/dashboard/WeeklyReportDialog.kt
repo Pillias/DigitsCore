@@ -265,9 +265,9 @@ fun WeeklyReportDialog(
                                         Text(text = if (isEn) "${report.perfectDaysCount} days" else "${report.perfectDaysCount}일", fontWeight = FontWeight.Bold, fontSize = DigitsTextSize.body)
                                     }
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text(text = if (isEn) "Stamps / Free Passes" else "받은 스탬프 / 자유권", fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
+                                        Text(text = if (isEn) "Stamps / Shields" else "받은 스탬프 / 보호권", fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
                                         Text(
-                                            text = if (isEn) "${report.perfectStampsEarned} stamps · ${report.freePassesEarned} passes" else "${report.perfectStampsEarned}개 · ${report.freePassesEarned}장",
+                                            text = if (isEn) "${report.perfectStampsEarned} stamps · ${report.freePassesEarned} shields" else "${report.perfectStampsEarned}개 · ${report.freePassesEarned}장",
                                             fontSize = DigitsTextSize.caption,
                                             color = MaterialTheme.colorScheme.outline
                                         )

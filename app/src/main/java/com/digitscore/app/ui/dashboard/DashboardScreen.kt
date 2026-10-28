@@ -425,7 +425,8 @@ fun DashboardScreen(
                         breakdown = indexBreakdown,
                         longestRest = remember(rollingSamples) {
                             val now = System.currentTimeMillis()
-                            com.digitscore.app.data.LongestRest.find(rollingSamples, now - 24 * 3_600_000L, now)
+                            // 오늘(05:00 이후) 기준: 밤잠이 '가장 긴 쉼'을 차지하지 않도록 합니다.
+                            com.digitscore.app.data.LongestRest.find(rollingSamples, com.digitscore.app.data.LongestRest.todayStartMillis(now), now)
                         },
                         screenTimeMillis = rollingUsageSummary.totalScreenTimeMillis,
                         unlockCount = unlockCount,
@@ -448,6 +449,10 @@ fun DashboardScreen(
                         rewardState = rewardState,
                         onUnlockClick = { showUnlockModal = true }
                     )
+                }
+
+                item {
+                    TopAppsGradeCheckCard(onOpenAppSettings = { onNavigateToAppSettings() })
                 }
 
                 item {
@@ -996,7 +1001,8 @@ private fun ThreeGoalsDashboardCard(
                         "2. App limit: keep one chosen app within its time limit.\n" +
                         "3. Unlock limit: keep the number of unlocks within the limit.\n\n" +
                         "• Usage time and unlocks start from 0 at 05:00. The Core Index is not reset.\n" +
-                        "• Meeting all three earns a stamp; 3 stamps give a 15-min free pass.\n" +
+                        "• Meeting all three earns a stamp; 3 stamps give a streak shield (max 2). A shield is used automatically to keep your streak on a missed day.\n" +
+                        "• Your salamander grows at 7, 14 and 30 streak days and shrinks one stage when the streak breaks.\n" +
                         "• Tap each goal to see its criterion, tips and the last 7 days."
                     } else {
                         "하루(05:00부터 다음 날 05:00까지) 동안 지킬 목표 3가지입니다.\n\n" +
@@ -1004,7 +1010,8 @@ private fun ThreeGoalsDashboardCard(
                         "2. 관리할 앱 한도: 고른 앱 1개의 사용 시간을 한도 안으로 유지합니다.\n" +
                         "3. 잠금 해제 한도: 잠금 해제 횟수를 한도 안으로 유지합니다.\n\n" +
                         "• 사용 시간과 잠금 해제 횟수는 05:00에 0부터 다시 셉니다. 코어 지수는 초기화되지 않습니다.\n" +
-                        "• 3가지를 모두 지키면 스탬프 1개, 스탬프 3개면 15min 자유권 1장을 받습니다.\n" +
+                        "• 3가지를 모두 지키면 스탬프 1개, 스탬프 3개면 보호권 1장(최대 2장)을 받습니다. 연속 기록이 끊기는 날 보호권이 자동으로 쓰여 기록을 지켜 줍니다.\n" +
+                        "• 도룡뇽은 연속 7·14·30일에 한 단계씩 자라고, 보호권 없이 기록이 끊기면 한 단계 작아집니다.\n" +
                         "• 각 목표를 누르면 기준, 달성 방법, 최근 7일 기록을 볼 수 있습니다."
                     },
                     fontSize = DigitsTextSize.body,
@@ -1177,59 +1184,9 @@ private fun ThreeGoalsDetailDialog(
                             )
                         }
                     }
-                } else if (liveReward.availableFreePasses > 0) {
-                    Surface(
-                        shape = DigitsShape.sm,
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(end = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.ConfirmationNumber,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(13.dp),
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (isEn) "15min Free Pass (${liveReward.availableFreePasses} available)"
-                                    else "15min 자유권 (${liveReward.availableFreePasses}장 보유)",
-                                    fontSize = DigitsTextSize.caption,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            Button(
-                                onClick = {
-                                    if (com.digitscore.app.data.DailyGoalStore.activateFreePass(context)) {
-                                        val updated = com.digitscore.app.data.DailyGoalStore.getRewardState(context)
-                                        liveReward = updated
-                                        com.digitscore.app.data.ScoreRepository.updateRewardState(updated)
-                                        // 진행 중인 신호등 경고를 바로 닫고 점수 계산에 반영합니다.
-                                        com.digitscore.app.service.TrackerForegroundService.refreshNotification(context)
-                                    }
-                                },
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                modifier = Modifier.height(24.dp),
-                                shape = DigitsShape.xs
-                            ) {
-                                Text(if (isEn) "Use" else "사용", fontSize = DigitsTextSize.tiny, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
-                            }
-                        }
-                    }
                 }
+                val personalBest = remember(liveReward) { com.digitscore.app.data.DailyGoalStore.getPersonalBest(context) }
+                StreakRewardRow(reward = liveReward, best = personalBest, isEn = isEn)
 
                 // --- 목표 1: 코어 지수 점수 ---
                 Column(
@@ -1872,10 +1829,18 @@ private fun CoreIndexHeroCard(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
+                    // 단계가 오른 뒤 처음 보는 순간에 한 번만 링을 채웁니다 (R-3)
+                    val tierPrefs = remember { context.getSharedPreferences("dashboard_notices", android.content.Context.MODE_PRIVATE) }
+                    val celebrate = remember(grade) {
+                        val last = tierPrefs.getInt("last_seen_tier", -1)
+                        tierPrefs.edit().putInt("last_seen_tier", grade.ordinal).apply()
+                        last != -1 && grade.ordinal < last
+                    }
                     CoreIndexGauge(
                         score = score,
                         grade = gradeText,
-                        iconSize = 54.dp
+                        iconSize = 54.dp,
+                        celebrate = celebrate
                     )
                     val continuousMins = rollingScore?.continuousUsageMinutes ?: 0L
                     val flowText = if (continuousMins > 0L) {

@@ -200,11 +200,18 @@ data class YesterdayGoalResult(
  */
 data class GoalRewardState(
     val currentStreak: Int = 0,              // 연속 방어 연속 달성 일수 (2개 이상 달성 시 유지)
-    val perfectStamps: Int = 0,              // 모두 달성한 날 스탬프 (0..2, 3개 모이면 자유권 1장 지급)
-    val availableFreePasses: Int = 0,        // 보유 중인 15분 자유권 (최대 2장)
+    val perfectStamps: Int = 0,              // 모두 달성한 날 스탬프 (0..2, 3개 모이면 보호권 1장 지급)
+    /** 연속 기록 보호권 (최대 2장). 저장 키 호환을 위해 이전 자유권 필드를 그대로 씁니다(보유 자유권은 보호권으로 전환). */
+    val availableFreePasses: Int = 0,
     val activeFreePassUntil: Long = 0L,      // 현재 활성화된 자유권 만료 시각 (Epoch millis)
-    val lastProcessedDate: String? = null    // 보상이 정산된 마지막 활동일 (yyyy-MM-dd)
+    val lastProcessedDate: String? = null,   // 보상이 정산된 마지막 활동일 (yyyy-MM-dd)
+    /** 도룡뇽 성장 단계 1~4 */
+    val salamanderStage: Int = 1,
+    /** 방어선 최장 연속 일수 */
+    val bestStreak: Int = 0
 ) {
+    val streakShields: Int get() = availableFreePasses
+
     val isFreePassActive: Boolean
         get() = activeFreePassUntil > System.currentTimeMillis()
 
@@ -219,7 +226,9 @@ data class DailyGoalDayRecord(
     val unlockMet: Boolean,
     val perfect: Boolean,
     val stampEarned: Int = 0,
-    val passEarned: Int = 0
+    val passEarned: Int = 0,
+    /** 이날 보호권으로 연속 기록을 지켰는지 */
+    val shieldUsed: Boolean = false
 )
 
 

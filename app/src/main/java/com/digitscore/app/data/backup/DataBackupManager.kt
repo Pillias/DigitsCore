@@ -82,6 +82,8 @@ object DataBackupManager {
             put("currentStreak", rewardState.currentStreak)
             put("perfectStamps", rewardState.perfectStamps)
             put("availableFreePasses", rewardState.availableFreePasses)
+            put("salamanderStage", rewardState.salamanderStage)
+            put("bestStreak", rewardState.bestStreak)
         }
         rootJson.put("goalRewardState", rewardObj)
 
@@ -682,7 +684,9 @@ object DataBackupManager {
                 val restoredState = currentState.copy(
                     currentStreak = streak,
                     perfectStamps = stamps,
-                    availableFreePasses = freePasses
+                    availableFreePasses = freePasses,
+                    salamanderStage = rewardObj.optInt("salamanderStage", currentState.salamanderStage).coerceIn(1, 4),
+                    bestStreak = maxOf(rewardObj.optInt("bestStreak", 0), streak)
                 )
                 com.digitscore.app.data.DailyGoalStore.saveRewardState(context, restoredState)
             }
