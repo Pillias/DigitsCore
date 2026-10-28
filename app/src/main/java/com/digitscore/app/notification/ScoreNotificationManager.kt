@@ -193,8 +193,8 @@ object ScoreNotificationManager {
             )
         } else if (forUnlock && goal.unlockProgressRatio >= 0.8f) {
             val isEn = AppLocale.currentLanguage(context) == AppLocale.ENGLISH
-            if (isEn) "Unlocks: ${goal.currentUnlockCount} / ${goal.unlockLimitTarget}x (80% reached)"
-            else "잠금 해제: ${goal.currentUnlockCount} / ${goal.unlockLimitTarget}x (80% 도달)"
+            if (isEn) "Unlocks: ${goal.currentUnlockCount} / ${goal.unlockLimitTarget} (80% reached)"
+            else "잠금 해제: ${goal.currentUnlockCount} / ${goal.unlockLimitTarget}회 (80% 도달)"
         } else {
             strings.getString(
                 R.string.goal_milestone_content_score,
@@ -499,7 +499,7 @@ object ScoreNotificationManager {
                 val unlockTarget = dailyGoal.unlockLimitTarget
                 val unlockPercent = if (unlockTarget > 0) (unlockCount * 100 / unlockTarget) else 0
                 val warn = if (unlockCount > unlockTarget) (if (isEn) " [Over!]" else " [초과!]") else ""
-                add(if (isEn) "• Unlocks: ${unlockCount} / ${unlockTarget}x (${unlockPercent}%)$warn" else "• 잠금 해제: ${unlockCount} / ${unlockTarget}x (${unlockPercent}%)$warn")
+                add(if (isEn) "• Unlocks: ${unlockCount} / ${unlockTarget} (${unlockPercent}%)$warn" else "• 잠금 해제: ${unlockCount} / ${unlockTarget}회 (${unlockPercent}%)$warn")
                 add("")
                 add(contentText)
             } else {
@@ -611,8 +611,8 @@ object ScoreNotificationManager {
 
             val isUnlockOver = dailyGoal.currentUnlockCount > dailyGoal.unlockLimitTarget
             val unlockMarker = if (isUnlockOver) "! " else ""
-            val unlockPart = if (isEn) "${unlockMarker}Unlocks ${dailyGoal.currentUnlockCount}/${dailyGoal.unlockLimitTarget}x"
-            else "${unlockMarker}잠금 해제 ${dailyGoal.currentUnlockCount}/${dailyGoal.unlockLimitTarget}x"
+            val unlockPart = if (isEn) "${unlockMarker}Unlocks ${dailyGoal.currentUnlockCount}/${dailyGoal.unlockLimitTarget}"
+            else "${unlockMarker}잠금 해제 ${dailyGoal.currentUnlockCount}/${dailyGoal.unlockLimitTarget}회"
 
             return listOfNotNull(scorePart, appPart, unlockPart).joinToString(" · ")
         }

@@ -7,7 +7,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:text="로딩 중..."
+        android:text="DigitsCore"
         android:textColor="#AAAAAA"
         android:textSize="14sp" />
 </FrameLayout>

@@ -138,7 +138,32 @@
         </provider>
 
         <receiver
+            android:name=".widget.ScoreWidgetSmallReceiver"
+            android:label="@string/widget_label_1x1"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/score_widget_small_info" />
+        </receiver>
+        <receiver
+            android:name=".widget.ScoreWidgetBarReceiver"
+            android:label="@string/widget_label_2x1"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/score_widget_bar_info" />
+        </receiver>
+        <receiver
             android:name=".widget.ScoreWidgetReceiver"
+            android:label="@string/widget_label_2x2"
             android:enabled="true"
             android:exported="true">
             <intent-filter>
@@ -147,6 +172,18 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/score_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".widget.ScoreWidgetLargeReceiver"
+            android:label="@string/widget_label_4x2"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/score_widget_large_info" />
         </receiver>
     </application>
 

@@ -1014,7 +1014,7 @@ class TrackerForegroundService : Service() {
                     (displayedValuesChanged || now - lastWidgetUpdatedAt >= 5 * 60_000L)
                 ) {
                     try {
-                        ScoreWidget().updateAll(applicationContext)
+                        com.digitscore.app.widget.DigitsWidgets.updateAll(applicationContext)
                         lastRenderedWidgetSnapshot = widgetSnapshot
                         lastWidgetUpdatedAt = now
                     } catch (error: Exception) {

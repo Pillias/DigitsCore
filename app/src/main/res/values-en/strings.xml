@@ -60,7 +60,7 @@
     <string name="database_preserved_message">Your existing records were not deleted.\n%1$s</string>
     <string name="retry">Try again</string>
     <string name="notification_title">Core Index %1$d · %2$s</string>
-    <string name="notification_content">Managed %3$s · Screen %1$s · Unlocks %2$dx</string>
+    <string name="notification_content">Managed %3$s · Screen %1$s · Unlocks %2$d</string>
     <string name="notification_key_label">Key message</string>
     <string name="notification_action_keep_balance">Keep your current balance.</string>
     <string name="notification_action_ten_minute_break">Put the screen down for 10min now.</string>
@@ -78,12 +78,12 @@
     <string name="action_rest_recovery">Take ~%1$dmin screen break</string>
     <string name="action_rest_recovery_long">Take ~%1$dmin screen break to recover to %2$dP</string>
     <string name="action_reduce_managed_apps">Rest screen and ease off managed apps</string>
-    <string name="notification_goal_unlock_pace">Unlocks: %1$dx / Limit %2$dx</string>
-    <string name="notification_goal_unlock_exceeded">Unlocks: %1$dx (Exceeded %2$dx limit)</string>
+    <string name="notification_goal_unlock_pace">Unlocks: %1$d / Limit %2$d</string>
+    <string name="notification_goal_unlock_exceeded">Unlocks: %1$d (Exceeded %2$d limit)</string>
     <string name="notification_cause_calibrating">More usage data will make guidance more personal.</string>
     <string name="notification_cause_continuous">%1$dmin of continuous use is affecting your current load.</string>
     <string name="notification_cause_managed">%1$s led recent load with %2$dmin of use.</string>
-    <string name="notification_cause_unlocks">You unlocked %1$dx in 24 hours, with %2$dx short app checks.</string>
+    <string name="notification_cause_unlocks">You unlocked %1$d times in 24 hours, with %2$d short app checks.</string>
     <string name="notification_cause_recovering">Continuous-use load is easing while the screen is down.</string>
     <string name="notification_cause_steady">There is no major change in your recent usage pattern.</string>
     <string name="notification_recovery_forecast">About %1$dmin of screen break may bring the index to %2$dP.</string>
@@ -93,7 +93,7 @@
     <string name="format_hours_minutes">%1$dmin</string>
     <string name="format_hours">%1$dmin</string>
     <string name="format_minutes">%1$dmin</string>
-    <string name="unlock_count_short">%1$dx</string>
+    <string name="unlock_count_short">%1$d</string>
     <string name="grade_label">Level %1$s</string>
     <string name="widget_index">Core Index</string>
     <string name="widget_index_24h">Core Index · 24H</string>
@@ -112,7 +112,7 @@
     <string name="widget_action_recovery">Recovery target: about %1$d min of awake rest</string>
     <string name="widget_action_batch_checks">Delay your next phone check</string>
     <string name="widget_action_wind_down">It is time to wind down night use</string>
-    <string name="widget_accessibility">Core Index %1$d, %2$s, screen %3$s, %4$dx unlocks</string>
+    <string name="widget_accessibility">Core Index %1$d, %2$s, screen %3$s, %4$d unlocks</string>
     <string name="tier_stable">Stable</string>
     <string name="tier_fair">Fair</string>
     <string name="tier_caution">Caution</string>
@@ -188,4 +188,12 @@
     <string name="coach_target_tier">%1$s (%2$dP)</string>
     <string name="coach_target_defense">your %1$dP defense line</string>
     <string name="coach_rest_for_gain">Screen off stops the drop now. Rest %1$dmin to start rising</string>
+    <string name="widget_label_1x1">Core Index (score)</string>
+    <string name="widget_label_2x1">Core Index (level)</string>
+    <string name="widget_label_2x2">Core Index (next step)</string>
+    <string name="widget_label_4x2">Core Index (goals)</string>
+    <string name="widget_description_1x1">Shows your current Core Index score.</string>
+    <string name="widget_description_2x1">Shows the salamander gauge with score and level.</string>
+    <string name="widget_description_2x2">Shows score, level and one next step.</string>
+    <string name="widget_description_4x2">Shows score, level, today\'s three goals and the next step.</string>
 </resources>

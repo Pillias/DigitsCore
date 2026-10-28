@@ -409,7 +409,7 @@ fun MorningBriefingDialog(
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         Text(
-                                            text = "${yesterdayGoalResult.finalUnlockCount}x",
+                                            text = "${yesterdayGoalResult.finalUnlockCount}${com.digitscore.app.i18n.countUnit()}",
                                             fontSize = DigitsTextSize.emphasis,
                                             fontWeight = FontWeight.Bold,
                                             color = if (yesterdayGoalResult.isUnlockLimitAchieved) ScoreGreenText else ScoreOrangeText,
@@ -421,7 +421,7 @@ fun MorningBriefingDialog(
                                         val unlockStatusText = if (unlockDiff >= 0) {
                                             if (english) "Achieved" else "절제 성공"
                                         } else {
-                                            if (english) "+${-unlockDiff}x !" else "+${-unlockDiff}x 초과 !"
+                                            if (english) "+${-unlockDiff}${com.digitscore.app.i18n.countUnit()} !" else "+${-unlockDiff}회 초과 !"
                                         }
                                         Text(
                                             text = unlockStatusText,
@@ -610,7 +610,7 @@ fun MorningBriefingDialog(
                                     )
                                     Text(text = if (english) "Daily Unlock Limit" else "일일 잠금 해제 조절", fontSize = DigitsTextSize.label, fontWeight = FontWeight.Medium)
                                 }
-                                Text(text = "${selectedUnlockTarget}x", fontSize = DigitsTextSize.bodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                Text(text = "${selectedUnlockTarget}${com.digitscore.app.i18n.countUnit()}", fontSize = DigitsTextSize.bodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                             }
                         }
 

@@ -60,7 +60,7 @@
     <string name="database_preserved_message">기존 기록은 삭제하지 않았습니다.\n%1$s</string>
     <string name="retry">다시 시도</string>
     <string name="notification_title">코어 지수 %1$d · %2$s</string>
-    <string name="notification_content">관리 %3$s · 화면 %1$s · 잠금 해제 %2$dx</string>
+    <string name="notification_content">관리 %3$s · 화면 %1$s · 잠금 해제 %2$d회</string>
     <string name="notification_key_label">지금의 핵심</string>
     <string name="notification_action_keep_balance">지금의 균형을 유지해보세요.</string>
     <string name="notification_action_ten_minute_break">지금 10min간 화면을 내려놓아 보세요.</string>
@@ -78,12 +78,12 @@
     <string name="action_rest_recovery">약 %1$dmin 화면 휴식 시 달성</string>
     <string name="action_rest_recovery_long">약 %1$dmin 화면을 쉬면 %2$dP로 회복 예상</string>
     <string name="action_reduce_managed_apps">화면 휴식 및 관리 앱 사용 자제</string>
-    <string name="notification_goal_unlock_pace">오늘 잠금 해제 %1$dx / 한도 %2$dx</string>
-    <string name="notification_goal_unlock_exceeded">오늘 잠금 해제 %1$dx (한도 %2$dx 초과)</string>
+    <string name="notification_goal_unlock_pace">오늘 잠금 해제 %1$d회 / 한도 %2$d회</string>
+    <string name="notification_goal_unlock_exceeded">오늘 잠금 해제 %1$d회 (한도 %2$d회 초과)</string>
     <string name="notification_cause_calibrating">사용 흐름을 더 모으면 개인 기준에 맞춘 안내가 정교해집니다.</string>
     <string name="notification_cause_continuous">%1$dmin 연속 사용이 현재 부하에 반영됐습니다.</string>
     <string name="notification_cause_managed">%1$s을(를) 최근 %2$dmin 사용한 흐름이 크게 반영됐습니다.</string>
-    <string name="notification_cause_unlocks">최근 24시간 %1$dx 잠금 해제했고, 짧은 앱 확인도 %2$dx 있었습니다.</string>
+    <string name="notification_cause_unlocks">최근 24시간 %1$d회 잠금 해제했고, 짧은 앱 확인도 %2$d회 있었습니다.</string>
     <string name="notification_cause_recovering">화면을 쉬는 동안 연속 사용 부하가 줄고 있습니다.</string>
     <string name="notification_cause_steady">최근 사용 흐름에 큰 변화가 없습니다.</string>
     <string name="notification_recovery_forecast">약 %1$dmin 화면을 쉬면 %2$dP로 예상됩니다.</string>
@@ -93,7 +93,7 @@
     <string name="format_hours_minutes">%1$dmin</string>
     <string name="format_hours">%1$dmin</string>
     <string name="format_minutes">%1$dmin</string>
-    <string name="unlock_count_short">%1$dx</string>
+    <string name="unlock_count_short">%1$d회</string>
     <string name="grade_label">지수 단계 %1$s</string>
     <string name="widget_index">코어 지수</string>
     <string name="widget_index_24h">코어 지수 · 24H</string>
@@ -112,7 +112,7 @@
     <string name="widget_action_recovery">활동 중 휴식 약 %1$dmin 후 회복 목표 예상</string>
     <string name="widget_action_batch_checks">다음 확인을 조금 늦춰보세요</string>
     <string name="widget_action_wind_down">심야 사용을 마무리할 시간이에요</string>
-    <string name="widget_accessibility">코어 지수 %1$d, %2$s, 화면 %3$s, 잠금 해제 %4$dx</string>
+    <string name="widget_accessibility">코어 지수 %1$d, %2$s, 화면 %3$s, 잠금 해제 %4$d회</string>
     <string name="tier_stable">안정</string>
     <string name="tier_fair">보통</string>
     <string name="tier_caution">주의</string>
@@ -188,4 +188,12 @@
     <string name="coach_target_tier">%1$s(%2$dP)</string>
     <string name="coach_target_defense">방어선 %1$dP</string>
     <string name="coach_rest_for_gain">화면을 끄면 감점이 바로 멈춰요. %1$dmin 쉬면 지수가 다시 올라요</string>
+    <string name="widget_label_1x1">코어 지수 (점수)</string>
+    <string name="widget_label_2x1">코어 지수 (단계)</string>
+    <string name="widget_label_2x2">코어 지수 (할 일)</string>
+    <string name="widget_label_4x2">코어 지수 (목표)</string>
+    <string name="widget_description_1x1">지금 코어 지수 점수만 보여 줍니다.</string>
+    <string name="widget_description_2x1">도룡뇽 게이지와 점수·단계를 보여 줍니다.</string>
+    <string name="widget_description_2x2">점수·단계와 지금 할 일 한 줄을 보여 줍니다.</string>
+    <string name="widget_description_4x2">점수·단계, 오늘의 목표 3가지, 지금 할 일을 보여 줍니다.</string>
 </resources>

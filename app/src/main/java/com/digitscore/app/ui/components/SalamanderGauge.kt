@@ -7,6 +7,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -93,5 +95,36 @@ fun DrawScope.drawSalamanderGauge(score: Float, tier: ScoreTier, heads: GaugeHea
         }
         // 가운데 막대 (단계 색)
         drawRoundRect(tone.stem, Offset(C.x - 13f, 114f), Size(26f, 64f), CornerRadius(13f, 13f))
+    }
+}
+
+/** 앱 밖(위젯·알림)에서 쓰는 도룡뇽 게이지 그림. 대시보드 게이지와 같은 그리기 코드를 씁니다. */
+object SalamanderGaugeBitmap {
+    @Volatile private var cached: GaugeHeads? = null
+
+    private fun heads(context: android.content.Context): GaugeHeads = cached ?: run {
+        val res = context.resources
+        fun load(id: Int) = android.graphics.BitmapFactory.decodeResource(res, id,
+            android.graphics.BitmapFactory.Options().apply { inScaled = false }).asImageBitmap()
+        GaugeHeads(
+            mapOf(
+                ScoreTier.STABLE to load(R.drawable.gauge_head_stable),
+                ScoreTier.FAIR to load(R.drawable.gauge_head_fair),
+                ScoreTier.CAUTION to load(R.drawable.gauge_head_caution),
+                ScoreTier.REST to load(R.drawable.gauge_head_rest)
+            )
+        ).also { cached = it }
+    }
+
+    fun create(context: android.content.Context, score: Int, sizePx: Int): android.graphics.Bitmap {
+        val image = ImageBitmap(sizePx, sizePx)
+        val scope = androidx.compose.ui.graphics.drawscope.CanvasDrawScope()
+        scope.draw(
+            androidx.compose.ui.unit.Density(1f), androidx.compose.ui.unit.LayoutDirection.Ltr,
+            androidx.compose.ui.graphics.Canvas(image), Size(sizePx.toFloat(), sizePx.toFloat())
+        ) {
+            drawSalamanderGauge(score.coerceIn(0, 100).toFloat(), ScoreTier.fromScore(score.coerceIn(1, 100)), heads(context))
+        }
+        return image.asAndroidBitmap()
     }
 }

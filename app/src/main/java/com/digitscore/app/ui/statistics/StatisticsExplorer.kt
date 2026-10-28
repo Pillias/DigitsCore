@@ -409,7 +409,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                     label("기록 없음", "No score record")
                                 } else label("점수 ${points(displayed ?: 80.0)}P", "Score ${points(displayed ?: 80.0)}P")
                                 val usageInfo = label("화면 ${minutes(selected.usage ?: 0L)} (관리 ${minutes(selected.managed)})", "Screen ${minutes(selected.usage ?: 0L)} (${minutes(selected.managed)})")
-                                val unlockInfo = label("잠금 ${selected.unlocks ?: 0}x (${selected.shortOpens}x)", "Unlocks ${selected.unlocks ?: 0}x (${selected.shortOpens}x)")
+                                val unlockInfo = label("잠금 ${selected.unlocks ?: 0}회 (${selected.shortOpens}회)", "Unlocks ${selected.unlocks ?: 0} (${selected.shortOpens})")
                                 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
  androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                     Text(
@@ -444,7 +444,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                                 Text(label("최저 ", "Low ") + points(lowScore), fontSize = DigitsTextSize.caption, color = ScoreRedText, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
                                             }
                                             Text(
-                                                text = label("화면 ${minutes(totalU)} · 잠금 ${totalO}x", "Screen ${minutes(totalU)} · ${totalO}x"),
+                                                text = label("화면 ${minutes(totalU)} · 잠금 ${totalO}회", "Screen ${minutes(totalU)} · ${totalO} unlocks"),
                                                 fontSize = DigitsTextSize.caption,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 fontWeight = FontWeight.Medium,
@@ -466,7 +466,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                             val avgUsage = if (buckets.isNotEmpty()) buckets.sumOf { it.usage ?: 0L } / activePeriodDays else 0L
                                             val avgUnlocks = if (buckets.isNotEmpty()) (buckets.sumOf { it.unlocks ?: 0 }.toFloat() / activePeriodDays).roundToInt() else 0
                                             Text(
-                                                text = label("일 평균 ${minutes(avgUsage)} · ${avgUnlocks}x", "Daily ${minutes(avgUsage)} · ${avgUnlocks}x"),
+                                                text = label("일 평균 ${minutes(avgUsage)} · ${avgUnlocks}회", "Daily ${minutes(avgUsage)} · ${avgUnlocks} unlocks"),
                                                 fontSize = DigitsTextSize.caption,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 fontWeight = FontWeight.Medium,
@@ -678,13 +678,13 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                 )
                                 SmallMetric(
                                     title = label("총 잠금 해제", "Total Unlocks"),
-                                    value = if (unlockKnown) "${totalUnlocks}x" else "—",
-                                    subtext = if (unlockKnown && totalUnlocks > 0) label("시간당 ${(totalUnlocks / 24f).roundToInt()}x", "${(totalUnlocks / 24f).roundToInt()}/hr") else null,
+                                    value = if (unlockKnown) "${totalUnlocks}${com.digitscore.app.i18n.countUnit()}" else "—",
+                                    subtext = if (unlockKnown && totalUnlocks > 0) label("시간당 ${(totalUnlocks / 24f).roundToInt()}회", "${(totalUnlocks / 24f).roundToInt()}/hr") else null,
                                     modifier = Modifier.weight(1f).fillMaxHeight()
                                 )
                                 SmallMetric(
                                     title = label("짧은 확인", "Quick checks"),
-                                    value = if (unlockKnown) "${habitualUnlocks}x" else "—",
+                                    value = if (unlockKnown) "${habitualUnlocks}${com.digitscore.app.i18n.countUnit()}" else "—",
                                     subtext = if (unlockKnown && totalUnlocks > 0) label("7초내 종료 ${habitualPercent}%", "≤7s close ${habitualPercent}%") else null,
                                     modifier = Modifier.weight(1f).fillMaxHeight()
                                 )
@@ -703,13 +703,13 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                 )
                                 SmallMetric(
                                     title = label("일 평균 잠금 해제", "Daily Unlocks"),
-                                    value = if (unlockKnown) "${dailyAvgUnlocks}x" else "—",
-                                    subtext = if (unlockKnown) label("4주 총 ${totalUnlocks}x", "Total ${totalUnlocks}x") else null,
+                                    value = if (unlockKnown) "${dailyAvgUnlocks}${com.digitscore.app.i18n.countUnit()}" else "—",
+                                    subtext = if (unlockKnown) label("4주 총 ${totalUnlocks}회", "Total ${totalUnlocks}") else null,
                                     modifier = Modifier.weight(1f).fillMaxHeight()
                                 )
                                 SmallMetric(
                                     title = label("일 평균 짧은 확인", "Daily Quick checks"),
-                                    value = if (unlockKnown) "${dailyAvgHabitual}x" else "—",
+                                    value = if (unlockKnown) "${dailyAvgHabitual}${com.digitscore.app.i18n.countUnit()}" else "—",
                                     subtext = if (unlockKnown && totalUnlocks > 0) label("7초내 종료 ${habitualPercent}%", "≤7s close ${habitualPercent}%") else null,
                                     modifier = Modifier.weight(1f).fillMaxHeight()
                                 )
@@ -897,26 +897,26 @@ private fun appValue(app: ExplorerApp, mode: Int) = when (mode) {
                 val subtitle = when {
                     mode == 1 -> if (isPeriod) label("일 평균 −${points((app.loss ?: 0.0) / daysCount)} (총 −${points(app.loss ?: 0.0)})", "Daily −${points((app.loss ?: 0.0) / daysCount)}")
                                  else label("실제 감점 기여", "Recorded score loss")
-                    mode == 3 -> if (isPeriod) label("처음 연 앱 총 ${app.firstAfterUnlockCount}x", "Total ${app.firstAfterUnlockCount}x first opened")
+                    mode == 3 -> if (isPeriod) label("처음 연 앱 총 ${app.firstAfterUnlockCount}회", "Total ${app.firstAfterUnlockCount} first opened")
                                  else label("잠금 해제 후 처음 연 앱", "First app opened after unlock")
-                    mode == 4 -> if (isPeriod) label("알림 잠금 해제 총 ${app.notificationUnlockCount}x", "Total ${app.notificationUnlockCount}x notification unlocks")
+                    mode == 4 -> if (isPeriod) label("알림 잠금 해제 총 ${app.notificationUnlockCount}회", "Total ${app.notificationUnlockCount} notification unlocks")
                                  else label("알림이 부른 잠금 해제", "Notification-triggered unlock")
                     isPeriod -> label(
-                        "일 ${(app.opens.toFloat() / daysCount).roundToInt()}x · 짧은 확인 ${(app.shortOpens.toFloat() / daysCount).roundToInt()}x (총 ${app.opens}x)",
-                        "Daily ${(app.opens.toFloat() / daysCount).roundToInt()}x · Brief ${(app.shortOpens.toFloat() / daysCount).roundToInt()}x (Total ${app.opens}x)"
+                        "일 ${(app.opens.toFloat() / daysCount).roundToInt()}회 · 짧은 확인 ${(app.shortOpens.toFloat() / daysCount).roundToInt()}회 (총 ${app.opens}회)",
+                        "Daily ${(app.opens.toFloat() / daysCount).roundToInt()} · Brief ${(app.shortOpens.toFloat() / daysCount).roundToInt()} (Total ${app.opens})"
                     )
                     else -> label(
-                        "${app.opens}x · 짧은 확인 ${app.shortOpens}x",
-                        "${app.opens}x · Brief ${app.shortOpens}x"
+                        "${app.opens}회 · 짧은 확인 ${app.shortOpens}회",
+                        "${app.opens} opens · Brief ${app.shortOpens}"
                     )
                 }
                 Text(subtitle, fontSize = DigitsTextSize.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             val valueText = when (mode) {
                 1 -> if (isPeriod) label("일 −${points((app.loss ?: 0.0) / daysCount)}", "−${points((app.loss ?: 0.0) / daysCount)}/day") else "−${points(app.loss ?: 0.0)}"
-                2 -> if (isPeriod) label("일 ${(app.opens.toFloat() / daysCount).roundToInt()}x", "${(app.opens.toFloat() / daysCount).roundToInt()}x/day") else "${app.opens}x"
-                3 -> if (isPeriod) label("일 ${(app.firstAfterUnlockCount.toFloat() / daysCount).roundToInt()}x", "${(app.firstAfterUnlockCount.toFloat() / daysCount).roundToInt()}x/day") else "${app.firstAfterUnlockCount}x"
-                4 -> if (isPeriod) label("일 ${(app.notificationUnlockCount.toFloat() / daysCount).roundToInt()}x", "${(app.notificationUnlockCount.toFloat() / daysCount).roundToInt()}x/day") else "${app.notificationUnlockCount}x"
+                2 -> if (isPeriod) label("일 ${(app.opens.toFloat() / daysCount).roundToInt()}회", "${(app.opens.toFloat() / daysCount).roundToInt()}/day") else "${app.opens}${com.digitscore.app.i18n.countUnit()}"
+                3 -> if (isPeriod) label("일 ${(app.firstAfterUnlockCount.toFloat() / daysCount).roundToInt()}회", "${(app.firstAfterUnlockCount.toFloat() / daysCount).roundToInt()}/day") else "${app.firstAfterUnlockCount}${com.digitscore.app.i18n.countUnit()}"
+                4 -> if (isPeriod) label("일 ${(app.notificationUnlockCount.toFloat() / daysCount).roundToInt()}회", "${(app.notificationUnlockCount.toFloat() / daysCount).roundToInt()}/day") else "${app.notificationUnlockCount}${com.digitscore.app.i18n.countUnit()}"
                 else -> if (isPeriod) label("일 ${minutes(app.usage / daysCount)}", "${minutes(app.usage / daysCount)}/day") else minutes(app.usage)
             }
             Text(valueText, color = color, fontWeight = FontWeight.Bold)
@@ -1361,7 +1361,7 @@ private fun ExplorerChart(
                             color = android.graphics.Color.parseColor("#38BDF8")
                             textSize = DigitsTextSize.micro.toPx()
                         }
-                        val avgOpensLabel = label("4주 평균 ${avgOpens.roundToInt()}x", "4W Avg ${avgOpens.roundToInt()}x")
+                        val avgOpensLabel = label("4주 평균 ${avgOpens.roundToInt()}회", "4W Avg ${avgOpens.roundToInt()}")
                         drawContext.canvas.nativeCanvas.drawText(avgOpensLabel, (size.width - 65.dp.toPx()).coerceAtLeast(4.dp.toPx()), avgOpensY - 3.dp.toPx(), avgOpensPaint)
                     }
 
@@ -1459,7 +1459,7 @@ private fun ExplorerChart(
                 LazyColumn(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                     item { Text("${dateLabel(start)} – ${dateLabel(end)}", color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        SmallMetric(label("사용 시간", "Usage"), minutes(app.usage)); SmallMetric(label("실행", "Opens"), "${app.opens}x"); SmallMetric(label("짧은 확인", "Brief"), "${app.shortOpens}x")
+                        SmallMetric(label("사용 시간", "Usage"), minutes(app.usage)); SmallMetric(label("실행", "Opens"), "${app.opens}${com.digitscore.app.i18n.countUnit()}"); SmallMetric(label("짧은 확인", "Brief"), "${app.shortOpens}${com.digitscore.app.i18n.countUnit()}")
                     } }
                     item { Text(label("기록된 감점", "Recorded loss"), fontWeight = FontWeight.Bold)
                         Text(app.loss?.let { "−${points(it)}" } ?: "—", fontSize = DigitsTextSize.displayLarge, color = ScoreRedText, fontWeight = FontWeight.Bold)

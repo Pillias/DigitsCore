@@ -475,7 +475,7 @@ fun PresetModeScreen(
                                                     isLanguageMenuExpanded = false
                                                     scope.launch {
                                                         AppLocale.saveLanguage(context, code)
-                                                        ScoreWidget().updateAll(context)
+                                                        com.digitscore.app.widget.DigitsWidgets.updateAll(context)
                                                         AppLocale.applyLanguage(context as Activity, code)
                                                     }
                                                 }
@@ -597,7 +597,7 @@ fun PresetModeScreen(
                                                             settings.copy(widgetBackgroundStyleId = style.id)
                                                         )
                                                     }
-                                                    ScoreWidget().updateAll(context)
+                                                    com.digitscore.app.widget.DigitsWidgets.updateAll(context)
                                                 }
                                             },
                                             trailingIcon = if (selectedWidgetBackground == style) {
@@ -1554,7 +1554,7 @@ fun PresetModeScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = if (isEn) "Daily Target Unlock Limit: ${settings.targetUnlockCount}x" else "일일 목표 잠금 해제 제한: ${settings.targetUnlockCount}x",
+                            text = if (isEn) "Daily Target Unlock Limit: ${settings.targetUnlockCount}" else "일일 목표 잠금 해제 제한: ${settings.targetUnlockCount}회",
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground,
                             fontSize = DigitsTextSize.bodyLarge

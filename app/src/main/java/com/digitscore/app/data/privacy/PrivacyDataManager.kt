@@ -81,7 +81,7 @@ object PrivacyDataManager {
         ScoreRepository.updateYesterdayGoalResult(null)
         ScoreRepository.updateRewardState(com.digitscore.app.model.GoalRewardState())
         ScoreRepository.updateMeasurementDiagnostics(com.digitscore.app.data.MeasurementDiagnostics())
-        runCatching { ScoreWidget().updateAll(appContext) }
+        runCatching { com.digitscore.app.widget.DigitsWidgets.updateAll(appContext) }
         DataBackupManager.cleanupStaleBackups(appContext, maxAgeMillis = 0L)
     }
 }

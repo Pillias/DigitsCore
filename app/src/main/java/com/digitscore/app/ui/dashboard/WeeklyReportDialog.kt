@@ -302,26 +302,26 @@ fun WeeklyReportDialog(
                                 }
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text(text = if (isEn) "Daily Unlocks" else "하루 잠금 해제", fontSize = DigitsTextSize.body)
-                                    Text(text = "${report.avgUnlockCount}x", fontSize = DigitsTextSize.body, fontWeight = FontWeight.Bold)
+                                    Text(text = "${report.avgUnlockCount}${com.digitscore.app.i18n.countUnit()}", fontSize = DigitsTextSize.body, fontWeight = FontWeight.Bold)
                                 }
                                 report.unlockDiffCount?.let { diff ->
                                     val prefix = if (diff >= 0) "+" else ""
                                     val diffColor = if (diff <= 0) ScoreGreenText else ScoreRedText
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                         Text(text = if (isEn) "Change vs Prior Week" else "지난주 대비 변화", fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
-                                        Text(text = "$prefix${diff}x", fontSize = DigitsTextSize.caption, fontWeight = FontWeight.Bold, color = diffColor)
+                                        Text(text = "$prefix${diff}${com.digitscore.app.i18n.countUnit()}", fontSize = DigitsTextSize.caption, fontWeight = FontWeight.Bold, color = diffColor)
                                     }
                                 }
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text(text = if (isEn) "Daily Quick Glances" else "하루 짧은 확인", fontSize = DigitsTextSize.body)
-                                    Text(text = "${report.avgShortSessionCount}x", fontSize = DigitsTextSize.body, fontWeight = FontWeight.Bold)
+                                    Text(text = "${report.avgShortSessionCount}${com.digitscore.app.i18n.countUnit()}", fontSize = DigitsTextSize.body, fontWeight = FontWeight.Bold)
                                 }
                                 report.shortSessionDiffCount?.let { diff ->
                                     val prefix = if (diff >= 0) "+" else ""
                                     val diffColor = if (diff <= 0) ScoreGreenText else ScoreRedText
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                         Text(text = if (isEn) "Change vs Prior Week" else "지난주 대비 변화", fontSize = DigitsTextSize.caption, color = MaterialTheme.colorScheme.outline)
-                                        Text(text = "$prefix${diff}x", fontSize = DigitsTextSize.caption, fontWeight = FontWeight.Bold, color = diffColor)
+                                        Text(text = "$prefix${diff}${com.digitscore.app.i18n.countUnit()}", fontSize = DigitsTextSize.caption, fontWeight = FontWeight.Bold, color = diffColor)
                                     }
                                 }
                             }
@@ -371,11 +371,11 @@ fun WeeklyReportDialog(
                                     )
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                         Text(text = if (isEn) "15min More" else "15min 더", fontSize = DigitsTextSize.caption)
-                                        Text(text = "${report.more15MinCount}x", fontSize = DigitsTextSize.caption, fontWeight = FontWeight.Bold)
+                                        Text(text = "${report.more15MinCount}${com.digitscore.app.i18n.countUnit()}", fontSize = DigitsTextSize.caption, fontWeight = FontWeight.Bold)
                                     }
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                         Text(text = if (isEn) "Done for Today" else "오늘은 여기까지", fontSize = DigitsTextSize.caption)
-                                        Text(text = "${report.stopForTodayCount}x", fontSize = DigitsTextSize.caption, fontWeight = FontWeight.Bold)
+                                        Text(text = "${report.stopForTodayCount}${com.digitscore.app.i18n.countUnit()}", fontSize = DigitsTextSize.caption, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }

@@ -100,7 +100,13 @@ class MainActivity : ComponentActivity() {
         }
         if (BuildConfig.DEBUG && intent?.getBooleanExtra("pin_widget", false) == true) {
             val appWidgetManager = getSystemService(android.appwidget.AppWidgetManager::class.java)
-            val myProvider = android.content.ComponentName(this, com.digitscore.app.widget.ScoreWidgetReceiver::class.java)
+            val receiver = when (intent.getStringExtra("widget_kind")) {
+                "1x1" -> com.digitscore.app.widget.ScoreWidgetSmallReceiver::class.java
+                "2x1" -> com.digitscore.app.widget.ScoreWidgetBarReceiver::class.java
+                "4x2" -> com.digitscore.app.widget.ScoreWidgetLargeReceiver::class.java
+                else -> com.digitscore.app.widget.ScoreWidgetReceiver::class.java
+            }
+            val myProvider = android.content.ComponentName(this, receiver)
             if (appWidgetManager != null && appWidgetManager.isRequestPinAppWidgetSupported) {
                 appWidgetManager.requestPinAppWidget(myProvider, null, null)
             }

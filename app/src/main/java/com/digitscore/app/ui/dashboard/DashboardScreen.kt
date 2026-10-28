@@ -893,7 +893,7 @@ private fun ThreeGoalsDashboardCard(
                     }
                 }
 
-                // 3칸 (잠금 해제): LockOpen ${unlockCount}/${unlockLimit}x + 달성 시 체크 아이콘
+                // 3칸 (잠금 해제): LockOpen ${unlockCount}/${unlockLimit}회 + 달성 시 체크 아이콘
                 Surface(
                     onClick = { goalDetail = GoalKind.UNLOCK },
                     shape = DigitsShape.sm,
@@ -914,7 +914,7 @@ private fun ThreeGoalsDashboardCard(
                         )
                         Spacer(modifier = Modifier.width(3.dp))
                         Text(
-                            text = "${unlockCount}/${unlockLimit}x",
+                            text = "${unlockCount}/${unlockLimit}${com.digitscore.app.i18n.countUnit()}",
                             fontSize = DigitsTextSize.caption,
                             fontWeight = FontWeight.Bold,
                             color = tint,
@@ -1343,9 +1343,9 @@ private fun ThreeGoalsDetailDialog(
                             }
                             Text(
                                 text = if (isUnlockExceeded) {
-                                    "${unlockCount} / ${unlockLimit}x (+${unlockCount - unlockLimit}x)"
+                                    "${unlockCount} / ${unlockLimit}${com.digitscore.app.i18n.countUnit()} (+${unlockCount - unlockLimit}${com.digitscore.app.i18n.countUnit()})"
                                 } else {
-                                    "${unlockCount} / ${unlockLimit}x (${(unlockRatio * 100).toInt()}%)"
+                                    "${unlockCount} / ${unlockLimit}${com.digitscore.app.i18n.countUnit()} (${(unlockRatio * 100).toInt()}%)"
                                 },
                                 fontSize = DigitsTextSize.label,
                                 fontWeight = FontWeight.Medium,
@@ -1686,7 +1686,7 @@ private fun EditThreeGoalsDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(if (isEn) "3. Unlock limit" else "3. 잠금 해제 한도", fontWeight = FontWeight.Bold, fontSize = DigitsTextSize.body)
-                        Text("${selectedUnlockLimit}x", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = DigitsTextSize.bodyLarge)
+                        Text("${selectedUnlockLimit}${com.digitscore.app.i18n.countUnit()}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = DigitsTextSize.bodyLarge)
                     }
                     GoalRangeSlider(
                         value = selectedUnlockLimit,
@@ -2386,8 +2386,8 @@ private fun GuidanceDetailDialog(
                 }
                 InsightCard(if (isEn) "Today's Summary (since 05:00)" else "오늘 요약 (05:00 기준)") {
                     Text(
-                        if (isEn) "Screen ${formatMinutesToHoursAndMinutes(guidance.rollingUsageMinutes)} · Unlocks ${guidance.rollingUnlockCount}x"
-                        else "화면 ${formatMinutesToHoursAndMinutes(guidance.rollingUsageMinutes)} · 잠금 해제 ${guidance.rollingUnlockCount}x",
+                        if (isEn) "Screen ${formatMinutesToHoursAndMinutes(guidance.rollingUsageMinutes)} · Unlocks ${guidance.rollingUnlockCount}"
+                        else "화면 ${formatMinutesToHoursAndMinutes(guidance.rollingUsageMinutes)} · 잠금 해제 ${guidance.rollingUnlockCount}회",
                         fontSize = DigitsTextSize.label,
                         fontWeight = FontWeight.Medium
                     )
@@ -2647,7 +2647,7 @@ private fun ScoreStatsRow(
             )
             StatisticCard(
                 label = if (isEn) "Unlocks" else "잠금 해제",
-                value = "${unlockCount}x",
+                value = "${unlockCount}${com.digitscore.app.i18n.countUnit()}",
                 caption = effect(breakdown.unlocks),
                 captionColor = pointsColor(breakdown.unlocks),
                 icon = Icons.Rounded.LockOpen,
@@ -2675,7 +2675,7 @@ private fun ScoreStatsRow(
             )
             StatisticCard(
                 label = if (isEn) "Unlocks" else "잠금 해제",
-                value = "${unlockCount}x",
+                value = "${unlockCount}${com.digitscore.app.i18n.countUnit()}",
                 icon = Icons.Rounded.LockOpen,
                 onClick = onUnlockClick,
                 modifier = Modifier.weight(1f).fillMaxHeight()
@@ -2804,7 +2804,7 @@ private fun AppUsageItemCard(appUsage: AppUsage, onClick: () -> Unit) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = appUsage.appName, fontSize = DigitsTextSize.bodyLarge, fontWeight = FontWeight.Bold)
                 Text(
-                    text = "${appUsage.categoryType.displayName} · ${if (isEn) "Today" else "오늘"} ${appUsage.sessionCount}x",
+                    text = "${appUsage.categoryType.displayName} · ${if (isEn) "Today" else "오늘"} ${appUsage.sessionCount}${com.digitscore.app.i18n.countUnit()}",
                     fontSize = DigitsTextSize.caption,
                     color = categoryColor
                 )
@@ -3129,7 +3129,7 @@ fun ScreenTimeDetailDialog(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = app.appName, fontWeight = FontWeight.Medium, fontSize = DigitsTextSize.body)
                             Text(
-                                text = "${app.categoryType.displayName} · ${if (isEn) "Today" else "오늘"} ${app.sessionCount}x",
+                                text = "${app.categoryType.displayName} · ${if (isEn) "Today" else "오늘"} ${app.sessionCount}${com.digitscore.app.i18n.countUnit()}",
                                 fontSize = DigitsTextSize.caption,
                                 color = appRatingColor(app.categoryType)
                             )
@@ -3281,8 +3281,8 @@ fun UnlockDetailDialog(
                                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Box(modifier = Modifier.size(8.dp).background(ScoreYellow, CircleShape))
                                     Text(
-                                        if (isEn) "Quick Glance: ${glanceCount}x (${(glanceRatio * 100).toInt()}%)"
-                                        else "짧은 확인: ${glanceCount}x (${(glanceRatio * 100).toInt()}%)",
+                                        if (isEn) "Quick Glance: ${glanceCount} (${(glanceRatio * 100).toInt()}%)"
+                                        else "짧은 확인: ${glanceCount}회 (${(glanceRatio * 100).toInt()}%)",
                                         fontSize = DigitsTextSize.caption,
                                         fontWeight = FontWeight.Medium
                                     )
@@ -3290,8 +3290,8 @@ fun UnlockDetailDialog(
                                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Box(modifier = Modifier.size(8.dp).background(ScoreGreen, CircleShape))
                                     Text(
-                                        if (isEn) "App Usage: ${appUnlocks}x"
-                                        else "앱 사용: ${appUnlocks}x",
+                                        if (isEn) "App Usage: ${appUnlocks}"
+                                        else "앱 사용: ${appUnlocks}회",
                                         fontSize = DigitsTextSize.caption,
                                         fontWeight = FontWeight.Medium
                                     )
@@ -3319,9 +3319,9 @@ fun UnlockDetailDialog(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Text(if (isEn) "14d Low: ${value.past14DaysLowestUnlock}x" else "14일 최저: ${value.past14DaysLowestUnlock}x", fontSize = DigitsTextSize.label, fontWeight = FontWeight.Medium, color = ScoreGreenText)
-                                    Text(if (isEn) "Daily Avg: ${value.past14DaysAverageUnlock}x" else "일평균: ${value.past14DaysAverageUnlock}x", fontSize = DigitsTextSize.label, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
-                                    Text(if (isEn) "Today: ${unlockCount}x" else "오늘: ${unlockCount}x", fontSize = DigitsTextSize.label, fontWeight = FontWeight.Bold, color = ScoreYellowText)
+                                    Text(if (isEn) "14d Low: ${value.past14DaysLowestUnlock}" else "14일 최저: ${value.past14DaysLowestUnlock}회", fontSize = DigitsTextSize.label, fontWeight = FontWeight.Medium, color = ScoreGreenText)
+                                    Text(if (isEn) "Daily Avg: ${value.past14DaysAverageUnlock}" else "일평균: ${value.past14DaysAverageUnlock}회", fontSize = DigitsTextSize.label, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
+                                    Text(if (isEn) "Today: ${unlockCount}" else "오늘: ${unlockCount}회", fontSize = DigitsTextSize.label, fontWeight = FontWeight.Bold, color = ScoreYellowText)
                                 }
                                 Text(
                                     text = if (isEn) "Use your lowest recent count (${value.past14DaysLowestUnlock} unlocks) as a benchmark to gradually reduce daily unlock goals."
@@ -3381,8 +3381,8 @@ fun UnlockDetailDialog(
                                 Text(if (isEn) "This Android version does not support notification event comparison." else "이 Android 버전은 알림 이벤트 비교를 제공하지 않습니다.", fontSize = DigitsTextSize.body)
                             } else {
                                 Text(
-                                    if (isEn) "OS Notifications: ${value.notificationCount} · Unlocks: ${unlockCount}x"
-                                    else "받은 알림 ${value.notificationCount}건 · 잠금 해제 ${unlockCount}x",
+                                    if (isEn) "OS Notifications: ${value.notificationCount} · Unlocks: ${unlockCount}"
+                                    else "받은 알림 ${value.notificationCount}건 · 잠금 해제 ${unlockCount}회",
                                     fontSize = DigitsTextSize.body,
                                     fontWeight = FontWeight.Medium
                                 )
@@ -3400,8 +3400,8 @@ fun UnlockDetailDialog(
                                 val comparison = when {
                                     value.notificationCount > 0 -> {
                                         val ratio = unlockCount.toFloat() / value.notificationCount
-                                        if (isEn) "Unlocked ~${String.format(Locale.US, "%.1f", ratio)}x per notification."
-                                        else "알림 1건당 약 ${String.format(Locale.US, "%.1f", ratio)}x 잠금 해제했습니다."
+                                        if (isEn) "Unlocked ~${String.format(Locale.US, "%.1f", ratio)} times per notification."
+                                        else "알림 1건당 약 ${String.format(Locale.US, "%.1f", ratio)}회 잠금 해제했습니다."
                                     }
                                     unlockCount > 0 -> if (isEn) "Unlocked ${unlockCount} times without any received notifications."
                                         else "받은 알림 없이도 ${unlockCount}회 잠금 해제했습니다."
@@ -3447,14 +3447,14 @@ fun UnlockDetailDialog(
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(appName, fontSize = DigitsTextSize.body, fontWeight = FontWeight.Medium)
                                             Text(
-                                                text = if (isEn) "Quick glance: ${item.firstAfterUnlockQuickCount}x"
+                                                text = if (isEn) "Quick glance: ${item.firstAfterUnlockQuickCount}"
                                                 else "짧은 확인: ${item.firstAfterUnlockQuickCount}회",
                                                 fontSize = DigitsTextSize.caption,
                                                 color = MaterialTheme.colorScheme.outline
                                             )
                                         }
                                         Text(
-                                            text = if (isEn) "${item.firstAfterUnlockCount}x" else "${item.firstAfterUnlockCount}회",
+                                            text = if (isEn) "${item.firstAfterUnlockCount}${com.digitscore.app.i18n.countUnit()}" else "${item.firstAfterUnlockCount}회",
                                             fontSize = DigitsTextSize.body,
                                             fontWeight = FontWeight.Bold
                                         )
@@ -3522,7 +3522,7 @@ fun UnlockDetailDialog(
                                     ) {
                                         Text(appName, modifier = Modifier.weight(1f), fontSize = DigitsTextSize.body, fontWeight = FontWeight.Medium)
                                         Text(
-                                            text = if (isEn) "${item.notificationUnlockCount}x" else "${item.notificationUnlockCount}회",
+                                            text = if (isEn) "${item.notificationUnlockCount}${com.digitscore.app.i18n.countUnit()}" else "${item.notificationUnlockCount}회",
                                             fontSize = DigitsTextSize.body,
                                             fontWeight = FontWeight.Bold
                                         )
@@ -3560,7 +3560,7 @@ fun UnlockDetailDialog(
                                     ) {
                                         Text(appName, modifier = Modifier.weight(1f), fontSize = DigitsTextSize.body, fontWeight = FontWeight.Medium)
                                         Text(
-                                            text = if (isEn) "${item.notificationCount}x" else "${item.notificationCount}회",
+                                            text = if (isEn) "${item.notificationCount}${com.digitscore.app.i18n.countUnit()}" else "${item.notificationCount}회",
                                             fontSize = DigitsTextSize.body,
                                             fontWeight = FontWeight.Bold
                                         )
@@ -3685,8 +3685,8 @@ fun DistractingDetailDialog(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(text = app.appName, fontWeight = FontWeight.Bold, fontSize = DigitsTextSize.body)
                                 Text(
-                                    text = if (isEn) "Today ${app.sessionCount}x · Quick ${app.shortSessionCount}x"
-                                    else "오늘 ${app.sessionCount}x · 짧은 확인 ${app.shortSessionCount}x",
+                                    text = if (isEn) "Today ${app.sessionCount} · Quick ${app.shortSessionCount}"
+                                    else "오늘 ${app.sessionCount}회 · 짧은 확인 ${app.shortSessionCount}회",
                                     fontSize = DigitsTextSize.tiny,
                                     color = MaterialTheme.colorScheme.outline
                                 )
@@ -3759,7 +3759,7 @@ fun AllAppsUsageDialog(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = app.appName, fontWeight = FontWeight.Medium, fontSize = DigitsTextSize.body)
                             Text(
-                                text = "${app.categoryType.displayName} · ${if (isEn) "Today" else "오늘"} ${app.sessionCount}x",
+                                text = "${app.categoryType.displayName} · ${if (isEn) "Today" else "오늘"} ${app.sessionCount}${com.digitscore.app.i18n.countUnit()}",
                                 fontSize = DigitsTextSize.caption,
                                 color = appRatingColor(app.categoryType)
                             )
@@ -4006,8 +4006,8 @@ private fun AppSessionInsight(insights: AppUsageInsights) {
             }
         }
         Text(
-            if (isEn) "${sessions.size}x · avg ${formatInsightDuration(average)} · max ${formatInsightDuration(longest)}"
-            else "${sessions.size}x · 평균 ${formatInsightDuration(average)} · 최장 ${formatInsightDuration(longest)}",
+            if (isEn) "${sessions.size} sessions · avg ${formatInsightDuration(average)} · max ${formatInsightDuration(longest)}"
+            else "${sessions.size}회 · 평균 ${formatInsightDuration(average)} · 최장 ${formatInsightDuration(longest)}",
             fontSize = DigitsTextSize.label,
             fontWeight = FontWeight.Medium
         )
@@ -4036,8 +4036,8 @@ private fun AppOpenTrendInsight(insights: AppUsageInsights) {
         val rollingSessions = insights.sessionDurationsMillis
         val rollingShortCount = rollingSessions.count { it in 1 until com.digitscore.app.data.HABITUAL_CHECK_THRESHOLD_MILLIS }
         Text(
-            if (isEn) "Today: ${rollingSessions.size}x opens · ${rollingShortCount}x quick checks"
-            else "오늘 ${rollingSessions.size}x · 짧은 확인 ${rollingShortCount}x",
+            if (isEn) "Today: ${rollingSessions.size} opens · ${rollingShortCount} quick checks"
+            else "오늘 ${rollingSessions.size}회 · 짧은 확인 ${rollingShortCount}회",
             fontSize = DigitsTextSize.label,
             fontWeight = FontWeight.Medium
         )
