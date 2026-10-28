@@ -33,8 +33,8 @@ import com.digitscore.app.ui.theme.ScoreRed
 import com.digitscore.app.ui.theme.ScoreYellow
 
 /**
- * 전원 버튼(Power Symbol) 형상으로 빨간색 바탕 원호를 점수 비율만큼 녹색이 덮으며,
- * 중앙 막대는 점수 구간 상태색을 사용합니다.
+ * 앱 아이콘과 같은 모양: 도룡뇽 몸이 점수 비율만큼 빨간 링을 덮고, 머리가 그 끝에서 빨간 링을 먹습니다.
+ * 중앙 막대와 도룡뇽 몸 색·표정은 점수 단계를 따릅니다.
  * 점수와 등급 텍스트는 아이콘 아래에 깔끔하게 분리 배치합니다.
  */
 @Composable
@@ -60,66 +60,10 @@ fun CoreIndexGauge(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // 정확한 전원 버튼 (Power Symbol) 아이콘: 빨간 바탕 링 위 녹색 점수 게이지 채움
+        // 앱 아이콘과 같은 도룡뇽 게이지: 몸이 지수만큼 링을 덮고, 아이콘의 머리 그림이 남은 빨간 링을 먹습니다.
+        val heads = rememberGaugeHeads()
         Canvas(modifier = Modifier.size(iconSize)) {
-            val w = size.width
-            val h = size.height
-            val cx = w / 2f
-            val cy = h / 2f
-            val strokeWidth = size.minDimension * 0.115f
-            val r = (size.minDimension - strokeWidth * 2.2f) / 2f
-
-            // 원형 아크: 상단에 60도 갭 (시작각 -60도에서 시계방향 300도 회전)
-            val startAngle = -60f
-            val sweepAngle = 300f
-            val arcTopLeft = Offset(cx - r, cy - r)
-            val arcSize = Size(r * 2f, r * 2f)
-
-            // 1. 빨간색 바탕 베이스 링 (전체 300도)
-            drawArc(
-                color = ScoreRed,
-                startAngle = startAngle,
-                sweepAngle = sweepAngle,
-                useCenter = false,
-                topLeft = arcTopLeft,
-                size = arcSize,
-                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
-            )
-
-            // 2. 점수 비율만큼 시계 방향으로 덮는 녹색 아크
-            if (animatedScore > 0f) {
-                drawArc(
-                    color = ScoreGreen,
-                    startAngle = startAngle,
-                    sweepAngle = sweepAngle * (animatedScore / 100f),
-                    useCenter = false,
-                    topLeft = arcTopLeft,
-                    size = arcSize,
-                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
-                )
-            }
-
-            // 3. 상단 수직 스템 막대 (전원 버튼 중앙 선)
-            val stemTop = cy - r * 1.15f
-            val stemBottom = cy - r * 0.08f
-
-            // 스템 배경 미세 발광
-            drawLine(
-                color = tierColor.copy(alpha = 0.2f),
-                start = Offset(cx, stemTop),
-                end = Offset(cx, stemBottom),
-                strokeWidth = strokeWidth * 1.3f,
-                cap = StrokeCap.Round
-            )
-
-            // 메인 스템 선 (현재 점수 티어 컬러)
-            drawLine(
-                color = tierColor,
-                start = Offset(cx, stemTop),
-                end = Offset(cx, stemBottom),
-                strokeWidth = strokeWidth,
-                cap = StrokeCap.Round
-            )
+            drawSalamanderGauge(animatedScore, com.digitscore.app.model.ScoreTier.fromScore(normalizedScore.coerceAtLeast(1)), heads)
         }
 
         Spacer(modifier = Modifier.height(4.dp))

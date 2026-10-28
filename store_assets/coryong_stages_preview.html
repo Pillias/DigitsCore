@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>코룡이 (Cormander) 1~4단계 성장 디자인 초안</title>
+<style>
+  :root {
+    --bg: #0D1117;
+    --card: #161B22;
+    --tile: #21262D;
+    --border: #30363D;
+    --text: #F0F6FC;
+    --sub: #8B949E;
+    --green: #2ECC71;
+    --mint: #6BF0A8;
+    --gold: #FFE066;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0;
+    padding: 40px 24px 64px;
+  }
+  .header {
+    max-width: 1180px;
+    margin: 0 auto 36px;
+    text-align: center;
+  }
+  .badge-pill {
+    display: inline-block;
+    background: rgba(46, 204, 113, 0.15);
+    color: var(--mint);
+    border: 1px solid rgba(107, 240, 168, 0.35);
+    border-radius: 999px;
+    padding: 5px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  h1 {
+    font-size: 28px;
+    margin: 0 0 10px;
+    letter-spacing: -0.02em;
+  }
+  p.lead {
+    color: var(--sub);
+    font-size: 15px;
+    line-height: 1.6;
+    margin: 0 auto;
+    max-width: 760px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(265px, 1fr));
+    gap: 24px;
+    max-width: 1180px;
+    margin: 0 auto 44px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    padding: 24px 20px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .stage-tag {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--bg);
+    background: var(--mint);
+    padding: 3px 10px;
+    border-radius: 999px;
+    margin-bottom: 14px;
+  }
+  .stage-tag.s4 {
+    background: linear-gradient(90deg, #FFE066, #6BF0A8);
+  }
+  .art-box {
+    width: 220px;
+    height: 220px;
+    background: radial-gradient(circle at 50% 45%, #1A2736 0%, #0E141C 100%);
+    border-radius: 48px;
+    border: 1px solid #263242;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 14px 34px rgba(0,0,0,0.45);
+    margin-bottom: 18px;
+  }
+  .art-box svg {
+    width: 200px;
+    height: 200px;
+  }
+  .card h2 {
+    font-size: 19px;
+    margin: 0 0 4px;
+    color: var(--text);
+  }
+  .card .en-name {
+    font-size: 13px;
+    color: var(--mint);
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .card ul {
+    text-align: left;
+    margin: 0;
+    padding: 0 0 0 18px;
+    color: #C9D1D9;
+    font-size: 13.5px;
+    line-height: 1.6;
+  }
+  .card ul li {
+    margin-bottom: 5px;
+  }
+  .section-box {
+    max-width: 1180px;
+    margin: 0 auto;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 26px 28px;
+  }
+  .section-box h3 {
+    margin: 0 0 12px;
+    font-size: 18px;
+    color: var(--mint);
+  }
+  .badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    margin-top: 16px;
+  }
+  .mini-chip {
+    background: var(--tile);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .mini-chip svg {
+    width: 36px;
+    height: 36px;
+  }
+  .mini-chip .lbl {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .mini-chip .sub {
+    font-size: 12px;
+    color: var(--sub);
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="badge-pill">DigitsCore Official Mascot Concept · v0.9.40</div>
+  <h1>코룡이 (Cormander) 1~4단계 성장 디자인 초안</h1>
+  <p class="lead">
+    스마트폰 화면을 끄고 쉴 때 빨간 피로도를 삼켜 내 안의 <strong>코어(Core)</strong>를 지키는 수호 도룡뇽입니다.<br>
+    연속 달성 일수(기본 · 7일 · 14일 · 30일)에 따라 <strong>올챙이형 아기 코룡</strong>에서 <strong>마스터 수호룡</strong>으로 자라납니다.
+  </p>
+</div>
+
+<div class="grid">
+  <!-- STAGE 1: 아기 코룡 -->
+  <div class="card">
+    <span class="stage-tag">1단계 · 기본 (0~6일)</span>
+    <div class="art-box">
+      <svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#58E898"/>
+            <stop offset="100%" stop-color="#2ECC71"/>
+          </linearGradient>
+        </defs>
+        <!-- Soft Aura -->
+        <circle cx="120" cy="126" r="64" fill="#2ECC71" opacity="0.10"/>
+        <!-- Short Tadpole Tail -->
+        <path d="M 135 148 Q 178 152 192 128 Q 186 108 152 122 Z" fill="#25B864"/>
+        <!-- 1 Pair of Sprout Gills (Left & Right) -->
+        <ellipse cx="64" cy="96" rx="16" ry="9" transform="rotate(-28 64 96)" fill="#6BF0A8"/>
+        <ellipse cx="152" cy="96" rx="16" ry="9" transform="rotate(28 152 96)" fill="#6BF0A8"/>
+        <!-- Tiny Front Paws Only (1 pair) -->
+        <ellipse cx="88" cy="166" rx="10" ry="15" transform="rotate(15 88 166)" fill="#22A85C"/>
+        <ellipse cx="132" cy="166" rx="10" ry="15" transform="rotate(-15 132 166)" fill="#22A85C"/>
+        <!-- Chubby Round Baby Body & Head -->
+        <ellipse cx="110" cy="142" rx="38" ry="30" fill="url(#g1)"/>
+        <circle cx="108" cy="104" r="42" fill="url(#g1)"/>
+        <!-- Belly Patch -->
+        <ellipse cx="108" cy="146" rx="24" ry="18" fill="#84F9BD" opacity="0.55"/>
+        <!-- Forehead Core Seed Dot -->
+        <circle cx="108" cy="76" r="5" fill="#BFFFD8"/>
+        <!-- Calm Happy Baby Eyes & Blush -->
+        <path d="M 86 104 Q 93 111 100 104" fill="none" stroke="#0D161F" stroke-width="4.2" stroke-linecap="round"/>
+        <path d="M 116 104 Q 123 111 130 104" fill="none" stroke="#0D161F" stroke-width="4.2" stroke-linecap="round"/>
+        <ellipse cx="80" cy="114" rx="7" ry="4.5" fill="#FF8A94" opacity="0.55"/>
+        <ellipse cx="136" cy="114" rx="7" ry="4.5" fill="#FF8A94" opacity="0.55"/>
+        <!-- Gentle Smile -->
+        <path d="M 101 118 Q 108 124 115 118" fill="none" stroke="#0D161F" stroke-width="3.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <h2>아기 코룡</h2>
+    <div class="en-name">Stage 1 · Baby Cormander</div>
+    <ul>
+      <li><strong>아가미 새싹 1쌍</strong>: 머리 양옆에 돋아난 작은 새싹형 돌기 1쌍</li>
+      <li><strong>올챙이형 체형</strong>: 작고 둥근 몸통과 짧은 앞발 1쌍, 아담한 꼬리</li>
+      <li><strong>코어 씨앗 점</strong>: 이마 중앙에 작게 맺힌 연두빛 코어 씨앗</li>
+    </ul>
+  </div>
+
+  <!-- STAGE 2: 새싹 코룡 -->
+  <div class="card">
+    <span class="stage-tag">2단계 · 연속 7일 달성</span>
+    <div class="art-box">
+      <svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#48EE96"/>
+            <stop offset="100%" stop-color="#28B865"/>
+          </linearGradient>
+        </defs>
+        <circle cx="120" cy="124" r="74" fill="#2ECC71" opacity="0.14"/>
+        <!-- Longer Tail with Translucent Fin -->
+        <path d="M 130 156 C 178 168 208 136 202 98 C 196 74 170 96 154 128 Z" fill="#6BF0A8" opacity="0.45"/>
+        <path d="M 132 152 C 170 158 194 134 190 106 C 186 90 168 106 148 132 Z" fill="#25B864"/>
+        <!-- 2 Pairs of Leaf Gill Frills -->
+        <ellipse cx="54" cy="86" rx="20" ry="9" transform="rotate(-32 54 86)" fill="#84F9BD"/>
+        <ellipse cx="52" cy="106" rx="17" ry="8" transform="rotate(-10 52 106)" fill="#58E898"/>
+        <ellipse cx="150" cy="86" rx="20" ry="9" transform="rotate(32 150 86)" fill="#84F9BD"/>
+        <ellipse cx="152" cy="106" rx="17" ry="8" transform="rotate(10 152 106)" fill="#58E898"/>
+        <!-- 4 Legs (Front & Hind Paws) -->
+        <ellipse cx="78" cy="168" rx="10" ry="16" transform="rotate(18 78 168)" fill="#1FA35B"/>
+        <ellipse cx="118" cy="172" rx="10" ry="16" transform="rotate(-8 118 172)" fill="#1FA35B"/>
+        <ellipse cx="148" cy="162" rx="10" ry="14" transform="rotate(-28 148 162)" fill="#1B8F4F"/>
+        <!-- Body & Head -->
+        <path d="M 74 132 C 72 168 138 174 152 142 C 158 124 134 114 102 118 Z" fill="url(#g2)"/>
+        <circle cx="102" cy="98" r="43" fill="url(#g2)"/>
+        <ellipse cx="106" cy="146" rx="28" ry="16" fill="#84F9BD" opacity="0.6"/>
+        <!-- Diamond Core Gem on Forehead -->
+        <polygon points="102,62 109,71 102,80 95,71" fill="#A8FFCE"/>
+        <!-- Eyes & Blush -->
+        <path d="M 80 96 Q 87 90 94 96" fill="none" stroke="#0D161F" stroke-width="4.2" stroke-linecap="round"/>
+        <path d="M 110 96 Q 117 90 124 96" fill="none" stroke="#0D161F" stroke-width="4.2" stroke-linecap="round"/>
+        <ellipse cx="74" cy="106" rx="7.5" ry="4.5" fill="#FF8A94" opacity="0.58"/>
+        <ellipse cx="130" cy="106" rx="7.5" ry="4.5" fill="#FF8A94" opacity="0.58"/>
+        <path d="M 94 110 Q 102 117 110 110" fill="none" stroke="#0D161F" stroke-width="3.6" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <h2>새싹 코룡</h2>
+    <div class="en-name">Stage 2 · Sprout Cormander</div>
+    <ul>
+      <li><strong>아가미 프릴 2쌍</strong>: 두 갈래로 풍성해진 잎사귀형 아가미 프릴</li>
+      <li><strong>네 다리 & 꼬리 지느러미</strong>: 앞·뒷다리가 모두 자라고 반투명 꼬리 지느러미 생성</li>
+      <li><strong>코어 보석 발현</strong>: 이마의 씨앗이 마름모꼴 민트 코어 보석으로 성장</li>
+    </ul>
+  </div>
+
+  <!-- STAGE 3: 수호 코룡 -->
+  <div class="card">
+    <span class="stage-tag">3단계 · 연속 14일 달성</span>
+    <div class="art-box">
+      <svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="g3" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#52F29C"/>
+            <stop offset="100%" stop-color="#22A85C"/>
+          </linearGradient>
+        </defs>
+        <circle cx="120" cy="120" r="82" fill="#2ECC71" opacity="0.18"/>
+        <!-- curving Guardian Tail wrapping like Core Ring + Dorsal Crest -->
+        <path d="M 132 162 C 188 168 216 122 198 72 C 190 50 172 62 176 86 C 180 114 162 138 134 140 Z" fill="#6BF0A8" opacity="0.5"/>
+        <path d="M 128 156 C 178 160 204 120 190 78 C 184 62 172 72 174 92 C 176 116 158 136 130 138 Z" fill="#25B864"/>
+        <!-- Dorsal Crest Bumps along Back/Tail -->
+        <circle cx="154" cy="140" r="7" fill="#FFE066" opacity="0.85"/>
+        <circle cx="172" cy="126" r="6.5" fill="#FFE066" opacity="0.85"/>
+        <circle cx="184" cy="106" r="5.5" fill="#FFE066" opacity="0.85"/>
+        <!-- 3 Pairs of Wing-like Gill Frills -->
+        <ellipse cx="46" cy="74" rx="24" ry="8.5" transform="rotate(-38 46 74)" fill="#84F9BD"/>
+        <ellipse cx="42" cy="94" rx="22" ry="8" transform="rotate(-16 42 94)" fill="#58E898"/>
+        <ellipse cx="46" cy="112" rx="18" ry="7.5" transform="rotate(6 46 112)" fill="#3CE089"/>
+        <ellipse cx="146" cy="74" rx="24" ry="8.5" transform="rotate(38 146 74)" fill="#84F9BD"/>
+        <ellipse cx="150" cy="94" rx="22" ry="8" transform="rotate(16 150 94)" fill="#58E898"/>
+        <ellipse cx="146" cy="112" rx="18" ry="7.5" transform="rotate(-6 146 112)" fill="#3CE089"/>
+        <!-- Sturdy 4 Legs -->
+        <ellipse cx="72" cy="170" rx="11" ry="17" transform="rotate(20 72 170)" fill="#1B8F4F"/>
+        <ellipse cx="114" cy="174" rx="11" ry="17" transform="rotate(-6 114 174)" fill="#1B8F4F"/>
+        <ellipse cx="148" cy="164" rx="11" ry="15" transform="rotate(-24 148 164)" fill="#177A43"/>
+        <!-- Sculpted Guardian Body & Head -->
+        <path d="M 68 128 C 66 172 142 178 158 142 C 164 122 136 112 96 116 Z" fill="url(#g3)"/>
+        <circle cx="96" cy="92" r="44" fill="url(#g3)"/>
+        <ellipse cx="104" cy="146" rx="30" ry="17" fill="#98F9C4" opacity="0.65"/>
+        <!-- Golden Core Emblem on Forehead -->
+        <polygon points="96,52 105,64 96,76 87,64" fill="#FFE066"/>
+        <!-- Confident Serene Smile Eyes -->
+        <path d="M 74 90 Q 81 82 88 90" fill="none" stroke="#0D161F" stroke-width="4.4" stroke-linecap="round"/>
+        <path d="M 104 90 Q 111 82 118 90" fill="none" stroke="#0D161F" stroke-width="4.4" stroke-linecap="round"/>
+        <ellipse cx="68" cy="100" rx="8" ry="4.5" fill="#FF8A94" opacity="0.58"/>
+        <ellipse cx="124" cy="100" rx="8" ry="4.5" fill="#FF8A94" opacity="0.58"/>
+        <path d="M 88 106 Q 96 114 104 106" fill="none" stroke="#0D161F" stroke-width="3.8" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <h2>수호 코룡</h2>
+    <div class="en-name">Stage 3 · Guardian Cormander</div>
+    <ul>
+      <li><strong>날개형 프릴 3쌍</strong>: 세 갈래로 뻗은 우아한 날개형 아가미 프릴</li>
+      <li><strong>등지느러미 볏(Crest)</strong>: 등부터 꼬리까지 황금빛 코어 볏이 돋아남</li>
+      <li><strong>골드 코어 엠블럼</strong>: 이마의 보석이 황금빛(`#FFE066`)으로 각성</li>
+    </ul>
+  </div>
+
+  <!-- STAGE 4: 마스터 코룡 -->
+  <div class="card">
+    <span class="stage-tag s4">4단계 · 연속 30일 달성 (완전체)</span>
+    <div class="art-box">
+      <svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="g4" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#6BF0A8"/>
+            <stop offset="55%" stop-color="#2ECC71"/>
+            <stop offset="100%" stop-color="#1E9E58"/>
+          </linearGradient>
+          <linearGradient id="goldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#FFF099"/>
+            <stop offset="100%" stop-color="#F1C40F"/>
+          </linearGradient>
+        </defs>
+        <!-- Outer Master Core Ring Aura -->
+        <circle cx="120" cy="122" r="88" fill="none" stroke="#2ECC71" stroke-width="6" stroke-dasharray="180 60" stroke-linecap="round" opacity="0.32"/>
+        <circle cx="120" cy="122" r="78" fill="#2ECC71" opacity="0.20"/>
+        <!-- Fan-shaped Master Dragon Tail Fin -->
+        <path d="M 130 164 C 194 172 222 118 202 64 C 194 42 168 48 172 78 C 176 112 158 136 128 138 Z" fill="url(#goldGrad)" opacity="0.75"/>
+        <path d="M 126 158 C 182 164 208 118 192 70 C 186 52 170 62 174 86 C 178 114 156 136 128 138 Z" fill="url(#g4)"/>
+        <!-- Plume Fin at Tail Tip -->
+        <ellipse cx="192" cy="56" rx="16" ry="10" transform="rotate(-35 192 56)" fill="#FFE066"/>
+        <ellipse cx="204" cy="68" rx="14" ry="8" transform="rotate(-15 204 68)" fill="#84F9BD"/>
+        <!-- 3 Pairs of Grand Wing Frills with Gold Tips -->
+        <ellipse cx="42" cy="70" rx="27" ry="9" transform="rotate(-40 42 70)" fill="#98F9C4"/>
+        <circle cx="22" cy="54" r="4.5" fill="#FFE066"/>
+        <ellipse cx="38" cy="92" rx="25" ry="8.5" transform="rotate(-16 38 92)" fill="#6BF0A8"/>
+        <circle cx="16" cy="86" r="4" fill="#FFE066"/>
+        <ellipse cx="42" cy="112" rx="20" ry="8" transform="rotate(8 42 112)" fill="#3CE089"/>
+        <ellipse cx="146" cy="70" rx="27" ry="9" transform="rotate(40 146 70)" fill="#98F9C4"/>
+        <circle cx="166" cy="54" r="4.5" fill="#FFE066"/>
+        <ellipse cx="150" cy="92" rx="25" ry="8.5" transform="rotate(16 150 92)" fill="#6BF0A8"/>
+        <circle cx="172" cy="86" r="4" fill="#FFE066"/>
+        <ellipse cx="146" cy="112" rx="20" ry="8" transform="rotate(-8 146 112)" fill="#3CE089"/>
+        <!-- 4 Legs -->
+        <ellipse cx="70" cy="172" rx="11" ry="17" transform="rotate(20 70 172)" fill="#1B8F4F"/>
+        <ellipse cx="114" cy="176" rx="11" ry="17" transform="rotate(-6 114 176)" fill="#1B8F4F"/>
+        <ellipse cx="148" cy="166" rx="11" ry="15" transform="rotate(-24 148 166)" fill="#177A43"/>
+        <!-- Body & Head -->
+        <path d="M 66 128 C 64 174 144 180 160 142 C 166 120 136 110 94 116 Z" fill="url(#g4)"/>
+        <circle cx="94" cy="90" r="45" fill="url(#g4)"/>
+        <ellipse cx="104" cy="148" rx="31" ry="17" fill="#BFFFD8" opacity="0.7"/>
+        <!-- Golden Guardian Crown Horns + Power Stem Halo -->
+        <path d="M 78 52 Q 72 30 84 36 Q 88 42 86 52 Z" fill="url(#goldGrad)"/>
+        <path d="M 110 52 Q 116 30 104 36 Q 100 42 102 52 Z" fill="url(#goldGrad)"/>
+        <rect x="90" y="24" width="8" height="22" rx="4" fill="url(#goldGrad)"/>
+        <polygon points="94,54 104,66 94,78 84,66" fill="#FFE066"/>
+        <!-- Serene Master Expression -->
+        <path d="M 72 88 Q 79 80 86 88" fill="none" stroke="#0D161F" stroke-width="4.5" stroke-linecap="round"/>
+        <path d="M 102 88 Q 109 80 116 88" fill="none" stroke="#0D161F" stroke-width="4.5" stroke-linecap="round"/>
+        <ellipse cx="66" cy="98" rx="8" ry="4.5" fill="#FF8A94" opacity="0.62"/>
+        <ellipse cx="122" cy="98" rx="8" ry="4.5" fill="#FF8A94" opacity="0.62"/>
+        <path d="M 86 104 Q 94 112 102 104" fill="none" stroke="#0D161F" stroke-width="4.0" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <h2>마스터 코룡</h2>
+    <div class="en-name">Stage 4 · Master Cormander</div>
+    <ul>
+      <li><strong>수호 뿔 & 코어 ’1’자 왕관</strong>: 머리 위에 황금빛 수호 뿔과 미니 전원 막대 헤일로 발현</li>
+      <li><strong>별빛 프릴 & 부채꼴 꼬리</strong>: 3쌍 프릴 끝의 골드 발광 입자와 부채꼴 수호룡 꼬리</li>
+      <li><strong>코어 수호 오라</strong>: 몸 주변을 감싸는 에메랄드 코어 링 오라 완성</li>
+    </ul>
+  </div>
+</div>
+
+<div class="section-box">
+  <h3>앱 내 소형 배지 (SalamanderStageIcon · 30~32dp) 실루엣 구분성 프리뷰</h3>
+  <p style="color:#C9D1D9; font-size:14px; margin:0;">
+    대시보드 목표 행(<code>StreakRewardRow.kt</code>)의 작은 30dp 크기에서도 <strong>1쌍 새싹 → 2쌍 프릴 → 3쌍 날개+골드 엠블럼 → 황금 왕관+수호 오라</strong>로 단계가 즉시 구별됩니다.
+  </p>
+  <div class="badge-row">
+    <div class="mini-chip">
+      <svg viewBox="0 0 64 64">
+        <ellipse cx="16" cy="28" rx="6" ry="3.5" transform="rotate(-25 16 28)" fill="#6BF0A8"/>
+        <ellipse cx="48" cy="28" rx="6" ry="3.5" transform="rotate(25 48 28)" fill="#6BF0A8"/>
+        <circle cx="32" cy="34" r="16" fill="#2ECC71"/>
+        <circle cx="32" cy="24" r="2.5" fill="#BFFFD8"/>
+        <circle cx="26" cy="33" r="2.2" fill="#0D161F"/>
+        <circle cx="38" cy="33" r="2.2" fill="#0D161F"/>
+      </svg>
+      <div>
+        <div class="lbl">코룡이 1단계 · 아기 코룡</div>
+        <div class="sub">Cormander Stage 1 · Baby</div>
+      </div>
+    </div>
+
+    <div class="mini-chip">
+      <svg viewBox="0 0 64 64">
+        <ellipse cx="13" cy="24" rx="8" ry="3.5" transform="rotate(-30 13 24)" fill="#84F9BD"/>
+        <ellipse cx="13" cy="33" rx="7" ry="3" transform="rotate(-10 13 33)" fill="#58E898"/>
+        <ellipse cx="51" cy="24" rx="8" ry="3.5" transform="rotate(30 51 24)" fill="#84F9BD"/>
+        <ellipse cx="51" cy="33" rx="7" ry="3" transform="rotate(10 51 33)" fill="#58E898"/>
+        <circle cx="32" cy="34" r="16.5" fill="#2ECC71"/>
+        <polygon points="32,20 35,24 32,28 29,24" fill="#A8FFCE"/>
+        <path d="M 24 33 Q 26.5 30 29 33" fill="none" stroke="#0D161F" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M 35 33 Q 37.5 30 40 33" fill="none" stroke="#0D161F" stroke-width="2.2" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <div class="lbl">코룡이 2단계 · 새싹 코룡</div>
+        <div class="sub">Cormander Stage 2 · Sprout (7d)</div>
+      </div>
+    </div>
+
+    <div class="mini-chip">
+      <svg viewBox="0 0 64 64">
+        <ellipse cx="11" cy="21" rx="9.5" ry="3.5" transform="rotate(-35 11 21)" fill="#84F9BD"/>
+        <ellipse cx="10" cy="30" rx="8.5" ry="3.2" transform="rotate(-15 10 30)" fill="#58E898"/>
+        <ellipse cx="12" cy="38" rx="7" ry="3" transform="rotate(8 12 38)" fill="#2ECC71"/>
+        <ellipse cx="53" cy="21" rx="9.5" ry="3.5" transform="rotate(35 53 21)" fill="#84F9BD"/>
+        <ellipse cx="54" cy="30" rx="8.5" ry="3.2" transform="rotate(15 54 30)" fill="#58E898"/>
+        <ellipse cx="52" cy="38" rx="7" ry="3" transform="rotate(-8 52 38)" fill="#2ECC71"/>
+        <circle cx="32" cy="34" r="17" fill="#2ECC71"/>
+        <polygon points="32,19 36,24 32,29 28,24" fill="#FFE066"/>
+        <path d="M 24 33 Q 26.5 30 29 33" fill="none" stroke="#0D161F" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M 35 33 Q 37.5 30 40 33" fill="none" stroke="#0D161F" stroke-width="2.2" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <div class="lbl">코룡이 3단계 · 수호 코룡</div>
+        <div class="sub">Cormander Stage 3 · Guardian (14d)</div>
+      </div>
+    </div>
+
+    <div class="mini-chip">
+      <svg viewBox="0 0 64 64">
+        <circle cx="32" cy="34" r="26" fill="none" stroke="#FFE066" stroke-width="2" stroke-dasharray="40 16" opacity="0.55"/>
+        <ellipse cx="10" cy="20" rx="10" ry="3.5" transform="rotate(-35 10 20)" fill="#98F9C4"/>
+        <ellipse cx="9" cy="29" rx="9" ry="3.2" transform="rotate(-15 9 29)" fill="#6BF0A8"/>
+        <ellipse cx="11" cy="38" rx="7.5" ry="3" transform="rotate(8 11 38)" fill="#2ECC71"/>
+        <ellipse cx="54" cy="20" rx="10" ry="3.5" transform="rotate(35 54 20)" fill="#98F9C4"/>
+        <ellipse cx="55" cy="29" rx="9" ry="3.2" transform="rotate(15 55 29)" fill="#6BF0A8"/>
+        <ellipse cx="53" cy="38" rx="7.5" ry="3" transform="rotate(-8 53 38)" fill="#2ECC71"/>
+        <circle cx="32" cy="35" r="17" fill="#2ECC71"/>
+        <rect x="30" y="7" width="4" height="10" rx="2" fill="#FFE066"/>
+        <path d="M 24 19 L 22 11 L 28 16 Z" fill="#FFE066"/>
+        <path d="M 40 19 L 42 11 L 36 16 Z" fill="#FFE066"/>
+        <polygon points="32,20 36,25 32,30 28,25" fill="#FFE066"/>
+        <path d="M 24 34 Q 26.5 31 29 34" fill="none" stroke="#0D161F" stroke-width="2.3" stroke-linecap="round"/>
+        <path d="M 35 34 Q 37.5 31 40 34" fill="none" stroke="#0D161F" stroke-width="2.3" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <div class="lbl">코룡이 4단계 · 마스터 코룡</div>
+        <div class="sub">Cormander Stage 4 · Master (30d)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
