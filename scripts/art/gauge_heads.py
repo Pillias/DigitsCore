@@ -1,6 +1,6 @@
 from PIL import Image, ImageDraw, ImageFilter
 import numpy as np, math
-d='store_assets/_drafts/icon_backup_v0940/'   # 원본 아이콘(등줄기 없음)
+d='store_assets/icon_original_v0940/'   # 원본 아이콘(등줄기 없음)
 V={'stable':('ic_launcher_foreground_green',217.1,219.2,190),'fair':('ic_launcher_foreground',217.1,217.9,150),
    'caution':('ic_launcher_foreground_orange',215.9,217.2,76),'rest':('ic_launcher_foreground_red',215.0,218.4,24)}
 R=85.5; HB=14.5
