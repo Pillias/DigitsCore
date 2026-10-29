@@ -256,7 +256,7 @@ fun MorningBriefingDialog(
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                 }
-                                if (rewardState.availableFreePasses > 0) {
+                                if (rewardState.streakShields > 0) {
                                     Surface(
                                         shape = DigitsShape.sm,
                                         color = MaterialTheme.colorScheme.primaryContainer
@@ -273,7 +273,7 @@ fun MorningBriefingDialog(
                                                 tint = MaterialTheme.colorScheme.onPrimaryContainer
                                             )
                                             Text(
-                                                text = if (english) "Shield x${rewardState.streakShields}" else "보호권 ${rewardState.streakShields}장",
+                                                text = if (english) "Shields ${rewardState.streakShields}" else "보호권 ${rewardState.streakShields}장",
                                                 fontSize = DigitsTextSize.tiny,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onPrimaryContainer

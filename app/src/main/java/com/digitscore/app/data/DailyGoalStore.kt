@@ -456,7 +456,7 @@ object DailyGoalStore {
         return GoalRewardState(
             currentStreak = prefs.getInt(KEY_REWARD_STREAK, 0),
             perfectStamps = prefs.getInt(KEY_REWARD_PERFECT_STAMPS, 0),
-            availableFreePasses = prefs.getInt(KEY_REWARD_FREE_PASSES, 0),
+            streakShields = prefs.getInt(KEY_REWARD_FREE_PASSES, 0),
             activeFreePassUntil = prefs.getLong(KEY_REWARD_ACTIVE_UNTIL, 0L),
             lastProcessedDate = prefs.getString(KEY_REWARD_LAST_PROCESSED_DATE, null),
             // 단계 저장 전(이전 버전) 사용자는 지금 연속 일수에 맞는 단계로 시작합니다.
@@ -495,7 +495,7 @@ object DailyGoalStore {
         prefs.edit()
             .putInt(KEY_REWARD_STREAK, state.currentStreak)
             .putInt(KEY_REWARD_PERFECT_STAMPS, state.perfectStamps)
-            .putInt(KEY_REWARD_FREE_PASSES, state.availableFreePasses)
+            .putInt(KEY_REWARD_FREE_PASSES, state.streakShields)
             .putLong(KEY_REWARD_ACTIVE_UNTIL, state.activeFreePassUntil)
             .putString(KEY_REWARD_LAST_PROCESSED_DATE, state.lastProcessedDate)
             .putInt(KEY_REWARD_STAGE, state.salamanderStage)
@@ -510,11 +510,11 @@ object DailyGoalStore {
      */
     fun activateFreePass(context: Context): Boolean = synchronized(storeLock) {
         val state = getRewardState(context)
-        if (state.availableFreePasses <= 0 || state.isFreePassActive) return false
+        if (state.streakShields <= 0 || state.isFreePassActive) return false
         val now = System.currentTimeMillis()
         val until = now + FREE_PASS_DURATION_MILLIS
         val newState = state.copy(
-            availableFreePasses = (state.availableFreePasses - 1).coerceAtLeast(0),
+            streakShields = (state.streakShields - 1).coerceAtLeast(0),
             activeFreePassUntil = until
         )
         saveRewardState(context, newState)

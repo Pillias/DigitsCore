@@ -152,7 +152,7 @@ object EdgeLightingOverlayManager {
                 val badgeText = if (!labelText.isNullOrBlank()) {
                     labelText
                 } else {
-                    val isEn = Locale.getDefault().language == "en"
+                    val isEn = com.digitscore.app.i18n.AppLocale.isEnglish(appContext)
                     if (isStudyGreen) {
                         if (isEn) "● Study limit reached · Rest eyes" else "● 공부·독서 한도 도달 · 눈 휴식 권장"
                     } else {

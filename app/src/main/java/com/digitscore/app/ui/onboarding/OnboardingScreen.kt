@@ -321,7 +321,7 @@ fun OnboardingScreen(
                         )
                         FeatureItem(
                             icon = Icons.Rounded.Autorenew,
-                            title = if (isEn) "Continuous 75P Balance Index" else "자정 리셋 없는 75P 균형 지수",
+                            title = if (isEn) "Continuous Balance Index" else "자정 리셋 없는 균형 지수",
                             desc = if (isEn) "Tracks your ongoing usage flow without midnight resets." else "자정에 초기화되지 않고 연속된 사용 흐름을 반영합니다."
                         )
                         FeatureItem(

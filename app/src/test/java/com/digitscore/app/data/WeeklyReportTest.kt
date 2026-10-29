@@ -57,7 +57,7 @@ class WeeklyReportTest {
             histories = histories,
             dailyAppUsage = dailyApps,
             dailyGoalRecords = goalRecords,
-            rewardState = GoalRewardState(perfectStamps = 3, availableFreePasses = 1),
+            rewardState = GoalRewardState(perfectStamps = 3, streakShields = 1),
             more15MinCount = 2,
             stopForTodayCount = 1
         )

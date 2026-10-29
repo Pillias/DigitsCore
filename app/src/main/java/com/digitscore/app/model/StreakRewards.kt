@@ -29,7 +29,7 @@ object StreakRewards {
 
     fun settle(state: GoalRewardState, maintained: Boolean, perfect: Boolean, date: String): Settlement {
         var streak = state.currentStreak
-        var shields = state.availableFreePasses
+        var shields = state.streakShields
         var stage = state.salamanderStage.coerceIn(1, MAX_STAGE)
         var shieldUsed = false
         if (maintained) {
@@ -58,7 +58,7 @@ object StreakRewards {
         val next = state.copy(
             currentStreak = streak,
             perfectStamps = stamps,
-            availableFreePasses = shields,
+            streakShields = shields,
             salamanderStage = stage,
             bestStreak = maxOf(state.bestStreak, streak),
             lastProcessedDate = date

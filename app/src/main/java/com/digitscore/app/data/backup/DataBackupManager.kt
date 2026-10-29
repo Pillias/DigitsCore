@@ -81,11 +81,14 @@ object DataBackupManager {
         val rewardObj = JSONObject().apply {
             put("currentStreak", rewardState.currentStreak)
             put("perfectStamps", rewardState.perfectStamps)
-            put("availableFreePasses", rewardState.availableFreePasses)
+            put("availableFreePasses", rewardState.streakShields)
             put("salamanderStage", rewardState.salamanderStage)
             put("bestStreak", rewardState.bestStreak)
         }
         rootJson.put("goalRewardState", rewardObj)
+
+        // 4. DB 밖 사용자 기록: 시간 규칙, 평일/주말 목표, 목표 결과, 내 기록, 목표 초과 선택
+        rootJson.put("userPrefs", PrefsBackup.export(context))
 
         rootJson.toString()
     }
@@ -684,12 +687,14 @@ object DataBackupManager {
                 val restoredState = currentState.copy(
                     currentStreak = streak,
                     perfectStamps = stamps,
-                    availableFreePasses = freePasses,
+                    streakShields = freePasses,
                     salamanderStage = rewardObj.optInt("salamanderStage", currentState.salamanderStage).coerceIn(1, 4),
                     bestStreak = maxOf(rewardObj.optInt("bestStreak", 0), streak)
                 )
                 com.digitscore.app.data.DailyGoalStore.saveRewardState(context, restoredState)
             }
+
+            rootJson.optJSONObject("userPrefs")?.let { PrefsBackup.restore(context, it) }
 
             true
         } catch (e: Exception) {

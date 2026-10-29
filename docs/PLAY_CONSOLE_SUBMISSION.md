@@ -6,9 +6,10 @@
 
 1. `scripts/create_upload_keystore.sh /안전한/오프라인/경로/digitscore-upload.jks`를 로컬에서 실행합니다.
 2. keystore와 복구 정보를 암호화된 오프라인 장소 두 곳에 보관합니다. 저장소에는 커밋하지 않습니다.
-3. `PLAY_RELEASE_CHECKLIST.md`의 네 개 GitHub Secret을 입력합니다.
-4. 태그 빌드의 release AAB를 받은 뒤 `jarsigner -verify -verbose -certs DigitsCore-*.aab`로 서명을 확인합니다.
-5. Play App Signing을 활성화하고 내부 테스트 트랙에 먼저 올립니다.
+3. 로컬 빌드는 프로젝트 밖 `~/.keystore/digitscore-upload.jks`와 `~/.keystore/digitscore-upload.properties`(`digitscore.upload.storePassword`·`keyAlias`·`keyPassword`)를 읽습니다. 프로젝트 폴더와 `local.properties`에는 키·비밀번호를 두지 않습니다.
+4. `PLAY_RELEASE_CHECKLIST.md`의 네 개 GitHub Secret을 입력합니다.
+5. 태그 빌드의 release AAB를 받은 뒤 `jarsigner -verify -verbose -certs DigitsCore-*.aab`로 서명을 확인합니다.
+6. Play App Signing을 활성화하고 내부 테스트 트랙에 먼저 올립니다.
 
 ## 개인정보처리방침·지원 정보
 

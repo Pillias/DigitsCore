@@ -1,3 +1,4 @@
+import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -137,18 +138,25 @@ android {
             enableV3Signing = true
             enableV4Signing = false
         }
-        // 업로드 키 비밀번호는 저장소에 두지 않습니다. CI는 환경변수, 로컬은 git에서 제외된
-        // local.properties(digitscore.upload.*)에서 읽습니다.
+        // 업로드 키와 비밀번호는 프로젝트 폴더에 두지 않습니다. CI는 환경변수, 로컬은
+        // ~/.keystore/digitscore-upload.properties(digitscore.upload.*)에서 읽고,
+        // 이전 방식(local.properties)도 호환용으로 읽습니다.
+        val userKeystoreDir = File(System.getProperty("user.home"), ".keystore")
         val localSigningProps = Properties().apply {
-            val file = rootProject.file("local.properties")
-            if (file.exists()) FileInputStream(file).use { load(it) }
+            val legacy = rootProject.file("local.properties")
+            if (legacy.exists()) FileInputStream(legacy).use { load(it) }
+            val user = File(userKeystoreDir, "digitscore-upload.properties")
+            if (user.exists()) FileInputStream(user).use { load(it) }
         }
         fun signingValue(envKey: String, localKey: String): String? =
             System.getenv(envKey)?.takeIf { it.isNotBlank() }
                 ?: localSigningProps.getProperty(localKey)?.takeIf { it.isNotBlank() }
-        val localKeystore = rootProject.file("keystore/digitscore-upload.jks")
+        val localKeystore = listOf(
+            File(userKeystoreDir, "digitscore-upload.jks"),
+            rootProject.file("keystore/digitscore-upload.jks")
+        ).firstOrNull { it.exists() }
         val uploadStorePath = signingValue("DIGITSCORE_UPLOAD_STORE_FILE", "digitscore.upload.storeFile")
-            ?: (if (localKeystore.exists()) localKeystore.absolutePath else null)
+            ?: localKeystore?.absolutePath
         val uploadStorePassword = signingValue("DIGITSCORE_UPLOAD_STORE_PASSWORD", "digitscore.upload.storePassword")
         val uploadKeyAlias = signingValue("DIGITSCORE_UPLOAD_KEY_ALIAS", "digitscore.upload.keyAlias")
         val uploadKeyPassword = signingValue("DIGITSCORE_UPLOAD_KEY_PASSWORD", "digitscore.upload.keyPassword")

@@ -939,9 +939,9 @@ private fun ExplorerChart(
 ) {
     val primary = MaterialTheme.colorScheme.primary
     val muted = MaterialTheme.colorScheme.outline
-    // 기준 점선: 오늘 정한 지수 방어선 (목표가 없으면 75P)
+    // 기준 점선: 오늘 정한 지수 방어선 (목표가 없으면 기본 방어선)
     val chartContext = LocalContext.current
-    val baseline = remember { (com.digitscore.app.data.DailyGoalStore.getGoal(chartContext)?.scoreTarget ?: 75).toDouble() }
+    val baseline = remember { (com.digitscore.app.data.DailyGoalStore.getGoal(chartContext)?.scoreTarget ?: 70).toDouble() }
     // 차트 위 최고·최저 글자색 (테마별 대비 확보)
     val highTextArgb = ScoreGreenText.toArgb()
     val lowTextArgb = ScoreRedText.toArgb()

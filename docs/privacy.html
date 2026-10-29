@@ -153,7 +153,7 @@
     <div class="header">
       <span class="badge">DigitsCore Official Legal Document</span>
       <h1>DigitsCore 개인정보처리방침</h1>
-      <div class="date">최종 수정일 및 시행일: 2026년 10월 3일</div>
+      <div class="date">최종 수정일 및 시행일: 2026년 10월 29일</div>
     </div>
 
     <!-- Language Selector -->
@@ -165,7 +165,7 @@
     <!-- Korean Content -->
     <div id="ko-content">
       <div class="highlight-box">
-        <strong>핵심 요약:</strong> DigitsCore는 사용자의 사용 기록을 외부 서버로 전송하지 않습니다. 광고 SDK나 서드파티 분석 SDK가 없으며, 모든 데이터는 SQLCipher와 Android Keystore를 통해 기기 내부에서 암호화되어 로컬에서만 처리됩니다.
+        <strong>핵심 요약:</strong> DigitsCore는 사용자의 사용 기록을 외부 서버로 전송하지 않습니다. 광고 SDK나 서드파티 분석 SDK가 없으며, 모든 데이터는 기기 안에서만 처리되며, 사용 기록은 SQLCipher와 Android Keystore로 암호화됩니다.
       </div>
 
       <h2>1. 처리하는 정보</h2>
@@ -188,7 +188,7 @@
 
       <h2>3. 저장, 전송 및 제3자 제공 (서버 전송 없음)</h2>
       <ul>
-        <li><strong>기기 내 로컬 암호화:</strong> 사용 기록과 설정은 기기 내부 데이터베이스에 저장되며, SQLCipher 및 Android Keystore 암호화 키로 강력하게 보호됩니다.</li>
+        <li><strong>기기 내 로컬 암호화:</strong> 사용 기록은 기기 내부 데이터베이스에 저장되며, SQLCipher 및 Android Keystore 암호화 키로 보호됩니다. 목표·시간대 규칙·화면 설정·내 기록 같은 일부 설정값(목표로 고른 앱 이름 포함)은 다른 앱이 읽을 수 없는 앱 전용 저장소에 보관되며, 이 값들도 OS 자동 백업과 기기 이전에서 제외됩니다.</li>
         <li><strong>클라우드 백업 제외:</strong> 데이터베이스, 설정 및 암호화 키 파일은 OS 자동 클라우드 백업 및 기기 간 자동 전송 대상에서 명시적으로 제외됩니다.</li>
         <li><strong>서버 전송 및 판매 없음:</strong> DigitsCore는 사용 기록을 개발자 서버로 전송하지 않으며, 제3자에게 수집·판매하지 않습니다.</li>
         <li><strong>광고 및 트래커 부재:</strong> 광고 SDK와 외부 분석(Analytics) SDK를 일체 탑재하지 않습니다.</li>
@@ -224,7 +224,7 @@
     <!-- English Summary Content -->
     <div id="en-content" class="en-section">
       <div class="highlight-box">
-        <strong>Executive Summary:</strong> DigitsCore does NOT transmit your usage data to any external server. All app usage data, unlock counts, and Core Index scores are processed and stored locally on your device with SQLCipher and Android Keystore encryption. No ads, no analytics SDKs.
+        <strong>Executive Summary:</strong> DigitsCore does NOT transmit your usage data to any external server. All app usage data, unlock counts, and Core Index scores are processed and stored only on your device; usage history is encrypted with SQLCipher and Android Keystore. No ads, no analytics SDKs.
       </div>
 
       <h2>1. Information Processed (On-Device Only)</h2>
@@ -241,7 +241,7 @@
 
       <h2>3. Storage, Transmission & Sharing (Zero Server Transmission)</h2>
       <ul>
-        <li><strong>On-Device Encryption:</strong> Database is encrypted using SQLCipher and protected with Android Keystore.</li>
+        <li><strong>On-Device Encryption:</strong> The usage database is encrypted using SQLCipher and protected with Android Keystore. Some settings such as goals, time rules, display options and personal records (including the app chosen for a goal) are kept in app-private storage that other apps cannot read, and are also excluded from OS backup and device transfer.</li>
         <li><strong>No External Transmission:</strong> DigitsCore does not operate a collection server and does not transmit, sell, or share personal data with any third party.</li>
         <li><strong>No Ad or Analytics SDKs:</strong> The application contains zero advertising SDKs and zero third-party tracking libraries.</li>
         <li><strong>User-Initiated Bug Reports:</strong> When submitting bug reports, users can optionally attach up to 5 screenshots directly via email (DigitsCore@gmail.com). No personal device identifiers or app lists are automatically collected.</li>

@@ -32,6 +32,8 @@ class BootCompletedReceiver : BroadcastReceiver() {
                         }
                     }.onFailure { e ->
                         android.util.Log.w("BootCompletedReceiver", "Failed to start TrackerForegroundService on boot/update", e)
+                        // Android 15+ 정책 변경이나 제조사 제한으로 막히면 조용히 멈추지 않도록 알립니다.
+                        com.digitscore.app.notification.ScoreNotificationManager.showTrackingResumeNeeded(context)
                     }
                 }
             } finally {

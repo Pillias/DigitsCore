@@ -2050,7 +2050,7 @@ private fun CoreIndexHeroCard(
                 Text(
                     text = if (isEn) {
                         "What is the Core Index?\n" +
-                        "A score from 1 to 99 that shows your phone-use balance right now. It starts at 75, goes down while you use the phone and goes up while the screen is off. It is not reset at midnight or 05:00; it keeps going from where it was.\n" +
+                        "A score from 1 to 99 that shows your phone-use balance right now. It starts just below the Stable tier, goes down while you use the phone and goes up while the screen is off. It is not reset at midnight or 05:00; it keeps going from where it was.\n" +
                         "• Managed apps lower it faster, and faster still after 30min in a row. Study and Tool apps do not lower it within their limits.\n" +
                         "• Levels and colors: Stable 80+ (green), Fair 60–79 (yellow), Caution 40–59 (orange), Rest below 40 (red).\n\n" +
                         "Reading the chart\n" +
@@ -2058,7 +2058,7 @@ private fun CoreIndexHeroCard(
                         "• The highest and lowest points show the score and the time (HH:mm)."
                     } else {
                         "코어 지수란?\n" +
-                        "지금의 스마트폰 사용 균형을 1~99로 나타낸 점수입니다. 75에서 시작해 화면을 쓰는 동안 내려가고, 화면을 끄고 쉬는 동안 올라갑니다. 자정이나 05:00에 초기화되지 않고 이전 값에서 계속 이어집니다.\n" +
+                        "지금의 스마트폰 사용 균형을 1~99로 나타낸 점수입니다. 처음에는 안정 등급 바로 아래에서 시작해 화면을 쓰는 동안 내려가고, 화면을 끄고 쉬는 동안 올라갑니다. 자정이나 05:00에 초기화되지 않고 이전 값에서 계속 이어집니다.\n" +
                         "• 관리 앱은 더 빨리 내려가고, 30min 넘게 이어 쓰면 더 빨라집니다. 권장·필수 앱은 정해진 시간 안에서는 내려가지 않습니다.\n" +
                         "• 지수 단계와 색: 안정 80 이상(초록), 보통 60~79(노랑), 주의 40~59(주황), 휴식 필요 40 미만(빨강).\n\n" +
                         "차트 읽기\n" +

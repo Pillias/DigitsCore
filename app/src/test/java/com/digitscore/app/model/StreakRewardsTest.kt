@@ -20,12 +20,12 @@ class StreakRewardsTest {
         var s = GoalRewardState(currentStreak = 6)
         repeat(3) { s = StreakRewards.settle(s, maintained = true, perfect = true, date = "d$it").state }
         assertEquals(9, s.currentStreak)
-        assertEquals(1, s.availableFreePasses)
+        assertEquals(1, s.streakShields)
         assertEquals(2, s.salamanderStage)
         val miss = StreakRewards.settle(s, maintained = false, perfect = false, date = "x")
         assertTrue(miss.shieldUsed)
         assertEquals(9, miss.state.currentStreak)
-        assertEquals(0, miss.state.availableFreePasses)
+        assertEquals(0, miss.state.streakShields)
         assertEquals(2, miss.state.salamanderStage)
     }
 

@@ -4,7 +4,7 @@ set -euo pipefail
 # DigitsCore Release AAB Signer
 # 사용법: ./scripts/sign_bundle.sh [키스토어_경로] [키_별칭] [출력_AAB_경로]
 
-KEYSTORE_PATH="${1:-keystore/digitscore-upload.jks}"
+KEYSTORE_PATH="${1:-$HOME/.keystore/digitscore-upload.jks}"
 ALIAS="${2:-digitscore-upload}"
 
 if [[ ! -f "$KEYSTORE_PATH" ]]; then

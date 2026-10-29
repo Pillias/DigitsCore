@@ -55,6 +55,38 @@ object ScoreNotificationManager {
         prefs.edit().putBoolean("weekly_report_enabled", enabled).apply()
     }
 
+    private const val TRACKING_RESUME_NOTIFICATION_ID = 7301
+
+    /**
+     * 부팅·업데이트 직후 OS가 추적 서비스 시작을 막았을 때 한 번 띄웁니다.
+     * 탭하면 앱이 열리면서 서비스가 다시 연결됩니다.
+     */
+    fun showTrackingResumeNeeded(context: Context) {
+        createNotificationChannel(context)
+        val isEn = AppLocale.isEnglish(context)
+        val launchIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            TRACKING_RESUME_NOTIFICATION_ID,
+            launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = NotificationCompat.Builder(context, GOAL_CHANNEL_ID)
+            .setSmallIcon(DynamicIconGenerator.createScoreIconCompat(context, 75, StatusIconStyle.SCORE_PROPORTION))
+            .setContentTitle(if (isEn) "Core Index paused" else "코어 지수 측정이 멈췄습니다")
+            .setContentText(if (isEn) "Tap to resume tracking after the restart." else "기기가 다시 시작되었습니다. 탭하면 측정을 다시 시작합니다.")
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .build()
+        runCatching {
+            androidx.core.app.NotificationManagerCompat.from(context)
+                .notify(TRACKING_RESUME_NOTIFICATION_ID, notification)
+        }
+    }
+
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val strings = AppLocale.stringsContext(context)

@@ -209,7 +209,7 @@ class DailyGoalTest {
         val rewardState = GoalRewardState(
             currentStreak = 5,
             perfectStamps = 2,
-            availableFreePasses = 1,
+            streakShields = 1,
             activeFreePassUntil = now + 10 * 60 * 1000L // 10 minutes from now
         )
 
@@ -217,7 +217,7 @@ class DailyGoalTest {
         assertTrue(rewardState.remainingFreePassSeconds > 0)
         assertEquals(5, rewardState.currentStreak)
         assertEquals(2, rewardState.perfectStamps)
-        assertEquals(1, rewardState.availableFreePasses)
+        assertEquals(1, rewardState.streakShields)
 
         val expiredState = rewardState.copy(activeFreePassUntil = now - 1000L)
         assertFalse(expiredState.isFreePassActive)
