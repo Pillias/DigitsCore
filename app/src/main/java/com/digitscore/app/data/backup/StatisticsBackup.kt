@@ -50,7 +50,8 @@ internal object StatisticsBackup {
             val usageMs = clampLong(r.getLong(3), STAT_HOUR)
             val managedMs = clampLong(r.getLong(4), usageMs)
             val opens = clampInt(r.getInt(5), 1_000_000)
-            val shortOpens = clampInt(r.getInt(6), opens)
+            // 기기 전체 행(패키지 "")의 짧은 확인은 잠금 해제 기준이라 앱 실행 수보다 클 수 있습니다.
+            val shortOpens = clampInt(r.getInt(6), if (pkg.isEmpty()) 1_000_000 else opens)
             UsageHourEntity(hour, pkg, name, usageMs, managedMs, opens, shortOpens,
                 if (r.isNull(7)) null else clampInt(r.getInt(7), 1_000_000),
                 if (r.isNull(8)) null else clampInt(r.getInt(8), 1_000_000))

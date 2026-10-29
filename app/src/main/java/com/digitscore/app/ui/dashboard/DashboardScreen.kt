@@ -910,7 +910,10 @@ private fun ThreeGoalsDashboardCard(
                         horizontalArrangement = Arrangement.Center
                     ) {
                         val appLabel = targetAppName ?: (if (isEn) "App" else "앱")
-                        val tint = if (isAppExceeded) ScoreRedText else if (appRatio >= 0.8f) ScoreYellowText else ScoreGreenText
+                        // 앱 1개 방식인데 대상 앱을 고르지 않았으면 0분 진행 대신 "앱 선택"을 보여 줍니다.
+                        val noAppTarget = dailyGoal != null && !isAllManaged && dailyGoal.targetPackageName == null
+                        val tint = if (noAppTarget) MaterialTheme.colorScheme.outline
+                            else if (isAppExceeded) ScoreRedText else if (appRatio >= 0.8f) ScoreYellowText else ScoreGreenText
                         Icon(
                             imageVector = Icons.Rounded.PhoneAndroid,
                             contentDescription = null,
@@ -918,7 +921,8 @@ private fun ThreeGoalsDashboardCard(
                             tint = tint
                         )
                         Spacer(modifier = Modifier.width(3.dp))
-                        val goalText = com.digitscore.app.i18n.formatGoalMinutesSmallUnit(appMins, appLimit)
+                        val goalText = if (noAppTarget) (if (isEn) "Pick app" else "앱 선택")
+                            else com.digitscore.app.i18n.formatGoalMinutesSmallUnit(appMins, appLimit)
                         com.digitscore.app.i18n.Text(
                             text = goalText,
                             fontSize = DigitsTextSize.caption,
@@ -927,7 +931,9 @@ private fun ThreeGoalsDashboardCard(
                             maxLines = 1,
                             softWrap = false
                         )
-                        com.digitscore.app.ui.components.GoalStatusMark(achieved = !isAppExceeded && appMins > 0, exceeded = isAppExceeded, tint = tint)
+                        if (!noAppTarget) {
+                            com.digitscore.app.ui.components.GoalStatusMark(achieved = !isAppExceeded && appMins > 0, exceeded = isAppExceeded, tint = tint)
+                        }
                     }
                 }
 
