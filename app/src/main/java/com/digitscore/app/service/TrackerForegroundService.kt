@@ -437,17 +437,23 @@ class TrackerForegroundService : Service() {
                 // UsageEvents만 읽습니다. 2초 정착 지연으로 늦게 게시되는 동일 시점 이벤트 누락을 줄입니다.
                 val now = System.currentTimeMillis()
                 val todayStart = UsageStatsHelper.getStartOfTodayMillis()
+                // 오늘 덮어쓰기 복원을 했다면 복원 시점 이전 오늘 기록은 백업 값을 쓰고, 이후만 기기에서 셉니다.
+                val restoreBaseline = com.digitscore.app.data.backup.RestoreBaseline
+                    .forDate(applicationContext, currentDateString)
+                    ?.takeIf { it.boundaryMillis in todayStart..now }
+                val usageStart = restoreBaseline?.boundaryMillis ?: todayStart
                 val collectionEnd = (now - USAGE_EVENT_SETTLE_DELAY_MILLIS).coerceAtLeast(todayStart)
                 val previousSnapshot = cachedTodaySnapshot
                 val usageSnapshot = if (
                     previousSnapshot == null ||
-                    lastUsageQueryEndMillis < todayStart ||
+                    lastUsageQueryEndMillis < usageStart ||
                     lastUsageQueryEndMillis > collectionEnd
                 ) {
-                    UsageStatsHelper.getTodayUsageSnapshot(
-                        applicationContext,
-                        weightMap,
-                        endTime = collectionEnd
+                    UsageStatsHelper.getUsageSnapshotForRange(
+                        context = applicationContext,
+                        appWeightMap = weightMap,
+                        startTime = usageStart,
+                        endTime = collectionEnd.coerceAtLeast(usageStart)
                     )
                 } else {
                     val delta = UsageStatsHelper.getIncrementalUsageSnapshot(
@@ -484,7 +490,9 @@ class TrackerForegroundService : Service() {
                     }
                     db.dailyAppUsageDao().replaceDay(
                         dateString = currentDateString,
-                        records = dailyRecords,
+                        records = restoreBaseline?.let {
+                            com.digitscore.app.data.backup.RestoreBaseline.merge(it.rows, dailyRecords, now)
+                        } ?: dailyRecords,
                         coverage = DailyUsageCoverageEntity(
                             dateString = currentDateString,
                             isComplete = false,
@@ -514,7 +522,11 @@ class TrackerForegroundService : Service() {
                             lastUpdatedTimestamp = now
                         )
                     }
-                    db.foregroundUsageSessionDao().replaceDay(currentDateString, sessionRecords)
+                    if (restoreBaseline != null) {
+                        db.foregroundUsageSessionDao().replaceDayFrom(currentDateString, restoreBaseline.boundaryMillis, sessionRecords)
+                    } else {
+                        db.foregroundUsageSessionDao().replaceDay(currentDateString, sessionRecords)
+                    }
                 }
 
                 // 앱 기동 또는 업데이트 시 어제 구간(24시간 전 ~ 오늘 자정)의 세션이 DB에 없으면
@@ -892,14 +904,24 @@ class TrackerForegroundService : Service() {
                     ScoreRepository.updateYesterdayGoalResult(com.digitscore.app.data.DailyGoalStore.getYesterdayGoalResult(applicationContext))
                     ScoreRepository.updateRewardState(com.digitscore.app.data.DailyGoalStore.getRewardState(applicationContext))
 
+                    // 덮어쓰기 복원 당일에는 복원 전 오늘 사용(백업 값)도 목표 진행에 더합니다.
+                    val baselineRows = restoreBaseline?.rows.orEmpty()
                     val appMins = if (currentGoal.isAllManagedApps) {
-                        (todayAppsUsage.filter { it.categoryType.canonical == com.digitscore.app.model.AppCategoryType.DISTRACTING }
-                            .sumOf { it.usageTimeMillis } / 60_000L).toInt()
+                        val managedLevel = com.digitscore.app.model.AppCategoryType.DISTRACTING
+                        // 저장된 등급 3이 관리(DISTRACTING) 등급입니다.
+                        val baseMillis = baselineRows.filter {
+                            com.digitscore.app.model.AppCategoryType.normalizeLevel(it.categoryLevel) >= managedLevel.level
+                        }.sumOf { it.usageMillis }
+                        ((todayAppsUsage.filter { it.categoryType.canonical == managedLevel }
+                            .sumOf { it.usageTimeMillis } + baseMillis) / 60_000L).toInt()
                     } else {
                         val todayApp = currentGoal.targetPackageName?.let { pkg ->
                             todayAppsUsage.firstOrNull { it.packageName == pkg }
                         }
-                        ((todayApp?.usageTimeMillis ?: 0L) / 60_000L).toInt()
+                        val baseMillis = currentGoal.targetPackageName?.let { pkg ->
+                            baselineRows.filter { it.packageName == pkg }.sumOf { it.usageMillis }
+                        } ?: 0L
+                        (((todayApp?.usageTimeMillis ?: 0L) + baseMillis) / 60_000L).toInt()
                     }
 
                     val updatedGoal = currentGoal.copy(

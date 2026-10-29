@@ -296,7 +296,8 @@ object DataBackupManager {
     suspend fun importBackup(
         context: Context,
         bytes: ByteArray,
-        password: CharArray?
+        password: CharArray?,
+        mode: RestoreMode = RestoreMode.OVERWRITE
     ): Boolean = withContext(Dispatchers.IO) {
         val jsonBytes = if (BackupCrypto.isEncryptedBackup(bytes)) {
             BackupCrypto.decrypt(bytes, password ?: charArrayOf())
@@ -304,14 +305,23 @@ object DataBackupManager {
             bytes
         }
         require(jsonBytes.size <= MAX_BACKUP_BYTES) { "Backup file is too large" }
-        importFromJson(context, jsonBytes.toString(Charsets.UTF_8))
+        importFromJson(context, jsonBytes.toString(Charsets.UTF_8), mode)
     }
 
     /**
      * JSON 문자열을 파싱하여 DB에 복원합니다.
      */
-    suspend fun importFromJson(context: Context, jsonString: String): Boolean = withContext(Dispatchers.IO) {
-        try {
+    suspend fun importFromJson(
+        context: Context,
+        jsonString: String,
+        mode: RestoreMode = RestoreMode.MERGE
+    ): Boolean = withContext(Dispatchers.IO) {
+        val overwrite = mode == RestoreMode.OVERWRITE
+        // 덮어쓰기는 추적 서비스를 잠시 멈춰, 복원 중에 이 기기 기록이 다시 쓰이지 않게 합니다.
+        val wasTracking = overwrite && com.digitscore.app.data.ScoreRepository.isServiceRunning.value
+        if (overwrite) com.digitscore.app.service.TrackerForegroundService.stop(context)
+        val restoredAt = System.currentTimeMillis()
+        val result = try {
             require(jsonString.toByteArray(Charsets.UTF_8).size <= MAX_BACKUP_BYTES) {
                 "Backup file is too large"
             }
@@ -323,6 +333,20 @@ object DataBackupManager {
             }
 
             db.withTransaction {
+            if (overwrite) {
+                // 백업 우선: 이 기기의 사용 기록을 비우고 백업 기록으로 바꿉니다(같은 트랜잭션이라 실패하면 원래대로 남음).
+                db.dailyAppUsageDao().deleteAllHistory()
+                db.appDailyInteractionDao().deleteAll()
+                db.foregroundUsageSessionDao().deleteAll()
+                db.coreIndexSampleDao().deleteAll()
+                db.cumulativeScoreStateDao().deleteAll()
+                db.statisticsDao().deleteUsage()
+                db.statisticsDao().deleteScores()
+                db.statisticsDao().deleteImpacts()
+                db.statisticsDao().deleteState()
+                db.deviceInteractionEventDao().deleteAll()
+                db.scoreDao().deleteAllScoreHistories()
+            }
             rootJson.optJSONObject("hourlyStatistics")?.let {
                 StatisticsBackup.restore(db, it, System.currentTimeMillis())
             }
@@ -335,7 +359,7 @@ object DataBackupManager {
                 val current = db.cumulativeScoreStateDao().get()?.let {
                     com.digitscore.app.data.CumulativeRecord.decode(it.payload)
                 }
-                if (current == null || restored.checkpoint.timestamp > current.checkpoint.timestamp) {
+                if (overwrite || current == null || restored.checkpoint.timestamp > current.checkpoint.timestamp) {
                     // Offline time between export and import is unknown, not a recovery interval.
                     db.cumulativeScoreStateDao().put(com.digitscore.app.data.entity.CumulativeScoreStateEntity(
                         payload = restored.copy(checkpoint = restored.checkpoint.copy(
@@ -696,11 +720,27 @@ object DataBackupManager {
 
             rootJson.optJSONObject("userPrefs")?.let { PrefsBackup.restore(context, it) }
 
+            if (overwrite) {
+                // 오늘 복원 전까지의 앱 사용은 백업 값으로 고정하고, 이후 사용만 이 기기에서 더합니다.
+                val today = com.digitscore.app.data.DailyGoalStore.getLogicalDateString()
+                RestoreBaseline.save(context, today, restoredAt, db.dailyAppUsageDao().getRange(today, today))
+                com.digitscore.app.data.CumulativeScoreStore.clearWindowCache()
+            }
             true
         } catch (e: Exception) {
             e.printStackTrace()
             false
         }
+        run {
+            // 성공·실패와 관계없이, 멈췄던 추적은 다시 켭니다(서비스는 저장된 상태를 새로 읽음).
+            val trackingEnabled = runCatching {
+                DigitsDatabase.getInstance(context).settingsDao().getSettings()?.isTrackingEnabled == true
+            }.getOrDefault(false)
+            if (overwrite && (wasTracking || trackingEnabled)) {
+                runCatching { com.digitscore.app.service.TrackerForegroundService.start(context) }
+            }
+        }
+        result
     }
 
     /**

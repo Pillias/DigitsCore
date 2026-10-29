@@ -750,6 +750,11 @@ object UiTranslator {
 
     private val exactReplacements = mapOf(
         "측정 상태 진단" to "Measurement check",
+        "복원 방식을 고르세요" to "Choose how to restore",
+        "백업으로 바꾸기(권장): 이 기기의 사용 기록과 코어 지수를 지우고 백업 기록으로 이어 갑니다. 새 기기로 옮길 때 고르세요." to "Replace with backup (recommended): clears this device's history and Core Index and continues from the backup. Use this when moving to a new device.",
+        "이 기기 기록에 합치기: 이 기기 기록을 남기고 백업 기록을 더합니다. 같은 시간대 기록이 겹치면 그래프가 섞여 보일 수 있습니다." to "Merge with this device: keeps this device's history and adds the backup. Overlapping times may look mixed in charts.",
+        "백업으로 바꾸기" to "Replace",
+        "합치기" to "Merge",
         "다른 점수 모드는 준비 중입니다. 점수는 누적되며 지난 기록을 다시 계산하지 않습니다." to "Other presets are coming later. Your score accumulates without recalculating past records.",
         "시간별 · 24H" to "Hourly · 24H",
         "일별 · 4W" to "Daily · 4W",

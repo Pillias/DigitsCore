@@ -85,6 +85,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.rounded.Backup
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Restore
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
@@ -179,6 +180,7 @@ fun PresetModeScreen(
     var isWidgetBackgroundMenuExpanded by remember { mutableStateOf(false) }
     var showBackupPasswordDialog by remember { mutableStateOf(false) }
     var pendingEncryptedImport by remember { mutableStateOf<ByteArray?>(null) }
+    var pendingRestoreMode by remember { mutableStateOf<com.digitscore.app.data.backup.RestoreMode?>(null) }
     var showDeleteHistoryConfirmation by remember { mutableStateOf(false) }
     var showBugReport by remember { mutableStateOf(false) }
     var showDiagnosticsModal by remember { mutableStateOf(false) }
@@ -2028,17 +2030,50 @@ fun PresetModeScreen(
         )
     }
 
-    pendingEncryptedImport?.let { encryptedBytes ->
+    if (pendingEncryptedImport != null && pendingRestoreMode == null) {
+        // 복원 방식 선택: 기본은 백업 우선(이 기기 기록을 백업으로 바꿈)
+        AlertDialog(
+            onDismissRequest = { pendingEncryptedImport = null },
+            title = { Text("복원 방식을 고르세요", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "백업으로 바꾸기(권장): 이 기기의 사용 기록과 코어 지수를 지우고 백업 기록으로 이어 갑니다. 새 기기로 옮길 때 고르세요.",
+                        fontSize = DigitsTextSize.label
+                    )
+                    Text(
+                        "이 기기 기록에 합치기: 이 기기 기록을 남기고 백업 기록을 더합니다. 같은 시간대 기록이 겹치면 그래프가 섞여 보일 수 있습니다.",
+                        fontSize = DigitsTextSize.label,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = { pendingRestoreMode = com.digitscore.app.data.backup.RestoreMode.OVERWRITE }) {
+                    Text("백업으로 바꾸기", maxLines = 1)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRestoreMode = com.digitscore.app.data.backup.RestoreMode.MERGE }) {
+                    Text("합치기", maxLines = 1)
+                }
+            }
+        )
+    }
+
+    pendingEncryptedImport?.takeIf { pendingRestoreMode != null }?.let { encryptedBytes ->
+        val restoreMode = pendingRestoreMode ?: com.digitscore.app.data.backup.RestoreMode.OVERWRITE
         BackupPasswordDialog(
             title = "암호화 백업 복원",
             confirmPassword = false,
-            onDismiss = { pendingEncryptedImport = null },
+            onDismiss = { pendingEncryptedImport = null; pendingRestoreMode = null },
             onConfirm = { password ->
                 pendingEncryptedImport = null
+                pendingRestoreMode = null
                 scope.launch(Dispatchers.IO) {
                     val chars = password.toCharArray()
                     try {
-                        val success = DataBackupManager.importBackup(context, encryptedBytes, chars)
+                        val success = DataBackupManager.importBackup(context, encryptedBytes, chars, restoreMode)
                         launch(Dispatchers.Main) {
                             Toast.makeText(
                                 context,
