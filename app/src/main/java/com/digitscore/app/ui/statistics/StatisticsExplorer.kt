@@ -579,7 +579,12 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                     if (isRolling) {
                         val highlights = remember(visibleImpacts) { com.digitscore.app.data.DayMovementHighlights.from(visibleImpacts) }
                         if (highlights.isNotEmpty()) {
-                            val names = remember(apps) { apps.associate { it.pkg to it.name } }
+                            // 기기에 설치되지 않은 앱(백업 복원 등)은 시간별 집계에 남은 앱 이름을 씁니다.
+                            val names = remember(apps, visibleUsage) {
+                                val stored = visibleUsage.filter { it.appName.isNotBlank() && it.appName != it.packageName }
+                                    .associate { it.packageName to it.appName }
+                                stored + apps.filter { it.name != it.pkg }.associate { it.pkg to it.name }
+                            }
                             Column(
                                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
                                 verticalArrangement = Arrangement.spacedBy(2.dp)
