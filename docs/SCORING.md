@@ -1,7 +1,7 @@
 # 누적 코어 지수 (Cumulative Score Model v3)
 
 계산: `CumulativeScoreEngine`, 타임라인 전이: `CumulativeTimeline`, 영속 저장: `CumulativeScoreStore`.
-제품 내부 사용 균형 지표이며 의료적 평가나 실제 인구 평균이 아닙니다. [이전 모델 4](SCORING_LEGACY_V4.md)는 호환용입니다.
+제품 내부 사용 균형 지표이며 의료적 평가나 실제 인구 평균이 아닙니다. [이전 모델 4](../archive/docs/SCORING_LEGACY_V4.md)는 호환용입니다.
 
 ## 핵심 원칙 및 동작
 

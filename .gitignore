@@ -33,7 +33,7 @@ Claude outputs/
 # 에뮬레이터 개발 작업 로그
 scripts/dev/out/
 
-# 스토어 아이콘 시안 (로컬 보관)
-store_assets/_drafts/
+# 보관함의 로컬 전용 파일 (빌드 결과물·개인 백업·시안 원본, git 제외)
+archive/local/
 # 개발 작업 대기열 (실행용 임시 스크립트)
 scripts/dev/queue/
