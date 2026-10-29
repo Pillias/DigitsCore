@@ -749,6 +749,7 @@ object UiTranslator {
     ).filter { it.first.length >= 4 }.sortedByDescending { it.first.length }
 
     private val exactReplacements = mapOf(
+        "측정 상태 진단" to "Measurement check",
         "다른 점수 모드는 준비 중입니다. 점수는 누적되며 지난 기록을 다시 계산하지 않습니다." to "Other presets are coming later. Your score accumulates without recalculating past records.",
         "시간별 · 24H" to "Hourly · 24H",
         "일별 · 4W" to "Daily · 4W",

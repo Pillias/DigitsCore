@@ -1403,9 +1403,16 @@ private fun ExplorerChart(
                 val graphBottom = 200.dp.toPx()
                 fun y(score: Double) = graphBottom - (graphBottom - graphTop) * ((score - low) / (high - low).coerceAtLeast(1.0)).toFloat()
 
-                // Y축 눈금 (상, 중, 하)
+                // Y축 눈금 (상, 중, 하): 방어선 라벨·현재 값 배지와 겹치는 눈금은 숨깁니다
+                val reservedYs = buildList {
+                    if (baseline in low..high) add(y(baseline))
+                    buckets.lastOrNull()?.score?.last?.let { add(y(it)) }
+                }
                 listOf(high, (low + high) / 2, low).forEach { valScore ->
-                    drawContext.canvas.nativeCanvas.drawText(valScore.roundToInt().toString(), 6.dp.toPx(), y(valScore) + 4.dp.toPx(), paint)
+                    val ty = y(valScore)
+                    if (reservedYs.none { kotlin.math.abs(it - ty) < 12.dp.toPx() }) {
+                        drawContext.canvas.nativeCanvas.drawText(valScore.roundToInt().toString(), 6.dp.toPx(), ty + 4.dp.toPx(), paint)
+                    }
                 }
 
                 // 지수 방어선 기준 라벨
@@ -1442,8 +1449,15 @@ private fun ExplorerChart(
                 // 볼륨 및 오픈 라벨
                 val volPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = muted.toArgb(); textSize = DigitsTextSize.micro.toPx() }
                 val openPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = com.digitscore.app.ui.theme.ChartUnlock.toArgb(); textSize = DigitsTextSize.micro.toPx() }
-                drawContext.canvas.nativeCanvas.drawText(label("잠금 해제", "Unlocks"), 4.dp.toPx(), 238.dp.toPx(), openPaint)
-                drawContext.canvas.nativeCanvas.drawText(label("화면", "Screen"), 4.dp.toPx(), 274.dp.toPx(), volPaint)
+                // 오른쪽 칸 폭(44dp)에 맞게 글자를 줄여서 큰 글씨에서도 밖으로 넘치지 않게 함
+                fun fit(p: android.graphics.Paint, text: String) {
+                    val avail = size.width - 6.dp.toPx()
+                    while (p.measureText(text) > avail && p.textSize > 6.dp.toPx()) p.textSize -= 0.5f
+                }
+                val unlockLabel = label("잠금 해제", "Unlocks"); fit(openPaint, unlockLabel)
+                val screenLabel = label("화면", "Screen"); fit(volPaint, screenLabel)
+                drawContext.canvas.nativeCanvas.drawText(unlockLabel, 4.dp.toPx(), 238.dp.toPx(), openPaint)
+                drawContext.canvas.nativeCanvas.drawText(screenLabel, 4.dp.toPx(), 274.dp.toPx(), volPaint)
             }
         }
     }

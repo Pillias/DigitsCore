@@ -7,5 +7,16 @@ package com.digitscore.app.i18n
  */
 fun countUnit(): String = if (AppLocale.isCurrentEnglish) "" else "회"
 
+/** 숫자는 그대로, '회'만 작은 글씨 (min과 같은 0.7배). 영어는 숫자만. */
+fun formatCountSmallUnit(n: Int, unitSize: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit(0.7f, androidx.compose.ui.unit.TextUnitType.Em)):
+    androidx.compose.ui.text.AnnotatedString = androidx.compose.ui.text.buildAnnotatedString {
+    append("$n")
+    val unit = countUnit()
+    if (unit.isNotEmpty()) {
+        pushStyle(androidx.compose.ui.text.SpanStyle(fontSize = unitSize, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium))
+        append(unit); pop()
+    }
+}
+
 /** 숫자 + 횟수 단위. 예) 48회 / 48 */
 fun countText(n: Number): String = "$n${countUnit()}"

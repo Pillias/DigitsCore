@@ -1729,7 +1729,7 @@ private fun EditThreeGoalsDialog(
                     GoalRangeSlider(
                         value = selectedUnlockLimit,
                         spec = unlockSpec,
-                        unit = "x",
+                        unit = com.digitscore.app.i18n.countUnit(),
                         todayLabel = if (isEn) "Today" else "오늘",
                         averageLabel = if (isEn) "7-day avg" else "7일 평균",
                         onChange = { unlockTouched = true; selectedUnlockLimit = it }
@@ -1933,7 +1933,7 @@ private fun CoreIndexHeroCard(
                     modifier = Modifier
                         .padding(horizontal = 8.dp)
                         .width(1.dp)
-                        .height(125.dp)
+                        .height(136.dp)
                         .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 )
 
@@ -2143,7 +2143,7 @@ private fun CoreIndexSparklineContent(
                 Box(
                     modifier = Modifier
                         .width(chartWidth)
-                        .height(84.dp)
+                        .height(108.dp)   // 왼쪽 게이지 열(게이지·점수·단계·상태) 높이에 맞춤
                 ) {
                     val highLabelArgb = ScoreGreenText.toArgb()
                     val lowLabelArgb = ScoreRedText.toArgb()
@@ -2685,7 +2685,7 @@ private fun ScoreStatsRow(
             )
             StatisticCard(
                 label = if (isEn) "Unlocks" else "잠금 해제",
-                value = "${unlockCount}${com.digitscore.app.i18n.countUnit()}",
+                value = com.digitscore.app.i18n.formatCountSmallUnit(unlockCount),
                 caption = effect(breakdown.unlocks),
                 captionColor = pointsColor(breakdown.unlocks),
                 icon = Icons.Rounded.LockOpen,
@@ -2713,7 +2713,7 @@ private fun ScoreStatsRow(
             )
             StatisticCard(
                 label = if (isEn) "Unlocks" else "잠금 해제",
-                value = "${unlockCount}${com.digitscore.app.i18n.countUnit()}",
+                value = com.digitscore.app.i18n.formatCountSmallUnit(unlockCount),
                 icon = Icons.Rounded.LockOpen,
                 onClick = onUnlockClick,
                 modifier = Modifier.weight(1f).fillMaxHeight()
@@ -2772,6 +2772,7 @@ private fun StatisticCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
+                    modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -2786,10 +2787,11 @@ private fun StatisticCard(
                         fontSize = DigitsTextSize.label,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
-                        softWrap = false
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                 }
-                DetailChevron()
+                // 큰 글씨에서는 꺾쇠를 빼서 이름이 잘리지 않게 함 (칸 전체를 누를 수 있음)
+                if (androidx.compose.ui.platform.LocalDensity.current.fontScale <= 1.15f) DetailChevron()
             }
             if (value is androidx.compose.ui.text.AnnotatedString) {
                 com.digitscore.app.i18n.Text(
@@ -4031,7 +4033,7 @@ private fun AppSessionInsight(insights: AppUsageInsights) {
         }
     }
     InsightCard(if (isEn) "Were any sessions overly long?" else "한 번에 너무 길게 사용했나요?") {
-        if (sessions.isNotEmpty()) {
+        if (sessions.size >= 3) {  // 세션이 1~2개면 빈 그래프만 크게 남아 문장으로만 보여 줌
             CompactBarChart(
                 values = sessions.takeLast(10).map { it / 60_000f },
                 barColor = MaterialTheme.colorScheme.primary,

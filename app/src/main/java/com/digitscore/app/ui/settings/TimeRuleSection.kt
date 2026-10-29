@@ -81,6 +81,7 @@ fun TimeRuleSection(
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            Column {  // 제목 줄(제목 + 추가)과 설명을 붙여 둠
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -91,12 +92,6 @@ fun TimeRuleSection(
                         text = if (isEn) "Time-of-day Rules" else "시간대 규칙",
                         fontWeight = FontWeight.Bold,
                         fontSize = DigitsTextSize.bodyLarge
-                    )
-                    Text(
-                        text = if (isEn) "Stricter screen lighting intervals during specific hours (up to 3)"
-                        else "특정 시간대에 화면 신호등 간격을 강화합니다 (최대 3개)",
-                        fontSize = DigitsTextSize.label,
-                        color = MaterialTheme.colorScheme.outline
                     )
                 }
                 if (rules.size < TimeRuleStore.MAX_RULES) {
@@ -123,6 +118,13 @@ fun TimeRuleSection(
                         )
                     }
                 }
+            }
+            Text(
+                text = if (isEn) "Stricter screen lighting intervals during specific hours (up to 3)"
+                else "특정 시간대에 화면 신호등 간격을 강화합니다 (최대 3개)",
+                fontSize = DigitsTextSize.label,
+                color = MaterialTheme.colorScheme.outline
+            )
             }
 
             if (rules.isEmpty()) {

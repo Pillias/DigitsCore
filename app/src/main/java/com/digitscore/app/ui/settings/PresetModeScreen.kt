@@ -69,6 +69,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -424,8 +425,16 @@ fun PresetModeScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
             if (selectedCategoryTab == 0) item {
+                // 다른 탭과 첫 줄을 맞추기 위한 제목
+                SectionHeading(
+                    title = if (isEn) "Display & tracking" else "화면과 추적",
+                    subtitle = if (isEn) "Language, theme, widget and app icon." else "언어, 화면 모드, 위젯, 앱 아이콘을 정합니다."
+                )
+            }
+
+            if (selectedCategoryTab == 0) item {
                 Card(
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
@@ -1810,8 +1819,8 @@ fun PresetModeScreen(
                                 shape = DigitsShape.md,
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                             ) {
-                                Icon(imageVector = Icons.Rounded.Backup, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
-                                Text(text = "암호화 백업", fontSize = DigitsTextSize.body)
+                                if (LocalDensity.current.fontScale <= 1.15f) Icon(imageVector = Icons.Rounded.Backup, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
+                                Text(text = "암호화 백업", fontSize = DigitsTextSize.body, maxLines = 1)
                             }
 
                             // 3) 데이터 복원
@@ -1823,8 +1832,8 @@ fun PresetModeScreen(
                                 shape = DigitsShape.md,
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer)
                             ) {
-                                Icon(imageVector = Icons.Rounded.Restore, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
-                                Text(text = "데이터 복원", fontSize = DigitsTextSize.body)
+                                if (LocalDensity.current.fontScale <= 1.15f) Icon(imageVector = Icons.Rounded.Restore, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
+                                Text(text = "데이터 복원", fontSize = DigitsTextSize.body, maxLines = 1)
                             }
                         }
 
@@ -1871,7 +1880,7 @@ fun PresetModeScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "DigitsCore",
                                 fontWeight = FontWeight.Bold,
@@ -1884,12 +1893,22 @@ fun PresetModeScreen(
                             )
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "v${BuildConfig.VERSION_NAME} · ${BuildConfig.BUILD_DATE}",
-                                fontSize = DigitsTextSize.label,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                            // 버전과 날짜를 두 줄로: 큰 글씨에서도 잘리지 않게
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = "v${BuildConfig.VERSION_NAME}",
+                                    fontSize = DigitsTextSize.label,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = BuildConfig.BUILD_DATE,
+                                    fontSize = DigitsTextSize.caption,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    maxLines = 1
+                                )
+                            }
                             DetailChevron()
                         }
                     }
