@@ -921,7 +921,7 @@ private fun ThreeGoalsDashboardCard(
                             tint = tint
                         )
                         Spacer(modifier = Modifier.width(3.dp))
-                        val goalText = if (noAppTarget) (if (isEn) "Pick app" else "앱 선택")
+                        val goalText = if (noAppTarget) androidx.compose.ui.text.AnnotatedString(if (isEn) "Pick app" else "앱 선택")
                             else com.digitscore.app.i18n.formatGoalMinutesSmallUnit(appMins, appLimit)
                         com.digitscore.app.i18n.Text(
                             text = goalText,
