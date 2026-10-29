@@ -25,4 +25,15 @@ class AppGradeTest {
         assertEquals(AppCategoryPolicy.EdgeKind.MANAGED, AppCategoryPolicy.edgeKindFor("com.duolingo", 3))
         assertEquals(AppCategoryPolicy.EdgeKind.STUDY, AppCategoryPolicy.edgeKindFor("com.duolingo", 0))
     }
+
+    @Test
+    fun `english-market and mixed-case packages get default grades`() {
+        fun grade(pkg: String) = AppCategoryPolicy.resolveDefaultCategory(packageName = pkg, applicationCategory = -1)
+        assertEquals(AppCategoryType.EXEMPT, grade("com.amazon.kindle"))
+        assertEquals(AppCategoryType.EXEMPT, grade("com.chase.sig.android"))
+        assertEquals(AppCategoryType.EXEMPT, grade("com.atlassian.android.jira.core"))
+        assertEquals(AppCategoryType.DISTRACTING, grade("com.walmart.android"))
+        // 대문자가 섞인 패키지명도 일치해야 합니다.
+        assertEquals(AppCategoryType.EXEMPT, grade("com.locnall.KimGiSa"))
+    }
 }

@@ -46,7 +46,7 @@ object AppCategoryPolicy {
             excludedSet.remove(pkg)
         } else {
             studySet.remove(pkg)
-            if (EDUCATION_PACKAGES.any { pkg.startsWith(it) }) {
+            if (EDUCATION_PACKAGES.any { pkg.startsWith(it.lowercase()) }) {
                 excludedSet.add(pkg)
             }
         }
@@ -129,7 +129,17 @@ object AppCategoryPolicy {
         "com.kyobo.ebook",              // 교보eBook
         "com.yes24.ebook",              // 예스24 eBook
         "com.influential.youngkangapp", // 윌라
-        "net.pedaling.class101"         // 클래스101
+        "net.pedaling.class101",        // 클래스101
+        // 영어권 기본 분류
+        "org.coursera",
+        "com.amazon.kindle",
+        "com.audible.application",
+        "com.overdrive.mobile.android.libby",
+        "com.google.android.apps.books",
+        "com.memrise.android",
+        "com.babbel.mobile.android",
+        "com.brainly",
+        "com.blinkslabs.blinkist.android"
     )
 
     // 은행 / 페이 / 인증 / 메일 / 캘린더 / 문서 / 업무 협업툴 (기본 EXEMPT 면제, 연속 30분 한도 대상)
@@ -163,7 +173,28 @@ object AppCategoryPolicy {
         "com.microsoft.teams",          // Teams
         "com.slack",                    // Slack
         "com.tosslab.jandi.app",        // 잔디
-        "us.zoom.videomeetings"         // Zoom
+        "us.zoom.videomeetings",        // Zoom
+        // 영어권 기본 분류
+        "com.chase.sig.android",
+        "com.infonow.bofa",
+        "com.wf.wellsfargomobile",
+        "com.konylabs.capitalone",
+        "com.citi.citimobile",
+        "com.usaa.mobile.android.usaa",
+        "com.revolut.revolut",
+        "com.transferwise.android",
+        "com.paypal.android.p2pmobile",
+        "com.venmo",
+        "com.squareup.cash",
+        "com.google.android.apps.walletnfcrel",
+        "com.asana.app",
+        "com.atlassian.android.jira.core",
+        "com.trello",
+        "com.todoist",
+        "com.dropbox.android",
+        "com.google.android.keep",
+        "com.evernote",
+        "com.cisco.webex.meetings"
     )
 
     // 쇼핑 앱 (기본 등급: DISTRACTING 관리)
@@ -180,7 +211,13 @@ object AppCategoryPolicy {
         "com.croquis.zigzag",           // 지그재그
         "com.the29cm.app29cm",          // 29CM
         "net.bucketplace",              // 오늘의집
-        "com.towneers.www"              // 당근
+        "com.towneers.www",             // 당근
+        // 영어권 기본 분류
+        "com.walmart.android",
+        "com.target.ui",
+        "com.etsy.android",
+        "com.bestbuy.android",
+        "com.zzkko"
     )
 
     // 웹툰 앱 (기본 등급: DISTRACTING 관리)
@@ -226,7 +263,7 @@ object AppCategoryPolicy {
      */
     fun isNavigationOrCallPackage(packageName: String): Boolean {
         val pkg = packageName.lowercase()
-        return NAVIGATION_PACKAGES.any { pkg.startsWith(it) } || CALL_PACKAGES.any { pkg.startsWith(it) }
+        return NAVIGATION_PACKAGES.any { pkg.startsWith(it.lowercase()) } || CALL_PACKAGES.any { pkg.startsWith(it.lowercase()) }
     }
 
     /**
@@ -238,7 +275,7 @@ object AppCategoryPolicy {
         if (excluded?.contains(pkg) == true) return false
         val custom = if (context != null) getCustomStudyPackages(context) else cachedCustomStudyPackages
         if (custom?.contains(pkg) == true) return true
-        return EDUCATION_PACKAGES.any { pkg.startsWith(it) }
+        return EDUCATION_PACKAGES.any { pkg.startsWith(it.lowercase()) }
     }
 
 
@@ -267,7 +304,7 @@ object AppCategoryPolicy {
         val pkg = packageName.lowercase()
 
         // 1. 내비게이션 / 지도
-        if (NAVIGATION_PACKAGES.any { pkg.startsWith(it) } || applicationCategory == ApplicationInfo.CATEGORY_MAPS) {
+        if (NAVIGATION_PACKAGES.any { pkg.startsWith(it.lowercase()) } || applicationCategory == ApplicationInfo.CATEGORY_MAPS) {
             if (presetMode == PresetMode.STUDY || presetMode == PresetMode.KIDS) {
                 return AppCategoryType.NEUTRAL
             }
@@ -275,37 +312,37 @@ object AppCategoryPolicy {
         }
 
         // 2. 학습 / 교육 / 어학 / 독서 앱: 모든 모드에서 기본 EXEMPT (면제)
-        if (EDUCATION_PACKAGES.any { pkg.startsWith(it) }) {
+        if (EDUCATION_PACKAGES.any { pkg.startsWith(it.lowercase()) }) {
             return AppCategoryType.EXEMPT
         }
 
         // 3. 은행 / 페이 / 인증 / 업무 협업툴: 기본 EXEMPT (면제)
-        if (FINANCE_AND_WORK_PACKAGES.any { pkg.startsWith(it) }) {
+        if (FINANCE_AND_WORK_PACKAGES.any { pkg.startsWith(it.lowercase()) }) {
             return AppCategoryType.EXEMPT
         }
 
         // 4. 기본 시스템 유틸리티(전화, 계산기, 시계, 카메라 등): 모든 모드에서 EXEMPT (면제)
-        if (UTILITY_PACKAGES.any { pkg.startsWith(it) }) {
+        if (UTILITY_PACKAGES.any { pkg.startsWith(it.lowercase()) }) {
             return AppCategoryType.EXEMPT
         }
 
         // 5. 소셜 미디어 / 숏폼 / 스트리밍: DISTRACTING (관리)
-        if (SOCIAL_MEDIA_PACKAGES.any { pkg.startsWith(it) }) {
+        if (SOCIAL_MEDIA_PACKAGES.any { pkg.startsWith(it.lowercase()) }) {
             return AppCategoryType.DISTRACTING
         }
 
         // 6. 웹툰 앱: DISTRACTING (관리)
-        if (WEBTOON_PACKAGES.any { pkg.startsWith(it) }) {
+        if (WEBTOON_PACKAGES.any { pkg.startsWith(it.lowercase()) }) {
             return AppCategoryType.DISTRACTING
         }
 
         // 7. 쇼핑 앱: DISTRACTING (관리)
-        if (SHOPPING_PACKAGES.any { pkg.startsWith(it) }) {
+        if (SHOPPING_PACKAGES.any { pkg.startsWith(it.lowercase()) }) {
             return AppCategoryType.DISTRACTING
         }
 
         // 8. 메신저 앱: NEUTRAL (일반)
-        if (MESSENGER_PACKAGES.any { pkg.startsWith(it) }) {
+        if (MESSENGER_PACKAGES.any { pkg.startsWith(it.lowercase()) }) {
             return AppCategoryType.NEUTRAL
         }
 
@@ -331,10 +368,10 @@ object AppCategoryPolicy {
         if (usageMinutes >= 15L) return true
         if (categoryType == AppCategoryType.DISTRACTING || categoryType == AppCategoryType.EXEMPT) return true
         val pkg = packageName.lowercase()
-        return NAVIGATION_PACKAGES.any { pkg.startsWith(it) } ||
-               EDUCATION_PACKAGES.any { pkg.startsWith(it) } ||
-               FINANCE_AND_WORK_PACKAGES.any { pkg.startsWith(it) } ||
-               SHOPPING_PACKAGES.any { pkg.startsWith(it) } ||
-               WEBTOON_PACKAGES.any { pkg.startsWith(it) }
+        return NAVIGATION_PACKAGES.any { pkg.startsWith(it.lowercase()) } ||
+               EDUCATION_PACKAGES.any { pkg.startsWith(it.lowercase()) } ||
+               FINANCE_AND_WORK_PACKAGES.any { pkg.startsWith(it.lowercase()) } ||
+               SHOPPING_PACKAGES.any { pkg.startsWith(it.lowercase()) } ||
+               WEBTOON_PACKAGES.any { pkg.startsWith(it.lowercase()) }
     }
 }
