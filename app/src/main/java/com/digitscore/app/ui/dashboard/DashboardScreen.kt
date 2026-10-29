@@ -205,6 +205,22 @@ fun DashboardScreen(
     var showAllAppsModal by remember { mutableStateOf(false) }
     var showGuidanceModal by remember { mutableStateOf(false) }
     var showMorningDialog by remember { mutableStateOf(false) }
+    // 업데이트 후 안내 (한 번만). 아침 브리핑이 뜬 실행에서는 겹치지 않게 다음 실행으로 미룹니다.
+    var whatsNew by remember { mutableStateOf<com.digitscore.app.data.release.ReleaseNote?>(null) }
+    var showHistoryFromWhatsNew by remember { mutableStateOf(false) }
+    var briefingShownThisRun by remember { mutableStateOf(false) }
+    LaunchedEffect(showMorningDialog) { if (showMorningDialog) { briefingShownThisRun = true; whatsNew = null } }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(1_500L)
+        if (briefingShownThisRun || showMorningDialog) return@LaunchedEffect
+        val version = com.digitscore.app.BuildConfig.VERSION_NAME
+        if (com.digitscore.app.data.release.WhatsNewStore.shouldShow(context, version)) {
+            val english = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
+            val note = com.digitscore.app.data.release.ReleaseNotes.find(context, english, version)
+            if (note != null && !note.quiet && note.items.isNotEmpty()) whatsNew = note
+            else com.digitscore.app.data.release.WhatsNewStore.markSeen(context, version)
+        }
+    }
     var showEditGoalsFromTopBar by remember { mutableStateOf(false) }
 
     // 외부 Intent(첫 잠금 해제 / 헤드업 탭)로부터 강제 호출 시 즉시 팝업 트리거
@@ -669,6 +685,28 @@ fun DashboardScreen(
                 onNavigateToStatistics()
             }
         )
+    }
+
+    whatsNew?.let { note ->
+        if (!showMorningDialog) {
+            val english = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
+            com.digitscore.app.ui.settings.WhatsNewDialog(
+                note = note,
+                english = english,
+                onMore = {
+                    com.digitscore.app.data.release.WhatsNewStore.markSeen(context, com.digitscore.app.BuildConfig.VERSION_NAME)
+                    whatsNew = null
+                    showHistoryFromWhatsNew = true
+                },
+                onDismiss = {
+                    com.digitscore.app.data.release.WhatsNewStore.markSeen(context, com.digitscore.app.BuildConfig.VERSION_NAME)
+                    whatsNew = null
+                }
+            )
+        }
+    }
+    if (showHistoryFromWhatsNew) {
+        com.digitscore.app.ui.settings.UpdateHistoryDialog(onDismiss = { showHistoryFromWhatsNew = false })
     }
 
     if (showMorningDialog && dailyGoal != null && yesterdaySummary != null) {

@@ -32,7 +32,8 @@ import com.digitscore.app.BuildConfig
 import com.digitscore.app.data.release.ReleaseNote
 import com.digitscore.app.data.release.ReleaseNotes
 import com.digitscore.app.i18n.AppLocale
-import com.digitscore.app.ui.components.DetailChevron
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.ui.draw.rotate
 import com.digitscore.app.ui.theme.DigitsShape
 import com.digitscore.app.ui.theme.DigitsTextSize
 import com.digitscore.app.ui.theme.tile
@@ -111,7 +112,13 @@ private fun NoteCard(note: ReleaseNote, isCurrent: Boolean, open: Boolean, engli
                     modifier = Modifier.padding(end = 6.dp)
                 )
             }
-            DetailChevron()
+            val turn by androidx.compose.animation.core.animateFloatAsState(if (open) 90f else 0f, label = "noteChevron")
+            androidx.compose.material3.Icon(
+                imageVector = androidx.compose.material.icons.Icons.Rounded.ChevronRight,
+                contentDescription = if (english) (if (open) "Collapse" else "Expand") else (if (open) "접기" else "펼치기"),
+                tint = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.rotate(turn)
+            )
         }
         if (note.summary.isNotBlank()) {
             androidx.compose.material3.Text(
@@ -132,7 +139,7 @@ private fun NoteCard(note: ReleaseNote, isCurrent: Boolean, open: Boolean, engli
 }
 
 /** '**굵게**' 표시만 살립니다. */
-private fun bold(text: String): AnnotatedString = buildAnnotatedString {
+internal fun bold(text: String): AnnotatedString = buildAnnotatedString {
     val parts = text.split("**")
     parts.forEachIndexed { i, part ->
         if (i % 2 == 1) withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(part) } else append(part)

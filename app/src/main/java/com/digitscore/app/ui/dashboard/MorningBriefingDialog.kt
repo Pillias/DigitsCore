@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.Whatshot
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -65,7 +66,7 @@ fun MorningBriefingDialog(
     val topTimeStr = "${yesterdaySummary.topAppUsageMinutes}min"
 
     var userInteracted by remember { mutableStateOf(false) }
-    var autoCloseSeconds by remember { mutableIntStateOf(5) }
+    var autoCloseSeconds by remember { mutableIntStateOf(10) }  // 2026-10-29: 5→10초, 화면을 한 번이라도 누르면 자동 닫힘 멈춤
 
     var selectedDifficulty by remember { mutableStateOf(GoalDifficulty.NORMAL) }
     var showCustomAdjust by remember { mutableStateOf(false) }
@@ -113,7 +114,16 @@ fun MorningBriefingDialog(
             modifier = Modifier
                 .fillMaxWidth(0.95f)
                 .heightIn(max = 640.dp)
-                .wrapContentHeight(),
+                .wrapContentHeight()
+                // 스크롤·버튼 등 어떤 터치든 먼저 감지해 자동 닫힘을 멈춥니다 (터치는 그대로 아래로 전달)
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                            userInteracted = true
+                        }
+                    }
+                },
             shape = DigitsShape.xl,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)

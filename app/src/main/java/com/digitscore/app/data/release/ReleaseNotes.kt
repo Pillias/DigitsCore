@@ -11,7 +11,9 @@ data class ReleaseNote(
     val version: String,
     val title: String,
     val summary: String,
-    val items: List<String>
+    val items: List<String>,
+    /** 노트에 `<!-- quiet -->`가 있으면 업데이트 후 안내 팝업을 띄우지 않음 (버그 수정만 있는 버전) */
+    val quiet: Boolean = false
 )
 
 object ReleaseNotes {
@@ -52,11 +54,16 @@ object ReleaseNotes {
         section.lines().forEach { raw ->
             val line = raw.trim()
             when {
+                line.startsWith("<!--") -> Unit
                 line.startsWith("## ") -> title = line.removePrefix("## ").trim()
                 line.startsWith("- ") -> items += line.removePrefix("- ").trim()
                 line.isNotEmpty() && items.isEmpty() -> { if (summary.isNotEmpty()) summary.append(' '); summary.append(line) }
             }
         }
-        return ReleaseNote(version, title, summary.toString(), items)
+        return ReleaseNote(version, title, summary.toString(), items, quiet = markdown.contains("<!-- quiet -->"))
     }
+
+    /** 지금 버전의 노트 하나 (없으면 null) */
+    fun find(context: Context, english: Boolean, currentVersion: String): ReleaseNote? =
+        load(context, english, currentVersion).firstOrNull { compare(it.version, currentVersion) == 0 }
 }
