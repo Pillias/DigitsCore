@@ -205,6 +205,8 @@ android {
     }
     sourceSets {
         getByName("androidTest").assets.srcDir("$projectDir/schemas")
+        // 앱 안 '업데이트 기록': docs/release-notes/*.md를 그대로 담습니다 (한 곳에서만 관리).
+        getByName("main").assets.srcDir(layout.buildDirectory.dir("generated/releaseNotesAssets"))
     }
     packaging {
         resources {
@@ -268,3 +270,10 @@ dependencies {
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
+
+// docs/release-notes/v*.md → assets/release_notes/ (앱 안 업데이트 기록)
+val copyReleaseNotes by tasks.registering(Copy::class) {
+    from(rootProject.file("docs/release-notes")) { include("v*.md") }
+    into(layout.buildDirectory.dir("generated/releaseNotesAssets/release_notes"))
+}
+tasks.named("preBuild") { dependsOn(copyReleaseNotes) }

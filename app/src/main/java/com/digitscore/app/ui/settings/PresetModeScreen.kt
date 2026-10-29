@@ -169,6 +169,7 @@ fun PresetModeScreen(
     val scoringConfig = settings.effectiveScoringConfig(selectedCoreIndexPreset)
 
     var showPrivacyPolicy by remember { mutableStateOf(false) }
+    var showUpdateHistory by remember { mutableStateOf(false) }
     var isPresetMenuExpanded by remember { mutableStateOf(false) }
     var isCoreIndexPresetMenuExpanded by remember { mutableStateOf(false) }
     var isLanguageMenuExpanded by remember { mutableStateOf(false) }
@@ -1844,7 +1845,7 @@ fun PresetModeScreen(
             if (selectedCategoryTab == 3) item {
                 SectionHeading(
                     title = "앱 정보",
-                    subtitle = "버전과 개인정보 처리 정책을 확인합니다."
+                    subtitle = "버전, 업데이트 기록, 개인정보 처리 정책을 확인합니다."
                 )
             }
 
@@ -1897,6 +1898,16 @@ fun PresetModeScreen(
 
             if (selectedCategoryTab == 3) item {
                 OutlinedButton(
+                    onClick = { showUpdateHistory = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = DigitsShape.md
+                ) {
+                    Text("업데이트 기록")
+                }
+            }
+
+            if (selectedCategoryTab == 3) item {
+                OutlinedButton(
                     onClick = { showPrivacyPolicy = true },
                     modifier = Modifier.fillMaxWidth(),
                     shape = DigitsShape.md
@@ -1939,6 +1950,10 @@ fun PresetModeScreen(
 
     if (showPrivacyPolicy) {
         PrivacyPolicyDialog(onDismiss = { showPrivacyPolicy = false })
+    }
+
+    if (showUpdateHistory) {
+        UpdateHistoryDialog(onDismiss = { showUpdateHistory = false })
     }
 
     if (showBugReport) {

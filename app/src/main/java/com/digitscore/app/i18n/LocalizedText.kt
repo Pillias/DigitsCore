@@ -728,7 +728,7 @@ object UiTranslator {
         "적용 및 저장" to "Apply & Save",
         "데이터 복원" to "Restore Data",
         "암호화 백업" to "Encrypted Backup",
-        "앱 정보" to "App Information",
+        "앱 정보" to "App Information", "업데이트 기록" to "Update history", "버전, 업데이트 기록, 개인정보 처리 정책을 확인합니다." to "Check the version, update history and privacy policy.",
         "버전과 개인정보 처리 정책을 확인합니다." to "Review the version and privacy policy.",
         "디지털 사용 습관을 전면 앱 사용 시간과 잠금 해제 기록으로 분석합니다." to
             "Analyzes digital habits using foreground app time and unlock history.",
