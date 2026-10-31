@@ -22,7 +22,8 @@ if [ "$STEP" = "build" ]; then
   cp app/build/outputs/bundle/release/app-release.aab "DigitsCore-v${V}-release.aab"
   cp "$APK" "DigitsCore-v${V}-release.apk"
   echo "== 6. 서명 확인 (업로드 키 SHA1 A6:CD:47:42:...:6C:8A 여야 함)"
-  keytool -printcert -jarfile "DigitsCore-v${V}-release.aab" | grep -E "SHA1|Owner"
+  # keytool은 자체 서명 인증서 경고로 종료 코드 1을 돌려줘 set -e에서 멈추므로 실패를 무시
+  keytool -printcert -jarfile "DigitsCore-v${V}-release.aab" 2>&1 | grep -E "SHA1|Owner|소유자" || true
   BT=$(ls -d "$(grep '^sdk.dir=' local.properties | cut -d= -f2)"/build-tools/* | sort -V | tail -1)
   "$BT/apksigner" verify --print-certs "DigitsCore-v${V}-release.apk" | grep -E "SHA-1|Signer #1 certificate DN"
   ls -la "DigitsCore-v${V}-release.aab" "DigitsCore-v${V}-release.apk"
