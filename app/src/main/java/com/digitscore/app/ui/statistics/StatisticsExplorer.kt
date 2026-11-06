@@ -526,8 +526,11 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                     }
                 }
                 item {
+                    // 큰 글씨·영어에서 칩 글자가 여러 줄로 깨지지 않게 한 줄로 두고 옆으로 넘김
                     Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+                        Modifier.fillMaxWidth()
+                            .horizontalScroll(androidx.compose.foundation.rememberScrollState())
+                            .padding(horizontal = 16.dp, vertical = 2.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         FilterChip(
@@ -537,7 +540,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                 selectedTime = null
                                 zoom = 1f
                             },
-                            label = { Text(label("시간별 (30일)", "Hourly (30D)")) }
+                            label = { Text(label("시간별 (30일)", "Hourly (30D)"), maxLines = 1, softWrap = false) }
                         )
                         FilterChip(
                             selected = viewMode == ExplorerViewMode.PERIOD,
@@ -546,7 +549,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                 selectedTime = null
                                 zoom = 1f
                             },
-                            label = { Text(label("일별 (4주)", "Daily (4W)")) }
+                            label = { Text(label("일별 (4주)", "Daily (4W)"), maxLines = 1, softWrap = false) }
                         )
                         FilterChip(
                             selected = viewMode == ExplorerViewMode.WEEKDAY,
@@ -555,7 +558,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                 selectedTime = null
                                 zoom = 1f
                             },
-                            label = { Text(label("요일별", "By Weekday")) }
+                            label = { Text(label("요일별", "By Weekday"), maxLines = 1, softWrap = false) }
                         )
                     }
                 }

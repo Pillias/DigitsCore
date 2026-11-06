@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.PhoneAndroid
@@ -1555,7 +1556,9 @@ private fun EditThreeGoalsDialog(
                 // 스위치를 켜고 꺼도 아래 내용이 움직이지 않도록 평일·주말 칩 자리는 항상 둡니다(꺼지면 비활성).
                 run {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(androidx.compose.foundation.rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         FilterChip(
@@ -1578,7 +1581,7 @@ private fun EditThreeGoalsDialog(
                                     }
                                 }
                             },
-                            label = { Text(if (isEn) "Weekday (Mon-Fri)" else "평일 (월~금)") }
+                            label = { Text(if (isEn) "Weekday (Mon-Fri)" else "평일 (월~금)", maxLines = 1, softWrap = false) }
                         )
                         FilterChip(
                             enabled = isSeparateWeekdayWeekend,
@@ -1600,7 +1603,7 @@ private fun EditThreeGoalsDialog(
                                     }
                                 }
                             },
-                            label = { Text(if (isEn) "Weekend (Sat-Sun)" else "주말 (토~일)") }
+                            label = { Text(if (isEn) "Weekend (Sat-Sun)" else "주말 (토~일)", maxLines = 1, softWrap = false) }
                         )
                     }
                 }
@@ -1851,6 +1854,10 @@ private fun CoreIndexHeroCard(
     val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
     val gradeText = context.localizedGrade(grade)
     var showChartHelp by remember { mutableStateOf(false) }
+    // 좌측 게이지 열의 실제 높이. 세로선과 우측 그래프를 이 높이에 맞춰 글자 크기·문구 길이가 달라도 위아래가 맞게 합니다.
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    var leftColumnHeight by remember { mutableStateOf(0.dp) }
+    val rowHeight = if (leftColumnHeight > 0.dp) leftColumnHeight else 136.dp
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1869,6 +1876,7 @@ private fun CoreIndexHeroCard(
                 Column(
                     modifier = Modifier
                         .width(102.dp)
+                        .onSizeChanged { leftColumnHeight = with(density) { it.height.toDp() } }
                         .clickable(onClick = onScoreDetailClick)
                         .padding(vertical = 2.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -1940,7 +1948,7 @@ private fun CoreIndexHeroCard(
                     modifier = Modifier
                         .padding(horizontal = 8.dp)
                         .width(1.dp)
-                        .height(136.dp)
+                        .height(rowHeight)
                         .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 )
 
@@ -1948,7 +1956,7 @@ private fun CoreIndexHeroCard(
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxHeight(),
+                        .height(rowHeight),
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     // 미니 헤더
@@ -2016,7 +2024,8 @@ private fun CoreIndexHeroCard(
                     CoreIndexSparklineContent(
                         currentScore = score,
                         samples = samples,
-                        isEn = isEn
+                        isEn = isEn,
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
@@ -2114,7 +2123,8 @@ private fun CoreIndexHeroCard(
 private fun CoreIndexSparklineContent(
     currentScore: Int,
     samples: List<CoreIndexSampleEntity>,
-    isEn: Boolean
+    isEn: Boolean,
+    modifier: Modifier = Modifier
 ) {
     val tierColor = coreIndexTierColor(currentScore)
     val scrollState = rememberScrollState()
@@ -2129,7 +2139,7 @@ private fun CoreIndexSparklineContent(
         Surface(
             shape = DigitsShape.sm,
             color = MaterialTheme.colorScheme.tile.copy(alpha = 0.5f),
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxWidth()
                 .padding(vertical = 8.dp)
         ) {
@@ -2163,19 +2173,20 @@ private fun CoreIndexSparklineContent(
         val outlineColorInt = MaterialTheme.colorScheme.outline.toArgb()
         val onSurfaceColorInt = MaterialTheme.colorScheme.onSurface.toArgb()
 
-        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
             val viewportWidth = maxWidth
             val chartWidth = maxOf(viewportWidth, viewportWidth * 2.2f)
 
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .fillMaxHeight()
                     .horizontalScroll(scrollState)
             ) {
                 Box(
                     modifier = Modifier
                         .width(chartWidth)
-                        .height(108.dp)   // 왼쪽 게이지 열(게이지·점수·단계·상태) 높이에 맞춤
+                        .fillMaxHeight()   // 헤더를 뺀 나머지 높이 = 왼쪽 게이지 열 높이에 맞춤
                 ) {
                     val highLabelArgb = ScoreGreenText.toArgb()
                     val lowLabelArgb = ScoreRedText.toArgb()
@@ -2411,6 +2422,18 @@ private fun CoreIndexSparklineContent(
                     }
                 }
             }
+            // 왼쪽으로 넘긴 그래프가 잘려 보이지 않게(예: ':00') 가장자리를 카드 색으로 흐림
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .width(18.dp)
+                    .fillMaxHeight()
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0f))
+                        )
+                    )
+            )
         }
     }
 }
@@ -2787,6 +2810,7 @@ private fun StatisticCard(
     caption: String? = null,
     captionColor: androidx.compose.ui.graphics.Color? = null
 ) {
+    var labelClipped by remember(label) { mutableStateOf(false) }
     Card(
         modifier = modifier.clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -2819,11 +2843,12 @@ private fun StatisticCard(
                         fontSize = DigitsTextSize.label,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        onTextLayout = { if (it.hasVisualOverflow) labelClipped = true }
                     )
                 }
-                // 큰 글씨에서는 꺾쇠를 빼서 이름이 잘리지 않게 함 (칸 전체를 누를 수 있음)
-                if (androidx.compose.ui.platform.LocalDensity.current.fontScale <= 1.15f) DetailChevron()
+                // 큰 글씨이거나 이름이 잘리면 꺾쇠를 빼서 이름을 다 보여 줌 (칸 전체를 누를 수 있음)
+                if (androidx.compose.ui.platform.LocalDensity.current.fontScale <= 1.15f && !labelClipped) DetailChevron()
             }
             if (value is androidx.compose.ui.text.AnnotatedString) {
                 com.digitscore.app.i18n.Text(
