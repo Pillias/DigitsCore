@@ -1,0 +1,46 @@
+#!/bin/bash
+# DigitsCore v0.9.44 릴리스: 테스트 → 서명된 AAB/APK 빌드 → 커밋·푸시 → GitHub 릴리스
+set -euo pipefail
+cd "$(dirname "$0")/../../.."
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17
+export PATH="$JAVA_HOME/bin:$PATH"
+STEP="${1:-build}"
+
+if [ "$STEP" = "build" ]; then
+  echo "== 1. 작업 트리 확인"; git status --short
+  test "$(git branch --show-current)" = "feature/core-index-focus"
+  if find . -path ./.git -prune -o -path ./scripts/dev/out -prune -o -path '*/build' -prune -o -name '*-1.*' -print | grep -q .; then echo "중복 -1 파일 있음"; exit 1; fi
+  echo "== 2. 출시 노트 커밋"
+  git add docs/release-notes scripts/dev/tasks
+  git commit -q -m "docs: v0.9.44 출시 노트, 릴리스 스크립트${TR:-}" || true
+  echo "== 3. 단위 테스트"; ./gradlew :app:testDebugUnitTest --no-daemon -q
+  echo "== 4. 디자인 점검"; STRICT=1 bash scripts/design_check.sh
+  echo "== 5. 릴리스 빌드 (PATCH 자동 +1)"; ./gradlew :app:bundleRelease :app:assembleRelease --no-daemon -q
+  V="$(grep '^MAJOR=' version.properties | cut -d= -f2).$(grep '^MINOR=' version.properties | cut -d= -f2).$(grep '^PATCH=' version.properties | cut -d= -f2)"
+  echo "버전: $V (code $(grep '^VERSION_CODE=' version.properties | cut -d= -f2))"
+  APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
+  cp app/build/outputs/bundle/release/app-release.aab "DigitsCore-v${V}-release.aab"
+  cp "$APK" "DigitsCore-v${V}-release.apk"
+  echo "== 6. 서명 확인 (업로드 키 SHA1 A6:CD:47:42:...:6C:8A 여야 함)"
+  # keytool은 자체 서명 인증서 경고로 종료 코드 1을 돌려줘 set -e에서 멈추므로 실패를 무시
+  keytool -printcert -jarfile "DigitsCore-v${V}-release.aab" 2>&1 | grep -E "SHA1|Owner|소유자" || true
+  BT=$(ls -d "$(grep '^sdk.dir=' local.properties | cut -d= -f2)"/build-tools/* | sort -V | tail -1)
+  "$BT/apksigner" verify --print-certs "DigitsCore-v${V}-release.apk" | grep -E "SHA-1|Signer #1 certificate DN"
+  ls -la "DigitsCore-v${V}-release.aab" "DigitsCore-v${V}-release.apk"
+  echo "== 7. 버전 커밋"
+  git add version.properties
+  git commit -m "release: v${V} (versionCode $(grep '^VERSION_CODE=' version.properties | cut -d= -f2)) - index share card${TR:-}"
+  git branch -f "release/v${V}"
+  echo "BUILD_DONE v${V}"
+fi
+
+if [ "$STEP" = "publish" ]; then
+  V="$(grep '^MAJOR=' version.properties | cut -d= -f2).$(grep '^MINOR=' version.properties | cut -d= -f2).$(grep '^PATCH=' version.properties | cut -d= -f2)"
+  git push origin feature/core-index-focus "release/v${V}"
+  # GitHub 노트에는 Play Console용 블록을 빼고 한국어·영어 부분만 담습니다.
+  NOTES="$(mktemp)"; awk '/^## Play Console/{exit} {print}' "docs/release-notes/v${V}.md" | perl -0pe 's/\s*---\s*\z/\n/' > "$NOTES"
+  gh release create "v${V}" "DigitsCore-v${V}-release.apk" "DigitsCore-v${V}-release.aab" \
+    --target "release/v${V}" --title "DigitsCore v${V}" --notes-file "$NOTES"
+  gh release view "v${V}" --json url,assets --jq '.url, (.assets[].name)'
+  echo "PUBLISH_DONE"
+fi
