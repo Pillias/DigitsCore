@@ -1,7 +1,7 @@
 # Google Play 스토어 등록정보
 
 기준 빌드: v0.9.43 (2026-11-06). Play Console → 사용자 늘리기 → 스토어 등록정보에 언어별로 붙여 넣습니다.
-제한: 앱 이름 30자, 짧은 설명 80자, 자세한 설명 4,000자.
+제한: 앱 이름 30자, 짧은 설명 80자, 자세한 설명 4,000자. 짧은 설명에 엔 대시(–)를 쓰면 Play가 가이드라인 경고를 냅니다.
 기능이나 권한이 바뀌면 이 파일을 같은 변경에서 고칩니다.
 
 ---
@@ -75,7 +75,7 @@ DigitsCore: Core Index
 
 ### Short description
 
-One Core Index (1–99) for the balance of phone use and rest. Nothing is locked.
+One Core Index for the balance of phone use and rest. Nothing is locked.
 
 ### Full description
 
