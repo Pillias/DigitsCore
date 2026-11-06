@@ -69,6 +69,8 @@ public class CaptionScreenshots {
         int sw = 860;
         int sh = Math.round(shot.getHeight() * (sw / (float) shot.getWidth()));
         int x = (W - sw) / 2, y = 420;
+        // 정사각형에 가까운 이미지(공유 카드)는 남은 공간 가운데에 둠
+        if (sh < H - y) y += (H - y - sh) / 2;
         Shape clip = new RoundRectangle2D.Float(x, y, sw, sh, 56, 56);
         g.setClip(clip);
         g.drawImage(shot, x, y, sw, sh, null);
