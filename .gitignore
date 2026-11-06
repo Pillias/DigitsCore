@@ -37,3 +37,6 @@ scripts/dev/out/
 archive/local/
 # 개발 작업 대기열 (실행용 임시 스크립트)
 scripts/dev/queue/
+
+# 스토어 스크린샷 원본(기기 캡처, 다른 앱 이름이 보일 수 있음)
+store_assets/screenshots/raw/

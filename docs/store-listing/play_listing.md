@@ -3,6 +3,19 @@
 기준 빌드: v0.9.43 (2026-11-06). Play Console → 사용자 늘리기 → 스토어 등록정보에 언어별로 붙여 넣습니다.
 제한: 앱 이름 30자, 짧은 설명 80자, 자세한 설명 4,000자. 짧은 설명에 엔 대시(–)를 쓰면 Play가 가이드라인 경고를 냅니다.
 기능이나 권한이 바뀌면 이 파일을 같은 변경에서 고칩니다.
+앱 이름을 바꾸면 다시 심사를 받고, 진행 중인 검토가 있으면 처음부터 다시 시작합니다. 검토가 없을 때 바꿉니다.
+
+## 휴대전화 스크린샷 (언어별 4장)
+
+`java scripts/store/CaptionScreenshots.java`가 `store_assets/screenshots/raw/{ko,en}/01~04.png` 원본에 문구를 얹어 `store_assets/screenshots/{ko,en}/`에 만듭니다. 문구는 스크립트 안에 있습니다.
+원본은 실제 기기의 release 빌드로 며칠 쓴 뒤 찍습니다(앱 이름이 "DigitsCore Dev"로 보이거나 기록이 0min이면 안 됨). 다른 사람의 앱 이름·알림이 보이지 않게 하고, 원본 폴더는 git에 넣지 않습니다.
+
+| 순서 | 화면 | ko 문구 | en 문구 |
+|---|---|---|---|
+| 1 | 대시보드 | 앱을 잠그지 않습니다 / 스마트폰 사용과 휴식의 균형을 점수 하나로 | Never locks your apps / One score for the balance of use and rest |
+| 2 | 통계 | 언제 많이 썼는지 한눈에 / 시간별·일별·요일별 지수와 사용 흐름 | See when you used it most / Hourly, daily and weekday views |
+| 3 | 오늘의 목표 | 목표는 세 가지만 / 지수 방어선 · 관리 앱 시간 · 잠금 해제 | Just three daily goals / Index floor · managed app time · unlocks |
+| 4 | 공유 카드 | 오늘의 지수를 나눠 보세요 / 도룡뇽과 함께 카드 한 장으로 공유 | Share today's index / One card with your salamander |
 
 ---
 
@@ -10,7 +23,9 @@
 
 ### 앱 이름
 
-DigitsCore - 코어 지수 디지털 웰빙
+DigitsCore: 스크린타임 디지털 디톡스
+
+(이전: DigitsCore - 코어 지수 디지털 웰빙. "코어 지수"는 검색하는 사람이 없어 사람들이 찾는 말로 바꿉니다. 공개 테스트 검토가 끝난 뒤 반영합니다.)
 
 ### 짧은 설명
 
@@ -71,7 +86,9 @@ DigitsCore는 의료용 앱이 아닙니다. 코어 지수는 스마트폰 사�
 
 ### App name
 
-DigitsCore: Core Index
+DigitsCore: Screen Time Score
+
+(Previously: DigitsCore: Core Index. Apply after the open-testing review is done.)
 
 ### Short description
 

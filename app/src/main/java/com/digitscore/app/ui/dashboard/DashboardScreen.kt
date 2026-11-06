@@ -33,6 +33,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Category
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.PhoneAndroid
@@ -1973,6 +1974,31 @@ private fun CoreIndexHeroCard(
                                 Icon(
                                     imageVector = Icons.Rounded.HelpOutline,
                                     contentDescription = if (isEn) "About the Core Index" else "코어 지수 안내",
+                                    modifier = Modifier.size(13.dp),
+                                    tint = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                            // 지금 지수와 도룡뇽을 이미지 카드로 공유 (앱 이름·사용 시간은 담지 않음)
+                            IconButton(
+                                onClick = {
+                                    val reward = com.digitscore.app.data.DailyGoalStore.getRewardState(context)
+                                    com.digitscore.app.share.IndexShareCard.share(
+                                        context,
+                                        com.digitscore.app.share.IndexShareCard.Content(
+                                            score = score,
+                                            tierName = gradeText,
+                                            salamanderStage = reward.salamanderStage,
+                                            streakDays = reward.currentStreak,
+                                            isEn = isEn,
+                                            dateText = com.digitscore.app.share.IndexShareCard.today(isEn)
+                                        )
+                                    )
+                                },
+                                modifier = Modifier.size(18.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Share,
+                                    contentDescription = if (isEn) "Share Core Index" else "코어 지수 공유",
                                     modifier = Modifier.size(13.dp),
                                     tint = MaterialTheme.colorScheme.outline
                                 )
