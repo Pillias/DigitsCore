@@ -70,7 +70,8 @@
 - [ ] 30일 이상 축적된 요일별·기간별 통계 정확성 검토
 - [ ] 업로드 keystore와 GitHub Secrets 구성
 - [ ] 공개 개인정보처리방침 URL 및 Google Play Data safety 확정
-- [ ] Play 내부 테스트용 정식 서명 AAB 배포
+- [x] Play 내부·비공개 테스트용 정식 서명 AAB 배포 (비공개 테스트 2026-10-31 종료)
+- [ ] Play 공개 테스트 v0.9.43 모든 국가 출시 후 2주 Vitals·피드백 검토 → 1.0.0 프로덕션
 
 최신 상태·완료 조건은 [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md), 기기 시험은 [docs/DEVICE_VALIDATION_PROTOCOL.md](docs/DEVICE_VALIDATION_PROTOCOL.md), Play 입력은 [docs/PLAY_CONSOLE_SUBMISSION.md](docs/PLAY_CONSOLE_SUBMISSION.md), 사용자 시험은 [docs/USER_VALIDATION_PROTOCOL.md](docs/USER_VALIDATION_PROTOCOL.md)를 기준으로 합니다.
 
