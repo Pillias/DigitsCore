@@ -1,7 +1,18 @@
-import java.awt.*;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.GraphicsEnvironment;
+import java.awt.RenderingHints;
+import java.awt.Shape;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import javax.imageio.ImageIO;
 
 /**
@@ -10,6 +21,8 @@ import javax.imageio.ImageIO;
  * 출력: store_assets/screenshots/{ko,en}/01.png ~ 04.png
  * 실행: java scripts/store/CaptionScreenshots.java   (저장소 루트에서, JDK 17)
  * 앞 2장이 설치 전환에 가장 크게 영향을 주므로 핵심 문구를 앞에 둡니다.
+ * 앱 이름 같은 개인 기록은 store_assets/screenshots/blur.txt 에 적은 영역(원본 좌표)을 흐리게 가립니다.
+ *   한 줄 형식: ko/01 x y w h
  */
 public class CaptionScreenshots {
     static final int W = 1080, H = 1920;
@@ -34,6 +47,7 @@ public class CaptionScreenshots {
 
     public static void main(String[] args) throws Exception {
         String font = pickFont();
+        Map<String, List<int[]>> blur = readBlur(new File("store_assets/screenshots/blur.txt"));
         for (String lang : new String[]{"ko", "en"}) {
             String[][] captions = lang.equals("ko") ? KO : EN;
             File outDir = new File("store_assets/screenshots/" + lang);
@@ -42,7 +56,9 @@ public class CaptionScreenshots {
                 String name = String.format("%02d.png", i + 1);
                 File raw = new File("store_assets/screenshots/raw/" + lang + "/" + name);
                 if (!raw.exists()) { System.out.println("건너뜀(원본 없음): " + raw); continue; }
-                BufferedImage out = compose(ImageIO.read(raw), captions[i][0], captions[i][1], font);
+                BufferedImage shot = ImageIO.read(raw);
+                for (int[] r : blur.getOrDefault(lang + "/" + String.format("%02d", i + 1), List.of())) blurRect(shot, r);
+                BufferedImage out = compose(shot, captions[i][0], captions[i][1], font);
                 ImageIO.write(out, "png", new File(outDir, name));
                 System.out.println("생성: " + new File(outDir, name));
             }
@@ -80,6 +96,35 @@ public class CaptionScreenshots {
         g.draw(clip);
         g.dispose();
         return img;
+    }
+
+    static Map<String, List<int[]>> readBlur(File f) throws Exception {
+        Map<String, List<int[]>> m = new HashMap<>();
+        if (!f.exists()) return m;
+        for (String line : Files.readAllLines(f.toPath())) {
+            line = line.trim();
+            if (line.isEmpty() || line.startsWith("#")) continue;
+            String[] t = line.split("\\s+");
+            m.computeIfAbsent(t[0], k -> new ArrayList<>()).add(new int[]{
+                Integer.parseInt(t[1]), Integer.parseInt(t[2]), Integer.parseInt(t[3]), Integer.parseInt(t[4])});
+        }
+        return m;
+    }
+
+    /** 영역을 작게 줄였다 다시 키워 글자를 알아볼 수 없게 흐립니다. */
+    static void blurRect(BufferedImage img, int[] r) {
+        int x = r[0], y = r[1], w = r[2], h = r[3];
+        BufferedImage part = img.getSubimage(x, y, w, h);
+        int sw = Math.max(1, w / 14), sh = Math.max(1, h / 14);
+        BufferedImage small = new BufferedImage(sw, sh, BufferedImage.TYPE_INT_RGB);
+        Graphics2D gs = small.createGraphics();
+        gs.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        gs.drawImage(part, 0, 0, sw, sh, null);
+        gs.dispose();
+        Graphics2D g = img.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g.drawImage(small, x, y, w, h, null);
+        g.dispose();
     }
 
     static void drawCentered(Graphics2D g, String text, Font f, Color c, int baseline) {
