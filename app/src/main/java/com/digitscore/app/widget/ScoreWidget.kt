@@ -3,12 +3,14 @@ package com.digitscore.app.widget
 import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
+import androidx.glance.LocalSize
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
@@ -46,24 +48,45 @@ import com.digitscore.app.ui.MainActivity
 import com.digitscore.app.ui.components.SalamanderGaugeBitmap
 
 /**
- * 홈 화면 위젯 4종 (2026-10-28 정리). 한 위젯을 늘리고 줄이는 대신 크기별로 따로 둡니다.
- * - 1x1: 점수만
- * - 2x1: 도룡뇽 게이지 · 점수 · 단계
+ * 홈 화면 위젯 (2026-11-14: 크기별 4종 → 하나로 통합). 위젯 하나를 놓고 늘리거나 줄이면 크기에 맞는 내용이 나옵니다.
+ * - 1칸: 점수 · 단계
+ * - 가로 2칸: 도룡뇽 게이지 · 점수 · 단계
  * - 2x2: 게이지 · 점수 · 단계 + 할 일 한 줄
- * - 4x2: 게이지 · 점수 · 단계 + 오늘의 목표 3줄 + 할 일 한 줄
+ * - 4x2 이상: 게이지 · 점수 · 단계 + 오늘의 목표 3줄 + 할 일 한 줄
  * 글자는 크게, 핵심만 둡니다. 게이지는 앱 안 게이지와 같은 도룡뇽 그림입니다.
  */
-enum class WidgetKind { SCORE_1X1, BAR_2X1, SQUARE_2X2, LARGE_4X2 }
+enum class WidgetKind { SCORE_1X1, TALL_1X2, BAR_2X1, SQUARE_2X2, LARGE_4X2 }
 
-abstract class DigitsScoreWidget(private val kind: WidgetKind) : GlanceAppWidget() {
-    override val sizeMode: SizeMode = SizeMode.Single
+internal object WidgetSizes {
+    val SMALL = DpSize(40.dp, 40.dp)
+    val TALL = DpSize(40.dp, 110.dp)
+    val BAR = DpSize(110.dp, 40.dp)
+    val SQUARE = DpSize(110.dp, 110.dp)
+    val LARGE = DpSize(250.dp, 110.dp)
+    val ALL = setOf(SMALL, TALL, BAR, SQUARE, LARGE)
+
+    /** 지금 크기에 맞는 내용. 런처마다 칸 크기가 달라 경계는 넉넉히 둡니다. */
+    fun kindFor(size: DpSize): WidgetKind = when {
+        size.width >= LARGE.width && size.height >= LARGE.height -> WidgetKind.LARGE_4X2
+        size.width >= SQUARE.width && size.height >= SQUARE.height -> WidgetKind.SQUARE_2X2
+        size.width >= BAR.width -> WidgetKind.BAR_2X1
+        size.height >= TALL.height -> WidgetKind.TALL_1X2
+        else -> WidgetKind.SCORE_1X1
+    }
+}
+
+open class DigitsScoreWidget : GlanceAppWidget() {
+    override val sizeMode: SizeMode = SizeMode.Responsive(WidgetSizes.ALL)
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val data = WidgetData.load(context, withGauge = kind != WidgetKind.SCORE_1X1)
+        val data = WidgetData.load(context)
         provideContent {
-            WidgetSurface(data.style, data.palette, compact = kind == WidgetKind.SCORE_1X1 || kind == WidgetKind.BAR_2X1) {
+            val kind = WidgetSizes.kindFor(LocalSize.current)
+            val compact = kind == WidgetKind.SCORE_1X1 || kind == WidgetKind.TALL_1X2 || kind == WidgetKind.BAR_2X1
+            WidgetSurface(data.style, data.palette, compact = compact) {
                 when (kind) {
                     WidgetKind.SCORE_1X1 -> ScoreOnly(data)
+                    WidgetKind.TALL_1X2 -> Tall1x2(data)
                     WidgetKind.BAR_2X1 -> Bar2x1(data)
                     WidgetKind.SQUARE_2X2 -> Square2x2(data)
                     WidgetKind.LARGE_4X2 -> Large4x2(data)
@@ -73,18 +96,20 @@ abstract class DigitsScoreWidget(private val kind: WidgetKind) : GlanceAppWidget
     }
 }
 
-/** 기존에 홈 화면에 놓인 위젯(ScoreWidgetReceiver)은 2x2로 이어집니다. */
-class ScoreWidget : DigitsScoreWidget(WidgetKind.SQUARE_2X2)
-class ScoreWidgetSmall : DigitsScoreWidget(WidgetKind.SCORE_1X1)
-class ScoreWidgetBar : DigitsScoreWidget(WidgetKind.BAR_2X1)
-class ScoreWidgetLarge : DigitsScoreWidget(WidgetKind.LARGE_4X2)
+/** 위젯 선택 화면에 나오는 단 하나의 위젯. */
+class ScoreWidget : DigitsScoreWidget()
+
+// 이전 버전에서 크기별로 놓아 둔 위젯이 사라지지 않게 남겨 둡니다(선택 화면에서는 숨김). 내용은 같고 크기 조절도 됩니다.
+class ScoreWidgetSmall : DigitsScoreWidget()
+class ScoreWidgetBar : DigitsScoreWidget()
+class ScoreWidgetLarge : DigitsScoreWidget()
 
 class ScoreWidgetSmallReceiver : GlanceAppWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = ScoreWidgetSmall() }
 class ScoreWidgetBarReceiver : GlanceAppWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = ScoreWidgetBar() }
 class ScoreWidgetLargeReceiver : GlanceAppWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = ScoreWidgetLarge() }
 
 object DigitsWidgets {
-    /** 위젯 4종을 모두 새로 그립니다. 한 종류가 실패해도 나머지는 그립니다. */
+    /** 놓여 있는 위젯을 모두 새로 그립니다. 한 종류가 실패해도 나머지는 그립니다. */
     suspend fun updateAll(context: Context) {
         listOf(ScoreWidget(), ScoreWidgetSmall(), ScoreWidgetBar(), ScoreWidgetLarge()).forEach { widget ->
             runCatching { widget.glanceUpdateAll(context) }
@@ -109,7 +134,7 @@ private class WidgetData(
     val isEn: Boolean
 ) {
     companion object {
-        suspend fun load(context: Context, withGauge: Boolean): WidgetData {
+        suspend fun load(context: Context): WidgetData {
             val snap = WidgetSnapshotStore.read(context)
             val rolling = ScoreRepository.rollingScoreDetail.value
             val detail = ScoreRepository.currentScoreDetail.value
@@ -149,7 +174,7 @@ private class WidgetData(
             return WidgetData(
                 score = score,
                 grade = grade,
-                gauge = if (withGauge) SalamanderGaugeBitmap.create(context, score, 192) else null,
+                gauge = SalamanderGaugeBitmap.create(context, score, 192),
                 action = action,
                 scoreTarget = snap?.scoreTarget ?: 75,
                 appLabel = appLabel,
@@ -194,7 +219,7 @@ private data class WidgetPalette(
 private fun WidgetSurface(style: WidgetBackgroundStyle, palette: WidgetPalette, compact: Boolean, content: @Composable () -> Unit) {
     var modifier = GlanceModifier.fillMaxSize().background(palette.background)
     if (style != WidgetBackgroundStyle.TRANSPARENT) modifier = modifier.cornerRadius(18.dp)
-    modifier = modifier.padding(if (compact) 6.dp else 12.dp).clickable(actionStartActivity<MainActivity>())
+    modifier = modifier.padding(if (compact) 4.dp else 12.dp).clickable(actionStartActivity<MainActivity>())
     Column(modifier = modifier, verticalAlignment = Alignment.CenterVertically, horizontalAlignment = Alignment.CenterHorizontally) { content() }
 }
 
@@ -213,11 +238,23 @@ private fun ScoreAndGrade(data: WidgetData, scoreSp: Int, gradeSp: Int) {
     }
 }
 
-/** 1x1: 점수만 크게 */
+/** 1칸: 점수와 단계. 좁은 칸에서도 잘리지 않게 작게 둡니다. */
 @Composable
 private fun ScoreOnly(data: WidgetData) {
     Column(modifier = GlanceModifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("${data.score}", style = style(data.palette.accent, 30, FontWeight.Bold, TextAlign.Center), maxLines = 1)
+        Text("${data.score}", style = style(data.palette.accent, 22, FontWeight.Bold, TextAlign.Center), maxLines = 1)
+        Text(data.grade, style = style(data.palette.primary, 10, FontWeight.Medium, TextAlign.Center), maxLines = 1)
+    }
+}
+
+/** 세로 1x2: 게이지 아래 점수 */
+@Composable
+private fun Tall1x2(data: WidgetData) {
+    Column(modifier = GlanceModifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalAlignment = Alignment.CenterHorizontally) {
+        Gauge(data, 36)
+        Spacer(GlanceModifier.height(4.dp))
+        Text("${data.score}", style = style(data.palette.accent, 22, FontWeight.Bold, TextAlign.Center), maxLines = 1)
+        Text(data.grade, style = style(data.palette.primary, 10, FontWeight.Medium, TextAlign.Center), maxLines = 1)
     }
 }
 

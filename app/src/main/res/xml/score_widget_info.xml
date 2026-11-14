@@ -1,13 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 위젯 2x2 (크기별로 따로 둡니다, ScoreWidget.kt) -->
+<!-- 위젯 하나를 놓고 크기를 바꿉니다 (ScoreWidget.kt) -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:initialLayout="@layout/widget_loading"
     android:minWidth="110dp"
     android:minHeight="110dp"
+    android:minResizeWidth="40dp"
+    android:minResizeHeight="40dp"
     android:targetCellWidth="2"
     android:targetCellHeight="2"
-    android:resizeMode="none"
+    android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="1800000"
     android:widgetCategory="home_screen"
     android:previewImage="@mipmap/ic_launcher"
-    android:description="@string/widget_description_2x2" />
+    android:description="@string/widget_description" />
