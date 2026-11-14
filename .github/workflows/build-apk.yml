@@ -2,7 +2,7 @@ name: Build and Validate Android
 
 on:
   push:
-    branches: [ "main", "feat/**" ]
+    branches: [ "main", "feat/**", "feature/**" ]
     tags: [ "v*" ]
   pull_request:
     branches: [ "main" ]

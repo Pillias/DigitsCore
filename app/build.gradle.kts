@@ -216,6 +216,13 @@ android {
         // 앱 안 '업데이트 기록': docs/release-notes/*.md를 그대로 담습니다 (한 곳에서만 관리).
         getByName("main").assets.srcDir(layout.buildDirectory.dir("generated/releaseNotesAssets"))
     }
+    // 앱 안에서 언어를 바꾸므로(AppLocale) Play가 기기 언어 리소스만 내려주면 영어 문자열이 빠집니다.
+    // 언어별 분할을 꺼서 한국어·영어 리소스를 항상 함께 설치합니다.
+    bundle {
+        language {
+            enableSplit = false
+        }
+    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"

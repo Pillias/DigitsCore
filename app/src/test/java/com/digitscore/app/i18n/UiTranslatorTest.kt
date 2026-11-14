@@ -187,10 +187,14 @@ class UiTranslatorTest {
     @Test
     fun koreanModeKeepsOriginalText() {
         val previous = Locale.getDefault()
+        // isCurrentEnglish는 클래스가 처음 읽힐 때의 JVM 로캘로 정해지므로(영어 로캘 CI 등) 직접 한국어로 둡니다.
+        val previousEnglish = AppLocale.isCurrentEnglish
         try {
             Locale.setDefault(Locale.KOREAN)
+            AppLocale.isCurrentEnglish = false
             assertEquals("코어 지수", UiTranslator.translate("코어 지수"))
         } finally {
+            AppLocale.isCurrentEnglish = previousEnglish
             Locale.setDefault(previous)
         }
     }
