@@ -59,11 +59,8 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Publish Release Asset (on Tag)
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: ${{ env.APK_PATH }}
+      # 릴리스에는 로컬에서 업로드 키로 서명한 APK·AAB만 올립니다(scripts/dev/tasks/release_*.sh).
+      # 태그 빌드가 debug APK를 릴리스에 덧붙이지 않게 게시 단계는 두지 않습니다.
 
   validate:
     name: Validate Release AAB
