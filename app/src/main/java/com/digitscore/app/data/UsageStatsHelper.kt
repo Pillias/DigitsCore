@@ -156,6 +156,14 @@ object UsageStatsHelper {
 
     fun getStartOfTodayMillis(nowMillis: Long = System.currentTimeMillis()): Long = getStartOfLogicalDayMillis(nowMillis)
 
+    /** [nowMillis]가 속한 활동일(05:00 시작)의 날짜 "yyyy-MM-dd". [getStartOfLogicalDayMillis]와 같은 날을 가리킵니다. */
+    fun logicalDateString(
+        nowMillis: Long = System.currentTimeMillis(),
+        zone: java.time.ZoneId = java.time.ZoneId.systemDefault()
+    ): String = java.time.Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDateTime()
+        .let { if (it.hour < 5) it.toLocalDate().minusDays(1) else it.toLocalDate() }
+        .toString()
+
 
     internal val HOME_LAUNCHER_PACKAGES = setOf(
         "com.sec.android.app.launcher",
@@ -178,7 +186,9 @@ object UsageStatsHelper {
         "com.samsung.android.app.cocktailbarservice",
         "com.google.android.permissioncontroller",
         "com.android.permissioncontroller",
-        "com.google.android.gms"
+        "com.google.android.gms",
+        // 공유 시트(Android 14+). 앱이 아니라 잠깐 뜨는 시스템 화면입니다.
+        "com.android.intentresolver"
     )
 
     val SELF_PACKAGES = setOf("com.digitscore.app", com.digitscore.app.BuildConfig.APPLICATION_ID)
@@ -545,6 +555,20 @@ object UsageStatsHelper {
         )
     }
 
+    /**
+     * [start]부터 1시간 단위 24칸에 시각을 나눠 담습니다. 화면은 한 칸을 1시간으로 보고 라벨을 붙이므로
+     * 창 길이(start~지금)와 무관하게 칸 너비는 항상 1시간입니다.
+     */
+    internal fun hourlyBuckets(timestamps: List<Long>, start: Long): List<Int> {
+        val hourly = MutableList(24) { 0 }
+        timestamps.forEach { timestamp ->
+            // floorDiv: start 직전 시각이 0번 칸으로 올림되지 않게 합니다.
+            val bucket = Math.floorDiv(timestamp - start, 60 * 60_000L)
+            if (bucket in 0L..23L) hourly[bucket.toInt()]++
+        }
+        return hourly
+    }
+
     private suspend fun getUnlockInsights(
         context: Context,
         start: Long,
@@ -558,13 +582,7 @@ object UsageStatsHelper {
         val unlockEvents = resolvedUnlockTimestamps(
             events
         )
-        val hourly = MutableList(24) { 0 }
-        unlockEvents.forEach { timestamp ->
-            val bucket = (((timestamp - start) * 24) / (end - start).coerceAtLeast(1L))
-                .toInt()
-                .coerceIn(0, 23)
-            hourly[bucket]++
-        }
+        val hourly = hourlyBuckets(unlockEvents, start)
         val averageIntervalMinutes = unlockEvents
             .zipWithNext { first, second -> (second - first).coerceAtLeast(0L) }
             .takeIf { it.isNotEmpty() }

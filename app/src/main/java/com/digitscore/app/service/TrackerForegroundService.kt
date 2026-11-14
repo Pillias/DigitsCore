@@ -343,15 +343,17 @@ class TrackerForegroundService : Service() {
 
     private fun checkDateRollover() {
         val today = getTodayDateString()
-        if (today != currentDateString) {
-            currentDateString = today
-            todayUnlockCount = 0
-            accumulatedIdleMinutes = 0L
-            cachedTodaySnapshot = null
-            lastUsageQueryEndMillis = 0L
-            lastScreenOffTimestamp = if (isScreenInteractive()) 0L else System.currentTimeMillis()
-            persistScreenState()
-        }
+        if (today != currentDateString) rolloverTo(today)
+    }
+
+    private fun rolloverTo(today: String) {
+        currentDateString = today
+        todayUnlockCount = 0
+        accumulatedIdleMinutes = 0L
+        cachedTodaySnapshot = null
+        lastUsageQueryEndMillis = 0L
+        lastScreenOffTimestamp = if (isScreenInteractive()) 0L else System.currentTimeMillis()
+        persistScreenState()
     }
 
     private fun restoreScreenState() {
@@ -436,10 +438,14 @@ class TrackerForegroundService : Service() {
                 // 프로세스 시작/날짜 변경 때 오늘 상태를 한 번 복원하고 이후에는 마지막 커서 이후의
                 // UsageEvents만 읽습니다. 2초 정착 지연으로 늦게 게시되는 동일 시점 이벤트 누락을 줄입니다.
                 val now = System.currentTimeMillis()
-                val todayStart = UsageStatsHelper.getStartOfTodayMillis()
+                val todayStart = UsageStatsHelper.getStartOfTodayMillis(now)
+                // 날짜와 하루 시작 시각을 같은 now에서 한 번에 정합니다. 05:00 직후 화면 끄기·회전처럼
+                // 날짜 확인 없이 들어온 재계산이 오늘 기록을 어제 날짜에 덮어쓰지 않게 합니다.
+                val cycleDate = UsageStatsHelper.logicalDateString(now)
+                if (cycleDate != currentDateString) rolloverTo(cycleDate)
                 // 오늘 덮어쓰기 복원을 했다면 복원 시점 이전 오늘 기록은 백업 값을 쓰고, 이후만 기기에서 셉니다.
                 val restoreBaseline = com.digitscore.app.data.backup.RestoreBaseline
-                    .forDate(applicationContext, currentDateString)
+                    .forDate(applicationContext, cycleDate)
                     ?.takeIf { it.boundaryMillis in todayStart..now }
                 val usageStart = restoreBaseline?.boundaryMillis ?: todayStart
                 val collectionEnd = (now - USAGE_EVENT_SETTLE_DELAY_MILLIS).coerceAtLeast(todayStart)
@@ -476,7 +482,7 @@ class TrackerForegroundService : Service() {
                     val dailyRecords = todayAppsUsage.map { app ->
                         val sessions = usageSnapshot.sessionSummariesByPackage[app.packageName]
                         DailyAppUsageEntity(
-                            dateString = currentDateString,
+                            dateString = cycleDate,
                             packageName = app.packageName,
                             appName = app.appName,
                             usageMillis = app.usageTimeMillis,
@@ -489,17 +495,17 @@ class TrackerForegroundService : Service() {
                         )
                     }
                     db.dailyAppUsageDao().replaceDay(
-                        dateString = currentDateString,
+                        dateString = cycleDate,
                         records = restoreBaseline?.let {
                             com.digitscore.app.data.backup.RestoreBaseline.merge(it.rows, dailyRecords, now)
                         } ?: dailyRecords,
                         coverage = DailyUsageCoverageEntity(
-                            dateString = currentDateString,
+                            dateString = cycleDate,
                             isComplete = false,
                             lastUpdatedTimestamp = now
                         )
                     )
-                    db.dailyAppUsageDao().markPastDaysComplete(currentDateString)
+                    db.dailyAppUsageDao().markPastDaysComplete(cycleDate)
                     db.dailyAppUsageDao().pruneBefore(
                         getAppHistoryCutoffDateString(365)
                     )
@@ -511,7 +517,7 @@ class TrackerForegroundService : Service() {
                             packageName = segment.packageName,
                             startTimeMillis = segment.startTimeMillis,
                             endTimeMillis = segment.endTimeMillis,
-                            dateString = currentDateString,
+                            dateString = cycleDate,
                             appName = app.appName,
                             categoryLevel = app.categoryType.level,
                             effectivePackageName = segment.effectivePackageName,
@@ -523,9 +529,9 @@ class TrackerForegroundService : Service() {
                         )
                     }
                     if (restoreBaseline != null) {
-                        db.foregroundUsageSessionDao().replaceDayFrom(currentDateString, restoreBaseline.boundaryMillis, sessionRecords)
+                        db.foregroundUsageSessionDao().replaceDayFrom(cycleDate, restoreBaseline.boundaryMillis, sessionRecords)
                     } else {
-                        db.foregroundUsageSessionDao().replaceDay(currentDateString, sessionRecords)
+                        db.foregroundUsageSessionDao().replaceDay(cycleDate, sessionRecords)
                     }
                 }
 
@@ -621,7 +627,7 @@ class TrackerForegroundService : Service() {
                     now = collectionEnd
                 )
                 val appDailyDao = db.appDailyInteractionDao()
-                val todayDateStr = com.digitscore.app.data.DailyGoalStore.getLogicalDateString()
+                val todayDateStr = cycleDate
                 val existingList = appDailyDao.getByDate(todayDateStr).associateBy { it.packageName }.toMutableMap()
 
                 if (newUnlockInteractions.isNotEmpty()) {
@@ -875,7 +881,7 @@ class TrackerForegroundService : Service() {
                     CoreIndexSampleEntity(
                         bucketStartTimestamp = sampleBucket,
                         timestampMillis = now,
-                        dateString = currentDateString,
+                        dateString = cycleDate,
                         score = rollingScoreDetail.finalScore,
                         exactScore = rollingScoreDetail.exactScore,
                         rollingLoad = rollingScoreDetail.rollingLoad,
@@ -898,7 +904,7 @@ class TrackerForegroundService : Service() {
                 var activeGoal: com.digitscore.app.model.DailyGoal? = null
                 try {
                     val (ySummary, currentGoal) = com.digitscore.app.data.DailyGoalStore.generateOrGetGoal(
-                        applicationContext, db, com.digitscore.app.data.DailyGoalStore.getLogicalDateString()
+                        applicationContext, db, cycleDate
                     )
                     ScoreRepository.updateYesterdaySummary(ySummary)
                     ScoreRepository.updateYesterdayGoalResult(com.digitscore.app.data.DailyGoalStore.getYesterdayGoalResult(applicationContext))
@@ -1144,7 +1150,7 @@ class TrackerForegroundService : Service() {
                         // 만료 후 해당 앱이 전면이 아니거나 날짜가 지난 스누즈 정리
                         com.digitscore.app.data.GoalLimitChoiceStore.pruneExpiredSnoozes(
                             context = applicationContext,
-                            currentDateString = currentDateString,
+                            currentDateString = cycleDate,
                             activePackage = limitLookupPkg,
                             now = now
                         )
@@ -1152,13 +1158,13 @@ class TrackerForegroundService : Service() {
                         // 15min 더 연장 만료 후 계속 사용 시 화면 신호등 및 재발송 (하루 최대 3회)
                         val snoozeUntil = com.digitscore.app.data.GoalLimitChoiceStore.getMore15Snooze(
                             context = applicationContext,
-                            dateString = currentDateString,
+                            dateString = cycleDate,
                             packageName = limitLookupPkg
                         )
                         if (snoozeUntil in 1..now) {
                             val resendCount = com.digitscore.app.data.GoalLimitChoiceStore.getMore15ResendCount(
                                 applicationContext,
-                                currentDateString,
+                                cycleDate,
                                 limitLookupPkg
                             )
                             if (resendCount < 3) {
@@ -1178,13 +1184,13 @@ class TrackerForegroundService : Service() {
                                 }
                                 com.digitscore.app.data.GoalLimitChoiceStore.incrementMore15ResendCount(
                                     applicationContext,
-                                    currentDateString,
+                                    cycleDate,
                                     limitLookupPkg
                                 )
                             }
                             com.digitscore.app.data.GoalLimitChoiceStore.clearMore15Snooze(
                                 applicationContext,
-                                currentDateString,
+                                cycleDate,
                                 limitLookupPkg
                             )
                         }
@@ -1208,7 +1214,7 @@ class TrackerForegroundService : Service() {
                                 lastEdgeWarningIsStudy = true
                             }
                         } else if (isManaged && effectiveManagedMinutes >= managedTargetMins) {
-                            val isStopToday = com.digitscore.app.data.GoalLimitChoiceStore.isStopTodayActive(applicationContext, currentDateString, limitLookupPkg)
+                            val isStopToday = com.digitscore.app.data.GoalLimitChoiceStore.isStopTodayActive(applicationContext, cycleDate, limitLookupPkg)
                             val repeatIntervalMins = if (isStopToday) 5 else (managedTargetMins / 2).coerceAtLeast(1)
                             val cooldownMillis = repeatIntervalMins * 60_000L
                             val isSameWarningTarget = lastEdgeWarningIsStudy == false
@@ -1235,7 +1241,7 @@ class TrackerForegroundService : Service() {
                 // DB 일일 히스토리 업데이트
                 db.scoreDao().insertOrUpdateScoreHistory(
                     DailyScoreHistoryEntity(
-                        dateString = currentDateString,
+                        dateString = cycleDate,
                         finalScore = rollingScoreDetail.finalScore,
                         totalScreenTimeMinutes = dailyScoreDetail.totalScreenTimeMinutes,
                         distractingTimeMinutes = dailyScoreDetail.distractingTimeMinutes,
@@ -1252,7 +1258,7 @@ class TrackerForegroundService : Service() {
                     com.digitscore.app.notification.LauncherIconManager.maybeUpdateOnScreenOff(
                         context = applicationContext,
                         score = rollingScoreDetail.finalScore,
-                        logicalDateString = currentDateString
+                        logicalDateString = cycleDate
                     )
                 }
 

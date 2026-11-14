@@ -350,4 +350,41 @@ class UsageStatsHelperTest {
         // Should include unlock 1 (2_000L), unlock 2 (21_000L), and unlock 5 (101_000L)
         assertEquals(listOf(2_000L, 21_000L, 101_000L), habitual)
     }
+
+    @Test
+    fun shareSheet_isNotCountedAsAppUsage() {
+        assertFalse(UsageStatsHelper.shouldIncludeUsagePackage("com.android.intentresolver", 60_000L))
+        assertTrue("com.android.intentresolver" in UsageStatsHelper.TRANSIENT_SYSTEM_OVERLAY_PACKAGES)
+    }
+
+    @Test
+    fun hourlyBuckets_areOneHourWideFromDayStart() {
+        val hour = 60 * 60_000L
+        val start = 5 * hour // 05:00
+        // 10:50의 잠금 해제는 창이 05:00~11:00이어도 5번 칸(10:00~11:00)에 들어갑니다.
+        val buckets = UsageStatsHelper.hourlyBuckets(
+            listOf(start, start + 5 * hour + 50 * 60_000L, start + 23 * hour + 1, start - 1, start + 24 * hour),
+            start
+        )
+        assertEquals(1, buckets[0])
+        assertEquals(1, buckets[5])
+        assertEquals(1, buckets[23])
+        assertEquals(3, buckets.sum())
+    }
+
+    @Test
+    fun logicalDate_switchesAtFiveAndMatchesDayStart() {
+        val zone = java.time.ZoneId.systemDefault()
+        fun at(h: Int, m: Int, sec: Int) =
+            java.time.LocalDateTime.of(2026, 11, 14, h, m, sec).atZone(zone).toInstant().toEpochMilli()
+        // 04:59:50은 전날, 05:00:20은 오늘. 날짜와 하루 시작 시각은 항상 같은 날을 가리켜야 합니다.
+        assertEquals("2026-11-13", UsageStatsHelper.logicalDateString(at(4, 59, 50), zone))
+        assertEquals("2026-11-14", UsageStatsHelper.logicalDateString(at(5, 0, 20), zone))
+        assertEquals("2026-11-14", UsageStatsHelper.logicalDateString(at(23, 59, 59), zone))
+        for (t in listOf(at(4, 59, 50), at(5, 0, 0), at(5, 0, 20), at(12, 0, 0))) {
+            val dayStart = UsageStatsHelper.getStartOfLogicalDayMillis(t)
+            assertEquals(UsageStatsHelper.logicalDateString(t, zone), UsageStatsHelper.logicalDateString(dayStart, zone))
+            assertTrue(dayStart <= t && t - dayStart < 25 * 60 * 60_000L)
+        }
+    }
 }
