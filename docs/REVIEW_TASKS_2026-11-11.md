@@ -43,9 +43,24 @@
 | D11 | 의존성 올리기는 1.0 뒤로 | — |
 | D12 | 트랙 1(서비스·빌드) Claude, 트랙 2(화면·문서) Gemini | 전체 |
 
+## 진행 상태 (2026-11-14, 트랙 1)
+
+| ID | 상태 | 확인한 것 |
+|---|---|---|
+| A1 | 완료 | 날짜·하루 시작 일치 단위 테스트. 서비스 전체를 05:00에 돌려 보는 재현은 하지 않음 |
+| A2 | 완료 | 새 AAB의 BundleConfig에 언어 분할 해제(LANGUAGE negate) 확인. Play 설치본 실기기 확인은 0.9.46 배포 뒤 |
+| A3 | 완료, CI 결과는 푸시 뒤 확인 | 영어 로캘 JVM으로는 로컬 재현이 안 됨. 원인은 테스트 실행 순서(영어 테스트 중 `AppLocale`이 처음 읽힘)로 보고, 테스트가 값을 직접 정하게 고침 |
+| A4 | 완료 | 1시간 칸 단위 테스트 |
+| A5 | 완료 | 단위 테스트 + 에뮬레이터에서 공유 시트를 40초 연 뒤 앱 목록에 생기지 않음 |
+| 위젯 | 완료 (사용자 요청 추가분) | 4종을 크기 조절되는 하나로 통합. 에뮬레이터(Pixel 런처)에서 1칸·2x1·2x2·4x2 확인. Samsung 런처는 미확인 |
+
+단위 테스트 290개 통과, 디자인 점검 통과. 트랙 2의 B6이 끝나면 0.9.46을 올립니다(D1).
+
+**트랙 2에 넘기는 추가 발견:** `i18n/LocalizedText.kt`의 `UiTranslator.translate()`가 `!AppLocale.isCurrentEnglish && Locale.getDefault().language != "en"`일 때만 한국어를 돌려줌. 기기 언어가 영어이고 앱 언어를 한국어로 고른 사용자는, 앱 화면을 열지 않은 프로세스(부팅 직후 서비스·위젯)에서 이 함수를 거친 글자가 영어로 나올 수 있음. `AppLocale.isCurrentEnglish`만 보도록 고치고, `UiTranslatorTest`의 영어 테스트들은 `AppLocale.isCurrentEnglish = true`로 켜도록 바꿀 것(테스트 파일은 이 건에 한해 트랙 2가 수정).
+
 ## 2. 트랙 1 — 서비스·측정·빌드·CI
 
-**이 트랙만 고치는 파일:** `service/TrackerForegroundService.kt`, `data/UsageStatsHelper.kt`, `data/ForegroundUsageAggregator.kt`, `receiver/*`, `widget/WidgetSnapshotStore.kt`, `i18n/AppLocale.kt`, `app/build.gradle.kts`, `.github/workflows/build-apk.yml`, `app/src/test/**`, `app/src/main/res/values*/themes.xml`
+**이 트랙만 고치는 파일:** `service/TrackerForegroundService.kt`, `data/UsageStatsHelper.kt`, `data/ForegroundUsageAggregator.kt`, `receiver/*`, `widget/**`, `res/xml/score_widget*_info.xml`, `AndroidManifest.xml`, `i18n/AppLocale.kt`, `app/build.gradle.kts`, `.github/workflows/build-apk.yml`, `app/src/test/**`, `app/src/main/res/values*/themes.xml`
 (경로 앞부분 `app/src/main/java/com/digitscore/app/` 생략)
 
 ### P0 — 0.9.46에 들어가야 함
