@@ -128,7 +128,7 @@
     <string name="action_open_settings">Setup</string>
     <string name="action_grant_required">Grant Required Permission</string>
     <string name="usage_access_guide">Turn on DigitsCore in the list. (If grayed out: App info ⋮ > Allow restricted settings)</string>
-    <string name="privacy_secure_badge">100% on-device encrypted · No server transfer</string>
+    <string name="privacy_secure_badge">History encrypted on device · No server transfer</string>
     <string name="privacy_local_title">Usage data stays on your device</string>
     <string name="privacy_local_body">App names, usage time, app-open counts, and observed unlock events are used to calculate your score. Nothing is sent to the developer or a server, and you can turn off access and tracking at any time.</string>
     <string name="privacy_more">Details</string>
