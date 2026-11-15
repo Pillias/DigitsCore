@@ -15,6 +15,9 @@ interface CoreIndexSampleDao {
     @Query("SELECT * FROM core_index_samples WHERE timestampMillis >= :startMillis ORDER BY timestampMillis ASC")
     fun observeSince(startMillis: Long): Flow<List<CoreIndexSampleEntity>>
 
+    @Query("SELECT * FROM core_index_samples WHERE timestampMillis >= :startMillis ORDER BY timestampMillis ASC")
+    suspend fun getSince(startMillis: Long): List<CoreIndexSampleEntity>
+
     @Query("SELECT * FROM core_index_samples WHERE dateString = :dateString ORDER BY timestampMillis ASC")
     fun observeForDate(dateString: String): Flow<List<CoreIndexSampleEntity>>
 
@@ -47,4 +50,8 @@ interface CoreIndexSampleDao {
 
     @Query("DELETE FROM core_index_samples")
     suspend fun deleteAll()
+
+    /** 시계가 뒤로 바뀐 뒤 남은 미래 시각 샘플을 지웁니다. */
+    @Query("DELETE FROM core_index_samples WHERE timestampMillis > :afterMillis")
+    suspend fun deleteAfter(afterMillis: Long)
 }

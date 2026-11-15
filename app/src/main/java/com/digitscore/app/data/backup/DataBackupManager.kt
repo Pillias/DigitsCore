@@ -53,7 +53,44 @@ object DataBackupManager {
     suspend fun exportToJson(context: Context): String = withContext(Dispatchers.IO) {
         val db = DigitsDatabase.getInstance(context)
         // The checkpoint and attribution archive must describe the same scoring cursor.
-        db.withTransaction { exportDatabase(db) }
+        val dbJsonString = db.withTransaction { exportDatabase(db) }
+        val rootJson = JSONObject(dbJsonString)
+
+        // 1. edgeLightingPrefs
+        val edgeObj = JSONObject().apply {
+            put("enabled", com.digitscore.app.notification.EdgeLightingOverlayManager.isEnabled(context))
+            put("managedTriggerMinutes", com.digitscore.app.notification.EdgeLightingOverlayManager.getManagedTriggerMinutes(context))
+            put("studyTriggerMinutes", com.digitscore.app.notification.EdgeLightingOverlayManager.getStudyTriggerMinutes(context))
+        }
+        rootJson.put("edgeLightingPrefs", edgeObj)
+
+        // 2. customStudyPrefs
+        val customObj = JSONObject().apply {
+            val customStudyArray = JSONArray()
+            com.digitscore.app.model.AppCategoryPolicy.getCustomStudyPackages(context).forEach { customStudyArray.put(it) }
+            put("customStudyPackages", customStudyArray)
+
+            val excludedStudyArray = JSONArray()
+            com.digitscore.app.model.AppCategoryPolicy.getExcludedStudyPackages(context).forEach { excludedStudyArray.put(it) }
+            put("excludedStudyPackages", excludedStudyArray)
+        }
+        rootJson.put("customStudyPrefs", customObj)
+
+        // 3. goalRewardState
+        val rewardState = com.digitscore.app.data.DailyGoalStore.getRewardState(context)
+        val rewardObj = JSONObject().apply {
+            put("currentStreak", rewardState.currentStreak)
+            put("perfectStamps", rewardState.perfectStamps)
+            put("availableFreePasses", rewardState.streakShields)
+            put("salamanderStage", rewardState.salamanderStage)
+            put("bestStreak", rewardState.bestStreak)
+        }
+        rootJson.put("goalRewardState", rewardObj)
+
+        // 4. DB 밖 사용자 기록: 시간 규칙, 평일/주말 목표, 목표 결과, 내 기록, 목표 초과 선택
+        rootJson.put("userPrefs", PrefsBackup.export(context))
+
+        rootJson.toString()
     }
 
     internal suspend fun exportDatabase(db: DigitsDatabase): String {
@@ -147,6 +184,7 @@ object DataBackupManager {
                 put("packageName", app.packageName)
                 put("appName", app.appName)
                 put("categoryType", app.categoryType.canonical.name)
+                put("isUserModified", app.isUserModified)
             }
             appsArray.put(aObj)
         }
@@ -169,6 +207,21 @@ object DataBackupManager {
             })
         }
         rootJson.put("dailyAppUsage", dailyAppsArray)
+
+        val appInteractions = db.appDailyInteractionDao().getAll()
+        val interactionsArray = JSONArray()
+        for (item in appInteractions) {
+            interactionsArray.put(JSONObject().apply {
+                put("dateString", item.dateString)
+                put("packageName", item.packageName)
+                put("firstAfterUnlockCount", item.firstAfterUnlockCount)
+                put("firstAfterUnlockQuickCount", item.firstAfterUnlockQuickCount)
+                put("notificationCount", item.notificationCount)
+                put("notificationUnlockCount", item.notificationUnlockCount)
+                put("lastUpdatedTimestamp", item.lastUpdatedTimestamp)
+            })
+        }
+        rootJson.put("appDailyInteractions", interactionsArray)
 
         val coverageArray = JSONArray()
         for (coverage in dailyCoverage) {
@@ -218,6 +271,18 @@ object DataBackupManager {
         rootJson.put("coreIndexSamples", samplesArray)
         rootJson.put("hourlyStatistics", StatisticsBackup.export(db))
 
+        // 7. 최근 48시간 잠금 해제 및 상호작용 이벤트
+        val now = System.currentTimeMillis()
+        val interactionEvents = db.deviceInteractionEventDao().getBetween(now - 48 * 3_600_000L, now)
+        val interactionArray = JSONArray()
+        for (event in interactionEvents) {
+            interactionArray.put(JSONObject().apply {
+                put("timestampMillis", event.timestampMillis)
+                put("eventType", event.eventType)
+            })
+        }
+        rootJson.put("deviceInteractionEvents", interactionArray)
+
         return rootJson.toString().also {
             require(it.toByteArray(Charsets.UTF_8).size <= MAX_BACKUP_BYTES - 1024) { "Backup file is too large" }
         }
@@ -231,7 +296,8 @@ object DataBackupManager {
     suspend fun importBackup(
         context: Context,
         bytes: ByteArray,
-        password: CharArray?
+        password: CharArray?,
+        mode: RestoreMode = RestoreMode.OVERWRITE
     ): Boolean = withContext(Dispatchers.IO) {
         val jsonBytes = if (BackupCrypto.isEncryptedBackup(bytes)) {
             BackupCrypto.decrypt(bytes, password ?: charArrayOf())
@@ -239,14 +305,23 @@ object DataBackupManager {
             bytes
         }
         require(jsonBytes.size <= MAX_BACKUP_BYTES) { "Backup file is too large" }
-        importFromJson(context, jsonBytes.toString(Charsets.UTF_8))
+        importFromJson(context, jsonBytes.toString(Charsets.UTF_8), mode)
     }
 
     /**
      * JSON 문자열을 파싱하여 DB에 복원합니다.
      */
-    suspend fun importFromJson(context: Context, jsonString: String): Boolean = withContext(Dispatchers.IO) {
-        try {
+    suspend fun importFromJson(
+        context: Context,
+        jsonString: String,
+        mode: RestoreMode = RestoreMode.MERGE
+    ): Boolean = withContext(Dispatchers.IO) {
+        val overwrite = mode == RestoreMode.OVERWRITE
+        // 덮어쓰기는 추적 서비스를 잠시 멈춰, 복원 중에 이 기기 기록이 다시 쓰이지 않게 합니다.
+        val wasTracking = overwrite && com.digitscore.app.data.ScoreRepository.isServiceRunning.value
+        if (overwrite) com.digitscore.app.service.TrackerForegroundService.stop(context)
+        val restoredAt = System.currentTimeMillis()
+        val result = try {
             require(jsonString.toByteArray(Charsets.UTF_8).size <= MAX_BACKUP_BYTES) {
                 "Backup file is too large"
             }
@@ -258,6 +333,20 @@ object DataBackupManager {
             }
 
             db.withTransaction {
+            if (overwrite) {
+                // 백업 우선: 이 기기의 사용 기록을 비우고 백업 기록으로 바꿉니다(같은 트랜잭션이라 실패하면 원래대로 남음).
+                db.dailyAppUsageDao().deleteAllHistory()
+                db.appDailyInteractionDao().deleteAll()
+                db.foregroundUsageSessionDao().deleteAll()
+                db.coreIndexSampleDao().deleteAll()
+                db.cumulativeScoreStateDao().deleteAll()
+                db.statisticsDao().deleteUsage()
+                db.statisticsDao().deleteScores()
+                db.statisticsDao().deleteImpacts()
+                db.statisticsDao().deleteState()
+                db.deviceInteractionEventDao().deleteAll()
+                db.scoreDao().deleteAllScoreHistories()
+            }
             rootJson.optJSONObject("hourlyStatistics")?.let {
                 StatisticsBackup.restore(db, it, System.currentTimeMillis())
             }
@@ -270,7 +359,7 @@ object DataBackupManager {
                 val current = db.cumulativeScoreStateDao().get()?.let {
                     com.digitscore.app.data.CumulativeRecord.decode(it.payload)
                 }
-                if (current == null || restored.checkpoint.timestamp > current.checkpoint.timestamp) {
+                if (overwrite || current == null || restored.checkpoint.timestamp > current.checkpoint.timestamp) {
                     // Offline time between export and import is unknown, not a recovery interval.
                     db.cumulativeScoreStateDao().put(com.digitscore.app.data.entity.CumulativeScoreStateEntity(
                         payload = restored.copy(checkpoint = restored.checkpoint.copy(
@@ -294,7 +383,9 @@ object DataBackupManager {
                         productiveTimeMinutes = hObj.getLong("productiveTimeMinutes").coerceIn(0L, 1_440L),
                         idleMinutes = hObj.getLong("idleMinutes").coerceIn(0L, 1_440L),
                         unlockCount = hObj.getInt("unlockCount").coerceIn(0, 10_000),
-                        scoreModelVersion = hObj.optInt("scoreModelVersion", 1).coerceIn(1, 5),
+                        // 이후 모델 번호가 올라가도 복원 시 잘리지 않게 현재 번호를 상한으로 씁니다.
+                        scoreModelVersion = hObj.optInt("scoreModelVersion", 1)
+                            .coerceIn(1, com.digitscore.app.engine.ScoreModel.CURRENT_STORED),
                         coreIndexPresetId = CoreIndexPreset.fromId(
                             hObj.optString("coreIndexPresetId", CoreIndexPreset.BALANCED.id)
                         ).id,
@@ -394,10 +485,12 @@ object DataBackupManager {
                     val packageName = aObj.getString("packageName").trim()
                     val appName = aObj.getString("appName").trim()
                     require(packageName.length in 1..255 && appName.length in 1..255) { "Invalid app record" }
+                    val isUserModified = aObj.optBoolean("isUserModified", true)
                     val entity = AppWeightEntity(
                         packageName = packageName,
                         appName = appName,
-                        categoryType = cat
+                        categoryType = cat,
+                        isUserModified = isUserModified
                     )
                     db.appDao().insertOrUpdateAppWeight(entity)
                 }
@@ -452,6 +545,33 @@ object DataBackupManager {
                         )
                     )
                 }
+            }
+
+            if (rootJson.has("appDailyInteractions")) {
+                db.appDailyInteractionDao().deleteAll()
+                val interactionsArray = rootJson.getJSONArray("appDailyInteractions")
+                require(interactionsArray.length() <= 50_000) { "Too many app daily interactions" }
+                val interactions = buildList {
+                    for (i in 0 until interactionsArray.length()) {
+                        val obj = interactionsArray.getJSONObject(i)
+                        val dateString = obj.getString("dateString")
+                        val packageName = obj.getString("packageName").trim()
+                        require(DATE_PATTERN.matches(dateString)) { "Invalid interaction date" }
+                        require(packageName.length in 1..255) { "Invalid interaction package" }
+                        add(
+                            com.digitscore.app.data.entity.AppDailyInteractionEntity(
+                                dateString = dateString,
+                                packageName = packageName,
+                                firstAfterUnlockCount = obj.optInt("firstAfterUnlockCount", 0),
+                                firstAfterUnlockQuickCount = obj.optInt("firstAfterUnlockQuickCount", 0),
+                                notificationCount = obj.optInt("notificationCount", 0),
+                                notificationUnlockCount = obj.optInt("notificationUnlockCount", 0),
+                                lastUpdatedTimestamp = obj.optLong("lastUpdatedTimestamp", System.currentTimeMillis())
+                            )
+                        )
+                    }
+                }
+                db.appDailyInteractionDao().insertAll(interactions)
             }
 
             if (rootJson.has("foregroundUsageSessions")) {
@@ -522,7 +642,8 @@ object DataBackupManager {
                                     .coerceIn(1.0, 100.0),
                                 rollingLoad = obj.optDouble("rollingLoad", 0.0).coerceAtLeast(0.0),
                                 acuteLoad = obj.optDouble("acuteLoad", 0.0).coerceAtLeast(0.0),
-                                scoreModelVersion = obj.optInt("scoreModelVersion", 4).coerceIn(1, 5),
+                                scoreModelVersion = obj.optInt("scoreModelVersion", 4)
+                                    .coerceIn(1, com.digitscore.app.engine.ScoreModel.CURRENT_STORED),
                                 presetId = CoreIndexPreset.fromId(
                                     obj.optString("presetId", CoreIndexPreset.BALANCED.id)
                                 ).id
@@ -532,13 +653,94 @@ object DataBackupManager {
                 }
                 db.coreIndexSampleDao().insertAll(samples)
             }
+
+            if (rootJson.has("deviceInteractionEvents")) {
+                val interactionArray = rootJson.getJSONArray("deviceInteractionEvents")
+                require(interactionArray.length() <= 50_000) { "Too many interaction events" }
+                val interactionEvents = buildList {
+                    for (i in 0 until interactionArray.length()) {
+                        val obj = interactionArray.getJSONObject(i)
+                        val timestamp = obj.getLong("timestampMillis")
+                        val eventType = obj.getInt("eventType")
+                        require(timestamp >= 0L) { "Invalid interaction timestamp" }
+                        add(
+                            com.digitscore.app.data.entity.DeviceInteractionEventEntity(
+                                timestampMillis = timestamp,
+                                eventType = eventType
+                            )
+                        )
+                    }
+                }
+                db.deviceInteractionEventDao().insertAll(interactionEvents)
+            }
             }
 
+            // SharedPreferences 기반 설정 복원
+            rootJson.optJSONObject("edgeLightingPrefs")?.let { edgeObj ->
+                val enabled = edgeObj.optBoolean("enabled", false)
+                com.digitscore.app.notification.EdgeLightingOverlayManager.setEnabled(context, enabled)
+                val managedMins = edgeObj.optInt("managedTriggerMinutes", 30)
+                com.digitscore.app.notification.EdgeLightingOverlayManager.setManagedTriggerMinutes(context, managedMins)
+                val studyMins = edgeObj.optInt("studyTriggerMinutes", 50)
+                com.digitscore.app.notification.EdgeLightingOverlayManager.setStudyTriggerMinutes(context, studyMins)
+            }
+
+            rootJson.optJSONObject("customStudyPrefs")?.let { customObj ->
+                val studySet = mutableSetOf<String>()
+                customObj.optJSONArray("customStudyPackages")?.let { array ->
+                    for (i in 0 until array.length()) {
+                        val pkg = array.optString(i)
+                        if (pkg.isNotBlank()) studySet.add(pkg.lowercase())
+                    }
+                }
+                val excludedSet = mutableSetOf<String>()
+                customObj.optJSONArray("excludedStudyPackages")?.let { array ->
+                    for (i in 0 until array.length()) {
+                        val pkg = array.optString(i)
+                        if (pkg.isNotBlank()) excludedSet.add(pkg.lowercase())
+                    }
+                }
+                com.digitscore.app.model.AppCategoryPolicy.setStudyPackagesSets(context, studySet, excludedSet)
+            }
+
+            rootJson.optJSONObject("goalRewardState")?.let { rewardObj ->
+                val streak = rewardObj.optInt("currentStreak", 0)
+                val stamps = rewardObj.optInt("perfectStamps", 0)
+                val freePasses = rewardObj.optInt("availableFreePasses", 0)
+                val currentState = com.digitscore.app.data.DailyGoalStore.getRewardState(context)
+                val restoredState = currentState.copy(
+                    currentStreak = streak,
+                    perfectStamps = stamps,
+                    streakShields = freePasses,
+                    salamanderStage = rewardObj.optInt("salamanderStage", currentState.salamanderStage).coerceIn(1, 4),
+                    bestStreak = maxOf(rewardObj.optInt("bestStreak", 0), streak)
+                )
+                com.digitscore.app.data.DailyGoalStore.saveRewardState(context, restoredState)
+            }
+
+            rootJson.optJSONObject("userPrefs")?.let { PrefsBackup.restore(context, it) }
+
+            if (overwrite) {
+                // 오늘 복원 전까지의 앱 사용은 백업 값으로 고정하고, 이후 사용만 이 기기에서 더합니다.
+                val today = com.digitscore.app.data.DailyGoalStore.getLogicalDateString()
+                RestoreBaseline.save(context, today, restoredAt, db.dailyAppUsageDao().getRange(today, today))
+                com.digitscore.app.data.CumulativeScoreStore.clearWindowCache()
+            }
             true
         } catch (e: Exception) {
             e.printStackTrace()
             false
         }
+        run {
+            // 성공·실패와 관계없이, 멈췄던 추적은 다시 켭니다(서비스는 저장된 상태를 새로 읽음).
+            val trackingEnabled = runCatching {
+                DigitsDatabase.getInstance(context).settingsDao().getSettings()?.isTrackingEnabled == true
+            }.getOrDefault(false)
+            if (overwrite && (wasTracking || trackingEnabled)) {
+                runCatching { com.digitscore.app.service.TrackerForegroundService.start(context) }
+            }
+        }
+        result
     }
 
     /**

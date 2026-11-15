@@ -1,6 +1,8 @@
 package com.digitscore.app.data
 
 import android.content.pm.ApplicationInfo
+import com.digitscore.app.data.entity.DeviceInteractionEventEntity
+import com.digitscore.app.data.entity.ForegroundUsageSessionEntity
 import com.digitscore.app.model.AppCategoryType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -12,6 +14,7 @@ class UsageStatsHelperTest {
     fun appRatingsExposeGeneralAndManagedChoices() {
         assertEquals(
             listOf(
+                AppCategoryType.EXEMPT,
                 AppCategoryType.NEUTRAL,
                 AppCategoryType.DISTRACTING
             ),
@@ -39,6 +42,21 @@ class UsageStatsHelperTest {
                 usageTimeMillis = 60_000L
             )
         )
+    }
+
+    @Test
+    fun gameOverlaysAndSystemControllers_areExcluded() {
+        val ignored = listOf(
+            "com.samsung.android.game.gametools",
+            "com.samsung.android.game.gos",
+            "com.samsung.android.game.gamehome",
+            "com.samsung.android.app.cocktailbarservice",
+            "com.google.android.permissioncontroller",
+            "com.android.permissioncontroller"
+        )
+        for (pkg in ignored) {
+            assertFalse("Package $pkg should be ignored", UsageStatsHelper.shouldIncludeUsagePackage(pkg, 60_000L))
+        }
     }
 
     @Test
@@ -122,36 +140,71 @@ class UsageStatsHelperTest {
     }
 
     @Test
-    fun shoppingPackages_defaultToGeneral() {
+    fun shoppingPackages_defaultToDistracting() {
         assertEquals(
-            AppCategoryType.NEUTRAL,
+            AppCategoryType.DISTRACTING,
             UsageStatsHelper.defaultCategoryForPackage(
                 "com.alibaba.aliexpresshd",
                 ApplicationInfo.CATEGORY_UNDEFINED
             )
         )
         assertEquals(
-            AppCategoryType.NEUTRAL,
+            AppCategoryType.DISTRACTING,
             UsageStatsHelper.defaultCategoryForPackage(
                 "com.shopee.my",
+                ApplicationInfo.CATEGORY_UNDEFINED
+            )
+        )
+        assertEquals(
+            AppCategoryType.DISTRACTING,
+            UsageStatsHelper.defaultCategoryForPackage(
+                "com.coupang.mobile",
                 ApplicationInfo.CATEGORY_UNDEFINED
             )
         )
     }
 
     @Test
-    fun educationPackages_defaultToGeneral() {
+    fun educationAndFinancePackages_defaultToExempt() {
         assertEquals(
-            AppCategoryType.NEUTRAL,
+            AppCategoryType.EXEMPT,
             UsageStatsHelper.defaultCategoryForPackage(
                 "com.duolingo",
                 ApplicationInfo.CATEGORY_UNDEFINED
             )
         )
         assertEquals(
-            AppCategoryType.NEUTRAL,
+            AppCategoryType.EXEMPT,
             UsageStatsHelper.defaultCategoryForPackage(
                 "org.khanacademy.android",
+                ApplicationInfo.CATEGORY_UNDEFINED
+            )
+        )
+        assertEquals(
+            AppCategoryType.EXEMPT,
+            UsageStatsHelper.defaultCategoryForPackage(
+                "kr.co.millie.millieshelf",
+                ApplicationInfo.CATEGORY_UNDEFINED
+            )
+        )
+        assertEquals(
+            AppCategoryType.EXEMPT,
+            UsageStatsHelper.defaultCategoryForPackage(
+                "viva.republica.toss",
+                ApplicationInfo.CATEGORY_UNDEFINED
+            )
+        )
+        assertEquals(
+            AppCategoryType.EXEMPT,
+            UsageStatsHelper.defaultCategoryForPackage(
+                "com.google.android.gm",
+                ApplicationInfo.CATEGORY_UNDEFINED
+            )
+        )
+        assertEquals(
+            AppCategoryType.EXEMPT,
+            UsageStatsHelper.defaultCategoryForPackage(
+                "com.slack",
                 ApplicationInfo.CATEGORY_UNDEFINED
             )
         )
@@ -173,5 +226,165 @@ class UsageStatsHelperTest {
         assertEquals(1, summary.sessionCount)
         assertEquals(120_000L, summary.longestSessionMillis)
         assertEquals(0, summary.shortSessionCount)
+    }
+
+    @Test
+    fun messengerAndSocialMediaPackages_distinguishGeneralAndDistracting() {
+        assertEquals(
+            AppCategoryType.NEUTRAL,
+            UsageStatsHelper.defaultCategoryForPackage(
+                "com.kakao.talk",
+                ApplicationInfo.CATEGORY_SOCIAL
+            )
+        )
+        assertEquals(
+            AppCategoryType.EXEMPT,
+            UsageStatsHelper.defaultCategoryForPackage(
+                "com.slack",
+                ApplicationInfo.CATEGORY_SOCIAL
+            )
+        )
+        assertEquals(
+            AppCategoryType.DISTRACTING,
+            UsageStatsHelper.defaultCategoryForPackage(
+                "com.instagram.android",
+                ApplicationInfo.CATEGORY_UNDEFINED
+            )
+        )
+        assertEquals(
+            AppCategoryType.DISTRACTING,
+            UsageStatsHelper.defaultCategoryForPackage(
+                "com.facebook.katana",
+                ApplicationInfo.CATEGORY_UNDEFINED
+            )
+        )
+    }
+
+    @Test
+    fun resolvedHabitualUnlockTimestamps_classifiesGlanceUnlocksWithinSevenSeconds() {
+        val events = listOf(
+            DeviceInteractionEventEntity(1_000L, DeviceInteractionEventEntity.SCREEN_INTERACTIVE),
+            DeviceInteractionEventEntity(2_000L, DeviceInteractionEventEntity.KEYGUARD_HIDDEN), // Unlock 1 at 2_000L: no app -> habitual
+
+            DeviceInteractionEventEntity(20_000L, DeviceInteractionEventEntity.SCREEN_INTERACTIVE),
+            DeviceInteractionEventEntity(21_000L, DeviceInteractionEventEntity.USER_PRESENT), // Unlock 2 at 21_000L: app 3s session (<=7s), no chained -> habitual
+
+            DeviceInteractionEventEntity(40_000L, DeviceInteractionEventEntity.SCREEN_INTERACTIVE),
+            DeviceInteractionEventEntity(41_000L, DeviceInteractionEventEntity.KEYGUARD_HIDDEN), // Unlock 3 at 41_000L: app session > 7s (starts 42s, ends 55s) -> NOT habitual
+
+            DeviceInteractionEventEntity(70_000L, DeviceInteractionEventEntity.SCREEN_INTERACTIVE),
+            DeviceInteractionEventEntity(71_000L, DeviceInteractionEventEntity.USER_PRESENT), // Unlock 4 at 71_000L: app 2s session then chained app session starting at 75s (within 5s) -> NOT habitual
+
+            DeviceInteractionEventEntity(100_000L, DeviceInteractionEventEntity.SCREEN_INTERACTIVE),
+            DeviceInteractionEventEntity(101_000L, DeviceInteractionEventEntity.KEYGUARD_HIDDEN) // Unlock 5 at 101_000L: only systemui/launcher session -> habitual
+        )
+
+        val sessions = listOf(
+            // Unlock 2 sessions: short user session (ends within 7s)
+            ForegroundUsageSessionEntity(
+                packageName = "com.kakao.talk",
+                startTimeMillis = 22_000L,
+                endTimeMillis = 25_000L,
+                dateString = "2026-10-16",
+                appName = "KakaoTalk",
+                categoryLevel = 1,
+                effectivePackageName = "com.kakao.talk",
+                effectiveCategoryLevel = 1,
+                concurrentAppCount = 1,
+                isLateNight = false
+            ),
+            // Unlock 3 session: long user session (13s)
+            ForegroundUsageSessionEntity(
+                packageName = "com.example.chess",
+                startTimeMillis = 42_000L,
+                endTimeMillis = 55_000L,
+                dateString = "2026-10-16",
+                appName = "Chess",
+                categoryLevel = 1,
+                effectivePackageName = "com.example.chess",
+                effectiveCategoryLevel = 1,
+                concurrentAppCount = 1,
+                isLateNight = false
+            ),
+            // Unlock 4 sessions: short session followed by chained session within 5s
+            ForegroundUsageSessionEntity(
+                packageName = "com.kakao.talk",
+                startTimeMillis = 72_000L,
+                endTimeMillis = 74_000L,
+                dateString = "2026-10-16",
+                appName = "KakaoTalk",
+                categoryLevel = 1,
+                effectivePackageName = "com.kakao.talk",
+                effectiveCategoryLevel = 1,
+                concurrentAppCount = 1,
+                isLateNight = false
+            ),
+            ForegroundUsageSessionEntity(
+                packageName = "com.instagram.android",
+                startTimeMillis = 76_000L,
+                endTimeMillis = 90_000L,
+                dateString = "2026-10-16",
+                appName = "Instagram",
+                categoryLevel = 2,
+                effectivePackageName = "com.instagram.android",
+                effectiveCategoryLevel = 2,
+                concurrentAppCount = 1,
+                isLateNight = false
+            ),
+            // Unlock 5 session: system launcher / systemui
+            ForegroundUsageSessionEntity(
+                packageName = "com.sec.android.app.launcher",
+                startTimeMillis = 102_000L,
+                endTimeMillis = 105_000L,
+                dateString = "2026-10-16",
+                appName = "Launcher",
+                categoryLevel = 0,
+                effectivePackageName = "com.sec.android.app.launcher",
+                effectiveCategoryLevel = 0,
+                concurrentAppCount = 1,
+                isLateNight = false
+            )
+        )
+
+        val habitual = UsageStatsHelper.resolvedHabitualUnlockTimestamps(events, sessions)
+        // Should include unlock 1 (2_000L), unlock 2 (21_000L), and unlock 5 (101_000L)
+        assertEquals(listOf(2_000L, 21_000L, 101_000L), habitual)
+    }
+
+    @Test
+    fun shareSheet_isNotCountedAsAppUsage() {
+        assertFalse(UsageStatsHelper.shouldIncludeUsagePackage("com.android.intentresolver", 60_000L))
+        assertTrue("com.android.intentresolver" in UsageStatsHelper.TRANSIENT_SYSTEM_OVERLAY_PACKAGES)
+    }
+
+    @Test
+    fun hourlyBuckets_areOneHourWideFromDayStart() {
+        val hour = 60 * 60_000L
+        val start = 5 * hour // 05:00
+        // 10:50의 잠금 해제는 창이 05:00~11:00이어도 5번 칸(10:00~11:00)에 들어갑니다.
+        val buckets = UsageStatsHelper.hourlyBuckets(
+            listOf(start, start + 5 * hour + 50 * 60_000L, start + 23 * hour + 1, start - 1, start + 24 * hour),
+            start
+        )
+        assertEquals(1, buckets[0])
+        assertEquals(1, buckets[5])
+        assertEquals(1, buckets[23])
+        assertEquals(3, buckets.sum())
+    }
+
+    @Test
+    fun logicalDate_switchesAtFiveAndMatchesDayStart() {
+        val zone = java.time.ZoneId.systemDefault()
+        fun at(h: Int, m: Int, sec: Int) =
+            java.time.LocalDateTime.of(2026, 11, 14, h, m, sec).atZone(zone).toInstant().toEpochMilli()
+        // 04:59:50은 전날, 05:00:20은 오늘. 날짜와 하루 시작 시각은 항상 같은 날을 가리켜야 합니다.
+        assertEquals("2026-11-13", UsageStatsHelper.logicalDateString(at(4, 59, 50), zone))
+        assertEquals("2026-11-14", UsageStatsHelper.logicalDateString(at(5, 0, 20), zone))
+        assertEquals("2026-11-14", UsageStatsHelper.logicalDateString(at(23, 59, 59), zone))
+        for (t in listOf(at(4, 59, 50), at(5, 0, 0), at(5, 0, 20), at(12, 0, 0))) {
+            val dayStart = UsageStatsHelper.getStartOfLogicalDayMillis(t)
+            assertEquals(UsageStatsHelper.logicalDateString(t, zone), UsageStatsHelper.logicalDateString(dayStart, zone))
+            assertTrue(dayStart <= t && t - dayStart < 25 * 60 * 60_000L)
+        }
     }
 }

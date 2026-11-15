@@ -124,6 +124,24 @@ class DataBackupManagerSerializationTest {
             categoryType = AppCategoryType.NEUTRAL
         )
         assertEquals(AppCategoryType.NEUTRAL, neutralApp.categoryType)
+
+        val userModifiedApp = AppWeightEntity(
+            packageName = "com.chess",
+            appName = "Chess",
+            categoryType = AppCategoryType.DISTRACTING,
+            isUserModified = true
+        )
+        assertTrue(userModifiedApp.isUserModified)
+    }
+
+    @Test
+    fun testDeviceInteractionEventEntity_creation() {
+        val event = com.digitscore.app.data.entity.DeviceInteractionEventEntity(
+            timestampMillis = 123456789L,
+            eventType = com.digitscore.app.data.entity.DeviceInteractionEventEntity.KEYGUARD_HIDDEN
+        )
+        assertEquals(123456789L, event.timestampMillis)
+        assertEquals(com.digitscore.app.data.entity.DeviceInteractionEventEntity.KEYGUARD_HIDDEN, event.eventType)
     }
 
     @Test
@@ -166,5 +184,44 @@ class DataBackupManagerSerializationTest {
             AppCategoryType.NEUTRAL
         }
         assertEquals(AppCategoryType.NEUTRAL, fallback)
+    }
+
+    @Test
+    fun testAppDailyInteractionEntity_serializationPreservesFields() {
+        val interaction = com.digitscore.app.data.entity.AppDailyInteractionEntity(
+            dateString = "2026-10-25",
+            packageName = "com.kakao.talk",
+            firstAfterUnlockCount = 12,
+            firstAfterUnlockQuickCount = 8,
+            notificationCount = 45,
+            notificationUnlockCount = 10,
+            lastUpdatedTimestamp = 1761350400000L
+        )
+
+        assertEquals("2026-10-25", interaction.dateString)
+        assertEquals("com.kakao.talk", interaction.packageName)
+        assertEquals(12, interaction.firstAfterUnlockCount)
+        assertEquals(8, interaction.firstAfterUnlockQuickCount)
+        assertEquals(45, interaction.notificationCount)
+        assertEquals(10, interaction.notificationUnlockCount)
+        assertEquals(1761350400000L, interaction.lastUpdatedTimestamp)
+    }
+
+    @Test
+    fun testLegacyBackupWithoutAppDailyInteractionsKey_isCompatible() {
+        val legacyJsonString = """
+            {
+                "version": 2,
+                "scoreHistory": [],
+                "settings": {
+                    "isTrackingEnabled": true
+                },
+                "appWeights": []
+            }
+        """.trimIndent()
+
+        val json = org.json.JSONObject(legacyJsonString)
+        assertFalse("Legacy backups do not have appDailyInteractions key", json.has("appDailyInteractions"))
+        assertEquals(2, json.getInt("version"))
     }
 }

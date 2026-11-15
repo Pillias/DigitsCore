@@ -62,6 +62,36 @@ object RestPhasePolicy {
         end.hour < 10 && minOf(use.end, six) - maxOf(use.start, midnight) >= 30 * 60_000L
     }.maxOfOrNull { it.end }
 
+    /**
+     * 아침 기상 확정 시각을 찾습니다. 잠깐 시간만 확인한 새벽 조회는 기상으로 보지 않고,
+     * 앱 사용 간격이 [maxGapMillis] 이하로 이어진 사용 흐름의 실제 사용 합계가
+     * [minActiveMillis] 이상이 된 첫 흐름의 시작 시각을 반환합니다.
+     */
+    fun morningWakeStart(
+        segments: List<Pair<Long, Long>>,
+        windowStartMillis: Long,
+        minActiveMillis: Long = 3 * 60_000L,
+        maxGapMillis: Long = 3 * 60_000L
+    ): Long? {
+        val sorted = segments.filter { it.second > it.first && it.second > windowStartMillis }
+            .map { maxOf(it.first, windowStartMillis) to it.second }
+            .sortedBy { it.first }
+        var chainStart = -1L
+        var chainEnd = Long.MIN_VALUE
+        var active = 0L
+        for ((start, end) in sorted) {
+            if (chainStart < 0 || start - chainEnd > maxGapMillis) {
+                chainStart = start
+                chainEnd = start
+                active = 0L
+            }
+            active += (end - maxOf(start, chainEnd)).coerceAtLeast(0L)
+            chainEnd = maxOf(chainEnd, end)
+            if (active >= minActiveMillis) return chainStart
+        }
+        return null
+    }
+
     private fun minute(timestamp: Long, zone: ZoneId): Int =
         Instant.ofEpochMilli(timestamp).atZone(zone).let { it.hour * 60 + it.minute }
 }

@@ -59,7 +59,7 @@ fun summarizeRollingUsage(
             lastTimeUsedMillis = appRecords.maxOf { it.end },
             lateNightUsageMillis = appRecords.filter { it.source.isLateNight }.sumOf { it.duration },
             sessionCount = sessionDurations.size,
-            shortSessionCount = sessionDurations.count { it in 1 until 60_000L }
+            shortSessionCount = sessionDurations.count { it in 1 until HABITUAL_CHECK_THRESHOLD_MILLIS }
         )
     }.sortedByDescending { it.usageTimeMillis }
 

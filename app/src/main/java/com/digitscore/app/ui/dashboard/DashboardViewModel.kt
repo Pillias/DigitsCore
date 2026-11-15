@@ -21,4 +21,6 @@ class DashboardViewModel : ViewModel() {
     val coreIndexGuidance: StateFlow<CoreIndexGuidance?> = ScoreRepository.coreIndexGuidance
     val dailyGoal: StateFlow<com.digitscore.app.model.DailyGoal?> = ScoreRepository.dailyGoal
     val yesterdaySummary: StateFlow<com.digitscore.app.model.YesterdayBriefingSummary?> = ScoreRepository.yesterdaySummary
+    val yesterdayGoalResult: StateFlow<com.digitscore.app.model.YesterdayGoalResult?> = ScoreRepository.yesterdayGoalResult
+    val rewardState: StateFlow<com.digitscore.app.model.GoalRewardState> = ScoreRepository.rewardState
 }

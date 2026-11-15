@@ -1,8 +1,12 @@
 package com.digitscore.app.ui.settings
 
+import com.digitscore.app.ui.theme.tile
+import com.digitscore.app.ui.theme.DigitsTextSize
+import com.digitscore.app.ui.theme.DigitsShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,17 +18,24 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.BugReport
-import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.BugReport
+import androidx.compose.material.icons.rounded.Speed
 import android.os.Build
+import android.provider.Settings
+import android.content.Intent
 import android.view.View
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.digitscore.app.notification.EdgeLightingOverlayManager
+import com.digitscore.app.notification.ScoreNotificationManager
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.AlertDialog
@@ -38,6 +49,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import com.digitscore.app.i18n.Text
 import com.digitscore.app.data.entity.effectiveScoringConfig
@@ -54,10 +69,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.net.Uri
@@ -65,9 +82,10 @@ import android.app.Activity
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material.icons.filled.Backup
-import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.rounded.Backup
+import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.Restore
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
@@ -138,6 +156,7 @@ fun PresetModeScreen(
     onThemeModeChanged: (AppThemeMode) -> Unit
 ) {
     val context = LocalContext.current
+    val isEn = AppLocale.currentLanguage(context) == AppLocale.ENGLISH
     val scope = rememberCoroutineScope()
     val db = remember { DigitsDatabase.getInstance(context) }
     val databaseSecurityStatus = remember { DatabaseEncryptionManager.currentStatus() }
@@ -152,6 +171,7 @@ fun PresetModeScreen(
     val scoringConfig = settings.effectiveScoringConfig(selectedCoreIndexPreset)
 
     var showPrivacyPolicy by remember { mutableStateOf(false) }
+    var showUpdateHistory by remember { mutableStateOf(false) }
     var isPresetMenuExpanded by remember { mutableStateOf(false) }
     var isCoreIndexPresetMenuExpanded by remember { mutableStateOf(false) }
     var isLanguageMenuExpanded by remember { mutableStateOf(false) }
@@ -160,10 +180,39 @@ fun PresetModeScreen(
     var isWidgetBackgroundMenuExpanded by remember { mutableStateOf(false) }
     var showBackupPasswordDialog by remember { mutableStateOf(false) }
     var pendingEncryptedImport by remember { mutableStateOf<ByteArray?>(null) }
+    var pendingRestoreMode by remember { mutableStateOf<com.digitscore.app.data.backup.RestoreMode?>(null) }
     var showDeleteHistoryConfirmation by remember { mutableStateOf(false) }
     var showBugReport by remember { mutableStateOf(false) }
     var showDiagnosticsModal by remember { mutableStateOf(false) }
     var selectedDetail by remember { mutableStateOf<SettingsDetail?>(null) }
+    var selectedCategoryTab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var hasOverlayPermission by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+    var edgeLightingEnabled by remember { mutableStateOf(EdgeLightingOverlayManager.isEnabled(context)) }
+    var managedTriggerMins by remember { mutableStateOf(EdgeLightingOverlayManager.getManagedTriggerMinutes(context)) }
+    var studyTriggerMins by remember { mutableStateOf(EdgeLightingOverlayManager.getStudyTriggerMinutes(context)) }
+    var dynamicLauncherIconEnabled by remember {
+        mutableStateOf(com.digitscore.app.notification.LauncherIconManager.isEnabled(context))
+    }
+
+    var isEdgeLightingDetailExpanded by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var isSilentAlertDetailExpanded by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                hasOverlayPermission = Settings.canDrawOverlays(context)
+                edgeLightingEnabled = EdgeLightingOverlayManager.isEnabled(context)
+                managedTriggerMins = EdgeLightingOverlayManager.getManagedTriggerMinutes(context)
+                studyTriggerMins = EdgeLightingOverlayManager.getStudyTriggerMinutes(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     fun selectPreset(mode: PresetMode) {
         isPresetMenuExpanded = false
@@ -301,11 +350,11 @@ fun PresetModeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.settings_title), fontWeight = FontWeight.Bold) },
+                title = { Text(if (isEn) "Settings" else "환경설정", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = UiTranslator.translate("뒤로가기"),
                             tint = MaterialTheme.colorScheme.onBackground
                         )
@@ -320,141 +369,319 @@ fun PresetModeScreen(
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         ResponsiveContent(modifier = Modifier.padding(paddingValues)) {
-            LazyColumn(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .padding(horizontal = 20.dp)
             ) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                // 4개 폴더 탭 바 (가로 스크롤 없이 1/4씩 균등 분할)
+                val tabs = listOf(
+                    if (isEn) "General" else "일반",
+                    if (isEn) "Scoring" else "점수",
+                    if (isEn) "Alerts" else "알림",
+                    if (isEn) "Data" else "데이터"
+                )
+                Surface(
+                    shape = DigitsShape.md,
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(stringResource(R.string.language), fontWeight = FontWeight.Bold)
-                        Text(
-                            stringResource(R.string.language_description),
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                        ExposedDropdownMenuBox(
-                            expanded = isLanguageMenuExpanded,
-                            onExpandedChange = { isLanguageMenuExpanded = !isLanguageMenuExpanded }
-                        ) {
-                            val language = AppLocale.currentLanguage(context)
-                            OutlinedTextField(
-                                value = if (language == AppLocale.ENGLISH) {
-                                    stringResource(R.string.language_english)
-                                } else {
-                                    stringResource(R.string.language_korean)
-                                },
-                                onValueChange = {},
-                                readOnly = true,
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(isLanguageMenuExpanded) },
-                                modifier = Modifier.menuAnchor().fillMaxWidth()
-                            )
-                            ExposedDropdownMenu(
-                                expanded = isLanguageMenuExpanded,
-                                onDismissRequest = { isLanguageMenuExpanded = false }
+                        tabs.forEachIndexed { index, label ->
+                            val isSelected = selectedCategoryTab == index
+                            Surface(
+                                shape = DigitsShape.sm,
+                                color = if (isSelected) MaterialTheme.colorScheme.tile else Color.Transparent,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { selectedCategoryTab = index }
                             ) {
-                                listOf(
-                                    AppLocale.KOREAN to stringResource(R.string.language_korean),
-                                    AppLocale.ENGLISH to stringResource(R.string.language_english)
-                                ).forEach { (code, label) ->
-                                    DropdownMenuItem(
-                                        text = { Text(label) },
-                                        onClick = {
-                                            isLanguageMenuExpanded = false
-                                            scope.launch {
-                                                AppLocale.saveLanguage(context, code)
-                                                ScoreWidget().updateAll(context)
-                                                AppLocale.applyLanguage(context as Activity, code)
-                                            }
-                                        }
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(stringResource(R.string.theme_mode), fontWeight = FontWeight.Bold)
-                        Text(
-                            stringResource(R.string.theme_mode_description),
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                        ExposedDropdownMenuBox(
-                            expanded = isThemeMenuExpanded,
-                            onExpandedChange = { isThemeMenuExpanded = !isThemeMenuExpanded }
-                        ) {
-                            val themeMode = AppTheme.currentMode(context)
-                            OutlinedTextField(
-                                value = when (themeMode) {
-                                    AppThemeMode.SYSTEM -> stringResource(R.string.theme_system)
-                                    AppThemeMode.LIGHT -> stringResource(R.string.theme_light)
-                                    AppThemeMode.DARK -> stringResource(R.string.theme_dark)
-                                },
-                                onValueChange = {},
-                                readOnly = true,
-                                trailingIcon = {
-                                    ExposedDropdownMenuDefaults.TrailingIcon(isThemeMenuExpanded)
-                                },
-                                modifier = Modifier.menuAnchor().fillMaxWidth()
-                            )
-                            ExposedDropdownMenu(
-                                expanded = isThemeMenuExpanded,
-                                onDismissRequest = { isThemeMenuExpanded = false }
-                            ) {
-                                AppThemeMode.entries.forEach { mode ->
-                                    val label = when (mode) {
-                                        AppThemeMode.SYSTEM -> stringResource(R.string.theme_system)
-                                        AppThemeMode.LIGHT -> stringResource(R.string.theme_light)
-                                        AppThemeMode.DARK -> stringResource(R.string.theme_dark)
-                                    }
-                                    DropdownMenuItem(
-                                        text = { Text(label) },
-                                        onClick = {
-                                            isThemeMenuExpanded = false
-                                            onThemeModeChanged(mode)
-                                        },
-                                        trailingIcon = if (themeMode == mode) {
-                                            {
-                                                Icon(
-                                                    imageVector = Icons.Default.Check,
-                                                    contentDescription = UiTranslator.translate("선택됨"),
-                                                    tint = MaterialTheme.colorScheme.primary
-                                                )
-                                            }
-                                        } else null
+                                Box(
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = DigitsTextSize.label,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            item { com.digitscore.app.ui.dashboard.WakeEvidenceSettings() }
-            item {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+            if (selectedCategoryTab == 0) item {
+                // 다른 탭과 첫 줄을 맞추기 위한 제목
                 SectionHeading(
-                    title = "코어 지수 프리셋",
-                    subtitle = "최근 24시간 사용 흐름에서 중요하게 볼 항목을 선택합니다."
+                    title = if (isEn) "Display & tracking" else "화면과 추적",
+                    subtitle = if (isEn) "Language, theme, widget and app icon." else "언어, 화면 모드, 위젯, 앱 아이콘을 정합니다."
                 )
             }
 
-            item {
+            if (selectedCategoryTab == 0) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            // 좌측: 언어 설정 (weight 1f)
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(stringResource(R.string.language), fontWeight = FontWeight.Bold, fontSize = DigitsTextSize.body)
+                                ExposedDropdownMenuBox(
+                                    expanded = isLanguageMenuExpanded,
+                                    onExpandedChange = { isLanguageMenuExpanded = !isLanguageMenuExpanded }
+                                ) {
+                                    val language = AppLocale.currentLanguage(context)
+                                    OutlinedTextField(
+                                        value = if (language == AppLocale.ENGLISH) {
+                                            stringResource(R.string.language_english)
+                                        } else {
+                                            stringResource(R.string.language_korean)
+                                        },
+                                        onValueChange = {},
+                                        readOnly = true,
+                                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(isLanguageMenuExpanded) },
+                                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                        textStyle = MaterialTheme.typography.bodySmall
+                                    )
+                                    ExposedDropdownMenu(
+                                        expanded = isLanguageMenuExpanded,
+                                        onDismissRequest = { isLanguageMenuExpanded = false }
+                                    ) {
+                                        listOf(
+                                            AppLocale.KOREAN to stringResource(R.string.language_korean),
+                                            AppLocale.ENGLISH to stringResource(R.string.language_english)
+                                        ).forEach { (code, label) ->
+                                            DropdownMenuItem(
+                                                text = { Text(label, fontSize = DigitsTextSize.body) },
+                                                onClick = {
+                                                    isLanguageMenuExpanded = false
+                                                    scope.launch {
+                                                        AppLocale.saveLanguage(context, code)
+                                                        com.digitscore.app.widget.DigitsWidgets.updateAll(context)
+                                                        AppLocale.applyLanguage(context as Activity, code)
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 우측: 테마 설정 (weight 1f)
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(stringResource(R.string.theme_mode), fontWeight = FontWeight.Bold, fontSize = DigitsTextSize.body)
+                                ExposedDropdownMenuBox(
+                                    expanded = isThemeMenuExpanded,
+                                    onExpandedChange = { isThemeMenuExpanded = !isThemeMenuExpanded }
+                                ) {
+                                    val themeMode = AppTheme.currentMode(context)
+                                    OutlinedTextField(
+                                        value = when (themeMode) {
+                                            AppThemeMode.SYSTEM -> stringResource(R.string.theme_system)
+                                            AppThemeMode.LIGHT -> stringResource(R.string.theme_light)
+                                            AppThemeMode.DARK -> stringResource(R.string.theme_dark)
+                                        },
+                                        onValueChange = {},
+                                        readOnly = true,
+                                        trailingIcon = {
+                                            ExposedDropdownMenuDefaults.TrailingIcon(isThemeMenuExpanded)
+                                        },
+                                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                        textStyle = MaterialTheme.typography.bodySmall
+                                    )
+                                    ExposedDropdownMenu(
+                                        expanded = isThemeMenuExpanded,
+                                        onDismissRequest = { isThemeMenuExpanded = false }
+                                    ) {
+                                        AppThemeMode.entries.forEach { mode ->
+                                            val label = when (mode) {
+                                                AppThemeMode.SYSTEM -> stringResource(R.string.theme_system)
+                                                AppThemeMode.LIGHT -> stringResource(R.string.theme_light)
+                                                AppThemeMode.DARK -> stringResource(R.string.theme_dark)
+                                            }
+                                            DropdownMenuItem(
+                                                text = { Text(label, fontSize = DigitsTextSize.body) },
+                                                onClick = {
+                                                    isThemeMenuExpanded = false
+                                                    onThemeModeChanged(mode)
+                                                },
+                                                trailingIcon = if (themeMode == mode) {
+                                                    {
+                                                        Icon(
+                                                            imageVector = Icons.Rounded.Check,
+                                                            contentDescription = UiTranslator.translate("선택됨"),
+                                                            tint = MaterialTheme.colorScheme.primary
+                                                        )
+                                                    }
+                                                } else null
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
+
+                        // 하단: 위젯 배경 설정
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(if (isEn) "Widget Background" else "위젯 배경", fontWeight = FontWeight.Bold, fontSize = DigitsTextSize.body)
+                            val selectedWidgetBackground = WidgetBackgroundStyle.fromId(
+                                settings.widgetBackgroundStyleId
+                            )
+                            ExposedDropdownMenuBox(
+                                expanded = isWidgetBackgroundMenuExpanded,
+                                onExpandedChange = {
+                                    isWidgetBackgroundMenuExpanded = !isWidgetBackgroundMenuExpanded
+                                }
+                            ) {
+                                OutlinedTextField(
+                                    value = UiTranslator.translate(when (selectedWidgetBackground) {
+                                        WidgetBackgroundStyle.DARK -> "어두운 배경"
+                                        WidgetBackgroundStyle.WHITE -> "흰색 배경"
+                                        WidgetBackgroundStyle.TRANSPARENT -> "투명 배경"
+                                    }),
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    trailingIcon = {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(isWidgetBackgroundMenuExpanded)
+                                    },
+                                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                    textStyle = MaterialTheme.typography.bodySmall
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = isWidgetBackgroundMenuExpanded,
+                                    onDismissRequest = { isWidgetBackgroundMenuExpanded = false }
+                                ) {
+                                    listOf(
+                                        WidgetBackgroundStyle.DARK to "어두운 배경",
+                                        WidgetBackgroundStyle.WHITE to "흰색 배경",
+                                        WidgetBackgroundStyle.TRANSPARENT to "투명 배경"
+                                    ).forEach { (style, label) ->
+                                        DropdownMenuItem(
+                                            text = { Text(UiTranslator.translate(label), fontSize = DigitsTextSize.body) },
+                                            onClick = {
+                                                isWidgetBackgroundMenuExpanded = false
+                                                scope.launch {
+                                                    withContext(Dispatchers.IO) {
+                                                        db.settingsDao().insertOrUpdateSettings(
+                                                            settings.copy(widgetBackgroundStyleId = style.id)
+                                                        )
+                                                    }
+                                                    com.digitscore.app.widget.DigitsWidgets.updateAll(context)
+                                                }
+                                            },
+                                            trailingIcon = if (selectedWidgetBackground == style) {
+                                                {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.Check,
+                                                        contentDescription = UiTranslator.translate("선택됨"),
+                                                        tint = MaterialTheme.colorScheme.primary
+                                                    )
+                                                }
+                                            } else null
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 14.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
+
+                        // 점수에 따라 바뀌는 런처 아이콘 (기본 꺼짐)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp)
+                                .padding(top = 12.dp, bottom = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                                Text(
+                                    if (isEn) "Score-colored app icon" else "점수 색상 앱 아이콘",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = DigitsTextSize.body
+                                )
+                                Text(
+                                    if (isEn) "Changes the launcher icon color (green/yellow/orange/red) at most once a day while the screen is off. Some launchers may remove the home-screen shortcut when the icon changes."
+                                    else "화면이 꺼져 있을 때 하루 최대 1회 런처 아이콘 색(녹/노/주/빨)을 바꿉니다. 일부 런처는 아이콘이 바뀔 때 홈 화면 바로가기를 지울 수 있습니다.",
+                                    fontSize = DigitsTextSize.label,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.padding(top = 3.dp)
+                                )
+                            }
+                            androidx.compose.material3.Switch(
+                                checked = dynamicLauncherIconEnabled,
+                                onCheckedChange = { enabled ->
+                                    dynamicLauncherIconEnabled = enabled
+                                    com.digitscore.app.notification.LauncherIconManager.setEnabled(context, enabled)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (selectedCategoryTab == 1) item {
+                SectionHeading(
+                    title = if (isEn) "Core Index Preset" else "점수 모드",
+                    subtitle = if (isEn) "Select which signals matter most in your 24h usage pattern." else "최근 24시간 사용 흐름에서 중요하게 볼 항목을 선택합니다."
+                )
+            }
+
+            if (selectedCategoryTab == 1) item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = DigitsShape.lg,
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         ExposedDropdownMenuBox(
@@ -464,10 +691,10 @@ fun PresetModeScreen(
                             }
                         ) {
                             OutlinedTextField(
-                                value = UiTranslator.translate(selectedCoreIndexPreset.title),
+                                value = UiTranslator.translate(selectedCoreIndexPreset.title(isEn)),
                                 onValueChange = {},
                                 readOnly = true,
-                                label = { Text("현재 프리셋") },
+                                label = { Text(if (isEn) "Current Preset" else "현재 점수 모드") },
                                 trailingIcon = {
                                     ExposedDropdownMenuDefaults.TrailingIcon(
                                         expanded = isCoreIndexPresetMenuExpanded
@@ -488,25 +715,33 @@ fun PresetModeScreen(
                                                     verticalAlignment = Alignment.CenterVertically,
                                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                                 ) {
-                                                    Text(preset.title, fontWeight = FontWeight.SemiBold)
+                                                    Text(
+                                                        text = UiTranslator.translate(preset.title(isEn)),
+                                                        fontWeight = FontWeight.Medium,
+                                                        modifier = Modifier.weight(1f, fill = false),
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
                                                     if (!isAvailable) {
                                                         Surface(
-                                                            shape = RoundedCornerShape(4.dp),
+                                                            shape = DigitsShape.xs,
                                                             color = MaterialTheme.colorScheme.surfaceVariant
                                                         ) {
                                                             Text(
-                                                                "Later",
-                                                                fontSize = 9.sp,
+                                                                text = "Later",
+                                                                fontSize = DigitsTextSize.micro,
                                                                 fontWeight = FontWeight.Bold,
                                                                 color = MaterialTheme.colorScheme.outline,
-                                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                                                maxLines = 1,
+                                                                softWrap = false
                                                             )
                                                         }
                                                     }
                                                 }
                                                 Text(
-                                                    if (isAvailable) preset.sensitivitySummary else "충분한 데이터 축적 후 추후 제공 예정",
-                                                    fontSize = 11.sp,
+                                                    text = if (isAvailable) preset.sensitivitySummary(isEn) else UiTranslator.translate("충분한 데이터 축적 후 추후 제공 예정"),
+                                                    fontSize = DigitsTextSize.caption,
                                                     color = MaterialTheme.colorScheme.outline
                                                 )
                                             }
@@ -520,7 +755,7 @@ fun PresetModeScreen(
                                         trailingIcon = if (preset == selectedCoreIndexPreset) {
                                             {
                                                 Icon(
-                                                    imageVector = Icons.Default.Check,
+                                                    imageVector = Icons.Rounded.Check,
                                                     contentDescription = UiTranslator.translate("선택됨"),
                                                     tint = MaterialTheme.colorScheme.primary
                                                 )
@@ -532,45 +767,38 @@ fun PresetModeScreen(
                         }
 
                         Text(
-                            selectedCoreIndexPreset.description,
-                            fontSize = 13.sp,
+                            selectedCoreIndexPreset.description(isEn),
+                            fontSize = DigitsTextSize.body,
                             lineHeight = 18.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            selectedCoreIndexPreset.sensitivitySummary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            selectedCoreIndexPreset.sensitivitySummary(isEn),
+                            fontSize = DigitsTextSize.label,
+                            fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            "다른 프리셋은 추후 제공될 예정입니다. 현재는 일상 균형 모드로 최적화되어 작동합니다.",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.outline
                         )
                     }
                 }
             }
 
-
-
-
-            item {
+            if (selectedCategoryTab == 2) item {
                 SectionHeading(
-                    title = "급격한 사용 증가 알림",
-                    subtitle = "게임이나 화면을 방해하지 않는 1단계 알림의 조건을 정합니다."
+                    title = if (isEn) "Traffic Light & Rapid Alerts" else "화면 신호등 및 사용 흐름 알림",
+                    subtitle = if (isEn) "Sets threshold conditions for screen glow and unobtrusive alerts." else "게임이나 화면을 방해하지 않는 신호등 조명과 알림 조건을 정합니다."
                 )
             }
 
-
-            item {
+            if (selectedCategoryTab == 2) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Row(
@@ -579,10 +807,316 @@ fun PresetModeScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("부드러운 사용 경고", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = if (isEn) "Traffic Light Edge Alert" else "화면 신호등 알림",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = DigitsTextSize.bodyLarge
+                                    )
+                                    Surface(
+                                        shape = DigitsShape.xs,
+                                        color = MaterialTheme.colorScheme.primaryContainer
+                                    ) {
+                                        Text(
+                                            text = if (isEn) "Beta" else "베타",
+                                            fontSize = DigitsTextSize.micro,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    }
+                                }
                                 Text(
-                                    "소리·진동·팝업 없이 알림창에만 표시합니다.",
-                                    fontSize = 12.sp,
+                                    text = if (isEn) "Gently pulses the phone bezel in green or red when continuous use limits are reached."
+                                    else "스마트폰 최외곽 베젤에서 초록불·빨간불 간접 조명으로 연속 사용 한도를 알려줍니다.",
+                                    fontSize = DigitsTextSize.label,
+                                    lineHeight = 17.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            androidx.compose.material3.Switch(
+                                checked = edgeLightingEnabled && hasOverlayPermission,
+                                onCheckedChange = { newChecked ->
+                                    if (newChecked) {
+                                        EdgeLightingOverlayManager.setEnabled(context, true)
+                                        edgeLightingEnabled = true
+                                        if (!hasOverlayPermission) {
+                                            val intent = Intent(
+                                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                                Uri.parse("package:${context.packageName}")
+                                            )
+                                            try {
+                                                context.startActivity(intent)
+                                            } catch (_: Exception) {
+                                                context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION))
+                                            }
+                                        }
+                                    } else {
+                                        EdgeLightingOverlayManager.setEnabled(context, false)
+                                        edgeLightingEnabled = false
+                                    }
+                                }
+                            )
+                        }
+
+                        if (!hasOverlayPermission) {
+                            Text(
+                                text = if (isEn) "Requires 'Display over other apps' permission" else "'다른 앱 위에 표시' 권한 허용 필요",
+                                fontSize = DigitsTextSize.caption,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        val intent = Intent(
+                                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                            Uri.parse("package:${context.packageName}")
+                                        )
+                                        try {
+                                            context.startActivity(intent)
+                                        } catch (_: Exception) {
+                                            context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION))
+                                        }
+                                    }
+                            )
+                        }
+
+                        if (edgeLightingEnabled && hasOverlayPermission) {
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                modifier = Modifier.padding(vertical = 2.dp)
+                            )
+
+                            // 한 줄 요약 + 접기/펴기 토글 행
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { isEdgeLightingDetailExpanded = !isEdgeLightingDetailExpanded }
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (isEn) "Managed ${managedTriggerMins}min · Study ${studyTriggerMins}min"
+                                    else "관리 ${managedTriggerMins}min · 공부 ${studyTriggerMins}min",
+                                    fontSize = DigitsTextSize.label,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = if (isEdgeLightingDetailExpanded) {
+                                        if (isEn) "Hide" else "접기"
+                                    } else {
+                                        if (isEn) "Customize" else "시간·미리보기"
+                                    },
+                                    fontSize = DigitsTextSize.label,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+
+                            if (isEdgeLightingDetailExpanded) {
+                                // 1) 빨간불 (관리 앱)
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(
+                                        text = if (isEn) "Managed apps (red light) limit" else "관리 앱 (빨간불) 연속 한도",
+                                        fontSize = DigitsTextSize.label,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    val managedOptions = listOf(1, 5, 15, 30, 45, 60)
+                                    // 6개를 한 줄에 두면 칩 안 여백 때문에 "15min"이 "15n"처럼 잘립니다. 3개씩 두 줄로 둡니다.
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    managedOptions.chunked(3).forEach { rowOptions ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        rowOptions.forEach { m ->
+                                            val labelText = if (m == 1 || m == 5) "${m}min*" else "${m}min"
+                                            FilterChip(
+                                                selected = managedTriggerMins == m,
+                                                onClick = {
+                                                    managedTriggerMins = m
+                                                    EdgeLightingOverlayManager.setManagedTriggerMinutes(context, m)
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                label = {
+                                                    Text(
+                                                        text = labelText,
+                                                        fontSize = DigitsTextSize.label,
+                                                        maxLines = 1,
+                                                        softWrap = false,
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                                    )
+                                                }
+                                            )
+                                        }
+                                    }
+                                    }
+                                    }
+                                }
+
+                                // 2) 초록불 (공부·독서 앱)
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(
+                                        text = if (isEn) "Study & reading (green light) limit" else "공부·독서 앱 (초록불) 연속 한도",
+                                        fontSize = DigitsTextSize.label,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    val studyOptions = listOf(1, 5, 30, 50, 60, 90)
+                                    // 6개를 한 줄에 두면 칩 안 여백 때문에 "15min"이 "15n"처럼 잘립니다. 3개씩 두 줄로 둡니다.
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    studyOptions.chunked(3).forEach { rowOptions ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        rowOptions.forEach { m ->
+                                            val labelText = if (m == 1 || m == 5) "${m}min*" else "${m}min"
+                                            FilterChip(
+                                                selected = studyTriggerMins == m,
+                                                onClick = {
+                                                    studyTriggerMins = m
+                                                    EdgeLightingOverlayManager.setStudyTriggerMinutes(context, m)
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                label = {
+                                                    Text(
+                                                        text = labelText,
+                                                        fontSize = DigitsTextSize.label,
+                                                        maxLines = 1,
+                                                        softWrap = false,
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                                    )
+                                                }
+                                            )
+                                        }
+                                    }
+                                    }
+                                    }
+                                    Text(
+                                        text = if (isEn) "* 1min and 5min options are for testing.\n* Repeats every half-interval (${(managedTriggerMins / 2).coerceAtLeast(1)}min / ${(studyTriggerMins / 2).coerceAtLeast(1)}min) after the first alert."
+                                               else "* 1min·5min은 동작 테스트용 옵션입니다.\n* 첫 점등 이후에도 계속 사용 시 설정 시간의 절반 간격(${(managedTriggerMins / 2).coerceAtLeast(1)}min / ${(studyTriggerMins / 2).coerceAtLeast(1)}min)마다 다시 알려줍니다.",
+                                        fontSize = DigitsTextSize.caption,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+
+                                // 3) 미리보기 버튼
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            EdgeLightingOverlayManager.showEdgeWarning(
+                                                context,
+                                                isStudyGreen = true,
+                                                isPreview = true,
+                                                labelText = if (isEn) "Preview · 50min focus · Rest eyes" else "미리보기 · 50min 집중 · 휴식 권장"
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                            horizontal = 4.dp,
+                                            vertical = 6.dp
+                                        )
+                                    ) {
+                                        Text(
+                                            text = if (isEn) "Green Light Preview" else "초록불 미리보기",
+                                            fontSize = DigitsTextSize.caption,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    OutlinedButton(
+                                        onClick = {
+                                            EdgeLightingOverlayManager.showEdgeWarning(
+                                                context,
+                                                isStudyGreen = false,
+                                                isPreview = true,
+                                                labelText = if (isEn) "Preview · 30min continuous · Overuse" else "미리보기 · 30min 연속 · 과몰입 주의"
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                            horizontal = 4.dp,
+                                            vertical = 6.dp
+                                        )
+                                    ) {
+                                        Text(
+                                            text = if (isEn) "Red Light Preview" else "빨간불 미리보기",
+                                            fontSize = DigitsTextSize.caption,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (selectedCategoryTab == 2) item {
+                TimeRuleSection(isEn = isEn)
+            }
+
+            if (selectedCategoryTab == 2) item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = DigitsShape.lg,
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        if (isEn) "Silent Status Alert" else "무음 상태바 경고",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = DigitsTextSize.bodyLarge
+                                    )
+                                    Surface(
+                                        shape = DigitsShape.xs,
+                                        color = MaterialTheme.colorScheme.primaryContainer
+                                    ) {
+                                        Text(
+                                            text = if (isEn) "Beta" else "베타",
+                                            fontSize = DigitsTextSize.micro,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    }
+                                }
+                                Text(
+                                    if (isEn) "Silently posts a status notification without sound, vibration, or pop-ups."
+                                    else "소리·진동·화면 가림 없이 상단 알림창에만 조용히 경고를 남깁니다.",
+                                    fontSize = DigitsTextSize.label,
+                                    lineHeight = 17.sp,
                                     color = MaterialTheme.colorScheme.outline
                                 )
                             }
@@ -596,195 +1130,185 @@ fun PresetModeScreen(
                             )
                         }
 
-                        Text(
-                            "${selectedCoreIndexPreset.title} 기준 · ${rapidAlertConfig.windowMinutes}분 동안 " +
-                                "${rapidAlertConfig.scoreDrop}점 하락",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            "또는 같은 구간에서 화면 ${rapidAlertConfig.usageMinutes}분, " +
-                                "연속 사용 ${rapidAlertConfig.continuousMinutes}분에 도달하면 알려줍니다.",
-                            fontSize = 12.sp,
-                            lineHeight = 17.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.padding(vertical = 2.dp)
                         )
 
-                        if (settings.usePresetRapidAlertDefaults) {
+                        // 요약 행 (클릭 시 접기/펴기 토글)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { isSilentAlertDetailExpanded = !isSilentAlertDetailExpanded }
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
-                                "프리셋 기본값 적용 중",
-                                fontSize = 11.sp,
+                                text = if (isEn) "${selectedCoreIndexPreset.title(true)} criteria · ${rapidAlertConfig.scoreDrop}P drop in ${rapidAlertConfig.windowMinutes}min"
+                                else "${selectedCoreIndexPreset.title(isEn)} 기준 · ${rapidAlertConfig.windowMinutes}min 동안 ${rapidAlertConfig.scoreDrop}P 하락",
+                                fontSize = DigitsTextSize.label,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (isSilentAlertDetailExpanded) {
+                                    if (isEn) "Hide" else "접기"
+                                } else {
+                                    if (isEn) "Details" else "세부 설정"
+                                },
+                                fontSize = DigitsTextSize.label,
                                 color = MaterialTheme.colorScheme.outline
                             )
-                        } else {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    "사용자 조정값 적용 중",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
-                                OutlinedButton(
-                                    onClick = {
-                                        val defaults = selectedCoreIndexPreset.defaultRapidUsageAlertConfig
-                                        saveRapidAlertSettings(
-                                            settings.copy(
-                                                usePresetRapidAlertDefaults = true,
-                                                rapidAlertWindowMinutes = defaults.windowMinutes,
-                                                rapidAlertScoreDrop = defaults.scoreDrop,
-                                                rapidAlertUsageMinutes = defaults.usageMinutes,
-                                                rapidAlertContinuousMinutes = defaults.continuousMinutes,
-                                                rapidAlertCooldownMinutes = defaults.cooldownMinutes
-                                            )
-                                        )
-                                    }
-                                ) {
-                                    Text("프리셋 기본값 복원")
-                                }
-                            }
                         }
 
-                        if (settings.isRapidUsageAlertEnabled) {
-                            RapidAlertSlider(
-                                title = "관찰 시간",
-                                value = rapidAlertConfig.windowMinutes,
-                                valueLabel = "${rapidAlertConfig.windowMinutes}분",
-                                range = 15f..60f,
-                                steps = 8,
-                                onValueCommitted = { customizeRapidAlert(windowMinutes = it) }
+                        if (isSilentAlertDetailExpanded) {
+                            Text(
+                                text = if (isEn) "Or triggers if screen time reaches ${rapidAlertConfig.usageMinutes}min or continuous use reaches ${rapidAlertConfig.continuousMinutes}min in the same window."
+                                else "또는 같은 구간에서 화면 ${rapidAlertConfig.usageMinutes}min, 연속 사용 ${rapidAlertConfig.continuousMinutes}min에 도달하면 알려줍니다.",
+                                fontSize = DigitsTextSize.label,
+                                lineHeight = 17.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            RapidAlertSlider(
-                                title = "코어 지수 하락",
-                                value = rapidAlertConfig.scoreDrop,
-                                valueLabel = "${rapidAlertConfig.scoreDrop}점",
-                                range = 2f..12f,
-                                steps = 9,
-                                onValueCommitted = { customizeRapidAlert(scoreDrop = it) }
-                            )
-                            RapidAlertSlider(
-                                title = "관찰 구간 내 화면 사용",
-                                value = rapidAlertConfig.usageMinutes,
-                                valueLabel = "${rapidAlertConfig.usageMinutes}분",
-                                range = 10f..rapidAlertConfig.windowMinutes.toFloat(),
-                                steps = (rapidAlertConfig.windowMinutes - 11).coerceAtLeast(0),
-                                onValueCommitted = { customizeRapidAlert(usageMinutes = it) }
-                            )
-                            RapidAlertSlider(
-                                title = "한 번에 이어서 사용",
-                                value = rapidAlertConfig.continuousMinutes,
-                                valueLabel = "${rapidAlertConfig.continuousMinutes}분",
-                                range = 15f..90f,
-                                steps = 14,
-                                onValueCommitted = { customizeRapidAlert(continuousMinutes = it) }
-                            )
-                            RapidAlertSlider(
-                                title = "알림 후 쉬는 시간",
-                                value = rapidAlertConfig.cooldownMinutes,
-                                valueLabel = "${rapidAlertConfig.cooldownMinutes}분",
-                                range = 30f..360f,
-                                steps = 10,
-                                onValueCommitted = { customizeRapidAlert(cooldownMinutes = it) }
-                            )
+
+                            if (settings.usePresetRapidAlertDefaults) {
+                                Text(
+                                    text = if (isEn) "Preset defaults applied" else "점수 모드 기본값 적용 중",
+                                    fontSize = DigitsTextSize.caption,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            } else {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = if (isEn) "Custom values applied" else "사용자 조정값 적용 중",
+                                        fontSize = DigitsTextSize.caption,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                    OutlinedButton(
+                                        onClick = {
+                                            val defaults = selectedCoreIndexPreset.defaultRapidUsageAlertConfig
+                                            saveRapidAlertSettings(
+                                                settings.copy(
+                                                    usePresetRapidAlertDefaults = true,
+                                                    rapidAlertWindowMinutes = defaults.windowMinutes,
+                                                    rapidAlertScoreDrop = defaults.scoreDrop,
+                                                    rapidAlertUsageMinutes = defaults.usageMinutes,
+                                                    rapidAlertContinuousMinutes = defaults.continuousMinutes,
+                                                    rapidAlertCooldownMinutes = defaults.cooldownMinutes
+                                                )
+                                            )
+                                        }
+                                    ) {
+                                        Text(if (isEn) "Restore Preset Defaults" else "점수 모드 기본값으로 되돌리기")
+                                    }
+                                }
+                            }
+
+                            if (settings.isRapidUsageAlertEnabled) {
+                                RapidAlertSlider(
+                                    title = if (isEn) "Window Duration" else "판단 구간",
+                                    value = rapidAlertConfig.windowMinutes,
+                                    valueLabel = "${rapidAlertConfig.windowMinutes}min",
+                                    range = 15f..60f,
+                                    steps = 8,
+                                    onValueCommitted = { customizeRapidAlert(windowMinutes = it) }
+                                )
+                                RapidAlertSlider(
+                                    title = if (isEn) "Score Drop" else "점수 하락 폭",
+                                    value = rapidAlertConfig.scoreDrop,
+                                    valueLabel = "${rapidAlertConfig.scoreDrop}P",
+                                    range = 2f..12f,
+                                    steps = 9,
+                                    onValueCommitted = { customizeRapidAlert(scoreDrop = it) }
+                                )
+                                RapidAlertSlider(
+                                    title = if (isEn) "Window Screen Time" else "구간 내 사용 시간",
+                                    value = rapidAlertConfig.usageMinutes,
+                                    valueLabel = "${rapidAlertConfig.usageMinutes}min",
+                                    range = 10f..rapidAlertConfig.windowMinutes.toFloat(),
+                                    steps = (rapidAlertConfig.windowMinutes - 11).coerceAtLeast(0),
+                                    onValueCommitted = { customizeRapidAlert(usageMinutes = it) }
+                                )
+                                RapidAlertSlider(
+                                    title = if (isEn) "Continuous Use" else "연속 사용 시간",
+                                    value = rapidAlertConfig.continuousMinutes,
+                                    valueLabel = "${rapidAlertConfig.continuousMinutes}min",
+                                    range = 15f..90f,
+                                    steps = 14,
+                                    onValueCommitted = { customizeRapidAlert(continuousMinutes = it) }
+                                )
+                                RapidAlertSlider(
+                                    title = if (isEn) "Cooldown" else "다시 알림 간격",
+                                    value = rapidAlertConfig.cooldownMinutes,
+                                    valueLabel = "${rapidAlertConfig.cooldownMinutes}min",
+                                    range = 30f..360f,
+                                    steps = 10,
+                                    onValueCommitted = { customizeRapidAlert(cooldownMinutes = it) }
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            // 1. 프리셋 모드 선택
-            if (SHOW_LEGACY_SCORE_SETTINGS) item {
-                SectionHeading(
-                    title = "점수 프리셋 모드 선택",
-                    subtitle = "생활 패턴에 맞는 기본값을 선택하고 아래에서 세부 조정합니다."
-                )
-            }
-
-            if (SHOW_LEGACY_SCORE_SETTINGS) item {
+            if (selectedCategoryTab == 1) item {
+                var weeklyReportEnabled by remember {
+                    mutableStateOf(ScoreNotificationManager.isWeeklyReportNotificationEnabled(context))
+                }
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
-                    Column(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        ExposedDropdownMenuBox(
-                            expanded = isPresetMenuExpanded,
-                            onExpandedChange = { isPresetMenuExpanded = !isPresetMenuExpanded }
-                        ) {
-                            OutlinedTextField(
-                                value = UiTranslator.translate(selectedPreset.title),
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("현재 프리셋") },
-                                trailingIcon = {
-                                    ExposedDropdownMenuDefaults.TrailingIcon(
-                                        expanded = isPresetMenuExpanded
-                                    )
-                                },
-                                modifier = Modifier
-                                    .menuAnchor()
-                                    .fillMaxWidth()
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (isEn) "Weekly Report Alert" else "주간 리포트 알림",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = DigitsTextSize.bodyLarge
                             )
-
-                            ExposedDropdownMenu(
-                                expanded = isPresetMenuExpanded,
-                                onDismissRequest = { isPresetMenuExpanded = false }
-                            ) {
-                                PresetMode.entries.forEach { mode ->
-                                    DropdownMenuItem(
-                                        text = { Text(mode.title) },
-                                        onClick = { selectPreset(mode) },
-                                        trailingIcon = if (mode.id == selectedModeId) {
-                                            {
-                                                Icon(
-                                                    imageVector = Icons.Default.Check,
-                                                    contentDescription = UiTranslator.translate("선택됨"),
-                                                    tint = MaterialTheme.colorScheme.primary
-                                                )
-                                            }
-                                        } else {
-                                            null
-                                        }
-                                    )
-                                }
-                            }
+                            Text(
+                                text = if (isEn) "Sends a summary of past week's Core Index and goal achievements every Monday morning."
+                                else "매주 월요일 아침 지난주 코어 지수 및 목표 달성 요약을 알림으로 받아봅니다.",
+                                fontSize = DigitsTextSize.label,
+                                color = MaterialTheme.colorScheme.outline
+                            )
                         }
-
-                        Text(
-                            text = selectedPreset.description,
-                            fontSize = 13.sp,
-                            lineHeight = 18.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        Spacer(modifier = Modifier.width(8.dp))
+                        androidx.compose.material3.Switch(
+                            checked = weeklyReportEnabled,
+                            onCheckedChange = { checked ->
+                                weeklyReportEnabled = checked
+                                ScoreNotificationManager.setWeeklyReportNotificationEnabled(context, checked)
+                            }
                         )
                     }
                 }
             }
 
-            item {
-                SectionHeading(
-                    title = "백그라운드 추적 및 표시",
-                    subtitle = "상태바와 위젯의 표시 방식, 실시간 추적 여부를 관리합니다."
-                )
-            }
-
-            item {
+            if (selectedCategoryTab == 2) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("상태바 아이콘 스타일", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(if (isEn) "Status Bar Icon Style" else "상태바 아이콘 스타일", fontWeight = FontWeight.Bold, fontSize = DigitsTextSize.bodyLarge)
                         val selectedIconStyle = StatusIconStyle.fromId(settings.statusIconStyleId)
                         ExposedDropdownMenuBox(
                             expanded = isStatusIconMenuExpanded,
@@ -817,7 +1341,7 @@ fun PresetModeScreen(
                                     StatusIconStyle.NUMBER_FOCUS to "숫자 분리형"
                                 ).forEach { (style, label) ->
                                     DropdownMenuItem(
-                                        text = { Text(label) },
+                                        text = { Text(UiTranslator.translate(label)) },
                                         onClick = {
                                             isStatusIconMenuExpanded = false
                                             scope.launch {
@@ -834,7 +1358,7 @@ fun PresetModeScreen(
                                         trailingIcon = if (selectedIconStyle == style) {
                                             {
                                                 Icon(
-                                                    imageVector = Icons.Default.Check,
+                                                    imageVector = Icons.Rounded.Check,
                                                     contentDescription = UiTranslator.translate("선택됨"),
                                                     tint = MaterialTheme.colorScheme.primary
                                                 )
@@ -847,91 +1371,19 @@ fun PresetModeScreen(
                         Text(
                             text = when (selectedIconStyle) {
                                 StatusIconStyle.BIG_NUMBER ->
-                                    UiTranslator.translate("상단 스템을 컴팩트하게 올리고, 굵은 아웃라인 숫자를 중앙에 크게 표시합니다.")
+                                    if (isEn) "Shows large score digits inside the power ring."
+                                    else "전원 링 안에 현재 점수를 크게 표시합니다."
                                 StatusIconStyle.SCORE_PROPORTION ->
-                                    UiTranslator.translate("여백을 최소화한 볼드 전원 심볼에 점수 비율(빨강 바탕+녹색 호)을 채웁니다.")
+                                    if (isEn) "Fills the power ring proportionally with your score."
+                                    else "전원 링의 채움 비율로 점수를 표시합니다."
                                 StatusIconStyle.SCORE_TIER ->
-                                    UiTranslator.translate("여백을 최소화한 볼드 전원 심볼 전체가 점수 구간색으로 표시됩니다.")
+                                    if (isEn) "Shows the entire power ring in your score tier color."
+                                    else "전원 링 전체를 점수 구간 색상으로 표시합니다."
                                 StatusIconStyle.NUMBER_FOCUS ->
-                                    UiTranslator.translate("볼드 전원 심볼 옆에 고대비 외곽선 숫자를 분리하여 표시합니다.")
+                                    if (isEn) "Shows score digits right next to the power icon."
+                                    else "전원 아이콘 옆에 점수 숫자를 나란히 표시합니다."
                             },
-                            fontSize = 12.sp,
-                            lineHeight = 17.sp,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                        Text(
-                            "점수 구간: 0–39 빨강 · 40–59 주황 · 60–79 노랑 · 80–100 초록",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("위젯 배경", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        val selectedWidgetBackground = WidgetBackgroundStyle.fromId(
-                            settings.widgetBackgroundStyleId
-                        )
-                        ExposedDropdownMenuBox(
-                            expanded = isWidgetBackgroundMenuExpanded,
-                            onExpandedChange = {
-                                isWidgetBackgroundMenuExpanded = !isWidgetBackgroundMenuExpanded
-                            }
-                        ) {
-                            OutlinedTextField(
-                                value = UiTranslator.translate(when (selectedWidgetBackground) {
-                                    WidgetBackgroundStyle.DARK -> "어두운 배경"
-                                    WidgetBackgroundStyle.WHITE -> "흰색 배경"
-                                    WidgetBackgroundStyle.TRANSPARENT -> "투명 배경"
-                                }),
-                                onValueChange = {},
-                                readOnly = true,
-                                trailingIcon = {
-                                    ExposedDropdownMenuDefaults.TrailingIcon(isWidgetBackgroundMenuExpanded)
-                                },
-                                modifier = Modifier.menuAnchor().fillMaxWidth()
-                            )
-                            ExposedDropdownMenu(
-                                expanded = isWidgetBackgroundMenuExpanded,
-                                onDismissRequest = { isWidgetBackgroundMenuExpanded = false }
-                            ) {
-                                listOf(
-                                    WidgetBackgroundStyle.DARK to "어두운 배경",
-                                    WidgetBackgroundStyle.WHITE to "흰색 배경",
-                                    WidgetBackgroundStyle.TRANSPARENT to "투명 배경"
-                                ).forEach { (style, label) ->
-                                    DropdownMenuItem(
-                                        text = { Text(label) },
-                                        onClick = {
-                                            isWidgetBackgroundMenuExpanded = false
-                                            scope.launch {
-                                                withContext(Dispatchers.IO) {
-                                                    db.settingsDao().insertOrUpdateSettings(
-                                                        settings.copy(widgetBackgroundStyleId = style.id)
-                                                    )
-                                                }
-                                                ScoreWidget().updateAll(context)
-                                            }
-                                        },
-                                        trailingIcon = if (selectedWidgetBackground == style) {
-                                            {
-                                                Icon(
-                                                    imageVector = Icons.Default.Check,
-                                                    contentDescription = UiTranslator.translate("선택됨"),
-                                                    tint = MaterialTheme.colorScheme.primary
-                                                )
-                                            }
-                                        } else null
-                                    )
-                                }
-                            }
-                        }
-                        Text(
-                            text = when (selectedWidgetBackground) {
-                                WidgetBackgroundStyle.DARK -> "어두운 카드와 밝은 글자를 사용합니다."
-                                WidgetBackgroundStyle.WHITE -> "흰색 카드와 어두운 글자를 사용합니다."
-                                WidgetBackgroundStyle.TRANSPARENT ->
-                                    "전체 배경은 투명하게 하고 정보 영역만 읽기 쉽게 표시합니다."
-                            },
-                            fontSize = 12.sp,
+                            fontSize = DigitsTextSize.label,
                             lineHeight = 17.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
@@ -939,10 +1391,84 @@ fun PresetModeScreen(
                 }
             }
 
-            item {
+            // 1. 점수 모드 선택
+            if (selectedCategoryTab == 1 && SHOW_LEGACY_SCORE_SETTINGS) item {
+                SectionHeading(
+                    title = "점수 모드 선택",
+                    subtitle = "생활 패턴에 맞는 기본값을 선택하고 아래에서 세부 조정합니다."
+                )
+            }
+
+            if (selectedCategoryTab == 1 && SHOW_LEGACY_SCORE_SETTINGS) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        ExposedDropdownMenuBox(
+                            expanded = isPresetMenuExpanded,
+                            onExpandedChange = { isPresetMenuExpanded = !isPresetMenuExpanded }
+                        ) {
+                            OutlinedTextField(
+                                value = UiTranslator.translate(selectedPreset.title),
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("현재 점수 모드") },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(
+                                        expanded = isPresetMenuExpanded
+                                    )
+                                },
+                                modifier = Modifier
+                                    .menuAnchor()
+                                    .fillMaxWidth()
+                            )
+
+                            ExposedDropdownMenu(
+                                expanded = isPresetMenuExpanded,
+                                onDismissRequest = { isPresetMenuExpanded = false }
+                            ) {
+                                PresetMode.entries.forEach { mode ->
+                                    DropdownMenuItem(
+                                        text = { Text(mode.title) },
+                                        onClick = { selectPreset(mode) },
+                                        trailingIcon = if (mode.id == selectedModeId) {
+                                            {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Check,
+                                                    contentDescription = UiTranslator.translate("선택됨"),
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        } else {
+                                            null
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        Text(
+                            text = selectedPreset.description,
+                            fontSize = DigitsTextSize.body,
+                            lineHeight = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+
+            if (selectedCategoryTab == 0) item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Row(
@@ -954,13 +1480,15 @@ fun PresetModeScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = if (settings.isTrackingEnabled) "사용 기록 추적 중" else "사용 기록 추적 중지됨",
+                                text = if (isEn) (if (settings.isTrackingEnabled) "Usage tracking is active" else "Usage tracking is off")
+                                else (if (settings.isTrackingEnabled) "사용 기록 추적 중" else "사용 기록 추적 중지됨"),
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
+                                fontSize = DigitsTextSize.bodyLarge
                             )
                             Text(
-                                text = "끄면 백그라운드 서비스와 상태바 점수 알림이 즉시 종료됩니다.",
-                                fontSize = 12.sp,
+                                text = if (isEn) "Turning this off stops background tracking and the status notification immediately."
+                                else "끄면 백그라운드 서비스와 상태바 점수 알림이 즉시 종료됩니다.",
+                                fontSize = DigitsTextSize.label,
                                 color = MaterialTheme.colorScheme.outline,
                                 modifier = Modifier.padding(top = 3.dp)
                             )
@@ -986,31 +1514,31 @@ fun PresetModeScreen(
                 }
             }
 
-            // 2. 개인 목표 방어선
+            // 2. 개인 목표 지수 방어선
 
-            if (SHOW_LEGACY_SCORE_SETTINGS) item {
+            if (selectedCategoryTab == 1 && SHOW_LEGACY_SCORE_SETTINGS) item {
                 SectionHeading(
                     title = "개인 목표 기준선",
-                    subtitle = "점수 안내와 언락 기준을 본인의 생활 패턴에 맞춥니다."
+                    subtitle = "점수 안내와 잠금 해제 기준을 본인의 생활 패턴에 맞춥니다."
                 )
             }
 
-            if (SHOW_LEGACY_SCORE_SETTINGS) item {
+            if (selectedCategoryTab == 1 && SHOW_LEGACY_SCORE_SETTINGS) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "최저 점수 방어선: ${settings.minimumScoreDefenseLine}점",
+                            text = if (isEn) "Minimum Score Defense: ${settings.minimumScoreDefenseLine}P" else "최저 점수 지수 방어선: ${settings.minimumScoreDefenseLine}P",
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground,
-                            fontSize = 14.sp
+                            fontSize = DigitsTextSize.bodyLarge
                         )
                         Text(
                             text = "점수가 이 이하로 떨어지면 사용 균형 안내를 강조합니다.",
-                            fontSize = 12.sp,
+                            fontSize = DigitsTextSize.label,
                             color = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
                         )
@@ -1030,22 +1558,22 @@ fun PresetModeScreen(
                 }
             }
 
-            if (SHOW_LEGACY_SCORE_SETTINGS) item {
+            if (selectedCategoryTab == 1 && SHOW_LEGACY_SCORE_SETTINGS) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "일일 목표 언락 제한: ${settings.targetUnlockCount}회",
+                            text = if (isEn) "Daily Target Unlock Limit: ${settings.targetUnlockCount}" else "일일 목표 잠금 해제 제한: ${settings.targetUnlockCount}회",
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground,
-                            fontSize = 14.sp
+                            fontSize = DigitsTextSize.bodyLarge
                         )
                         Text(
                             text = "이 횟수를 초과하여 스마트폰을 켤 때 페널티가 누적됩니다.",
-                            fontSize = 12.sp,
+                            fontSize = DigitsTextSize.label,
                             color = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
                         )
@@ -1065,448 +1593,137 @@ fun PresetModeScreen(
                 }
             }
 
-            // 3. 세부 가중치 커스텀 설정
-            if (SHOW_LEGACY_SCORE_SETTINGS) item {
-                Spacer(modifier = Modifier.height(8.dp))
-                SectionHeading(
-                    title = "세부 가중치 설정",
-                    subtitle = "심야 사용, 장시간 사용, 회복과 언락의 반영 강도를 조정합니다.",
-                    actionLabel = "기본값",
-                    onAction = {
-                            scope.launch(Dispatchers.IO) {
-                                val currentPreset = PresetMode.fromId(settings.selectedPresetModeId)
-                                val rule = currentPreset.scoreRule
-                                db.settingsDao().insertOrUpdateSettings(
-                                    settings.copy(
-                                        distractingWeightPerMinute = rule.distractingWeightPerMinute,
-                                        productiveBonusPerMinute = rule.productiveBonusPerMinute,
-                                        idleBonusPer10Minutes = rule.idleBonusPer10Minutes,
-                                        maxIdleBonus = rule.maxIdleBonus,
-                                        maxProductiveBonus = rule.maxProductiveBonus,
-                                        targetUnlockCount = rule.unlockPenaltyThreshold,
-                                        unlockPenaltyPerCount = rule.unlockPenaltyPerCount,
-                                        lateNightMultiplier = rule.lateNightMultiplier,
-                                        isLogAccelerationEnabled = rule.isLogAccelerationEnabled,
-                                        logAccelerationThresholdMinutes = rule.logAccelerationThresholdMinutes,
-                                        logAccelerationScaleMinutes = rule.logAccelerationScaleMinutes,
-                                        isYesterdayPenaltyEnabled = rule.isYesterdayPenaltyEnabled,
-                                        yesterdayPenaltyTriggerScore = rule.yesterdayPenaltyTriggerScore,
-                                        yesterdayPenaltyRate = rule.yesterdayPenaltyRate,
-                                        maxYesterdayPenalty = rule.maxYesterdayPenalty
-                                    )
-                                )
-                            }
-                    }
-                )
-            }
-
-            // 심야(24시~05시) 감점 가속 배수
-            if (SHOW_LEGACY_SCORE_SETTINGS) item {
+            // 3. 코어 지수 세부 규칙 (추후 지원 안내 카드)
+            if (selectedCategoryTab == 1) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        val lateNightMult = String.format(java.util.Locale.US, "%.1f", settings.lateNightMultiplier)
-                        Text(
-                            text = "심야(24시~05시) 감점 배수: ${lateNightMult}배",
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            fontSize = 14.sp
-                        )
-                        Text(
-                            text = "자정부터 새벽 5시까지 방해 앱 사용 시 감점을 배수로 가속합니다.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
-                        )
-                        Slider(
-                            value = settings.lateNightMultiplier,
-                            onValueChange = { newValue ->
-                                scope.launch(Dispatchers.IO) {
-                                    db.settingsDao().insertOrUpdateSettings(
-                                        settings.copy(lateNightMultiplier = (newValue * 10).toInt() / 10f)
-                                    )
-                                }
-                            },
-                            valueRange = 1.0f..3.0f,
-                            steps = 19
-                        )
-                    }
-                }
-            }
-
-            // 장시간 연속 사용 로그(Log) 가속 스위치
-            if (SHOW_LEGACY_SCORE_SETTINGS) item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
+                        Surface(
+                            shape = DigitsShape.xs,
+                            color = MaterialTheme.colorScheme.secondaryContainer
+                        ) {
                             Text(
-                                text = "장시간 사용 로그(Log) 가속",
+                                text = if (isEn) "Later" else "추후 지원",
+                                fontSize = DigitsTextSize.tiny,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground,
-                                fontSize = 14.sp
-                            )
-                            Text(
-                                text = "설정한 앱별 누적시간 이후 감점 속도가 비선형으로 빨라집니다.",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.padding(top = 2.dp)
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
-                        androidx.compose.material3.Switch(
-                            checked = settings.isLogAccelerationEnabled,
-                            onCheckedChange = { isChecked ->
-                                scope.launch(Dispatchers.IO) {
-                                    db.settingsDao().insertOrUpdateSettings(
-                                        settings.copy(isLogAccelerationEnabled = isChecked)
-                                    )
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-
-            if (settings.isLogAccelerationEnabled) {
-                if (SHOW_LEGACY_SCORE_SETTINGS) item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = "가속 시작: ${settings.logAccelerationThresholdMinutes.toInt()}분",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                            Text(
-                                text = "이 시간까지는 기본 감점만 적용합니다.",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                            Slider(
-                                value = settings.logAccelerationThresholdMinutes,
-                                onValueChange = { value ->
-                                    scope.launch(Dispatchers.IO) {
-                                        db.settingsDao().insertOrUpdateSettings(
-                                            settings.copy(logAccelerationThresholdMinutes = value.toInt().toFloat())
-                                        )
-                                    }
-                                },
-                                valueRange = 30f..180f,
-                                steps = 9
-                            )
-
-                            Text(
-                                text = "가속 완만함: ${settings.logAccelerationScaleMinutes.toInt()}분",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                            Text(
-                                text = "값이 클수록 장시간 사용 감점 증가가 완만합니다.",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                            Slider(
-                                value = settings.logAccelerationScaleMinutes,
-                                onValueChange = { value ->
-                                    scope.launch(Dispatchers.IO) {
-                                        db.settingsDao().insertOrUpdateSettings(
-                                            settings.copy(logAccelerationScaleMinutes = value.toInt().toFloat())
-                                        )
-                                    }
-                                },
-                                valueRange = 60f..300f,
-                                steps = 7
-                            )
-                        }
-                    }
-                }
-            }
-
-            // 이전 사용량 이월 스위치
-            if (SHOW_LEGACY_SCORE_SETTINGS) item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "⏳ 이전 사용량 이월",
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground,
-                                fontSize = 14.sp
-                            )
-                            Text(
-                                text = "전날 점수가 설정 기준보다 낮을 때 다음 날 일부만 이월합니다.",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.padding(top = 2.dp)
-                            )
-                        }
-                        androidx.compose.material3.Switch(
-                            checked = settings.isYesterdayPenaltyEnabled,
-                            onCheckedChange = { isChecked ->
-                                scope.launch(Dispatchers.IO) {
-                                    db.settingsDao().insertOrUpdateSettings(
-                                        settings.copy(isYesterdayPenaltyEnabled = isChecked)
-                                    )
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-
-            if (settings.isYesterdayPenaltyEnabled) {
-                if (SHOW_LEGACY_SCORE_SETTINGS) item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = "부채 발동 점수: ${settings.yesterdayPenaltyTriggerScore}점 미만",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                            Slider(
-                                value = settings.yesterdayPenaltyTriggerScore.toFloat(),
-                                onValueChange = { value ->
-                                    scope.launch(Dispatchers.IO) {
-                                        db.settingsDao().insertOrUpdateSettings(
-                                            settings.copy(yesterdayPenaltyTriggerScore = value.toInt())
-                                        )
-                                    }
-                                },
-                                valueRange = 40f..90f,
-                                steps = 9
-                            )
-
-                            Text(
-                                text = "기준 미달 1점당 이월: ${String.format(java.util.Locale.US, "%.2f", settings.yesterdayPenaltyRate)}점",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                            Slider(
-                                value = settings.yesterdayPenaltyRate,
-                                onValueChange = { value ->
-                                    scope.launch(Dispatchers.IO) {
-                                        db.settingsDao().insertOrUpdateSettings(
-                                            settings.copy(yesterdayPenaltyRate = (value * 20).toInt() / 20f)
-                                        )
-                                    }
-                                },
-                                valueRange = 0.05f..1.0f,
-                                steps = 18
-                            )
-
-                            Text(
-                                text = "하루 최대 이전 사용량 이월: ${settings.maxYesterdayPenalty.toInt()}점",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                            Slider(
-                                value = settings.maxYesterdayPenalty,
-                                onValueChange = { value ->
-                                    scope.launch(Dispatchers.IO) {
-                                        db.settingsDao().insertOrUpdateSettings(
-                                            settings.copy(maxYesterdayPenalty = value.toInt().toFloat())
-                                        )
-                                    }
-                                },
-                                valueRange = 0f..30f,
-                                steps = 5
-                            )
-                        }
-                    }
-                }
-            }
-
-            // 방해 앱 감점 가중치
-            if (SHOW_LEGACY_SCORE_SETTINGS) item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        val dWeight = String.format(java.util.Locale.US, "%.1f", settings.distractingWeightPerMinute)
                         Text(
-                            text = "관리 앱 1분당 감점치: ${dWeight}점",
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            fontSize = 14.sp
-                        )
-                        Text(
-                            text = "SNS, 영상 등 방해 앱 사용 1분당 차감되는 기본 점수입니다.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
-                        )
-                        Slider(
-                            value = settings.distractingWeightPerMinute,
-                            onValueChange = { newValue ->
-                                scope.launch(Dispatchers.IO) {
-                                    db.settingsDao().insertOrUpdateSettings(
-                                        settings.copy(distractingWeightPerMinute = (newValue * 10).toInt() / 10f)
-                                    )
-                                }
-                            },
-                            valueRange = 0.1f..2.0f,
-                            steps = 18
-                        )
-                    }
-                }
-            }
-
-            // 화면 미사용(Idle) 회복 가중치
-            if (SHOW_LEGACY_SCORE_SETTINGS) item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        val idleVal = String.format(java.util.Locale.US, "%.2f", settings.idleBonusPer10Minutes)
-                        Text(
-                            text = "🌿 화면 미사용 10분당 회복치: ${idleVal}점",
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            fontSize = 14.sp
-                        )
-                        Text(
-                            text = "스마트폰 화면을 끄고 휴식할 때 10분당 회복되는 점수입니다.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
-                        )
-                        Slider(
-                            value = settings.idleBonusPer10Minutes,
-                            onValueChange = { newValue ->
-                                scope.launch(Dispatchers.IO) {
-                                    db.settingsDao().insertOrUpdateSettings(
-                                        settings.copy(idleBonusPer10Minutes = (newValue * 20).toInt() / 20f)
-                                    )
-                                }
-                            },
-                            valueRange = 0.05f..1.0f,
-                            steps = 18
-                        )
-                    }
-                }
-            }
-
-            // 일일 보너스 최대 상한선(Cap)
-            if (SHOW_LEGACY_SCORE_SETTINGS) item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "🛡️ 일일 회복 보너스 최대 상한: ${settings.maxIdleBonus.toInt()}점",
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            fontSize = 14.sp
-                        )
-                        Text(
-                            text = "수면 및 장시간 미사용으로 하루에 얻을 수 있는 보너스 최대 한도입니다.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
-                        )
-                        Slider(
-                            value = settings.maxIdleBonus,
-                            onValueChange = { newValue ->
-                                scope.launch(Dispatchers.IO) {
-                                    db.settingsDao().insertOrUpdateSettings(
-                                        settings.copy(
-                                            maxIdleBonus = newValue.toInt().toFloat(),
-                                            maxProductiveBonus = newValue.toInt().toFloat()
-                                        )
-                                    )
-                                }
-                            },
-                            valueRange = 5f..30f,
-                            steps = 4
-                        )
-                    }
-                }
-            }
-
-            // 언락 초과당 감점치
-            if (SHOW_LEGACY_SCORE_SETTINGS) item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        val unlVal = String.format(java.util.Locale.US, "%.1f", settings.unlockPenaltyPerCount)
-                        Text(
-                            text = "언락 기준 초과 1회당 감점치: ${unlVal}점",
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            fontSize = 14.sp
-                        )
-                        Text(
-                            text = "일일 목표 언락 횟수를 초과할 때마다 차감되는 페널티 점수입니다.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
-                        )
-                        Slider(
-                            value = settings.unlockPenaltyPerCount,
-                            onValueChange = { newValue ->
-                                scope.launch(Dispatchers.IO) {
-                                    db.settingsDao().insertOrUpdateSettings(
-                                        settings.copy(unlockPenaltyPerCount = (newValue * 10).toInt() / 10f)
-                                    )
-                                }
-                            },
-                            valueRange = 0.1f..2.0f,
-                            steps = 18
+                            text = if (isEn) "Custom weight fine-tuning will be available in a future update."
+                            else "개인별 가중치 미세조정 기능은 데이터 축적 후 추후 업데이트에서 지원됩니다.",
+                            fontSize = DigitsTextSize.label,
+                            lineHeight = 16.sp,
+                            color = MaterialTheme.colorScheme.outline
                         )
                     }
                 }
             }
 
             // 4. 데이터 관리 및 백업
-            item {
+            if (selectedCategoryTab == 3) item {
                 SectionHeading(
                     title = "데이터 관리 및 백업",
                     subtitle = "기록 보존, 암호화 백업, 복원과 삭제를 관리합니다."
                 )
             }
 
-            item {
+            if (selectedCategoryTab == 3) item {
+                var isImportingHistory by remember { mutableStateOf(false) }
+                var importResultDialogMessage by remember { mutableStateOf<String?>(null) }
+                val importScope = rememberCoroutineScope()
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = if (isEn) "Import Past History" else "지난 기록 불러오기",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = DigitsTextSize.bodyLarge
+                        )
+                        Text(
+                            text = if (isEn) "Imports up to 7 days of recent app usage stored on your device. Past scores are not created; Core Index begins from today."
+                            else "기기에 남은 최근 최대 7일간의 앱 사용 기록을 가져옵니다. 과거 점수는 생성하지 않으며 코어 지수는 오늘부터 시작합니다.",
+                            fontSize = DigitsTextSize.label,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+
+                        Button(
+                            onClick = {
+                                if (!isImportingHistory) {
+                                    isImportingHistory = true
+                                    importScope.launch {
+                                        val result = com.digitscore.app.data.UsageHistoryImporter.importPastHistory(context, db)
+                                        importResultDialogMessage = result.message(isEn)
+                                        isImportingHistory = false
+                                    }
+                                }
+                            },
+                            enabled = !isImportingHistory,
+                            shape = DigitsShape.sm,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = if (isImportingHistory) (if (isEn) "Importing..." else "불러오는 중…") else (if (isEn) "Import Past Usage History" else "지난 사용 기록 불러오기"),
+                                fontSize = DigitsTextSize.body,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                importResultDialogMessage?.let { msg ->
+                    AlertDialog(
+                        onDismissRequest = { importResultDialogMessage = null },
+                        title = {
+                            Text(
+                                text = if (isEn) "Import Result" else "기록 불러오기 결과",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = DigitsTextSize.headline
+                            )
+                        },
+                        text = {
+                            Text(
+                                text = msg,
+                                fontSize = DigitsTextSize.body
+                            )
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = { importResultDialogMessage = null },
+                                shape = DigitsShape.sm
+                            ) {
+                                Text(if (isEn) "OK" else "확인", fontSize = DigitsTextSize.body, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    )
+                }
+            }
+
+            if (selectedCategoryTab == 3) item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(
@@ -1519,7 +1736,7 @@ fun PresetModeScreen(
                             } else {
                                 "기존 기록을 보호하기 위해 이번 실행에서는 호환 모드로 열었습니다. 백업 파일은 계속 사용자 비밀번호로 암호화됩니다."
                             },
-                            fontSize = 12.sp,
+                            fontSize = DigitsTextSize.label,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
@@ -1528,18 +1745,18 @@ fun PresetModeScreen(
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.errorContainer
                                 ),
-                                shape = RoundedCornerShape(12.dp)
+                                shape = DigitsShape.md
                             ) {
                                 Column(modifier = Modifier.padding(12.dp)) {
                                     Text(
                                         "DB 암호화 호환 모드",
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
+                                        fontSize = DigitsTextSize.body,
                                         color = MaterialTheme.colorScheme.onErrorContainer
                                     )
                                     Text(
                                         "기록 손실과 실행 중단을 막기 위해 기존 DB를 그대로 사용하고 있습니다. 앱을 다시 시작하면 암호화를 재시도합니다.",
-                                        fontSize = 11.sp,
+                                        fontSize = DigitsTextSize.caption,
                                         color = MaterialTheme.colorScheme.onErrorContainer
                                     )
                                 }
@@ -1548,21 +1765,21 @@ fun PresetModeScreen(
 
                         Card(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = DigitsShape.md
                         ) {
                             Column(
                                 modifier = Modifier.fillMaxWidth().padding(12.dp),
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Text("기록 보존 방식", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                Text("기록 보존 방식", fontWeight = FontWeight.Medium, fontSize = DigitsTextSize.body)
                                 Text(
                                     "앱별 시작·종료 상세와 5분 단위 코어 지수 표본은 30일, 시간별·날짜별 집계는 365일 보관합니다.",
-                                    fontSize = 11.sp,
+                                    fontSize = DigitsTextSize.caption,
                                     color = MaterialTheme.colorScheme.outline
                                 )
                                 Text(
                                     "30일을 넘겨 상세 기록을 보관하려면 만료 전에 암호화 백업을 저장하세요.",
-                                    fontSize = 11.sp,
+                                    fontSize = DigitsTextSize.caption,
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
@@ -1574,10 +1791,10 @@ fun PresetModeScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("잠금 화면에서 상세 정보 숨기기", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                Text("잠금 화면에서 상세 정보 숨기기", fontWeight = FontWeight.Medium, fontSize = DigitsTextSize.body)
                                 Text(
-                                    "점수·화면시간·언락 횟수를 잠금 해제 전에는 표시하지 않습니다.",
-                                    fontSize = 11.sp,
+                                    "점수·화면 시간·잠금 해제 횟수를 잠금 해제 전에는 표시하지 않습니다.",
+                                    fontSize = DigitsTextSize.caption,
                                     color = MaterialTheme.colorScheme.outline
                                 )
                             }
@@ -1601,11 +1818,11 @@ fun PresetModeScreen(
                             Button(
                                 onClick = { showBackupPasswordDialog = true },
                                 modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(10.dp),
+                                shape = DigitsShape.md,
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                             ) {
-                                Icon(imageVector = Icons.Default.Backup, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
-                                Text(text = "암호화 백업", fontSize = 13.sp)
+                                if (LocalDensity.current.fontScale <= 1.15f) Icon(imageVector = Icons.Rounded.Backup, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
+                                Text(text = "암호화 백업", fontSize = DigitsTextSize.body, maxLines = 1)
                             }
 
                             // 3) 데이터 복원
@@ -1614,11 +1831,11 @@ fun PresetModeScreen(
                                     importLauncher.launch("*/*")
                                 },
                                 modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                                shape = DigitsShape.md,
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer)
                             ) {
-                                Icon(imageVector = Icons.Default.Restore, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
-                                Text(text = "데이터 복원", fontSize = 13.sp)
+                                if (LocalDensity.current.fontScale <= 1.15f) Icon(imageVector = Icons.Rounded.Restore, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
+                                Text(text = "데이터 복원", fontSize = DigitsTextSize.body, maxLines = 1)
                             }
                         }
 
@@ -1629,21 +1846,21 @@ fun PresetModeScreen(
                                 contentColor = MaterialTheme.colorScheme.error
                             )
                         ) {
-                            Icon(Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
+                            Icon(Icons.Rounded.DeleteForever, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
                             Text("모든 사용 기록 즉시 삭제")
                         }
                     }
                 }
             }
 
-            item {
+            if (selectedCategoryTab == 3) item {
                 SectionHeading(
                     title = "앱 정보",
-                    subtitle = "버전과 개인정보 처리 정책을 확인합니다."
+                    subtitle = "버전, 업데이트 기록, 개인정보 처리 정책을 확인합니다."
                 )
             }
 
-            item {
+            if (selectedCategoryTab == 3) item {
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1651,11 +1868,11 @@ fun PresetModeScreen(
                             selectedDetail = SettingsDetail(
                                 title = "DigitsCore",
                                 value = "v${BuildConfig.VERSION_NAME} · ${BuildConfig.BUILD_DATE}",
-                                description = "디지털 사용 습관을 전면 앱 사용시간과 언락 기록으로 분석합니다.",
+                                description = "디지털 사용 습관을 전면 앱 사용 시간과 잠금 해제 기록으로 분석합니다.",
                                 supportingText = "개인정보 처리 방식은 아래 개인정보 처리 안내에서 확인할 수 있습니다."
                             )
                         },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = DigitsShape.lg,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Row(
@@ -1665,42 +1882,62 @@ fun PresetModeScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "DigitsCore",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
+                                fontSize = DigitsTextSize.bodyLarge
                             )
                             Text(
                                 text = "디지털 사용 습관 점수 관리",
-                                fontSize = 12.sp,
+                                fontSize = DigitsTextSize.label,
                                 color = MaterialTheme.colorScheme.outline
                             )
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "v${BuildConfig.VERSION_NAME} · ${BuildConfig.BUILD_DATE}",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                            // 버전과 날짜를 두 줄로: 큰 글씨에서도 잘리지 않게
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = "v${BuildConfig.VERSION_NAME}",
+                                    fontSize = DigitsTextSize.label,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = BuildConfig.BUILD_DATE,
+                                    fontSize = DigitsTextSize.caption,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    maxLines = 1
+                                )
+                            }
                             DetailChevron()
                         }
                     }
                 }
             }
 
-            item {
+            if (selectedCategoryTab == 3) item {
+                OutlinedButton(
+                    onClick = { showUpdateHistory = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = DigitsShape.md
+                ) {
+                    Text("업데이트 기록")
+                }
+            }
+
+            if (selectedCategoryTab == 3) item {
                 OutlinedButton(
                     onClick = { showPrivacyPolicy = true },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp)
+                    shape = DigitsShape.md
                 ) {
                     Text("개인정보 처리 안내")
                 }
             }
 
-            item {
+            if (selectedCategoryTab == 3) item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1708,18 +1945,18 @@ fun PresetModeScreen(
                     OutlinedButton(
                         onClick = { showBugReport = true },
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = DigitsShape.md
                     ) {
-                        Icon(Icons.Default.BugReport, contentDescription = null)
-                        Text("버그 리포트", modifier = Modifier.padding(start = 6.dp), fontSize = 12.sp)
+                        Icon(Icons.Rounded.BugReport, contentDescription = null)
+                        Text("버그 리포트", modifier = Modifier.padding(start = 6.dp), fontSize = DigitsTextSize.label)
                     }
                     OutlinedButton(
                         onClick = { showDiagnosticsModal = true },
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = DigitsShape.md
                     ) {
-                        Icon(Icons.Default.Speed, contentDescription = null)
-                        Text("측정 상태 진단", modifier = Modifier.padding(start = 6.dp), fontSize = 12.sp)
+                        Icon(Icons.Rounded.Speed, contentDescription = null)
+                        Text("측정 상태 진단", modifier = Modifier.padding(start = 6.dp), fontSize = DigitsTextSize.label)
                     }
                 }
             }
@@ -1728,11 +1965,16 @@ fun PresetModeScreen(
                 Spacer(modifier = Modifier.height(30.dp))
             }
         }
+            }
         }
     }
 
     if (showPrivacyPolicy) {
         PrivacyPolicyDialog(onDismiss = { showPrivacyPolicy = false })
+    }
+
+    if (showUpdateHistory) {
+        UpdateHistoryDialog(onDismiss = { showUpdateHistory = false })
     }
 
     if (showBugReport) {
@@ -1788,17 +2030,50 @@ fun PresetModeScreen(
         )
     }
 
-    pendingEncryptedImport?.let { encryptedBytes ->
+    if (pendingEncryptedImport != null && pendingRestoreMode == null) {
+        // 복원 방식 선택: 기본은 백업 우선(이 기기 기록을 백업으로 바꿈)
+        AlertDialog(
+            onDismissRequest = { pendingEncryptedImport = null },
+            title = { Text("복원 방식을 고르세요", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "백업으로 바꾸기(권장): 이 기기의 사용 기록과 코어 지수를 지우고 백업 기록으로 이어 갑니다. 새 기기로 옮길 때 고르세요.",
+                        fontSize = DigitsTextSize.label
+                    )
+                    Text(
+                        "이 기기 기록에 합치기: 이 기기 기록을 남기고 백업 기록을 더합니다. 같은 시간대 기록이 겹치면 그래프가 섞여 보일 수 있습니다.",
+                        fontSize = DigitsTextSize.label,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = { pendingRestoreMode = com.digitscore.app.data.backup.RestoreMode.OVERWRITE }) {
+                    Text("백업으로 바꾸기", maxLines = 1)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRestoreMode = com.digitscore.app.data.backup.RestoreMode.MERGE }) {
+                    Text("합치기", maxLines = 1)
+                }
+            }
+        )
+    }
+
+    pendingEncryptedImport?.takeIf { pendingRestoreMode != null }?.let { encryptedBytes ->
+        val restoreMode = pendingRestoreMode ?: com.digitscore.app.data.backup.RestoreMode.OVERWRITE
         BackupPasswordDialog(
             title = "암호화 백업 복원",
             confirmPassword = false,
-            onDismiss = { pendingEncryptedImport = null },
+            onDismiss = { pendingEncryptedImport = null; pendingRestoreMode = null },
             onConfirm = { password ->
                 pendingEncryptedImport = null
+                pendingRestoreMode = null
                 scope.launch(Dispatchers.IO) {
                     val chars = password.toCharArray()
                     try {
-                        val success = DataBackupManager.importBackup(context, encryptedBytes, chars)
+                        val success = DataBackupManager.importBackup(context, encryptedBytes, chars, restoreMode)
                         launch(Dispatchers.Main) {
                             Toast.makeText(
                                 context,
@@ -1826,7 +2101,7 @@ fun PresetModeScreen(
             onDismissRequest = { showDeleteHistoryConfirmation = false },
             title = { Text("모든 사용 기록을 삭제할까요?", fontWeight = FontWeight.Bold) },
             text = {
-                Text("앱별 365일 기록, 점수 기록과 언락 통계가 삭제되고 추적이 중지됩니다. 앱 등급과 점수 설정은 유지되며 이 작업은 되돌릴 수 없습니다.")
+                Text("앱별 365일 기록, 점수 기록과 잠금 해제 통계가 삭제되고 추적이 중지됩니다. 앱 등급과 점수 설정은 유지되며 이 작업은 되돌릴 수 없습니다.")
             },
             confirmButton = {
                 Button(
@@ -1865,11 +2140,11 @@ private fun RapidAlertSlider(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(title, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(title, fontSize = DigitsTextSize.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
                 valueLabel,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontSize = DigitsTextSize.label,
+                fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.primary
             )
         }
@@ -1890,9 +2165,11 @@ private fun BackupPasswordDialog(
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit
 ) {
+    val context = LocalContext.current
+    val isEn = AppLocale.currentLanguage(context) == AppLocale.ENGLISH
     var password by remember { mutableStateOf("") }
     var confirmation by remember { mutableStateOf("") }
-    val isValid = password.length >= 8 && (!confirmPassword || password == confirmation)
+    val isValid = password.length >= 4 && (!confirmPassword || password == confirmation)
 
     // 안드로이드 OS 자동완성(Samsung Pass, Google Password Manager)이 백업 암호화 키를 가로채지 못하도록 명시적 차단
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -1912,15 +2189,16 @@ private fun BackupPasswordDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "비밀번호는 앱이나 서버에 저장되지 않고 백업 파일 암호화(PBKDF2 + AES-256-GCM)에만 사용됩니다. 분실하면 복원할 수 없습니다.",
-                    fontSize = 12.sp,
+                    if (isEn) "Passwords are not stored in the app or server and are only used for backup encryption (PBKDF2 + AES-256-GCM). Data cannot be recovered if lost."
+                    else "비밀번호는 앱이나 서버에 저장되지 않고 백업 파일 암호화(PBKDF2 + AES-256-GCM)에만 사용됩니다. 분실하면 복원할 수 없습니다.",
+                    fontSize = DigitsTextSize.label,
                     lineHeight = 16.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("암호화 비밀번호 · 8자 이상") },
+                    label = { Text(if (isEn) "Password · 4+ characters (e.g. 4-digit PIN)" else "암호화 비밀번호 · 4자 이상 (숫자 4자리 등)") },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(
@@ -1934,7 +2212,7 @@ private fun BackupPasswordDialog(
                     OutlinedTextField(
                         value = confirmation,
                         onValueChange = { confirmation = it },
-                        label = { Text("비밀번호 확인") },
+                        label = { Text(if (isEn) "Confirm Password" else "비밀번호 확인") },
                         singleLine = true,
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(
@@ -1949,8 +2227,8 @@ private fun BackupPasswordDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(password) }, enabled = isValid) { Text("확인") }
+            Button(onClick = { onConfirm(password) }, enabled = isValid) { Text(if (isEn) "Confirm" else "확인") }
         },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("취소") } }
+        dismissButton = { OutlinedButton(onClick = onDismiss) { Text(if (isEn) "Cancel" else "취소") } }
     )
 }

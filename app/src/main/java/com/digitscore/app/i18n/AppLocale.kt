@@ -13,11 +13,20 @@ object AppLocale {
     const val KOREAN = "ko"
     const val ENGLISH = "en"
 
-    fun currentLanguage(context: Context): String =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    @Volatile
+    var isCurrentEnglish: Boolean = Locale.getDefault().language == "en"
+        internal set
+
+    fun currentLanguage(context: Context): String {
+        val lang = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString(KEY_LANGUAGE, if (Locale.getDefault().language == KOREAN) KOREAN else ENGLISH)
             .takeIf { it == KOREAN || it == ENGLISH }
             ?: ENGLISH
+        isCurrentEnglish = (lang == ENGLISH)
+        return lang
+    }
+
+    fun isEnglish(context: Context): Boolean = currentLanguage(context) == ENGLISH
 
     fun wrap(context: Context): Context {
         val locale = Locale.forLanguageTag(currentLanguage(context))
@@ -30,6 +39,7 @@ object AppLocale {
 
     fun saveLanguage(context: Context, language: String) {
         val safeLanguage = if (language == ENGLISH) ENGLISH else KOREAN
+        isCurrentEnglish = (safeLanguage == ENGLISH)
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_LANGUAGE, safeLanguage)

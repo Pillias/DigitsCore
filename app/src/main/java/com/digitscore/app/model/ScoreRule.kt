@@ -8,14 +8,14 @@ package com.digitscore.app.model
  * @property yesterdayPenaltyTriggerScore 이전 사용량 이월이 발생하는 전날 점수 기준
  * @property yesterdayPenaltyRate 기준 미달 1점당 다음 날 감점 비율
  * @property maxYesterdayPenalty 이전 사용량 이월 최대 감점 상한
- * @property distractingWeightPerMinute 방해 앱 사용 1분당 감점치 (기본 0.8점 감점)
+ * @property distractingWeightPerMinute 관리 앱 사용 1분당 감점치 (기본 0.8점 감점)
  * @property productiveBonusPerMinute 생산성 앱 사용 1분당 가산치 (기본 0.2점 가산)
  * @property idleBonusPer10Minutes 화면 꺼짐(미사용) 10분당 회복 점수 (기본 0.25점 가산, 1시간에 1.5점)
  * @property maxIdleBonus 하루 동안 획득 가능한 화면 미사용 회복 보너스 최대 상한선 (기본 15점)
  * @property maxProductiveBonus 하루 동안 획득 가능한 생산성 보너스 최대 상한선 (기본 15점)
- * @property unlockPenaltyThreshold 하루 기준 언락 횟수 초과 허용치 (기본 25회)
- * @property unlockPenaltyPerCount 기준 초과 언락 1회당 감점 (기본 0.5점 감점)
- * @property lateNightMultiplier 심야 시간(24시~05시) 방해 앱 감점 가속 배수 (기본 1.6배)
+ * @property unlockPenaltyThreshold 하루 기준 잠금 해제 횟수 초과 허용치 (기본 25회)
+ * @property unlockPenaltyPerCount 기준 초과 잠금 해제 1회당 감점 (기본 0.5점 감점)
+ * @property lateNightMultiplier 심야 시간(24시~05시) 관리 앱 감점 가속 배수 (기본 1.6배)
  * @property isLogAccelerationEnabled 장시간 사용 시 로그(Log) 가속 감점 적용 여부 (기본 true)
  * @property logAccelerationThresholdMinutes 로그 가속이 시작되는 앱별 누적 사용 기준 시간 (기본 60분)
  * @property logAccelerationScaleMinutes 로그 가속도 곡선 스케일 매개변수 (클수록 완만함)

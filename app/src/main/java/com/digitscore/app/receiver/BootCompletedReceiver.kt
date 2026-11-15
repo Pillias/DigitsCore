@@ -24,10 +24,16 @@ class BootCompletedReceiver : BroadcastReceiver() {
                 // 사용자가 앱 안에서 추적을 명시적으로 켠 경우에만 부팅 후 재개합니다.
                 if (settings?.isTrackingEnabled == true) {
                     val serviceIntent = Intent(context, TrackerForegroundService::class.java)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        context.startForegroundService(serviceIntent)
-                    } else {
-                        context.startService(serviceIntent)
+                    runCatching {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            context.startForegroundService(serviceIntent)
+                        } else {
+                            context.startService(serviceIntent)
+                        }
+                    }.onFailure { e ->
+                        android.util.Log.w("BootCompletedReceiver", "Failed to start TrackerForegroundService on boot/update", e)
+                        // Android 15+ 정책 변경이나 제조사 제한으로 막히면 조용히 멈추지 않도록 알립니다.
+                        com.digitscore.app.notification.ScoreNotificationManager.showTrackingResumeNeeded(context)
                     }
                 }
             } finally {

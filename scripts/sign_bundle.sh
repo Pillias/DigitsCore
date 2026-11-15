@@ -2,14 +2,9 @@
 set -euo pipefail
 
 # DigitsCore Release AAB Signer
-# 사용법: ./scripts/sign_bundle.sh /오프라인/경로/digitscore-upload.jks [키_별칭]
+# 사용법: ./scripts/sign_bundle.sh [키스토어_경로] [키_별칭] [출력_AAB_경로]
 
-if [[ $# -lt 1 ]]; then
-  echo "사용법: $0 /절대/경로/digitscore-upload.jks [alias]" >&2
-  exit 1
-fi
-
-KEYSTORE_PATH="$1"
+KEYSTORE_PATH="${1:-$HOME/.keystore/digitscore-upload.jks}"
 ALIAS="${2:-digitscore-upload}"
 
 if [[ ! -f "$KEYSTORE_PATH" ]]; then
@@ -17,13 +12,32 @@ if [[ ! -f "$KEYSTORE_PATH" ]]; then
   exit 1
 fi
 
-SOURCE_AAB="app/build/outputs/bundle/release/app-release.aab"
-OUTPUT_AAB="${3:-DigitsCore-release.aab}"
-
-if [[ ! -f "$SOURCE_AAB" ]]; then
-  echo "안내: 릴리스 번들이 없습니다. 새로 빌드합니다..."
-  JAVA_HOME=/opt/homebrew/opt/openjdk@17 ANDROID_HOME=$HOME/Library/Android/sdk gradle :app:bundleRelease
+JAVA_BIN="/opt/homebrew/opt/openjdk@17/bin"
+if [[ -d "$JAVA_BIN" ]]; then
+  export PATH="$JAVA_BIN:$PATH"
 fi
+
+# 비밀번호는 스크립트에 두지 않습니다: 환경변수 → local.properties(digitscore.upload.storePassword) 순서로 읽습니다.
+STOREPASS="${DIGITSCORE_UPLOAD_STORE_PASSWORD:-}"
+if [[ -z "$STOREPASS" && -f local.properties ]]; then
+  STOREPASS="$(grep '^digitscore.upload.storePassword=' local.properties | head -n 1 | cut -d'=' -f2-)"
+fi
+if [[ -z "$STOREPASS" ]]; then
+  echo "오류: DIGITSCORE_UPLOAD_STORE_PASSWORD 환경변수나 local.properties의 digitscore.upload.storePassword가 필요합니다." >&2
+  exit 1
+fi
+
+echo "안내: 릴리스 번들을 새로 빌드합니다..."
+JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :app:bundleRelease --no-daemon
+
+# version.properties에서 최신 버전 다시 읽기 (Auto-Versioning 반영)
+MAJOR=$(grep "^MAJOR=" version.properties | cut -d'=' -f2)
+MINOR=$(grep "^MINOR=" version.properties | cut -d'=' -f2)
+PATCH=$(grep "^PATCH=" version.properties | cut -d'=' -f2)
+VERSION_NAME="${MAJOR}.${MINOR}.${PATCH}"
+
+SOURCE_AAB="app/build/outputs/bundle/release/app-release.aab"
+OUTPUT_AAB="${3:-DigitsCore-v${VERSION_NAME}-release.aab}"
 
 echo ">> AAB 복사: $OUTPUT_AAB"
 cp "$SOURCE_AAB" "$OUTPUT_AAB"
@@ -31,6 +45,7 @@ cp "$SOURCE_AAB" "$OUTPUT_AAB"
 echo ">> AAB 서명 진행 (jarsigner)..."
 jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
   -keystore "$KEYSTORE_PATH" \
+  -storepass "$STOREPASS" \
   "$OUTPUT_AAB" \
   "$ALIAS"
 

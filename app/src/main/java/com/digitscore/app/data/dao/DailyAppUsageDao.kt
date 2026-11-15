@@ -22,6 +22,9 @@ interface DailyAppUsageDao {
         startDateString: String
     ): List<DailyAppUsageEntity>
 
+    @Query("SELECT * FROM daily_app_usage WHERE dateString >= :startDateString AND dateString <= :endDateString ORDER BY dateString ASC, packageName ASC")
+    suspend fun getRange(startDateString: String, endDateString: String): List<DailyAppUsageEntity>
+
     @Query("SELECT * FROM daily_app_usage ORDER BY dateString ASC, packageName ASC")
     suspend fun getAll(): List<DailyAppUsageEntity>
 

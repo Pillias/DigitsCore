@@ -45,6 +45,12 @@ object ScoreRepository {
     private val _yesterdaySummary = MutableStateFlow<com.digitscore.app.model.YesterdayBriefingSummary?>(null)
     val yesterdaySummary = _yesterdaySummary.asStateFlow()
 
+    private val _yesterdayGoalResult = MutableStateFlow<com.digitscore.app.model.YesterdayGoalResult?>(null)
+    val yesterdayGoalResult = _yesterdayGoalResult.asStateFlow()
+
+    private val _rewardState = MutableStateFlow(com.digitscore.app.model.GoalRewardState())
+    val rewardState = _rewardState.asStateFlow()
+
     fun updateDailyGoal(goal: com.digitscore.app.model.DailyGoal?) {
         _dailyGoal.value = goal
     }
@@ -52,6 +58,15 @@ object ScoreRepository {
     fun updateYesterdaySummary(summary: com.digitscore.app.model.YesterdayBriefingSummary?) {
         _yesterdaySummary.value = summary
     }
+
+    fun updateYesterdayGoalResult(result: com.digitscore.app.model.YesterdayGoalResult?) {
+        _yesterdayGoalResult.value = result
+    }
+
+    fun updateRewardState(state: com.digitscore.app.model.GoalRewardState) {
+        _rewardState.value = state
+    }
+
 
     fun updateScoreDetail(detail: ScoreDetail?) {
         _currentScoreDetail.value = detail

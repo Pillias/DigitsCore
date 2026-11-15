@@ -36,7 +36,7 @@ class CumulativeScoreStoreTest {
             assertEquals(first.first, CumulativeRecord.decode(db.cumulativeScoreStateDao().get()!!.payload))
             assertTrue(first.first.checkpoint.state.recoveryBurden > 0.0)
             val beforeCorrection = first.first.checkpoint.state
-            CumulativeScoreStore.confirmActivity(db, now, false)
+            CumulativeScoreStore.confirmWake(db, now)
             assertEquals(beforeCorrection, CumulativeRecord.decode(db.cumulativeScoreStateDao().get()!!.payload).checkpoint.state)
         } finally { db.close() }
     }

@@ -41,11 +41,12 @@ class StatisticsMarketChartTest {
     @Test
     fun `new score model ignores old readings on the transition day`() {
         val day = "2026-09-21"
-        val history = history(day, 74).copy(scoreModelVersion = 5)
+        val current = com.digitscore.app.engine.ScoreModel.CURRENT_STORED
+        val history = history(day, 74).copy(scoreModelVersion = current)
         val readings = listOf(
-            sample(day, 1L, 29).copy(scoreModelVersion = 4),
-            sample(day, 2L, 74).copy(scoreModelVersion = 5),
-            sample(day, 3L, 77).copy(scoreModelVersion = 5)
+            sample(day, 1L, 29).copy(scoreModelVersion = current - 1),
+            sample(day, 2L, 74).copy(scoreModelVersion = current),
+            sample(day, 3L, 77).copy(scoreModelVersion = current)
         )
 
         val range = buildDailyCoreRanges(listOf(history), readings).single()

@@ -23,7 +23,7 @@ object BackupCrypto {
         bytes.size >= HEADER_BYTES + 16 && bytes.copyOfRange(0, MAGIC.size).contentEquals(MAGIC)
 
     fun encrypt(plainBytes: ByteArray, password: CharArray): ByteArray {
-        require(password.size >= 8) { "백업 비밀번호는 8자 이상이어야 합니다." }
+        require(password.size >= 4) { "백업 비밀번호는 4자 이상이어야 합니다." }
         val salt = ByteArray(SALT_BYTES).also(SecureRandom()::nextBytes)
         val iv = ByteArray(IV_BYTES).also(SecureRandom()::nextBytes)
         val header = ByteBuffer.allocate(HEADER_BYTES)

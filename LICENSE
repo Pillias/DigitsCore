@@ -1,0 +1,31 @@
+DigitsCore Source-Available License (All Rights Reserved)
+
+Copyright (c) 2026 4J Studio. All rights reserved.
+
+This repository is public so that people can read the code and give feedback.
+It is NOT open-source software.
+
+You MAY:
+  - View and read the source code, documents, and release notes.
+  - Build the code on your own device for personal, non-commercial evaluation,
+    and report issues or feedback to the author.
+
+You MAY NOT, without prior written permission from the copyright holder:
+  - Copy, reproduce, or reuse the source code, in whole or in part, in any
+    other project, app, product, or service.
+  - Modify the code or create derivative works from it.
+  - Distribute, publish, sublicense, sell, or rent the code, or any build
+    (APK, AAB, or otherwise) made from it.
+  - Publish an app that uses the DigitsCore name, the Core Index concept
+    as presented here, the salamander character, icons, screenshots, or other
+    artwork or text from this repository.
+  - Use the code, documents, or artwork to train machine-learning models.
+
+The software is provided "as is", without warranty of any kind.
+
+Nothing in this license limits rights that GitHub's Terms of Service give to
+users of the GitHub platform (for example, viewing and forking public
+repositories within GitHub). Those rights do not allow reuse outside of
+GitHub beyond what is stated above.
+
+Contact for permission requests: DigitsCore@gmail.com

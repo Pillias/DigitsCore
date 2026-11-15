@@ -2,5 +2,6 @@
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <cache-path name="backups" path="backups/" />
     <cache-path name="bugreports" path="bugreports/" />
+    <cache-path name="share" path="share/" />
 
 </paths>

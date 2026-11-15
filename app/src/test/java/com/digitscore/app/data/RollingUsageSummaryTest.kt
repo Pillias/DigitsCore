@@ -50,6 +50,27 @@ class RollingUsageSummaryTest {
         assertEquals(300_000L, result.growthTimeMillis)
     }
 
+    @Test
+    fun `shortSessionCount_6sIsShort_8sAnd14sAreNot`() {
+        val records = listOf(
+            // 6s session (starts at windowStart, ends at windowStart + 6_000)
+            session("app6s", windowStart, windowStart + 6_000L),
+            // 8s session
+            session("app8s", windowStart + 10_000L, windowStart + 18_000L),
+            // 14s session
+            session("app14s", windowStart + 20_000L, windowStart + 34_000L)
+        )
+
+        val result = summarizeRollingUsage(records, windowStart, windowEnd)
+        val app6s = result.appsUsage.first { it.packageName == "app6s" }
+        val app8s = result.appsUsage.first { it.packageName == "app8s" }
+        val app14s = result.appsUsage.first { it.packageName == "app14s" }
+
+        assertEquals(1, app6s.shortSessionCount)
+        assertEquals(0, app8s.shortSessionCount)
+        assertEquals(0, app14s.shortSessionCount)
+    }
+
     private fun session(
         packageName: String,
         start: Long,

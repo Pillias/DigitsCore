@@ -44,6 +44,16 @@ interface ForegroundUsageSessionDao {
     @Query("DELETE FROM foreground_usage_sessions")
     suspend fun deleteAll()
 
+    @Query("DELETE FROM foreground_usage_sessions WHERE dateString = :dateString AND startTimeMillis >= :fromMillis")
+    suspend fun deleteDateFrom(dateString: String, fromMillis: Long)
+
+    /** 덮어쓰기 복원 당일: 복원 시점 이전 구간(백업 값)은 남기고 이후 구간만 바꿉니다. */
+    @Transaction
+    suspend fun replaceDayFrom(dateString: String, fromMillis: Long, records: List<ForegroundUsageSessionEntity>) {
+        deleteDateFrom(dateString, fromMillis)
+        if (records.isNotEmpty()) insertAll(records)
+    }
+
     @Transaction
     suspend fun replaceDay(dateString: String, records: List<ForegroundUsageSessionEntity>) {
         deleteDate(dateString)

@@ -41,4 +41,23 @@ class BackupCryptoTest {
             // expected
         }
     }
+
+    @Test
+    fun `four character password works`() {
+        val original = "{\"test\":123}".toByteArray()
+        val password = "1234".toCharArray()
+        val encrypted = BackupCrypto.encrypt(original, password)
+        assertTrue(BackupCrypto.isEncryptedBackup(encrypted))
+        assertArrayEquals(original, BackupCrypto.decrypt(encrypted, password))
+    }
+
+    @Test
+    fun `less than 4 character password fails`() {
+        try {
+            BackupCrypto.encrypt("test".toByteArray(), "123".toCharArray())
+            fail("Password shorter than 4 must fail")
+        } catch (_: IllegalArgumentException) {
+            // expected
+        }
+    }
 }

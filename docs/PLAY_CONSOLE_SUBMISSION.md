@@ -6,14 +6,28 @@
 
 1. `scripts/create_upload_keystore.sh /안전한/오프라인/경로/digitscore-upload.jks`를 로컬에서 실행합니다.
 2. keystore와 복구 정보를 암호화된 오프라인 장소 두 곳에 보관합니다. 저장소에는 커밋하지 않습니다.
-3. `PLAY_RELEASE_CHECKLIST.md`의 네 개 GitHub Secret을 입력합니다.
-4. 태그 빌드의 release AAB를 받은 뒤 `jarsigner -verify -verbose -certs DigitsCore-*.aab`로 서명을 확인합니다.
-5. Play App Signing을 활성화하고 내부 테스트 트랙에 먼저 올립니다.
+3. 로컬 빌드는 프로젝트 밖 `~/.keystore/digitscore-upload.jks`와 `~/.keystore/digitscore-upload.properties`(`digitscore.upload.storePassword`·`keyAlias`·`keyPassword`)를 읽습니다. 프로젝트 폴더와 `local.properties`에는 키·비밀번호를 두지 않습니다.
+4. `PLAY_RELEASE_CHECKLIST.md`의 네 개 GitHub Secret을 입력합니다.
+5. 태그 빌드의 release AAB를 받은 뒤 `jarsigner -verify -verbose -certs DigitsCore-*.aab`로 서명을 확인합니다.
+6. Play App Signing을 활성화하고 내부 테스트 트랙에 먼저 올립니다.
+
+## 공개 테스트 (2026-11-06~)
+
+비공개 테스트(12명·14일)는 끝났습니다. 공개 테스트는 Play Console에서 다음 순서로 엽니다.
+
+1. **테스트 및 출시 → 공개 테스트 → 국가/지역**: '모든 국가/지역 추가'. 새 국가가 생기면 자동 포함되도록 켭니다.
+2. **테스터 탭**: 인원 제한 없음(또는 필요 시 상한 지정). 피드백 URL/이메일은 `DigitsCore@gmail.com`.
+3. **새 버전 만들기**: `DigitsCore-v0.9.43-release.aab` 업로드. 출시 노트는 `docs/release-notes/v0.9.43.md`의 ko-KR·en-US 부분을 각각 붙여 넣습니다(언어별 500자 이내).
+4. **스토어 등록정보**: 공개 테스트 앱은 스토어에 '얼리 액세스'로 노출되므로 기본 언어 외에 en-US 번역 등록정보(짧은 설명·자세한 설명·스크린샷)가 있는지 확인합니다. 한국어·영어 외 국가는 기본(또는 en-US) 등록정보를 봅니다.
+5. **검토용 변경사항 전송**. 공개 테스트도 심사를 받습니다. 승인 후 참여 링크(`https://play.google.com/apps/testing/com.digitscore.app`)를 공유합니다.
+6. 비공개 테스트 트랙은 닫지 않고 두면 이전 테스터도 계속 업데이트를 받습니다. 공개 트랙이 더 높은 versionCode(943)라 모두 v0.9.43을 받습니다.
+
+국가 제한이 필요한지 다시 볼 항목: 앱은 오프라인이고 결제·광고·계정이 없어 국가별 추가 규정은 현재 해당하지 않습니다. 콘텐츠 등급 설문은 모든 지역 등급을 함께 만듭니다.
 
 ## 개인정보처리방침·지원 정보
 
 - 앱 안의 개인정보 안내와 공개 HTTPS 정책의 내용·보유기간·삭제 경로를 일치시킵니다.
-- `PRIVACY_POLICY.md` 및 공개 웹사이트의 개발자명(`DsCore`), 지원 이메일(`DigitsCore@gmail.com`), 공개 URL(`https://pillias.github.io/DigitsCore/privacy.html`)이 확정되어 반영되어 있습니다.
+- `PRIVACY_POLICY.md` 및 공개 웹사이트의 개발자명(`4J Studio`), 지원 이메일(`DigitsCore@gmail.com`), 공개 URL(`https://pillias.github.io/DigitsCore/privacy.html`)이 확정되어 반영되어 있습니다.
 - 공개 URL은 로그인 없이 열리고 수정 불가능한 일반 웹페이지여야 합니다. (GitHub Pages에 배포 완료)
 - 스토어 지원 이메일은 실제로 수신·회신 가능한 전용 주소(`DigitsCore@gmail.com`)를 사용합니다.
 

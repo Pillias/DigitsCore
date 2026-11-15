@@ -1,6 +1,8 @@
 package com.digitscore.app.ui.settings
 
 import android.content.ClipData
+import com.digitscore.app.ui.theme.DigitsTextSize
+import com.digitscore.app.ui.theme.DigitsShape
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
@@ -18,10 +20,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.rounded.AddPhotoAlternate
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Email
+import androidx.compose.material.icons.rounded.Share
 
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -109,7 +111,7 @@ internal fun BugReportDialog(
                 item {
                     Text(
                         "문제가 생긴 상황과 재현 순서를 적어주세요. 공식 지원 이메일(DigitsCore@gmail.com)로 진단 보고서와 함께 발송됩니다.",
-                        fontSize = 13.sp,
+                        fontSize = DigitsTextSize.body,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -135,11 +137,11 @@ internal fun BugReportDialog(
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("스크린샷 첨부 (최대 5장)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                Text("스크린샷 첨부 (최대 5장)", fontWeight = FontWeight.Medium, fontSize = DigitsTextSize.body)
                                 Text(
                                     if (screenshotUris.isNotEmpty()) "${screenshotUris.size}/5장 첨부됨"
                                     else "증상을 보여주는 화면 캡처 이미지를 추가할 수 있습니다.",
-                                    fontSize = 11.sp,
+                                    fontSize = DigitsTextSize.caption,
                                     color = if (screenshotUris.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
                                 )
                             }
@@ -151,7 +153,7 @@ internal fun BugReportDialog(
                                 }
                                 if (screenshotUris.size < 5) {
                                     OutlinedButton(onClick = { screenshotPicker.launch("image/*") }) {
-                                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
+                                        Icon(Icons.Rounded.AddPhotoAlternate, contentDescription = null)
                                         Text("추가", modifier = Modifier.padding(start = 4.dp))
                                     }
                                 }
@@ -160,10 +162,10 @@ internal fun BugReportDialog(
                     }
                 }
                 item {
-                    Text("첨부되는 진단 정보", fontWeight = FontWeight.SemiBold)
+                    Text("첨부되는 진단 정보", fontWeight = FontWeight.Medium)
                     Text(
                         "앱 버전·기기 모델·Android 버전·권한 상태·측정 성능만 포함합니다. 앱 목록, 사용 이력, 점수 기록, 알림 내용, 계정 및 기기 식별자는 포함하지 않습니다.",
-                        fontSize = 12.sp,
+                        fontSize = DigitsTextSize.label,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -175,10 +177,10 @@ internal fun BugReportDialog(
                                 .fillMaxWidth()
                                 .background(
                                     MaterialTheme.colorScheme.surfaceVariant,
-                                    RoundedCornerShape(12.dp)
+                                    DigitsShape.md
                                 )
                                 .padding(12.dp),
-                            fontSize = 10.sp,
+                            fontSize = DigitsTextSize.tiny,
                             lineHeight = 15.sp
                         )
                     }
@@ -196,7 +198,7 @@ internal fun BugReportDialog(
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = null)
+                        Icon(Icons.Rounded.ContentCopy, contentDescription = null)
                         Text("리포트 복사", modifier = Modifier.padding(start = 8.dp))
                     }
                 }
@@ -204,7 +206,7 @@ internal fun BugReportDialog(
         },
         confirmButton = {
             Button(onClick = { sendBugReportEmail(context, report, screenshotUris) }) {
-                Icon(Icons.Default.Email, contentDescription = null)
+                Icon(Icons.Rounded.Email, contentDescription = null)
                 Text("이메일 발송", modifier = Modifier.padding(start = 8.dp))
             }
         },
@@ -294,14 +296,14 @@ internal fun MeasurementDiagnosticsDialog(
                 Text(
                     "최근 조회 ${diagnostics.lastQueryWindowMillis / 1_000}초 · 이벤트 ${diagnostics.queriedEventCount}개 · ${diagnostics.lastQueryDurationMillis}ms\n" +
                     "오늘 ${diagnostics.cyclesToday}회 측정 · 조회 ${diagnostics.totalQueryDurationTodayMillis}ms · CPU ${diagnostics.totalCpuTodayMillis}ms\n" +
-                    "실제 이벤트 기준 최근 24시간 언락 ${diagnostics.rolling24HourUnlockCount}회",
-                    fontSize = 12.sp,
+                    "실제 이벤트 기준 최근 24시간 잠금 해제 ${diagnostics.rolling24HourUnlockCount}회",
+                    fontSize = DigitsTextSize.label,
                     lineHeight = 18.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     "포착률은 화면 ON·잠금 해제 시간 중 전면 앱을 특정한 비율입니다. CPU 시간은 측정기의 처리 비용이며 배터리 비율과 같지 않습니다.",
-                    fontSize = 11.sp,
+                    fontSize = DigitsTextSize.caption,
                     lineHeight = 15.sp,
                     color = MaterialTheme.colorScheme.outline
                 )

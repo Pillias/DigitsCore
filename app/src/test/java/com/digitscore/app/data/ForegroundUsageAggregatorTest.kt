@@ -35,15 +35,30 @@ class ForegroundUsageAggregatorTest {
         val result = aggregate(
             endSecond = 30,
             events = listOf(
+                event(0, ForegroundTimelineEventType.APP_RESUMED, "youtube", "MiniPlayer", 1),
+                event(10, ForegroundTimelineEventType.APP_RESUMED, "youtube", "Watch", 2),
+                event(20, ForegroundTimelineEventType.APP_PAUSED, "youtube", "Watch", 2)
+            )
+        )
+
+        assertEquals(30_000L, result.usageMillisByPackage["youtube"])
+        assertEquals(30_000L, result.assignedUsageMillis)
+    }
+
+    @Test
+    fun pausedAppDoesNotResurrectDifferentPackageAsZombie() {
+        val result = aggregate(
+            endSecond = 30,
+            events = listOf(
                 event(0, ForegroundTimelineEventType.APP_RESUMED, "youtube", "Watch", 1),
                 event(10, ForegroundTimelineEventType.APP_RESUMED, "duolingo", "Lesson", 2),
                 event(20, ForegroundTimelineEventType.APP_PAUSED, "duolingo", "Lesson", 2)
             )
         )
 
-        assertEquals(20_000L, result.usageMillisByPackage["youtube"])
+        assertEquals(10_000L, result.usageMillisByPackage["youtube"])
         assertEquals(10_000L, result.usageMillisByPackage["duolingo"])
-        assertEquals(30_000L, result.assignedUsageMillis)
+        assertEquals(20_000L, result.assignedUsageMillis)
     }
 
     @Test
@@ -132,7 +147,7 @@ class ForegroundUsageAggregatorTest {
     }
 
     @Test
-    fun stoppedThenResumedPackage_createsASecondRealOpenSession() {
+    fun stoppedThenResumedPackage_withinGraceWindow_retainsSameSession() {
         val result = aggregate(
             endSecond = 30,
             events = listOf(
@@ -143,7 +158,26 @@ class ForegroundUsageAggregatorTest {
             )
         )
 
-        assertEquals(setOf(0L, 20_000L), result.segments.map { it.sessionStartTimeMillis }.toSet())
+        assertEquals(setOf(0L), result.segments.map { it.sessionStartTimeMillis }.toSet())
+        assertEquals(
+            1,
+            sessionSummariesByPackage(result.segments).getValue("chess").sessionCount
+        )
+    }
+
+    @Test
+    fun stoppedThenResumedPackage_afterGraceWindow_createsASecondRealOpenSession() {
+        val result = aggregate(
+            endSecond = 160,
+            events = listOf(
+                event(0, ForegroundTimelineEventType.APP_RESUMED, "chess", "Game"),
+                event(10, ForegroundTimelineEventType.APP_STOPPED, "chess", "Game"),
+                event(140, ForegroundTimelineEventType.APP_RESUMED, "chess", "Game"),
+                event(160, ForegroundTimelineEventType.APP_STOPPED, "chess", "Game")
+            )
+        )
+
+        assertEquals(setOf(0L, 140_000L), result.segments.map { it.sessionStartTimeMillis }.toSet())
         assertEquals(
             2,
             sessionSummariesByPackage(result.segments).getValue("chess").sessionCount
@@ -352,5 +386,37 @@ class ForegroundUsageAggregatorTest {
 
         assertEquals(null, result.usageMillisByPackage["youtube"])
         assertEquals(20_000L, result.usageMillisByPackage["duolingo"])
+    }
+
+    @Test
+    fun deviceWithoutLockScreenCountsUsageAfterReboot() {
+        // 잠금 화면이 없는 기기: 부팅 후 KEYGUARD 이벤트 없이 앱이 바로 실행됩니다.
+        val result = aggregate(
+            endSecond = 70,
+            events = listOf(
+                event(0, ForegroundTimelineEventType.DEVICE_SHUTDOWN),
+                event(0, ForegroundTimelineEventType.SCREEN_INTERACTIVE),
+                event(0, ForegroundTimelineEventType.DEVICE_STARTUP),
+                event(10, ForegroundTimelineEventType.APP_RESUMED, "youtube", "Main")
+            )
+        )
+        assertEquals(60_000L, result.usageMillisByPackage["youtube"])
+        assertEquals(false, result.endingState.keyguardUnknown)
+    }
+
+    @Test
+    fun rebootWithLockScreenStillWaitsForUnlock() {
+        val result = aggregate(
+            endSecond = 70,
+            events = listOf(
+                event(0, ForegroundTimelineEventType.DEVICE_STARTUP),
+                event(1, ForegroundTimelineEventType.SCREEN_INTERACTIVE),
+                event(2, ForegroundTimelineEventType.KEYGUARD_SHOWN),
+                event(5, ForegroundTimelineEventType.APP_RESUMED, "launcher.home", "Home"),
+                event(40, ForegroundTimelineEventType.KEYGUARD_HIDDEN),
+                event(40, ForegroundTimelineEventType.APP_RESUMED, "youtube", "Main")
+            )
+        )
+        assertEquals(30_000L, result.usageMillisByPackage["youtube"])
     }
 }

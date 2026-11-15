@@ -1,8 +1,16 @@
 package com.digitscore.app.ui
 
+import com.digitscore.app.BuildConfig
+
 import android.os.Bundle
 import android.content.Context
+import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
@@ -53,6 +61,59 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
+    companion object {
+        const val EXTRA_SHOW_MORNING_BRIEFING = "com.digitscore.app.extra.SHOW_MORNING_BRIEFING"
+        const val EXTRA_SHOW_WEEKLY_REPORT = "com.digitscore.app.extra.SHOW_WEEKLY_REPORT"
+    }
+
+    private var forceShowMorningBriefing by mutableStateOf(false)
+    private var forceShowWeeklyReport by mutableStateOf(false)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_SHOW_MORNING_BRIEFING, false) == true) {
+            forceShowMorningBriefing = true
+            // 처리한 요청은 지워 화면 회전·다크모드·언어 변경으로 Activity가 다시 만들어져도
+            // 브리핑이 또 열리지 않게 합니다.
+            intent.removeExtra(EXTRA_SHOW_MORNING_BRIEFING)
+        }
+        if (intent?.action == com.digitscore.app.notification.ScoreNotificationManager.ACTION_OPEN_WEEKLY_REPORT ||
+            intent?.getBooleanExtra(EXTRA_SHOW_WEEKLY_REPORT, false) == true) {
+            forceShowWeeklyReport = true
+            intent.removeExtra(EXTRA_SHOW_WEEKLY_REPORT)
+        }
+        // 아래 두 분기는 에뮬레이터 캡처·점검용입니다. 출시 빌드에서는 다른 앱이 보낸 인텐트로 실행되지 않게 막습니다.
+        if (BuildConfig.DEBUG && intent?.getBooleanExtra("show_goal_limit_notification", false) == true) {
+            val baseGoal = com.digitscore.app.data.DailyGoalStore.getGoal(this)
+                ?: com.digitscore.app.model.DailyGoal(dateString = com.digitscore.app.data.DailyGoalStore.getLogicalDateString())
+            val goal = baseGoal.copy(
+                targetPackageName = com.digitscore.app.model.DailyGoal.PACKAGE_ALL_MANAGED,
+                appLimitMinutes = 30
+            )
+            com.digitscore.app.notification.ScoreNotificationManager.showGoalLimitReachedNotification(this, goal)
+            intent.removeExtra("show_goal_limit_notification")
+        }
+        if (BuildConfig.DEBUG && intent?.getBooleanExtra("pin_widget", false) == true) {
+            val appWidgetManager = getSystemService(android.appwidget.AppWidgetManager::class.java)
+            val receiver = when (intent.getStringExtra("widget_kind")) {
+                "1x1" -> com.digitscore.app.widget.ScoreWidgetSmallReceiver::class.java
+                "2x1" -> com.digitscore.app.widget.ScoreWidgetBarReceiver::class.java
+                "4x2" -> com.digitscore.app.widget.ScoreWidgetLargeReceiver::class.java
+                else -> com.digitscore.app.widget.ScoreWidgetReceiver::class.java
+            }
+            val myProvider = android.content.ComponentName(this, receiver)
+            if (appWidgetManager != null && appWidgetManager.isRequestPinAppWidgetSupported) {
+                appWidgetManager.requestPinAppWidget(myProvider, null, null)
+            }
+            intent.removeExtra("pin_widget")
+        }
+    }
+
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(AppLocale.wrap(newBase))
     }
@@ -60,6 +121,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // 재생성(savedInstanceState != null) 시에는 이미 처리한 알림 요청을 다시 처리하지 않습니다.
+        if (savedInstanceState == null) handleIntent(intent)
 
         val hasPermission = UsageStatsHelper.hasUsageStatsPermission(this)
         val startDestination = if (hasPermission) {
@@ -105,6 +168,7 @@ class MainActivity : ComponentActivity() {
                                                 val dao = DigitsDatabase.getInstance(applicationContext).settingsDao()
                                                 val current = dao.getSettings() ?: UserSettingsEntity()
                                                 dao.insertOrUpdateSettings(current.copy(isTrackingEnabled = true))
+                                                com.digitscore.app.data.UsageHistoryImporter.markFirstTrackingStarted(applicationContext)
                                                 TrackerForegroundService.start(applicationContext)
                                             }
                                             navController.navigate(Screen.Dashboard.route) {
@@ -124,6 +188,10 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onNavigateToPresetSettings = {
                                             navController.navigate(Screen.PresetSettings.route)
+                                        },
+                                        forceShowMorningBriefing = forceShowMorningBriefing,
+                                        onMorningBriefingHandled = {
+                                            forceShowMorningBriefing = false
                                         }
                                     )
                                 }
@@ -155,6 +223,12 @@ class MainActivity : ComponentActivity() {
                                         }
                                     )
                                 }
+                            }
+                            if (forceShowWeeklyReport) {
+                                com.digitscore.app.ui.dashboard.WeeklyReportDialog(
+                                    onDismiss = { forceShowWeeklyReport = false },
+                                    onOpenStatistics = { navController.navigate(Screen.Statistics.route) }
+                                )
                             }
                         }
                     }
