@@ -33,7 +33,9 @@ DigitsCore: 스크린타임 디지털 디톡스
 
 ### 자세한 설명
 
-DigitsCore는 스마트폰을 얼마나 오래 썼는지보다, 지금 사용과 휴식의 균형이 어떤지를 1~99점 코어 지수 하나로 보여 주는 앱입니다. 앱을 강제로 잠그지 않습니다. 지금 내 상태를 보고 스스로 조절하도록 돕습니다.
+스마트폰 사용에 대한 자세한 내용을 보여주는 앱은 많습니다. 그런데 너무 자세한 내용은 오히려 지금 내 상태를 아는 데 방해가 된다고 생각했습니다. 그래서 지금 사용과 휴식의 균형을 1~99점 코어 지수 하나로 보여 줍니다. 앱을 강제로 잠그지 않습니다. 지금 내 상태를 보고 스스로 조절하도록 돕습니다.
+
+이름에는 두 가지 뜻이 있습니다. 디지털 디톡스(Digital detox)의 점수(Score)를 보여 준다는 뜻과, 이것이 숫자(Digits)의 핵심(Core)이라는 뜻입니다.
 
 ■ 코어 지수
 • 최근 24시간의 사용과 휴식으로 계산하며, 자정에 초기화되지 않고 이어집니다.
@@ -96,7 +98,9 @@ One Core Index for the balance of phone use and rest. Nothing is locked.
 
 ### Full description
 
-DigitsCore shows not just how long you used your phone, but how balanced your use and rest are right now, as one number: the Core Index (1–99). Nothing is force-locked. It shows where you are so you can adjust on your own.
+Many apps show detailed phone-usage numbers. But too much detail can get in the way of knowing where you stand right now. So DigitsCore shows the balance of your use and rest as one number: the Core Index (1–99). Nothing is force-locked. It shows where you are so you can adjust on your own.
+
+The name carries two meanings: the Score of a digital detox, and the Core of your Digits.
 
 ■ Core Index
 • Based on the last 24 hours of use and rest. It never resets at midnight.
