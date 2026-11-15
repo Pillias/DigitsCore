@@ -190,3 +190,7 @@ gradle :app:testDebugUnitTest :app:assembleDebug --no-daemon
 ## 릴리스
 
 버전별 릴리스 노트와 변경 내역은 [GitHub Releases](https://github.com/Pillias/DigitsCore/releases)에서 관리하며, CI 빌드 현황은 [GitHub Actions](https://github.com/Pillias/DigitsCore/actions)에서 확인할 수 있습니다.
+
+## 라이선스
+
+코드를 읽고 의견을 주시도록 공개한 저장소이며, 오픈소스가 아닙니다(All Rights Reserved). 개인적인 확인과 의견 전달 목적의 열람·빌드는 가능하지만, 코드·이름·캐릭터·이미지를 다른 곳에 복사하거나 수정·배포하는 것은 허락 없이 할 수 없습니다. 자세한 내용은 [LICENSE](LICENSE)를 참고하세요.
