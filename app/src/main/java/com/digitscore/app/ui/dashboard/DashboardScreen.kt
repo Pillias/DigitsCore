@@ -186,6 +186,7 @@ fun DashboardScreen(
     val yesterdaySummary by viewModel.yesterdaySummary.collectAsState()
     val yesterdayGoalResult by viewModel.yesterdayGoalResult.collectAsState()
     val rewardState by viewModel.rewardState.collectAsState()
+    val trackingProblem = rememberTrackingProblem()
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -419,6 +420,13 @@ fun DashboardScreen(
                                 }
                             }
                         }
+                    }
+                }
+
+                // 측정이 멈췄을 때만 보이는 안내(권한 꺼짐·서비스 중단)
+                if (trackingProblem != TrackingProblem.NONE) {
+                    item(key = "tracking_status") {
+                        TrackingStatusBanner(trackingProblem)
                     }
                 }
 

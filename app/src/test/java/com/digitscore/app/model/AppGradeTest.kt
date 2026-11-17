@@ -47,6 +47,10 @@ class AppGradeTest {
             "com.snapchat.android", "com.pinterest", "com.naver.linewebtoon",
             "com.elevenst", "com.ebay.kr.gmarket", "kr.co.ssg"
         ).forEach { assertEquals(it, AppCategoryType.DISTRACTING, grade(it)) }
+        // 동영상 앱은 등급 화면에서 '소셜·메신저'가 아니라 '동영상·미디어'로 묶이도록 따로 둡니다.
+        AppCategoryPolicy.VIDEO_STREAMING_PACKAGES.forEach { ott ->
+            assertTrue(ott, AppCategoryPolicy.SOCIAL_MEDIA_PACKAGES.none { it.equals(ott, ignoreCase = true) })
+        }
         // Android Auto는 내비게이션과 같이 시간 제한 없는 면제입니다.
         assertEquals(AppCategoryType.EXEMPT, grade("com.google.android.projection.gearhead"))
         assertTrue(AppCategoryPolicy.isNavigationOrCallPackage("com.google.android.projection.gearhead"))

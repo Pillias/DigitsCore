@@ -58,10 +58,14 @@ object ScoreNotificationManager {
     private const val TRACKING_RESUME_NOTIFICATION_ID = 7301
 
     /**
-     * 부팅·업데이트 직후 OS가 추적 서비스 시작을 막았을 때 한 번 띄웁니다.
-     * 탭하면 앱이 열리면서 서비스가 다시 연결됩니다.
+     * 사용자가 직접 고쳐야 하는 측정 중단 이유. 서비스가 멈춘 경우는 알리지 않고 자동으로 다시 시작합니다.
      */
-    fun showTrackingResumeNeeded(context: Context) {
+    enum class TrackingStopReason { PERMISSION }
+
+    /**
+     * 사용 정보 접근 권한이 꺼져 측정할 수 없을 때 띄웁니다. 탭하면 앱이 열리고 권한 안내 화면으로 갑니다.
+     */
+    fun showTrackingResumeNeeded(context: Context, reason: TrackingStopReason) {
         createNotificationChannel(context)
         val isEn = AppLocale.isEnglish(context)
         val launchIntent = Intent(context, MainActivity::class.java).apply {
@@ -76,7 +80,12 @@ object ScoreNotificationManager {
         val notification = NotificationCompat.Builder(context, GOAL_CHANNEL_ID)
             .setSmallIcon(DynamicIconGenerator.createScoreIconCompat(context, 75, StatusIconStyle.SCORE_PROPORTION))
             .setContentTitle(if (isEn) "Core Index paused" else "코어 지수 측정이 멈췄습니다")
-            .setContentText(if (isEn) "Tap to resume tracking after the restart." else "기기가 다시 시작되었습니다. 탭하면 측정을 다시 시작합니다.")
+            .setContentText(
+                when (reason) {
+                    TrackingStopReason.PERMISSION ->
+                        if (isEn) "Usage access was turned off. Tap to allow it again." else "사용 정보 접근이 꺼졌습니다. 탭해서 다시 허용해 주세요."
+                }
+            )
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)

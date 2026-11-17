@@ -419,4 +419,24 @@ class ForegroundUsageAggregatorTest {
         )
         assertEquals(30_000L, result.usageMillisByPackage["youtube"])
     }
+
+    @Test
+    fun lateNightWindow_withStart_excludesMorningUsage() {
+        // 활동일 시작(0초) 직후 아침 사용은 심야가 아니고, 끝 구간(80~100초)만 심야입니다.
+        val result = ForegroundUsageAggregator.aggregate(
+            startTimeMillis = 0L,
+            endTimeMillis = 100_000L,
+            lateNightEndTimeMillis = 100_000L,
+            lateNightStartTimeMillis = 80_000L,
+            events = listOf(
+                event(0, ForegroundTimelineEventType.APP_RESUMED, "youtube"),
+                event(20, ForegroundTimelineEventType.APP_PAUSED, "youtube"),
+                event(70, ForegroundTimelineEventType.APP_RESUMED, "youtube"),
+                event(90, ForegroundTimelineEventType.APP_PAUSED, "youtube")
+            )
+        )
+
+        assertEquals(40_000L, result.usageMillisByPackage["youtube"])
+        assertEquals(10_000L, result.lateNightUsageMillisByPackage["youtube"])
+    }
 }

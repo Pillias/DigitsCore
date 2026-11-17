@@ -134,7 +134,13 @@ fun AppWeightSettingsScreen(
         savedAppWeights.associateBy { it.packageName }
     }
 
-    val allResolvedApps = remember(installedApps, appWeightMap, localGradeOverrides, studyToggleVersion) {
+    // 앱별 시간은 홈 화면과 같은 출처(서비스가 저장한 최근 24시간 기록)를 씁니다.
+    // 기기에서 다시 조회하면 백업 복원 당일 등에 홈 화면과 숫자가 달라졌습니다.
+    val usageByPackage = remember(todayUsageSummary) {
+        todayUsageSummary.appsUsage.associate { it.packageName to it.usageTimeMillis }
+    }
+
+    val allResolvedApps = remember(installedApps, appWeightMap, localGradeOverrides, studyToggleVersion, usageByPackage) {
         installedApps.map { app ->
             val localIdx = localGradeOverrides[app.packageName]
             val effectiveCat = if (localIdx != null) {
@@ -147,7 +153,10 @@ fun AppWeightSettingsScreen(
                 val saved = appWeightMap[app.packageName]?.takeIf { it.isUserModified }
                 (saved?.categoryType ?: app.categoryType).canonical
             }
-            app.copy(categoryType = effectiveCat)
+            app.copy(
+                categoryType = effectiveCat,
+                usageTimeMillis = usageByPackage[app.packageName] ?: 0L
+            )
         }
     }
 
@@ -405,7 +414,12 @@ private fun resolveAppTypeOrderAndLabel(
     isEn: Boolean
 ): Pair<Int, String> {
     val pkg = packageName.lowercase()
+    // 목록에는 대소문자가 섞인 패키지명이 있으므로 소문자로 맞춰 비교합니다.
+    fun Set<String>.matches() = any { pkg.startsWith(it.lowercase()) }
     return when {
+        AppCategoryPolicy.VIDEO_STREAMING_PACKAGES.matches() ->
+            2 to (if (isEn) "Media" else "동영상·미디어")
+
         appCategory == ApplicationInfo.CATEGORY_GAME ||
         pkg.contains("game") || pkg.contains("chess") || pkg.contains("sudoku") ||
         pkg.contains("puzzle") || pkg.contains("poker") || pkg.contains("rpg") ->
@@ -413,8 +427,8 @@ private fun resolveAppTypeOrderAndLabel(
 
         appCategory == ApplicationInfo.CATEGORY_SOCIAL ||
         (android.os.Build.VERSION.SDK_INT >= 31 && appCategory == 8 /* CATEGORY_MESSAGE */) ||
-        AppCategoryPolicy.MESSENGER_PACKAGES.any { pkg.startsWith(it) } ||
-        AppCategoryPolicy.SOCIAL_MEDIA_PACKAGES.any { pkg.startsWith(it) } ||
+        AppCategoryPolicy.MESSENGER_PACKAGES.matches() ||
+        AppCategoryPolicy.SOCIAL_MEDIA_PACKAGES.matches() ||
         pkg.contains("kakao.talk") || pkg.contains("instagram") || pkg.contains("tiktok") ||
         pkg.contains("line") || pkg.contains("facebook") || pkg.contains("twitter") ||
         pkg.contains("telegram") || pkg.contains("discord") || pkg.contains("youtube") ->
@@ -431,25 +445,25 @@ private fun resolveAppTypeOrderAndLabel(
             3 to (if (isEn) "Web & News" else "뉴스·웹")
 
         appCategory == ApplicationInfo.CATEGORY_PRODUCTIVITY ||
-        AppCategoryPolicy.EDUCATION_PACKAGES.any { pkg.startsWith(it) } ||
+        AppCategoryPolicy.EDUCATION_PACKAGES.matches() ||
         pkg.contains("calendar") || pkg.contains("notes") || pkg.contains("office") ||
         pkg.contains("notion") || pkg.contains("slack") || pkg.contains("teams") ||
         pkg.contains("docs") || pkg.contains("drive") || pkg.contains("evernote") ->
             4 to (if (isEn) "Work" else "생산성·업무")
 
         appCategory == ApplicationInfo.CATEGORY_MAPS ||
-        AppCategoryPolicy.NAVIGATION_PACKAGES.any { pkg.startsWith(it) } ||
+        AppCategoryPolicy.NAVIGATION_PACKAGES.matches() ||
         pkg.contains("map") || pkg.contains("tmap") || pkg.contains("kakaot") ||
         pkg.contains("subway") || pkg.contains("transit") || pkg.contains("waze") ->
             5 to (if (isEn) "Navigation" else "지도·교통")
 
-        AppCategoryPolicy.FINANCE_AND_WORK_PACKAGES.any { pkg.startsWith(it) && (pkg.contains("bank") || pkg.contains("pay") || pkg.contains("toss")) } ||
+        AppCategoryPolicy.FINANCE_AND_WORK_PACKAGES.any { pkg.startsWith(it.lowercase()) && (pkg.contains("bank") || pkg.contains("pay") || pkg.contains("toss")) } ||
         pkg.contains("bank") || pkg.contains("pay") || pkg.contains("toss") ||
         pkg.contains("card") || pkg.contains("finance") || pkg.contains("wallet") ->
             6 to (if (isEn) "Finance" else "금융·결제")
 
-        AppCategoryPolicy.SHOPPING_PACKAGES.any { pkg.startsWith(it) } ||
-        AppCategoryPolicy.WEBTOON_PACKAGES.any { pkg.startsWith(it) } ||
+        AppCategoryPolicy.SHOPPING_PACKAGES.matches() ||
+        AppCategoryPolicy.WEBTOON_PACKAGES.matches() ||
         pkg.contains("coupang") || pkg.contains("11st") || pkg.contains("shopping") ||
         pkg.contains("market") || pkg.contains("danawa") || pkg.contains("aliexpress") ||
         pkg.contains("temu") || pkg.contains("musinsa") || pkg.contains("zigzag") ||
@@ -458,8 +472,8 @@ private fun resolveAppTypeOrderAndLabel(
 
         appCategory == ApplicationInfo.CATEGORY_IMAGE ||
         appCategory == ApplicationInfo.CATEGORY_AUDIO ||
-        AppCategoryPolicy.UTILITY_PACKAGES.any { pkg.startsWith(it) } ||
-        AppCategoryPolicy.CALL_PACKAGES.any { pkg.startsWith(it) } ||
+        AppCategoryPolicy.UTILITY_PACKAGES.matches() ||
+        AppCategoryPolicy.CALL_PACKAGES.matches() ||
         pkg.contains("camera") || pkg.contains("clock") || pkg.contains("calculator") ||
         pkg.contains("gallery") || pkg.contains("settings") ->
             8 to (if (isEn) "Utility" else "도구·유틸")

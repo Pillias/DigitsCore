@@ -560,7 +560,7 @@ private fun FeatureItem(icon: ImageVector, title: String, desc: String) {
     }
 }
 
-private fun launchUsageAccessSettings(context: Context) {
+internal fun launchUsageAccessSettings(context: Context) {
     try {
         val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
             data = Uri.parse("package:${context.packageName}")

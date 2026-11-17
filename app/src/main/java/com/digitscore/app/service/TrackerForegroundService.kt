@@ -46,6 +46,7 @@ import com.digitscore.app.widget.ScoreWidget
 import com.digitscore.app.widget.WidgetSnapshot
 import com.digitscore.app.widget.WidgetSnapshotStore
 import androidx.glance.appwidget.updateAll
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -67,7 +68,20 @@ import java.util.Locale
 
 class TrackerForegroundService : Service() {
 
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    // DB 열기 실패(Keystore·SQLCipher 복구 불가) 같은 예외가 서비스 코루틴 밖으로 나가면 프로세스가 죽고
+    // START_STICKY로 다시 살아나 같은 크래시를 반복합니다. 기록만 남기고 서비스를 멈춰 반복을 끊습니다.
+    // 앱을 열면 MainActivity가 같은 오류를 화면에 보여 주고 재시도를 안내합니다.
+    private val serviceExceptionHandler = CoroutineExceptionHandler { _, error ->
+        android.util.Log.e("DigitsCoreTracker", "Tracker coroutine failed", error)
+        val databaseUnavailable =
+            com.digitscore.app.data.security.DatabaseEncryptionManager.currentStatus().mode ==
+                com.digitscore.app.data.security.DatabaseSecurityMode.UNAVAILABLE
+        // 한 번의 계산 실패는 다음 주기에 다시 시도합니다. 저장소를 열 수 없을 때만 멈춥니다.
+        if (databaseUnavailable) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post { stopSelf() }
+        }
+    }
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + serviceExceptionHandler)
     private val recalcMutex = Mutex()
     private var trackingJob: Job? = null
     private var screenEventReceiver: ScreenEventReceiver? = null
@@ -149,6 +163,7 @@ class TrackerForegroundService : Service() {
         super.onCreate()
         ScoreRepository.setServiceRunning(true)
         ScoreNotificationManager.createNotificationChannel(this)
+        TrackerWatchdogJobService.schedule(applicationContext)
 
         // 기기 재부팅 시 커스텀 집중/제외 앱 캐시 초기화
         com.digitscore.app.model.AppCategoryPolicy.getCustomStudyPackages(applicationContext)
@@ -408,6 +423,11 @@ class TrackerForegroundService : Service() {
                 val cycleCpuStartedAt = Process.getElapsedCpuTime()
                 if (!UsageStatsHelper.hasUsageStatsPermission(applicationContext)) {
                     cumulativeCoverageStart = System.currentTimeMillis()
+                    // 권한이 꺼지면 측정이 멈춘다는 것을 사용자에게 알립니다(6시간에 한 번).
+                    TrackerWatchdogJobService.notifyThrottled(
+                        applicationContext,
+                        com.digitscore.app.notification.ScoreNotificationManager.TrackingStopReason.PERMISSION
+                    )
                     return@launch
                 }
 
@@ -1418,8 +1438,9 @@ class TrackerForegroundService : Service() {
 
             if (report.hasData) {
                 ScoreNotificationManager.showWeeklyReportNotification(applicationContext, report)
-                trackingPreferences.edit().putString("last_sent_weekly_report_week", yearWeek).apply()
             }
+            // 데이터가 없는 주도 처리 완료로 남겨 월요일 내내 매 주기 다시 조회하지 않게 합니다.
+            trackingPreferences.edit().putString("last_sent_weekly_report_week", yearWeek).apply()
         }
     }
 

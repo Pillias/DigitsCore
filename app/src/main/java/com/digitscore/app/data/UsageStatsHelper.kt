@@ -156,6 +156,16 @@ object UsageStatsHelper {
 
     fun getStartOfTodayMillis(nowMillis: Long = System.currentTimeMillis()): Long = getStartOfLogicalDayMillis(nowMillis)
 
+    /**
+     * [rangeStartMillis]가 속한 활동일(05:00~다음 날 05:00)의 심야 구간 00:00~05:00을 돌려줍니다.
+     * 활동일이 05:00에 시작하므로 심야는 활동일의 마지막 5시간입니다.
+     */
+    internal fun lateNightWindowFor(rangeStartMillis: Long): Pair<Long, Long> {
+        val dayStart = getStartOfLogicalDayMillis(rangeStartMillis)
+        val nextDayStart = getStartOfLogicalDayMillis(dayStart + 26 * 60 * 60 * 1_000L)
+        return (nextDayStart - 5 * 60 * 60 * 1_000L) to nextDayStart
+    }
+
     /** [nowMillis]가 속한 활동일(05:00 시작)의 날짜 "yyyy-MM-dd". [getStartOfLogicalDayMillis]와 같은 날을 가리킵니다. */
     fun logicalDateString(
         nowMillis: Long = System.currentTimeMillis(),
@@ -233,27 +243,6 @@ object UsageStatsHelper {
             else -> AppCategoryType.NEUTRAL
         }
 
-    private val EDUCATION_PACKAGE_PREFIXES = listOf(
-        "com.duolingo",
-        "com.ichi2.anki",
-        "com.ankiandroid",
-        "org.khanacademy",
-        "com.coursera",
-        "com.udemy",
-        "com.quizlet",
-        "com.google.android.apps.classroom",
-        "org.edx"
-    )
-
-    private val SHOPPING_PACKAGE_PREFIXES = listOf(
-        "com.alibaba.aliexpress",
-        "com.amazon.mshop",
-        "com.shopee",
-        "com.ebay.mobile",
-        "com.einnovation.temu",
-        "com.contextlogic.wish",
-        "com.coupang.mobile"
-    )
 
     internal fun defaultCategoryForPackage(
         packageName: String,
@@ -650,14 +639,15 @@ object UsageStatsHelper {
             return TodayUsageSnapshot(emptyList(), 0, 0L, false)
         }
 
-        val lateNightEndTime = startTime + (5 * 60 * 60 * 1000L) // 해당 날짜 새벽 5시
+        val (lateNightStart, lateNightEnd) = lateNightWindowFor(startTime)
         val queryStart = (startTime - FOREGROUND_STATE_LOOKBACK_MILLIS).coerceAtLeast(0L)
         val queried = queryUsageEvents(usageStatsManager, queryStart, endTime)
         val categoryLevelResolver = categoryLevelResolver(context, appWeightMap)
         val exclusiveUsage = ForegroundUsageAggregator.aggregate(
             startTimeMillis = startTime,
             endTimeMillis = endTime,
-            lateNightEndTimeMillis = minOf(endTime, lateNightEndTime),
+            lateNightEndTimeMillis = minOf(endTime, lateNightEnd),
+            lateNightStartTimeMillis = lateNightStart,
             events = queried.timelineEvents,
             categoryLevelResolver = categoryLevelResolver
         )
@@ -711,12 +701,13 @@ object UsageStatsHelper {
             return TodayUsageSnapshot(emptyList(), 0, 0L, false, endingState = initialState, incremental = true)
         }
         val queried = queryUsageEvents(usageStatsManager, startTime, endTime)
-        val todayStart = getStartOfTodayMillis()
+        val (lateNightStart, lateNightEnd) = lateNightWindowFor(startTime)
         val categoryLevelResolver = categoryLevelResolver(context, appWeightMap)
         val exclusiveUsage = ForegroundUsageAggregator.aggregate(
             startTimeMillis = startTime,
             endTimeMillis = endTime,
-            lateNightEndTimeMillis = minOf(endTime, todayStart + 5 * 60 * 60 * 1_000L),
+            lateNightEndTimeMillis = minOf(endTime, lateNightEnd),
+            lateNightStartTimeMillis = lateNightStart,
             events = queried.timelineEvents,
             initialState = initialState,
             categoryLevelResolver = categoryLevelResolver
@@ -885,7 +876,7 @@ object UsageStatsHelper {
 
     /**
      * 기기에 설치된 실행 가능한 사용자 앱 목록 조회
-     * 오늘 아침 05:00 AM (getTodayUsageSnapshot) 기준의 사용량을 반영하고,
+     * 사용 시간은 넣지 않습니다(0). 화면이 홈과 같은 최근 24시간 기록으로 채웁니다.
      * 사용자 직접 변경(isUserModified)이 없는 앱은 최신 AppCategoryPolicy 기본값을 적용합니다.
      */
     fun getInstalledApps(
@@ -900,10 +891,6 @@ object UsageStatsHelper {
         val resolveInfos = pm.queryIntentActivities(intent, 0)
         val list = mutableListOf<AppUsage>()
 
-        val todaySnapshot = runCatching {
-            getTodayUsageSnapshot(context, appWeightMap)
-        }.getOrNull()
-        val todayUsageMap = todaySnapshot?.appsUsage?.associate { it.packageName to it.usageTimeMillis } ?: emptyMap()
 
         for (resolveInfo in resolveInfos) {
             val pkgName = resolveInfo.activityInfo.packageName
@@ -928,13 +915,11 @@ object UsageStatsHelper {
                 )
             }
 
-            val usageMillis = todayUsageMap[pkgName] ?: 0L
-
             list.add(
                 AppUsage(
                     packageName = pkgName,
                     appName = appName,
-                    usageTimeMillis = usageMillis,
+                    usageTimeMillis = 0L,
                     categoryType = resolvedCategory
                 )
             )
@@ -942,6 +927,6 @@ object UsageStatsHelper {
 
         return list
             .distinctBy { it.packageName }
-            .sortedWith(compareByDescending<AppUsage> { it.usageTimeMillis }.thenBy { it.appName.lowercase() })
+            .sortedBy { it.appName.lowercase() }
     }
 }

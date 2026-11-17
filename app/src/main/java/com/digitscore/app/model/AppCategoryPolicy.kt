@@ -271,8 +271,12 @@ object AppCategoryPolicy {
         "com.pinterest",
         "com.tumblr",
         "xyz.blueskyweb.app",           // Bluesky
-        "com.google.android.apps.youtube.kids",
-        // 동영상 스트리밍(OTT): 앱이 스스로 동영상 분류를 밝히지 않는 경우가 많아 직접 지정합니다.
+        "com.google.android.apps.youtube.kids"
+    )
+
+    // 동영상 스트리밍(OTT) 앱 (기본 등급: DISTRACTING 관리)
+    // 앱이 스스로 동영상 분류를 밝히지 않는 경우가 많아 직접 지정합니다. 등급 화면에서는 '동영상·미디어'로 묶습니다.
+    val VIDEO_STREAMING_PACKAGES: Set<String> = setOf(
         "com.netflix.mediaclient",      // Netflix
         "net.cj.cjhv.gs.tving",         // TVING
         "kr.co.captv.pooqv2",           // wavve
@@ -352,7 +356,8 @@ object AppCategoryPolicy {
         }
 
         // 5. 소셜 미디어 / 숏폼 / 스트리밍: DISTRACTING (관리)
-        if (SOCIAL_MEDIA_PACKAGES.any { pkg.startsWith(it.lowercase()) }) {
+        if (SOCIAL_MEDIA_PACKAGES.any { pkg.startsWith(it.lowercase()) } ||
+            VIDEO_STREAMING_PACKAGES.any { pkg.startsWith(it.lowercase()) }) {
             return AppCategoryType.DISTRACTING
         }
 

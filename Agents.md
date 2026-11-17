@@ -73,6 +73,15 @@
 - [x] Play 내부·비공개 테스트용 정식 서명 AAB 배포 (비공개 테스트 2026-10-31 종료)
 - [ ] Play 공개 테스트 v0.9.43 모든 국가 출시 후 2주 Vitals·피드백 검토 → 1.0.0 프로덕션
 
+## 다음 구현 (2026-11-17 결정)
+
+- [ ] v0.9.47: 인기 앱 기본 등급 확대 (동영상 앱 관리 지정 포함), 진행 중인 Play 검토가 끝난 뒤 스토어 설명 첫 문단과 함께 제출
+- [ ] 등급 변경 요청: 사용자가 내용을 확인하고 직접 보내는 메일 (인터넷 권한 없음, 늦어도 1.0.0)
+- [ ] 앱 등급 고정: 개인별 등급 변경을 닫고 모두 같은 기준으로 계산 (1.0.0 정식 출시에 포함)
+- [ ] v1.1: 원하는 사람만 참여하는 익명 평균 비교 (기본 꺼짐, 인터넷 권한 추가, 연령대·성별·생활 유형 선택 입력)
+- [ ] v1.2: Pro 1회 결제 (월 구독 없음)
+- [ ] v1.3: 친구·가족 보드 (지수·단계·연속 일수·도룡뇽 단계만 공유)
+
 최신 상태·완료 조건은 [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md), 기기 시험은 [docs/DEVICE_VALIDATION_PROTOCOL.md](docs/DEVICE_VALIDATION_PROTOCOL.md), Play 입력은 [docs/PLAY_CONSOLE_SUBMISSION.md](docs/PLAY_CONSOLE_SUBMISSION.md), 사용자 시험은 [docs/USER_VALIDATION_PROTOCOL.md](docs/USER_VALIDATION_PROTOCOL.md)를 기준으로 합니다.
 
 점수 상세는 [docs/SCORING.md](docs/SCORING.md), 데이터 흐름은 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)를 참고합니다.
