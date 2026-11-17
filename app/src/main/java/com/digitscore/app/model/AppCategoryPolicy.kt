@@ -79,7 +79,8 @@ object AppCategoryPolicy {
         "com.waze",                     // Waze
         "com.mnsoft.mappy",             // 맵피
         "com.kt.ollehmap",              // 원내비
-        "com.uplus.uplusnavi"           // U+내비
+        "com.uplus.uplusnavi",          // U+내비
+        "com.google.android.projection.gearhead" // Android Auto
     )
 
     // 통화 / 다이얼러 패키지
@@ -212,6 +213,12 @@ object AppCategoryPolicy {
         "com.the29cm.app29cm",          // 29CM
         "net.bucketplace",              // 오늘의집
         "com.towneers.www",             // 당근
+        "com.elevenst",                 // 11번가
+        "com.ebay.kr.gmarket",          // G마켓
+        "com.ebay.kr.auction",          // 옥션
+        "kr.co.ssg",                    // SSG.COM
+        "com.dbs.kurly.m2",             // 컬리
+        "kr.co.quicket",                // 번개장터
         // 영어권 기본 분류
         "com.walmart.android",
         "com.target.ui",
@@ -225,7 +232,9 @@ object AppCategoryPolicy {
         "com.nhn.android.webtoon",
         "com.kakao.page",
         "com.daum.android.webtoon",
-        "com.nhn.android.nbooks"
+        "com.nhn.android.nbooks",
+        "com.kakaoent.kakaowebtoon",    // 카카오웹툰
+        "com.naver.linewebtoon"         // WEBTOON (글로벌)
     )
 
     // 메신저 앱 (기본 등급: NEUTRAL 일반)
@@ -239,7 +248,9 @@ object AppCategoryPolicy {
         "com.tencent.mm",
         "org.thoughtcrime.securesms",
         "com.samsung.android.messaging",
-        "com.google.android.apps.messaging"
+        "com.google.android.apps.messaging",
+        "com.viber.voip",
+        "com.google.android.apps.dynamite" // Google Chat
     )
 
     // 소셜 미디어 / 숏폼 / 스트리밍 앱 (기본 등급: DISTRACTING 관리)
@@ -255,7 +266,21 @@ object AppCategoryPolicy {
         "tv.twitch.android.app",
         "com.navercorp.game.android.community",
         "kr.co.nowcom.mobile.afreeca",
-        "com.reddit.frontpage"
+        "com.reddit.frontpage",
+        "com.snapchat.android",
+        "com.pinterest",
+        "com.tumblr",
+        "xyz.blueskyweb.app",           // Bluesky
+        "com.google.android.apps.youtube.kids",
+        // 동영상 스트리밍(OTT): 앱이 스스로 동영상 분류를 밝히지 않는 경우가 많아 직접 지정합니다.
+        "com.netflix.mediaclient",      // Netflix
+        "net.cj.cjhv.gs.tving",         // TVING
+        "kr.co.captv.pooqv2",           // wavve
+        "com.disney.disneyplus",        // Disney+
+        "com.frograms.wplay",           // 왓챠
+        "com.amazon.avod.thirdpartyclient", // Prime Video
+        "com.wbd.stream",               // Max
+        "com.hulu.plus"
     )
 
     /**

@@ -36,4 +36,22 @@ class AppGradeTest {
         // 대문자가 섞인 패키지명도 일치해야 합니다.
         assertEquals(AppCategoryType.EXEMPT, grade("com.locnall.KimGiSa"))
     }
+
+    @Test
+    fun `popular apps get intended grades without relying on the app's own category`() {
+        fun grade(pkg: String) = AppCategoryPolicy.resolveDefaultCategory(packageName = pkg, applicationCategory = -1)
+        // 동영상 스트리밍은 앱이 동영상 분류를 밝히지 않아도 관리입니다(실사용 백업에서 Netflix가 일반으로 계산됨).
+        listOf(
+            "com.netflix.mediaclient", "net.cj.cjhv.gs.tving", "kr.co.captv.pooqV2",
+            "com.disney.disneyplus", "com.frograms.wplay", "com.coupang.mobile.play",
+            "com.snapchat.android", "com.pinterest", "com.naver.linewebtoon",
+            "com.elevenst", "com.ebay.kr.gmarket", "kr.co.ssg"
+        ).forEach { assertEquals(it, AppCategoryType.DISTRACTING, grade(it)) }
+        // Android Auto는 내비게이션과 같이 시간 제한 없는 면제입니다.
+        assertEquals(AppCategoryType.EXEMPT, grade("com.google.android.projection.gearhead"))
+        assertTrue(AppCategoryPolicy.isNavigationOrCallPackage("com.google.android.projection.gearhead"))
+        // 메신저와 음악은 일반입니다.
+        assertEquals(AppCategoryType.NEUTRAL, grade("com.viber.voip"))
+        assertEquals(AppCategoryType.NEUTRAL, grade("com.google.android.apps.youtube.music"))
+    }
 }
