@@ -445,7 +445,10 @@ class TrackerForegroundService : Service() {
                 }
 
                 // DB에 저장된 앱 가중치 맵 조회
-                val appWeights = db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
+                // 등급 고정 중에는 사용자가 바꾼 행을 빼서 모두 기본 등급으로 계산합니다.
+                val appWeights = com.digitscore.app.model.AppCategoryPolicy.effectiveSavedWeights(
+                    db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
+                ) { it.isUserModified }
                 val weightMap = appWeights.associateBy { it.packageName }
                 val weightSignature = appWeights.hashCode()
                 if (lastAppWeightSignature != null && lastAppWeightSignature != weightSignature) {

@@ -73,7 +73,10 @@ fun TopAppsGradeCheckCard(onOpenAppSettings: () -> Unit) {
                 fontSize = DigitsTextSize.body
             )
             Text(
-                text = if (english) "Correct grades make the Core Index fit your day from the start."
+                text = if (com.digitscore.app.model.AppCategoryPolicy.userGradesLocked) {
+                    if (english) "Grades are the same for everyone. If one looks wrong, you can request a change."
+                    else "등급은 모두에게 같은 기준입니다. 맞지 않으면 변경을 요청할 수 있습니다."
+                } else if (english) "Correct grades make the Core Index fit your day from the start."
                 else "등급이 맞아야 첫날부터 코어 지수가 내 생활에 맞게 움직입니다.",
                 fontSize = DigitsTextSize.caption,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -92,7 +95,11 @@ fun TopAppsGradeCheckCard(onOpenAppSettings: () -> Unit) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { close() }) { Text(if (english) "Looks right" else "맞아요", fontSize = DigitsTextSize.label) }
                 Button(onClick = { close(); onOpenAppSettings() }, shape = DigitsShape.sm) {
-                    Text(if (english) "Change grades" else "등급 바꾸기", fontSize = DigitsTextSize.label)
+                    Text(
+                        if (com.digitscore.app.model.AppCategoryPolicy.userGradesLocked) { if (english) "View grades" else "등급 보기" }
+                        else if (english) "Change grades" else "등급 바꾸기",
+                        fontSize = DigitsTextSize.label
+                    )
                 }
             }
         }

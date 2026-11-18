@@ -252,13 +252,19 @@ object UsageStatsHelper {
         applicationCategory = applicationCategory
     )
 
+    /** 사용자 지정 없이 계산한 기본 등급 (등급 고정 안내에서 실제로 달라진 앱만 세는 데 씁니다). */
+    fun defaultCategoryFor(context: Context, packageName: String): AppCategoryType =
+        resolveCategory(context.packageManager, packageName, null).canonical
+
     private fun resolveCategory(
         pm: PackageManager,
         packageName: String,
         savedEntity: AppWeightEntity?
     ): AppCategoryType {
-        // 사용자가 직접 지정한 분류를 최우선으로 존중합니다.
-        savedEntity?.takeIf { it.isUserModified }?.let { return it.categoryType.canonical }
+        // 사용자가 직접 지정한 분류를 최우선으로 존중합니다. 등급 고정 중에는 기본값만 씁니다.
+        if (!com.digitscore.app.model.AppCategoryPolicy.userGradesLocked) {
+            savedEntity?.takeIf { it.isUserModified }?.let { return it.categoryType.canonical }
+        }
         val appInfo = runCatching { pm.getApplicationInfo(packageName, 0) }.getOrNull()
         val isLegacyGame = appInfo != null && (appInfo.flags and ApplicationInfo.FLAG_IS_GAME) != 0
         val applicationCategory = when {
@@ -906,7 +912,8 @@ object UsageStatsHelper {
             }
 
             val savedWeight = appWeightMap[pkgName]
-            val resolvedCategory = if (savedWeight != null && savedWeight.isUserModified) {
+            val resolvedCategory = if (savedWeight != null && savedWeight.isUserModified &&
+                !com.digitscore.app.model.AppCategoryPolicy.userGradesLocked) {
                 savedWeight.categoryType.canonical
             } else {
                 com.digitscore.app.model.AppCategoryPolicy.resolveDefaultCategory(

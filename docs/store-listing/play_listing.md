@@ -48,7 +48,7 @@ DigitsCore: 스크린타임 디지털 디톡스
 
 ■ 앱 등급
 • 지도·통화 같은 필수 앱은 점수를 낮추지 않고, 숏폼·SNS·게임처럼 관리할 앱은 더 크게 반영합니다.
-• 주요 앱은 기본 등급이 정해져 있고, 언제든 바꿀 수 있습니다.
+• 모두 같은 기준의 기본 등급으로 계산하고, 등급이 맞지 않으면 변경을 요청할 수 있습니다.
 
 ■ 오늘의 목표
 • 지수 방어선, 관리할 앱 시간, 잠금 해제 횟수 세 가지를 정합니다.
@@ -113,7 +113,7 @@ The name carries two meanings: the Score of a digital detox, and the Core of you
 
 ■ App grades
 • Essentials like maps and calls never lower the index, while apps you want to manage, like short video, social and games, count more.
-• Popular apps come pre-graded, and you can change any of them.
+• Everyone shares the same default grades, and you can request a change if one looks wrong.
 
 ■ Daily goals
 • Set three goals: an index floor, managed app time and unlocks.

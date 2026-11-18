@@ -108,6 +108,9 @@ fun AppWeightSettingsScreen(
     var localGradeOverrides by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
 
     var selectedAppForDetail by remember { mutableStateOf<AppUsage?>(null) }
+    // 등급 고정 중: 등급 칸을 누르면 바꾸지 않고 등급 변경 요청 창을 엽니다(앱, 고른 등급).
+    var gradeRequest by remember { mutableStateOf<Pair<AppUsage, com.digitscore.app.model.AppGrade>?>(null) }
+    val gradesLocked = AppCategoryPolicy.userGradesLocked
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
@@ -150,7 +153,7 @@ fun AppWeightSettingsScreen(
                     else -> AppCategoryType.NEUTRAL
                 }
             } else {
-                val saved = appWeightMap[app.packageName]?.takeIf { it.isUserModified }
+                val saved = appWeightMap[app.packageName]?.takeIf { it.isUserModified && !AppCategoryPolicy.userGradesLocked }
                 (saved?.categoryType ?: app.categoryType).canonical
             }
             app.copy(
@@ -291,6 +294,16 @@ fun AppWeightSettingsScreen(
                     }
                 }
 
+                if (gradesLocked) {
+                    Text(
+                        text = if (isEn) "App grades are the same for everyone. If one looks wrong, tap its grade to request a change."
+                        else "앱 등급은 모두에게 같은 기준입니다. 맞지 않으면 등급을 눌러 변경을 요청해 주세요.",
+                        fontSize = DigitsTextSize.caption,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 8.dp)
+                    )
+                }
+
                 // 검색창
                 OutlinedTextField(
                     value = searchQuery,
@@ -362,6 +375,10 @@ fun AppWeightSettingsScreen(
                             overrideGradeIndex = localGradeOverrides[app.packageName],
                             onGradeSelect = { newGradeIndex ->
                                 val grade = com.digitscore.app.model.AppGrade.entries[newGradeIndex]
+                                if (gradesLocked) {
+                                    gradeRequest = app to grade
+                                    return@AppWeightRowCard
+                                }
                                 localGradeOverrides = localGradeOverrides + (app.packageName to newGradeIndex)
                                 // 앱 상세 화면과 같은 경로로 등급과 공부 앱 목록을 함께 갱신합니다.
                                 AppCategoryPolicy.setCustomStudyPackage(context, app.packageName, grade.isStudy)
@@ -388,6 +405,18 @@ fun AppWeightSettingsScreen(
                 }
             }
         }
+    }
+
+    gradeRequest?.let { (app, desired) ->
+        com.digitscore.app.ui.components.GradeRequestDialog(
+            appName = app.appName,
+            packageName = app.packageName,
+            current = com.digitscore.app.model.AppGrade.from(
+                app.categoryType, AppCategoryPolicy.isStudyOrReadingPackage(app.packageName, context)
+            ),
+            initialDesired = desired,
+            onDismiss = { gradeRequest = null }
+        )
     }
 
     // 1. 앱 상세 분석 다이얼로그 (차트, 세션 정보)

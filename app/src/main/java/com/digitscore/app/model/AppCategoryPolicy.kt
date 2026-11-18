@@ -9,6 +9,21 @@ import android.content.pm.ApplicationInfo
  */
 object AppCategoryPolicy {
 
+    /**
+     * 앱 등급 고정 (v0.9.47~). true면 개인이 바꿔 둔 등급과 공부 앱 지정을 계산에 쓰지 않고
+     * 모두 같은 기본 목록으로 계산합니다. DB의 isUserModified 행과 공부 앱 목록은 지우지 않으므로
+     * false로 되돌리면 예전 동작(개인 등급 우선)으로 돌아갑니다.
+     */
+    const val USER_GRADES_LOCKED_DEFAULT = true
+
+    /** 실제 스위치. 단위 테스트가 두 동작을 모두 확인할 수 있도록 var로 둡니다. */
+    @Volatile
+    var userGradesLocked: Boolean = USER_GRADES_LOCKED_DEFAULT
+
+    /** 계산에 쓸 저장 등급. 고정 중이면 사용자가 바꾼 행을 빼고 기본값으로 계산되게 합니다. */
+    fun <T> effectiveSavedWeights(weights: List<T>, isUserModified: (T) -> Boolean): List<T> =
+        if (userGradesLocked) weights.filterNot(isUserModified) else weights
+
     private const val PREFS_NAME = "custom_study_packages_prefs"
     private const val KEY_STUDY_PACKAGES = "study_packages_set"
     private const val KEY_EXCLUDED_STUDY_PACKAGES = "excluded_study_packages_set"
@@ -300,6 +315,8 @@ object AppCategoryPolicy {
      */
     fun isStudyOrReadingPackage(packageName: String, context: Context? = null): Boolean {
         val pkg = packageName.lowercase()
+        // 등급 고정 중에는 공부 앱도 기본 목록만 씁니다(개인 지정·제외 무시).
+        if (userGradesLocked) return EDUCATION_PACKAGES.any { pkg.startsWith(it.lowercase()) }
         val excluded = if (context != null) getExcludedStudyPackages(context) else cachedExcludedStudyPackages
         if (excluded?.contains(pkg) == true) return false
         val custom = if (context != null) getCustomStudyPackages(context) else cachedCustomStudyPackages
