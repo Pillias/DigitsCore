@@ -49,7 +49,7 @@ import com.digitscore.app.ui.components.SalamanderGaugeBitmap
 
 /**
  * 홈 화면 위젯 (2026-11-14: 크기별 4종 → 하나로 통합). 위젯 하나를 놓고 늘리거나 줄이면 크기에 맞는 내용이 나옵니다.
- * - 1칸: 점수 · 단계
+ * - 1칸: 도룡뇽 게이지 · 점수
  * - 가로 2칸: 도룡뇽 게이지 · 점수 · 단계
  * - 2x2: 게이지 · 점수 · 단계 + 할 일 한 줄
  * - 4x2 이상: 게이지 · 점수 · 단계 + 오늘의 목표 3줄 + 할 일 한 줄
@@ -238,12 +238,15 @@ private fun ScoreAndGrade(data: WidgetData, scoreSp: Int, gradeSp: Int) {
     }
 }
 
-/** 1칸: 점수와 단계. 좁은 칸에서도 잘리지 않게 작게 둡니다. */
+/**
+ * 1칸: 도룡뇽 아이콘과 점수. Responsive 모드의 LocalSize는 실제 칸이 아니라 경계값(40dp)이라
+ * 크기를 고정합니다. 좁은 런처 칸(약 56dp)에서도 잘리지 않는 크기입니다.
+ */
 @Composable
 private fun ScoreOnly(data: WidgetData) {
     Column(modifier = GlanceModifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("${data.score}", style = style(data.palette.accent, 22, FontWeight.Bold, TextAlign.Center), maxLines = 1)
-        Text(data.grade, style = style(data.palette.primary, 10, FontWeight.Medium, TextAlign.Center), maxLines = 1)
+        Gauge(data, 32)
+        Text("${data.score}", style = style(data.palette.accent, 20, FontWeight.Bold, TextAlign.Center), maxLines = 1)
     }
 }
 
