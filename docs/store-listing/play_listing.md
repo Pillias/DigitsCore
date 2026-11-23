@@ -23,13 +23,15 @@
 
 ### 앱 이름
 
-DigitsCore: 스크린타임 디지털 디톡스
+DigitsCore: 스크린타임·핸드폰 사용시간
 
-(이전: DigitsCore - 코어 지수 디지털 웰빙. "코어 지수"는 검색하는 사람이 없어 사람들이 찾는 말로 바꿉니다. 공개 테스트 검토가 끝난 뒤 반영합니다.)
+(이전: DigitsCore - 코어 지수 디지털 웰빙. "코어 지수"는 검색하는 사람이 없어 사람들이 찾는 말로 바꿉니다. 2026-11-19 검색어 조사: "스크린타임"이 검색량이 가장 많고, Play 자동완성에서 "핸드폰 사용"·"폰 사용" 다음 1순위가 "사용시간"입니다. "디지털 디톡스"는 검색량이 적어 짧은 설명으로 옮깁니다. 2026-11-19 v0.9.47 검토에 함께 제출, 2026-11-23 게시됨.)
 
 ### 짧은 설명
 
-스마트폰 사용과 휴식의 균형을 1~99점 코어 지수 하나로. 앱을 잠그지 않습니다.
+스마트폰 사용과 휴식의 균형을 1~99점 코어 지수 하나로. 앱을 잠그지 않는 디지털 디톡스.
+
+(이전: 스마트폰 사용과 휴식의 균형을 1~99점 코어 지수 하나로. 앱을 잠그지 않습니다.)
 
 ### 자세한 설명
 
@@ -88,13 +90,15 @@ DigitsCore는 의료용 앱이 아닙니다. 코어 지수는 스마트폰 사�
 
 ### App name
 
-DigitsCore: Screen Time Score
+DigitsCore Screen Time Tracker
 
-(Previously: DigitsCore: Core Index. Apply after the open-testing review is done.)
+(Previously: DigitsCore: Core Index. 2026-11-19 search check, US: "screen time" has by far the most search volume, and Play autocomplete suggests "screen time tracker", "phone usage tracker" and "app usage tracker". Nobody searches for "score". The name is exactly 30 characters, so there is no colon. Submitted with the v0.9.47 review on 2026-11-19, live since 2026-11-23.)
 
 ### Short description
 
-One Core Index for the balance of phone use and rest. Nothing is locked.
+One Core Index for phone usage and rest. A digital detox that never locks apps.
+
+(Previously: One Core Index for the balance of phone use and rest. Nothing is locked.)
 
 ### Full description
 
