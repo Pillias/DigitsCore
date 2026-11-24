@@ -189,6 +189,9 @@ fun PresetModeScreen(
 
     val lifecycleOwner = LocalLifecycleOwner.current
     var hasOverlayPermission by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+    var isBatteryExempt by remember {
+        mutableStateOf(com.digitscore.app.ui.onboarding.isIgnoringBatteryOptimizations(context))
+    }
     var edgeLightingEnabled by remember { mutableStateOf(EdgeLightingOverlayManager.isEnabled(context)) }
     var managedTriggerMins by remember { mutableStateOf(EdgeLightingOverlayManager.getManagedTriggerMinutes(context)) }
     var studyTriggerMins by remember { mutableStateOf(EdgeLightingOverlayManager.getStudyTriggerMinutes(context)) }
@@ -203,6 +206,7 @@ fun PresetModeScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 hasOverlayPermission = Settings.canDrawOverlays(context)
+                isBatteryExempt = com.digitscore.app.ui.onboarding.isIgnoringBatteryOptimizations(context)
                 edgeLightingEnabled = EdgeLightingOverlayManager.isEnabled(context)
                 managedTriggerMins = EdgeLightingOverlayManager.getManagedTriggerMinutes(context)
                 studyTriggerMins = EdgeLightingOverlayManager.getStudyTriggerMinutes(context)
@@ -1510,6 +1514,44 @@ fun PresetModeScreen(
                                 }
                             }
                         )
+                    }
+                }
+            }
+
+            // 첫 화면에서 뺀 배터리 예외 안내. 추적 중이고 예외가 아닐 때만 보입니다.
+            if (selectedCategoryTab == 0 && settings.isTrackingEnabled && !isBatteryExempt) item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = DigitsShape.lg,
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (isEn) "Keep tracking running" else "백그라운드 추적 유지",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = DigitsTextSize.bodyLarge
+                            )
+                            Text(
+                                text = if (isEn) "If the index stops moving, exclude DigitsCore from battery optimization. Samsung: Battery > Background usage limits > Never auto sleeping apps."
+                                else "지수 흐름이 자주 끊기면 DigitsCore를 배터리 최적화에서 빼 주세요. Samsung: 배터리 › 백그라운드 사용 제한 › 절전 예외 앱.",
+                                fontSize = DigitsTextSize.label,
+                                lineHeight = 17.sp,
+                                color = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.padding(top = 3.dp)
+                            )
+                        }
+                        androidx.compose.material3.FilledTonalButton(
+                            onClick = { com.digitscore.app.ui.onboarding.launchBatteryOptimizationSettings(context) }
+                        ) {
+                            Text(if (isEn) "Open" else "설정", maxLines = 1)
+                        }
                     }
                 }
             }

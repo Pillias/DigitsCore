@@ -314,7 +314,9 @@ object DataBackupManager {
     suspend fun importFromJson(
         context: Context,
         jsonString: String,
-        mode: RestoreMode = RestoreMode.MERGE
+        mode: RestoreMode = RestoreMode.MERGE,
+        // 시험에서 기기 DB 대신 메모리 DB를 넘길 수 있게 합니다.
+        database: DigitsDatabase? = null
     ): Boolean = withContext(Dispatchers.IO) {
         val overwrite = mode == RestoreMode.OVERWRITE
         // 덮어쓰기는 추적 서비스를 잠시 멈춰, 복원 중에 이 기기 기록이 다시 쓰이지 않게 합니다.
@@ -325,7 +327,7 @@ object DataBackupManager {
             require(jsonString.toByteArray(Charsets.UTF_8).size <= MAX_BACKUP_BYTES) {
                 "Backup file is too large"
             }
-            val db = DigitsDatabase.getInstance(context)
+            val db = database ?: DigitsDatabase.getInstance(context)
             val rootJson = JSONObject(jsonString)
             val backupVersion = rootJson.optInt("version", -1)
             require(backupVersion in 1..BACKUP_SCHEMA_VERSION) {
@@ -398,6 +400,9 @@ object DataBackupManager {
             // 2. 사용자 설정 복원
             if (rootJson.has("settings")) {
                 val sObj = rootJson.getJSONObject("settings")
+                // 추적 켜짐/꺼짐은 기기마다 다릅니다. 이 기기 값이 있으면 백업 값으로 덮지 않습니다.
+                // (추적을 꺼 둔 기기의 백업을 새 기기에 복원하면 새 기기 추적이 조용히 꺼지던 문제)
+                val deviceTrackingEnabled = db.settingsDao().getSettings()?.isTrackingEnabled
                 val rapidAlertWindowMinutes = sObj.optInt("rapidAlertWindowMinutes", 30)
                     .coerceIn(15, 60)
                 val settings = UserSettingsEntity(
@@ -420,7 +425,7 @@ object DataBackupManager {
                     yesterdayPenaltyTriggerScore = sObj.optInt("yesterdayPenaltyTriggerScore", 60).coerceIn(40, 90),
                     yesterdayPenaltyRate = sObj.optDouble("yesterdayPenaltyRate", 0.2).toFloat().coerceIn(0.05f, 1f),
                     maxYesterdayPenalty = sObj.optDouble("maxYesterdayPenalty", 10.0).toFloat().coerceIn(0f, 30f),
-                    isTrackingEnabled = sObj.optBoolean("isTrackingEnabled", false),
+                    isTrackingEnabled = deviceTrackingEnabled ?: sObj.optBoolean("isTrackingEnabled", false),
                     isNotificationEnabled = sObj.optBoolean("isNotificationEnabled", true),
                     appHistoryRetentionDays = 365,
                     hideSensitiveNotificationOnLockScreen = sObj.optBoolean(
@@ -726,6 +731,13 @@ object DataBackupManager {
                 RestoreBaseline.save(context, today, restoredAt, db.dailyAppUsageDao().getRange(today, today))
                 com.digitscore.app.data.CumulativeScoreStore.clearWindowCache()
             }
+            // 화면에 떠 있는 점수는 복원 전 값이라, 복원한 체크포인트로 바로 바꿉니다.
+            // 서비스가 다시 돌기 전(또는 추적이 꺼진 상태)에도 대시보드가 옛 점수에 머물지 않게 합니다.
+            db.cumulativeScoreStateDao().get()?.let {
+                com.digitscore.app.data.ScoreRepository.updateRollingScoreDetail(
+                    com.digitscore.app.data.CumulativeScoreStore.detail(
+                        com.digitscore.app.data.CumulativeRecord.decode(it.payload)))
+            }
             true
         } catch (e: Exception) {
             e.printStackTrace()
@@ -734,7 +746,7 @@ object DataBackupManager {
         run {
             // 성공·실패와 관계없이, 멈췄던 추적은 다시 켭니다(서비스는 저장된 상태를 새로 읽음).
             val trackingEnabled = runCatching {
-                DigitsDatabase.getInstance(context).settingsDao().getSettings()?.isTrackingEnabled == true
+                (database ?: DigitsDatabase.getInstance(context)).settingsDao().getSettings()?.isTrackingEnabled == true
             }.getOrDefault(false)
             if (overwrite && (wasTracking || trackingEnabled)) {
                 runCatching { com.digitscore.app.service.TrackerForegroundService.start(context) }

@@ -1867,6 +1867,8 @@ private fun CoreIndexHeroCard(
     val context = LocalContext.current
     val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
     val gradeText = context.localizedGrade(grade)
+    // 서비스가 실제로 돌 때만 '실시간 추적'이라고 씁니다.
+    val isTrackingLive by com.digitscore.app.data.ScoreRepository.isServiceRunning.collectAsState()
     var showChartHelp by remember { mutableStateOf(false) }
     // 좌측 게이지 열의 실제 높이. 세로선과 우측 그래프를 이 높이에 맞춰 글자 크기·문구 길이가 달라도 위아래가 맞게 합니다.
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -2039,6 +2041,7 @@ private fun CoreIndexHeroCard(
                         currentScore = score,
                         samples = samples,
                         isEn = isEn,
+                        isTrackingLive = isTrackingLive,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -2138,6 +2141,7 @@ private fun CoreIndexSparklineContent(
     currentScore: Int,
     samples: List<CoreIndexSampleEntity>,
     isEn: Boolean,
+    isTrackingLive: Boolean,
     modifier: Modifier = Modifier
 ) {
     val tierColor = coreIndexTierColor(currentScore)
@@ -2170,13 +2174,21 @@ private fun CoreIndexSparklineContent(
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     Text(
-                        text = if (isEn) "Live tracking active" else "실시간 추적 진행 중",
+                        text = when {
+                            !isTrackingLive -> if (isEn) "Tracking is off" else "추적이 꺼져 있습니다"
+                            isEn -> "Live tracking active"
+                            else -> "실시간 추적 진행 중"
+                        },
                         fontSize = DigitsTextSize.caption,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = if (isEn) "Trend records every 5 minutes" else "5min마다 점수 추세가 기록됩니다",
+                        text = when {
+                            !isTrackingLive -> if (isEn) "Turn it on in Settings to keep the index moving" else "설정에서 켜면 지수가 다시 움직입니다"
+                            isEn -> "Trend records every 5 minutes"
+                            else -> "5min마다 점수 추세가 기록됩니다"
+                        },
                         fontSize = DigitsTextSize.tiny,
                         color = MaterialTheme.colorScheme.outline
                     )
