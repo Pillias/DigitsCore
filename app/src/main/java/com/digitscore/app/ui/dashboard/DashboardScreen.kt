@@ -186,6 +186,7 @@ fun DashboardScreen(
     val yesterdaySummary by viewModel.yesterdaySummary.collectAsState()
     val yesterdayGoalResult by viewModel.yesterdayGoalResult.collectAsState()
     val rewardState by viewModel.rewardState.collectAsState()
+    val trackingProblem = rememberTrackingProblem()
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -419,6 +420,13 @@ fun DashboardScreen(
                                 }
                             }
                         }
+                    }
+                }
+
+                // 측정이 멈췄을 때만 보이는 안내(권한 꺼짐·서비스 중단)
+                if (trackingProblem != TrackingProblem.NONE) {
+                    item(key = "tracking_status") {
+                        TrackingStatusBanner(trackingProblem)
                     }
                 }
 
@@ -710,6 +718,12 @@ fun DashboardScreen(
     if (showHistoryFromWhatsNew) {
         com.digitscore.app.ui.settings.UpdateHistoryDialog(onDismiss = { showHistoryFromWhatsNew = false })
     }
+
+    // 등급 고정 안내(바꿔 둔 등급이 있던 사용자에게 한 번). 다른 안내와 겹치지 않게 그 뒤에 띄웁니다.
+    GradeLockNotice(
+        enabled = whatsNew == null && !showHistoryFromWhatsNew && !showMorningDialog,
+        onOpenAppSettings = { onNavigateToAppSettings() }
+    )
 
     if (showMorningDialog && dailyGoal != null && yesterdaySummary != null) {
         MorningBriefingDialog(
@@ -3737,7 +3751,9 @@ fun DistractingDetailDialog(
             ) {
                 item {
                     Text(
-                        text = if (isEn) "List of managed apps. Tap an app to adjust its category." else "관리 대상 앱 목록입니다. 앱을 눌러 등급을 변경할 수 있습니다.",
+                        text = if (com.digitscore.app.model.AppCategoryPolicy.userGradesLocked) {
+                            if (isEn) "List of managed apps. Tap an app to request a grade change." else "관리 대상 앱 목록입니다. 등급이 맞지 않으면 앱을 눌러 변경을 요청할 수 있습니다."
+                        } else if (isEn) "List of managed apps. Tap an app to adjust its category." else "관리 대상 앱 목록입니다. 앱을 눌러 등급을 변경할 수 있습니다.",
                         fontSize = DigitsTextSize.label,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -3903,6 +3919,25 @@ fun AppDetailDialog(
     }
     var categoryMenuExpanded by remember { mutableStateOf(false) }
     var insights by remember { mutableStateOf<AppUsageInsights?>(null) }
+    // 등급 고정 중에는 고른 등급을 저장하지 않고 등급 변경 요청으로 보냅니다.
+    val gradesLocked = com.digitscore.app.model.AppCategoryPolicy.userGradesLocked
+    val currentGrade = remember(appUsage.packageName, appUsage.categoryType) {
+        com.digitscore.app.model.AppGrade.from(
+            appUsage.categoryType,
+            com.digitscore.app.model.AppCategoryPolicy.isStudyOrReadingPackage(appUsage.packageName, context)
+        )
+    }
+    var showGradeRequest by remember { mutableStateOf(false) }
+    if (showGradeRequest) {
+        com.digitscore.app.ui.components.GradeRequestDialog(
+            appName = appUsage.appName,
+            packageName = appUsage.packageName,
+            current = currentGrade,
+            initialDesired = selectedGrade,
+            onDismiss = { showGradeRequest = false; onDismiss() }
+        )
+        return
+    }
 
     LaunchedEffect(appUsage.packageName, appUsage.usageTimeMillis) {
         insights = withContext(Dispatchers.IO) {
@@ -4014,7 +4049,8 @@ fun AppDetailDialog(
 
                 item {
                     Text(
-                        if (isEn) "You can change the category from the menu at the top right."
+                        if (gradesLocked) com.digitscore.app.model.GradeChangeRequest.explanation(isEn)
+                        else if (isEn) "You can change the category from the menu at the top right."
                         else "등급은 우측 상단 드롭다운에서 변경할 수 있습니다.",
                         fontSize = DigitsTextSize.tiny,
                         color = MaterialTheme.colorScheme.outline
@@ -4023,10 +4059,16 @@ fun AppDetailDialog(
             }
         },
         confirmButton = {
-            TextButton(
-                onClick = { onGradeChanged(selectedGrade) }
-            ) {
-                Text(if (isEn) "Apply & Save" else "적용 및 저장", fontWeight = FontWeight.Bold)
+            if (gradesLocked) {
+                TextButton(onClick = { showGradeRequest = true }) {
+                    Text(com.digitscore.app.model.GradeChangeRequest.buttonLabel(isEn), fontWeight = FontWeight.Bold)
+                }
+            } else {
+                TextButton(
+                    onClick = { onGradeChanged(selectedGrade) }
+                ) {
+                    Text(if (isEn) "Apply & Save" else "적용 및 저장", fontWeight = FontWeight.Bold)
+                }
             }
         },
         dismissButton = {

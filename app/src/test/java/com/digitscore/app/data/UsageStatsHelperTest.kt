@@ -387,4 +387,18 @@ class UsageStatsHelperTest {
             assertTrue(dayStart <= t && t - dayStart < 25 * 60 * 60_000L)
         }
     }
+
+    @Test
+    fun lateNightWindow_isMidnightToFiveOfTheLogicalDay() {
+        val zone = java.time.ZoneId.systemDefault()
+        fun at(y: Int, m: Int, d: Int, h: Int, min: Int = 0) =
+            java.time.LocalDateTime.of(y, m, d, h, min).atZone(zone).toInstant().toEpochMilli()
+
+        val expected = at(2026, 11, 18, 0) to at(2026, 11, 18, 5)
+        // 11/17 활동일(05:00~11/18 05:00) 안의 어느 시각이든 심야는 11/18 00:00~05:00입니다.
+        assertEquals(expected, UsageStatsHelper.lateNightWindowFor(at(2026, 11, 17, 5)))
+        assertEquals(expected, UsageStatsHelper.lateNightWindowFor(at(2026, 11, 17, 9, 30)))
+        assertEquals(expected, UsageStatsHelper.lateNightWindowFor(at(2026, 11, 17, 23, 59)))
+        assertEquals(expected, UsageStatsHelper.lateNightWindowFor(at(2026, 11, 18, 3)))
+    }
 }

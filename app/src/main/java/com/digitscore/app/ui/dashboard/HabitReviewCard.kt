@@ -52,6 +52,18 @@ fun HabitReviewCard(
         }
     }
 
+    val gradesLocked = com.digitscore.app.model.AppCategoryPolicy.userGradesLocked
+    var requestFor by remember { mutableStateOf<AppUsage?>(null) }
+    requestFor?.let { app ->
+        com.digitscore.app.ui.components.GradeRequestDialog(
+            appName = app.appName,
+            packageName = app.packageName,
+            current = com.digitscore.app.model.AppGrade.DAILY,
+            initialDesired = com.digitscore.app.model.AppGrade.LIMIT,
+            onDismiss = { requestFor = null }
+        )
+    }
+
     suggestion?.let { app ->
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -60,12 +72,17 @@ fun HabitReviewCard(
         ) {
             Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = if (english) "Manage ${app.appName}?" else "${app.appName}을 관리 앱으로 바꿀까요?",
+                    text = if (gradesLocked) {
+                        if (english) "Should ${app.appName} be Managed?" else "${app.appName}은 관리 앱에 가깝나요?"
+                    } else if (english) "Manage ${app.appName}?" else "${app.appName}을 관리 앱으로 바꿀까요?",
                     fontWeight = FontWeight.Bold,
                     fontSize = DigitsTextSize.body
                 )
                 Text(
-                    text = if (english) "Used 90+ min on 3+ days. Applies to future scoring."
+                    text = if (gradesLocked) {
+                        if (english) "Used 90+ min on 3+ days. If Managed fits better, request a grade change."
+                        else "최근 7일 중 3일 이상 90min 넘게 사용했습니다. 관리 등급이 맞다면 변경을 요청해 주세요."
+                    } else if (english) "Used 90+ min on 3+ days. Applies to future scoring."
                         else "최근 7일 중 3일 이상 90min 넘게 사용했습니다. 변경 후 사용부터 반영합니다.",
                     fontSize = DigitsTextSize.caption,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -76,7 +93,15 @@ fun HabitReviewCard(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Button(
+                    if (gradesLocked) Button(
+                        onClick = { scope.launch {
+                            CumulativeScoreStore.snoozeSuggestion(db, app.packageName, Long.MAX_VALUE); revision++
+                        }; requestFor = app },
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
+                        shape = DigitsShape.sm
+                    ) { Text(com.digitscore.app.model.GradeChangeRequest.buttonLabel(english), fontSize = DigitsTextSize.label) }
+                    else Button(
                         onClick = { scope.launch {
                             val old = db.appDao().getAppWeight(app.packageName)
                             db.appDao().insertOrUpdateAppWeight((old ?: AppWeightEntity(app.packageName, app.appName,
@@ -90,16 +115,18 @@ fun HabitReviewCard(
                     ) { Text(if (english) "Manage" else "관리로 변경", fontSize = DigitsTextSize.label) }
                     OutlinedButton(
                         onClick = { scope.launch {
-                            val old = db.appDao().getAppWeight(app.packageName)
-                            db.appDao().insertOrUpdateAppWeight((old ?: AppWeightEntity(app.packageName, app.appName,
-                                AppCategoryType.NEUTRAL)).copy(categoryType = AppCategoryType.NEUTRAL, isUserModified = true))
+                            if (!gradesLocked) {
+                                val old = db.appDao().getAppWeight(app.packageName)
+                                db.appDao().insertOrUpdateAppWeight((old ?: AppWeightEntity(app.packageName, app.appName,
+                                    AppCategoryType.NEUTRAL)).copy(categoryType = AppCategoryType.NEUTRAL, isUserModified = true))
+                            }
                             CumulativeScoreStore.snoozeSuggestion(db, app.packageName, Long.MAX_VALUE); revision++
-                            TrackerForegroundService.refreshNotification(context)
+                            if (!gradesLocked) TrackerForegroundService.refreshNotification(context)
                         } },
                         modifier = Modifier.weight(1f),
                         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
                         shape = DigitsShape.sm
-                    ) { Text(if (english) "Keep" else "일반 유지", fontSize = DigitsTextSize.label) }
+                    ) { Text(if (gradesLocked) { if (english) "It's fine" else "괜찮아요" } else if (english) "Keep" else "일반 유지", fontSize = DigitsTextSize.label) }
                     TextButton(
                         onClick = { scope.launch {
                             CumulativeScoreStore.snoozeSuggestion(db, app.packageName, System.currentTimeMillis() + 7 * 86_400_000L); revision++

@@ -52,7 +52,7 @@ fun WeeklyReportDialog(
                 db.statisticsDao().impactsBetween(dayStart(range.first), dayStart(range.second.plusDays(1)))
             }.getOrDefault(emptyList())
             val managedPkgs = runCatching {
-                db.appDao().getAllAppWeights().first()
+                com.digitscore.app.model.AppCategoryPolicy.effectiveSavedWeights(db.appDao().getAllAppWeights().first()) { it.isUserModified }
                     .filter { it.categoryType.canonical == com.digitscore.app.model.AppCategoryType.DISTRACTING }
                     .map { it.packageName }.toSet()
             }.getOrDefault(emptySet())

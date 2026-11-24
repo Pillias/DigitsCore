@@ -23,17 +23,21 @@
 
 ### 앱 이름
 
-DigitsCore: 스크린타임 디지털 디톡스
+DigitsCore: 스크린타임·핸드폰 사용시간
 
-(이전: DigitsCore - 코어 지수 디지털 웰빙. "코어 지수"는 검색하는 사람이 없어 사람들이 찾는 말로 바꿉니다. 공개 테스트 검토가 끝난 뒤 반영합니다.)
+(이전: DigitsCore - 코어 지수 디지털 웰빙. "코어 지수"는 검색하는 사람이 없어 사람들이 찾는 말로 바꿉니다. 2026-11-19 검색어 조사: "스크린타임"이 검색량이 가장 많고, Play 자동완성에서 "핸드폰 사용"·"폰 사용" 다음 1순위가 "사용시간"입니다. "디지털 디톡스"는 검색량이 적어 짧은 설명으로 옮깁니다. 2026-11-19 v0.9.47 검토에 함께 제출, 2026-11-23 게시됨.)
 
 ### 짧은 설명
 
-스마트폰 사용과 휴식의 균형을 1~99점 코어 지수 하나로. 앱을 잠그지 않습니다.
+스마트폰 사용과 휴식의 균형을 1~99점 코어 지수 하나로. 앱을 잠그지 않는 디지털 디톡스.
+
+(이전: 스마트폰 사용과 휴식의 균형을 1~99점 코어 지수 하나로. 앱을 잠그지 않습니다.)
 
 ### 자세한 설명
 
-DigitsCore는 스마트폰을 얼마나 오래 썼는지보다, 지금 사용과 휴식의 균형이 어떤지를 1~99점 코어 지수 하나로 보여 주는 앱입니다. 앱을 강제로 잠그지 않습니다. 지금 내 상태를 보고 스스로 조절하도록 돕습니다.
+스마트폰 사용에 대한 자세한 내용을 보여주는 앱은 많습니다. 그런데 너무 자세한 내용은 오히려 지금 내 상태를 아는 데 방해가 된다고 생각했습니다. 그래서 지금 사용과 휴식의 균형을 1~99점 코어 지수 하나로 보여 줍니다. 앱을 강제로 잠그지 않습니다. 지금 내 상태를 보고 스스로 조절하도록 돕습니다.
+
+이름에는 두 가지 뜻이 있습니다. 디지털 디톡스(Digital detox)의 점수(Score)를 보여 준다는 뜻과, 이것이 숫자(Digits)의 핵심(Core)이라는 뜻입니다.
 
 ■ 코어 지수
 • 최근 24시간의 사용과 휴식으로 계산하며, 자정에 초기화되지 않고 이어집니다.
@@ -46,7 +50,7 @@ DigitsCore는 스마트폰을 얼마나 오래 썼는지보다, 지금 사용과
 
 ■ 앱 등급
 • 지도·통화 같은 필수 앱은 점수를 낮추지 않고, 숏폼·SNS·게임처럼 관리할 앱은 더 크게 반영합니다.
-• 주요 앱은 기본 등급이 정해져 있고, 언제든 바꿀 수 있습니다.
+• 모두 같은 기준의 기본 등급으로 계산하고, 등급이 맞지 않으면 변경을 요청할 수 있습니다.
 
 ■ 오늘의 목표
 • 지수 방어선, 관리할 앱 시간, 잠금 해제 횟수 세 가지를 정합니다.
@@ -86,17 +90,21 @@ DigitsCore는 의료용 앱이 아닙니다. 코어 지수는 스마트폰 사�
 
 ### App name
 
-DigitsCore: Screen Time Score
+DigitsCore Screen Time Tracker
 
-(Previously: DigitsCore: Core Index. Apply after the open-testing review is done.)
+(Previously: DigitsCore: Core Index. 2026-11-19 search check, US: "screen time" has by far the most search volume, and Play autocomplete suggests "screen time tracker", "phone usage tracker" and "app usage tracker". Nobody searches for "score". The name is exactly 30 characters, so there is no colon. Submitted with the v0.9.47 review on 2026-11-19, live since 2026-11-23.)
 
 ### Short description
 
-One Core Index for the balance of phone use and rest. Nothing is locked.
+One Core Index for phone usage and rest. A digital detox that never locks apps.
+
+(Previously: One Core Index for the balance of phone use and rest. Nothing is locked.)
 
 ### Full description
 
-DigitsCore shows not just how long you used your phone, but how balanced your use and rest are right now, as one number: the Core Index (1–99). Nothing is force-locked. It shows where you are so you can adjust on your own.
+Many apps show detailed phone-usage numbers. But too much detail can get in the way of knowing where you stand right now. So DigitsCore shows the balance of your use and rest as one number: the Core Index (1–99). Nothing is force-locked. It shows where you are so you can adjust on your own.
+
+The name carries two meanings: the Score of a digital detox, and the Core of your Digits.
 
 ■ Core Index
 • Based on the last 24 hours of use and rest. It never resets at midnight.
@@ -109,7 +117,7 @@ DigitsCore shows not just how long you used your phone, but how balanced your us
 
 ■ App grades
 • Essentials like maps and calls never lower the index, while apps you want to manage, like short video, social and games, count more.
-• Popular apps come pre-graded, and you can change any of them.
+• Everyone shares the same default grades, and you can request a change if one looks wrong.
 
 ■ Daily goals
 • Set three goals: an index floor, managed app time and unlocks.

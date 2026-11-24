@@ -12,6 +12,8 @@ import com.digitscore.app.service.TrackerForegroundService
  */
 object AppGradeStore {
     suspend fun apply(context: Context, packageName: String, appName: String, grade: AppGrade) {
+        // 등급 고정 중에는 바꾸지 않습니다. 화면은 대신 등급 변경 요청을 엽니다.
+        if (AppCategoryPolicy.userGradesLocked) return
         val appContext = context.applicationContext
         AppCategoryPolicy.setCustomStudyPackage(appContext, packageName, grade.isStudy)
         DigitsDatabase.getInstance(appContext).appDao().insertOrUpdateAppWeight(

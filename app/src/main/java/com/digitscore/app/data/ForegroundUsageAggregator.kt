@@ -88,6 +88,8 @@ internal object ForegroundUsageAggregator {
         endTimeMillis: Long,
         lateNightEndTimeMillis: Long,
         events: List<ForegroundTimelineEvent>,
+        // 심야 구간 시작. 기본값은 조회 시작이라 기존 호출([start, lateNightEnd))과 같습니다.
+        lateNightStartTimeMillis: Long = startTimeMillis,
         initialState: ForegroundTrackerState = ForegroundTrackerState(),
         categoryLevelResolver: (String) -> Int = { 2 }
     ): ForegroundUsageResult {
@@ -211,7 +213,7 @@ internal object ForegroundUsageAggregator {
                 )
             }
 
-            val lateStart = maxOf(intervalStart, startTimeMillis)
+            val lateStart = maxOf(intervalStart, startTimeMillis, lateNightStartTimeMillis)
             val lateEnd = minOf(intervalEnd, lateNightEndTimeMillis)
             if (lateEnd > lateStart) {
                 lateNightUsage[packageName] =

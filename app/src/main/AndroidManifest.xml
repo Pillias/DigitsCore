@@ -111,6 +111,11 @@
                 android:value="User-started on-device foreground app and unlock tracking for the cumulative 24-hour Core Index" />
         </service>
 
+        <service
+            android:name=".service.TrackerWatchdogJobService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
         <receiver
             android:name=".receiver.BootCompletedReceiver"
             android:enabled="true"

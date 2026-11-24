@@ -85,7 +85,9 @@ object UsageHistoryImporter {
         }
 
         val existingCoverages = db.dailyAppUsageDao().getAllCoverage().map { it.dateString }.toSet()
-        val appWeights = db.appDao().getAllAppWeights().firstOrNull()?.associateBy { it.packageName } ?: emptyMap()
+        val appWeights = com.digitscore.app.model.AppCategoryPolicy.effectiveSavedWeights(
+            db.appDao().getAllAppWeights().firstOrNull() ?: emptyList()
+        ) { it.isUserModified }.associateBy { it.packageName }
 
         val importedDates = mutableListOf<String>()
 

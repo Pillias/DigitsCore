@@ -37,7 +37,7 @@
 - [x] 앱별 시간대, 세션 길이, 최장 세션, 최근 추세 그래프
 - [x] 통계 탐색: 시간별(30일)·일별(4주)·요일별, 앱 추세: 7일·4주·12주·6개월·1년
 - [x] 언락 시간대와 notification interruption 비교 그래프
-- [x] 앱별 4단계 등급 변경
+- [x] 앱별 4단계 등급 (v0.9.47부터 모두 같은 기준으로 고정, 개인 변경은 요청 메일로)
 - [x] 한국어·영어 전환: 앱 화면, 알림, 위젯
 - [x] 코어 숫자형을 포함한 네 가지 상태바 아이콘 스타일
 - [x] 도룡뇽(Salamander) 브랜드 심볼 및 코어 지수 4단계(녹·황·주·적) 화면 OFF 시점 1일 1회 안전 런처 아이콘 전환
@@ -72,6 +72,15 @@
 - [ ] 공개 개인정보처리방침 URL 및 Google Play Data safety 확정
 - [x] Play 내부·비공개 테스트용 정식 서명 AAB 배포 (비공개 테스트 2026-10-31 종료)
 - [ ] Play 공개 테스트 v0.9.43 모든 국가 출시 후 2주 Vitals·피드백 검토 → 1.0.0 프로덕션
+
+## 다음 구현 (2026-11-17 결정)
+
+- [x] v0.9.47: 인기 앱 기본 등급 확대 (동영상 앱 관리 지정 포함), 스토어 설명 첫 문단·새 앱 이름과 함께 공개 테스트 게시 (2026-11-23)
+- [x] 등급 변경 요청: 사용자가 내용을 확인하고 직접 보내는 메일 (인터넷 권한 없음, v0.9.47)
+- [x] 앱 등급 고정: 개인별 등급 변경을 닫고 모두 같은 기준으로 계산 (v0.9.47 공개 테스트에서 먼저 확인 후 1.0.0)
+- [ ] v1.1: 원하는 사람만 참여하는 익명 평균 비교 (기본 꺼짐, 인터넷 권한 추가, 연령대·성별·생활 유형 선택 입력)
+- [ ] v1.2: Pro 1회 결제 (월 구독 없음)
+- [ ] v1.3: 친구·가족 보드 (지수·단계·연속 일수·도룡뇽 단계만 공유)
 
 최신 상태·완료 조건은 [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md), 기기 시험은 [docs/DEVICE_VALIDATION_PROTOCOL.md](docs/DEVICE_VALIDATION_PROTOCOL.md), Play 입력은 [docs/PLAY_CONSOLE_SUBMISSION.md](docs/PLAY_CONSOLE_SUBMISSION.md), 사용자 시험은 [docs/USER_VALIDATION_PROTOCOL.md](docs/USER_VALIDATION_PROTOCOL.md)를 기준으로 합니다.
 

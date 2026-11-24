@@ -9,6 +9,21 @@ import android.content.pm.ApplicationInfo
  */
 object AppCategoryPolicy {
 
+    /**
+     * 앱 등급 고정 (v0.9.47~). true면 개인이 바꿔 둔 등급과 공부 앱 지정을 계산에 쓰지 않고
+     * 모두 같은 기본 목록으로 계산합니다. DB의 isUserModified 행과 공부 앱 목록은 지우지 않으므로
+     * false로 되돌리면 예전 동작(개인 등급 우선)으로 돌아갑니다.
+     */
+    const val USER_GRADES_LOCKED_DEFAULT = true
+
+    /** 실제 스위치. 단위 테스트가 두 동작을 모두 확인할 수 있도록 var로 둡니다. */
+    @Volatile
+    var userGradesLocked: Boolean = USER_GRADES_LOCKED_DEFAULT
+
+    /** 계산에 쓸 저장 등급. 고정 중이면 사용자가 바꾼 행을 빼고 기본값으로 계산되게 합니다. */
+    fun <T> effectiveSavedWeights(weights: List<T>, isUserModified: (T) -> Boolean): List<T> =
+        if (userGradesLocked) weights.filterNot(isUserModified) else weights
+
     private const val PREFS_NAME = "custom_study_packages_prefs"
     private const val KEY_STUDY_PACKAGES = "study_packages_set"
     private const val KEY_EXCLUDED_STUDY_PACKAGES = "excluded_study_packages_set"
@@ -79,7 +94,8 @@ object AppCategoryPolicy {
         "com.waze",                     // Waze
         "com.mnsoft.mappy",             // 맵피
         "com.kt.ollehmap",              // 원내비
-        "com.uplus.uplusnavi"           // U+내비
+        "com.uplus.uplusnavi",          // U+내비
+        "com.google.android.projection.gearhead" // Android Auto
     )
 
     // 통화 / 다이얼러 패키지
@@ -212,6 +228,12 @@ object AppCategoryPolicy {
         "com.the29cm.app29cm",          // 29CM
         "net.bucketplace",              // 오늘의집
         "com.towneers.www",             // 당근
+        "com.elevenst",                 // 11번가
+        "com.ebay.kr.gmarket",          // G마켓
+        "com.ebay.kr.auction",          // 옥션
+        "kr.co.ssg",                    // SSG.COM
+        "com.dbs.kurly.m2",             // 컬리
+        "kr.co.quicket",                // 번개장터
         // 영어권 기본 분류
         "com.walmart.android",
         "com.target.ui",
@@ -225,7 +247,9 @@ object AppCategoryPolicy {
         "com.nhn.android.webtoon",
         "com.kakao.page",
         "com.daum.android.webtoon",
-        "com.nhn.android.nbooks"
+        "com.nhn.android.nbooks",
+        "com.kakaoent.kakaowebtoon",    // 카카오웹툰
+        "com.naver.linewebtoon"         // WEBTOON (글로벌)
     )
 
     // 메신저 앱 (기본 등급: NEUTRAL 일반)
@@ -239,7 +263,9 @@ object AppCategoryPolicy {
         "com.tencent.mm",
         "org.thoughtcrime.securesms",
         "com.samsung.android.messaging",
-        "com.google.android.apps.messaging"
+        "com.google.android.apps.messaging",
+        "com.viber.voip",
+        "com.google.android.apps.dynamite" // Google Chat
     )
 
     // 소셜 미디어 / 숏폼 / 스트리밍 앱 (기본 등급: DISTRACTING 관리)
@@ -255,7 +281,25 @@ object AppCategoryPolicy {
         "tv.twitch.android.app",
         "com.navercorp.game.android.community",
         "kr.co.nowcom.mobile.afreeca",
-        "com.reddit.frontpage"
+        "com.reddit.frontpage",
+        "com.snapchat.android",
+        "com.pinterest",
+        "com.tumblr",
+        "xyz.blueskyweb.app",           // Bluesky
+        "com.google.android.apps.youtube.kids"
+    )
+
+    // 동영상 스트리밍(OTT) 앱 (기본 등급: DISTRACTING 관리)
+    // 앱이 스스로 동영상 분류를 밝히지 않는 경우가 많아 직접 지정합니다. 등급 화면에서는 '동영상·미디어'로 묶습니다.
+    val VIDEO_STREAMING_PACKAGES: Set<String> = setOf(
+        "com.netflix.mediaclient",      // Netflix
+        "net.cj.cjhv.gs.tving",         // TVING
+        "kr.co.captv.pooqv2",           // wavve
+        "com.disney.disneyplus",        // Disney+
+        "com.frograms.wplay",           // 왓챠
+        "com.amazon.avod.thirdpartyclient", // Prime Video
+        "com.wbd.stream",               // Max
+        "com.hulu.plus"
     )
 
     /**
@@ -271,6 +315,8 @@ object AppCategoryPolicy {
      */
     fun isStudyOrReadingPackage(packageName: String, context: Context? = null): Boolean {
         val pkg = packageName.lowercase()
+        // 등급 고정 중에는 공부 앱도 기본 목록만 씁니다(개인 지정·제외 무시).
+        if (userGradesLocked) return EDUCATION_PACKAGES.any { pkg.startsWith(it.lowercase()) }
         val excluded = if (context != null) getExcludedStudyPackages(context) else cachedExcludedStudyPackages
         if (excluded?.contains(pkg) == true) return false
         val custom = if (context != null) getCustomStudyPackages(context) else cachedCustomStudyPackages
@@ -327,7 +373,8 @@ object AppCategoryPolicy {
         }
 
         // 5. 소셜 미디어 / 숏폼 / 스트리밍: DISTRACTING (관리)
-        if (SOCIAL_MEDIA_PACKAGES.any { pkg.startsWith(it.lowercase()) }) {
+        if (SOCIAL_MEDIA_PACKAGES.any { pkg.startsWith(it.lowercase()) } ||
+            VIDEO_STREAMING_PACKAGES.any { pkg.startsWith(it.lowercase()) }) {
             return AppCategoryType.DISTRACTING
         }
 

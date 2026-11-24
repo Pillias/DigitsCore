@@ -20,6 +20,9 @@ enum class AppGrade(
     val displayName: String
         get() = if (com.digitscore.app.i18n.AppLocale.isCurrentEnglish) englishName else koreanName
 
+    /** 언어를 직접 정해 이름을 얻습니다(메일 본문처럼 현재 화면 언어와 무관하게 만들 때). */
+    fun label(english: Boolean): String = if (english) englishName else koreanName
+
     /** 등급 설명. 면제 등급은 감점 없는 연속 사용 한도를 함께 안내합니다. */
     val description: String
         get() {
