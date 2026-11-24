@@ -1097,16 +1097,19 @@ private fun ExplorerChart(
                         // 2. 요일별 코어 지수선 (노란색)
                         val coreIndexPath = Path()
                         var coreIndexStarted = false
+                        var lastCoreIndex = -2
                         buckets.forEachIndexed { i, b ->
                             b.score?.let { s ->
                                 val mid = i * slotW + slotW / 2f
                                 val my = y(s.last)
-                                if (!coreIndexStarted) {
+                                // 점수가 없는 날을 건너뛰면 선을 끊습니다.
+                                if (!coreIndexStarted || i - lastCoreIndex > 1) {
                                     coreIndexPath.moveTo(mid, my)
                                     coreIndexStarted = true
                                 } else {
                                     coreIndexPath.lineTo(mid, my)
                                 }
+                                lastCoreIndex = i
                             }
                         }
                         if (coreIndexStarted) {
@@ -1156,6 +1159,8 @@ private fun ExplorerChart(
                             )
 
                             readings.zipWithNext().forEach { (a, b) ->
+                                // 기록이 없던 구간(추적 꺼짐·복원 전 공백)은 선으로 잇지 않고 비워 둡니다.
+                                if (b.first - a.first > CHART_GAP_MILLIS) return@forEach
                                 drawLine(
                                     brush = lineBrush,
                                     start = Offset(x(a.first), y(a.second)),
@@ -1198,6 +1203,7 @@ private fun ExplorerChart(
                         val hourlyReadings = buckets.mapNotNull { b -> b.score?.let { s -> Triple((b.start + b.end) / 2, s.last, s.model) } }
                         val lineBrush = Brush.verticalGradient(listOf(ScoreGreen, ScoreYellow, ScoreRed), startY = graphTop, endY = graphBottom)
                         hourlyReadings.zipWithNext().forEach { (a, b) ->
+                            if (b.first - a.first > CHART_GAP_MILLIS) return@forEach
                             drawLine(brush = lineBrush, Offset(x(a.first), y(a.second)), Offset(x(b.first), y(b.second)), 2.4.dp.toPx(), StrokeCap.Round)
                         }
                     } else {
@@ -1224,16 +1230,19 @@ private fun ExplorerChart(
 
                         val coreIndexPath = Path()
                         var coreIndexStarted = false
+                        var lastCoreIndex = -2
                         buckets.forEachIndexed { i, b ->
                             b.score?.let { s ->
                                 val mid = i * slotW + slotW / 2f
                                 val my = y(s.last)
-                                if (!coreIndexStarted) {
+                                // 점수가 없는 날을 건너뛰면 선을 끊습니다.
+                                if (!coreIndexStarted || i - lastCoreIndex > 1) {
                                     coreIndexPath.moveTo(mid, my)
                                     coreIndexStarted = true
                                 } else {
                                     coreIndexPath.lineTo(mid, my)
                                 }
+                                lastCoreIndex = i
                             }
                         }
                         if (coreIndexStarted) {
@@ -1329,6 +1338,7 @@ private fun ExplorerChart(
                     var opensStarted = false
                     val openPoints = mutableListOf<Offset>()
 
+                    var lastOpenIndex = -2
                     buckets.forEachIndexed { i, b ->
                         val opens = b.unlocks ?: 0
                         if (opens > 0 || b.usage != null) {
@@ -1337,12 +1347,14 @@ private fun ExplorerChart(
                             val oy = openLineBottom - openH
                             val pt = Offset(mid, oy)
                             openPoints.add(pt)
-                            if (!opensStarted) {
+                            // 기록이 없는 칸을 건너뛰면 선을 끊어, 빈 날이 0회로 떨어져 보이지 않게 합니다.
+                            if (!opensStarted || i - lastOpenIndex > (if (isHourly) 6 else 1)) {
                                 opensPath.moveTo(mid, oy)
                                 opensStarted = true
                             } else {
                                 opensPath.lineTo(mid, oy)
                             }
+                            lastOpenIndex = i
                         }
                     }
 
@@ -1525,3 +1537,6 @@ private fun chartLabelX(centerX: Float, text: String, paint: android.graphics.Pa
     val tw = paint.measureText(text)
     return (centerX - tw / 2f).coerceIn(margin, (width - tw - margin).coerceAtLeast(margin))
 }
+
+/** 이보다 긴 빈 구간은 기록이 없던 것으로 보고 그래프 선을 잇지 않습니다. 잠든 밤(약 6시간)은 이어 그립니다. */
+private const val CHART_GAP_MILLIS = 6 * 60 * 60_000L
