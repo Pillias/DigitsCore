@@ -53,7 +53,7 @@ DigitsCore: 스크린타임·핸드폰 사용시간
 • 모두 같은 기준의 기본 등급으로 계산하고, 등급이 맞지 않으면 변경을 요청할 수 있습니다.
 
 ■ 오늘의 목표
-• 지수 방어선, 관리할 앱 시간, 잠금 해제 횟수 세 가지를 정합니다.
+• 지수 방어선, 관리할 앱 시간, 잠금 해제 횟수 세 가지를 앱이 매일 알아서 정합니다.
 • 한도에 닿아도 앱을 막지 않습니다. 조금 더 쓸지, 오늘은 그만할지 직접 고릅니다.
 
 ■ 연속 기록과 도룡뇽
@@ -120,7 +120,7 @@ The name carries two meanings: the Score of a digital detox, and the Core of you
 • Everyone shares the same default grades, and you can request a change if one looks wrong.
 
 ■ Daily goals
-• Set three goals: an index floor, managed app time and unlocks.
+• Three goals are set for you each day: an index floor, managed app time and unlocks.
 • Reaching a limit never blocks an app. You decide whether to keep going or stop for today.
 
 ■ Streaks and the salamander
