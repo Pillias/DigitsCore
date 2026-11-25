@@ -278,7 +278,9 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
     val comparable = readings.filter { it.model == currentModel }
     val displayed = if (selected != null) selectedSample?.exactScore ?: selected.score?.last
         else if (isRolling && currentModel == com.digitscore.app.engine.ScoreModel.CURRENT_STORED) liveScore?.exactScore ?: latest?.last else latest?.last
-    val change = if (selected == null && comparable.isNotEmpty() && displayed != null) {
+    // 요일별 보기의 제목은 '평균'이므로 마지막 요일(일요일) 값이 아니라 요일 평균들의 평균을 보여 줍니다.
+    val weekdayAverage = if (isWeekday) buckets.mapNotNull { it.score?.last }.takeIf { it.isNotEmpty() }?.average() else null
+    val change = if (selected == null && !isWeekday && comparable.isNotEmpty() && displayed != null) {
         val baseScore = if (isRolling) {
             val target24hAgo = now - 24 * STAT_HOUR
             visibleSamples.minByOrNull { abs(it.timestampMillis - target24hAgo) }?.exactScore
@@ -341,7 +343,7 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                             } else if (isRolling) {
                                 liveScore?.exactScore ?: latest?.last ?: 80.0
                             } else {
-                                buckets.lastOrNull { it.score != null }?.score?.last ?: 80.0
+                                weekdayAverage ?: buckets.lastOrNull { it.score != null }?.score?.last ?: 80.0
                             }
 
                             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -583,10 +585,13 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                         val highlights = remember(visibleImpacts) { com.digitscore.app.data.DayMovementHighlights.from(visibleImpacts) }
                         if (highlights.isNotEmpty()) {
                             // 기기에 설치되지 않은 앱(백업 복원 등)은 시간별 집계에 남은 앱 이름을 씁니다.
-                            val names = remember(apps, visibleUsage) {
+                            val names = remember(apps, visibleUsage, dailyApps) {
+                                // 30일 보기의 원인 앱은 최근 24시간 목록(apps)에 없을 수 있어 일별 기록의 이름도 씁니다.
+                                val daily = dailyApps.filter { it.appName.isNotBlank() && it.appName != it.packageName }
+                                    .associate { it.packageName to it.appName }
                                 val stored = visibleUsage.filter { it.appName.isNotBlank() && it.appName != it.packageName }
                                     .associate { it.packageName to it.appName }
-                                stored + apps.filter { it.name != it.pkg }.associate { it.pkg to it.name }
+                                daily + stored + apps.filter { it.name != it.pkg }.associate { it.pkg to it.name }
                             }
                             Column(
                                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
@@ -598,7 +603,8 @@ fun StatisticsScreen(onNavigateBack: () -> Unit, database: DigitsDatabase? = nul
                                     val cause = if (h.isRise) label("화면 꺼짐", "Screen off")
                                         else h.packageName?.let { names[it] ?: it.substringAfterLast('.') } ?: label("앱 사용", "App use")
                                     Text(
-                                        text = "${dateLabel(h.hour, "HH:mm")} $cause $sign${pts}P",
+                                        // 시간별 보기는 30일을 담으므로 최근 24시간이 아니면 날짜도 붙입니다.
+                                        text = "${dateLabel(h.hour, if (h.hour >= now - 24 * STAT_HOUR) "HH:mm" else "MM/dd HH:mm")} $cause $sign${pts}P",
                                         fontSize = DigitsTextSize.label,
                                         fontWeight = FontWeight.Medium,
                                         color = if (h.isRise) ScoreGreenText else ScoreRedText,

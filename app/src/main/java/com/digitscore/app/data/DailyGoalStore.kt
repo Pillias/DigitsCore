@@ -1009,7 +1009,7 @@ object DailyGoalStore {
             else -> 50
         }.coerceIn(45, 150)
 
-        val customTargets = if (isSeparateWeekdayWeekend(context)) {
+        val customTargets = if (com.digitscore.app.model.ProFeatures.GOAL_EDITING && isSeparateWeekdayWeekend(context)) {
             if (isWeekend(todayDate)) getWeekendGoalTargets(context) else getWeekdayGoalTargets(context)
         } else null
 
@@ -1032,8 +1032,11 @@ object DailyGoalStore {
                 dateString = todayDate,
                 scoreTarget = recommendedScoreTarget,
                 currentScore = yesterdayScore,
-                targetPackageName = topApp?.packageName,
-                targetAppName = topApp?.appName ?: "",
+                // 직접 고를 수 없으니 관리 앱 기록이 없을 때는 관리 앱 전체를 대상으로 합니다.
+                targetPackageName = topApp?.packageName
+                    ?: if (com.digitscore.app.model.ProFeatures.GOAL_EDITING) null else DailyGoal.PACKAGE_ALL_MANAGED,
+                targetAppName = topApp?.appName
+                    ?: if (com.digitscore.app.model.ProFeatures.GOAL_EDITING) "" else context.getString(R.string.goal_all_managed_apps),
                 appLimitMinutes = defaultAppLimit,
                 currentAppUsageMinutes = 0,
                 unlockLimitTarget = recommendedUnlockTarget,
