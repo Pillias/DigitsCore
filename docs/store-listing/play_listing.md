@@ -1,6 +1,6 @@
 # Google Play 스토어 등록정보
 
-기준 빌드: v0.9.43 (2026-11-06). Play Console → 사용자 늘리기 → 스토어 등록정보에 언어별로 붙여 넣습니다.
+기준 빌드: v1.0.0 (2026-11-25 준비, v0.9.47과 기능 같음). Play Console → 사용자 늘리기 → 스토어 등록정보에 언어별로 붙여 넣습니다.
 제한: 앱 이름 30자, 짧은 설명 80자, 자세한 설명 4,000자. 짧은 설명에 엔 대시(–)를 쓰면 Play가 가이드라인 경고를 냅니다.
 기능이나 권한이 바뀌면 이 파일을 같은 변경에서 고칩니다.
 앱 이름을 바꾸면 다시 심사를 받고, 진행 중인 검토가 있으면 처음부터 다시 시작합니다. 검토가 없을 때 바꿉니다.
@@ -12,7 +12,7 @@
 
 | 순서 | 화면 | ko 문구 | en 문구 |
 |---|---|---|---|
-| 1 | 대시보드 | 앱을 잠그지 않습니다 / 스마트폰 사용과 휴식의 균형을 점수 하나로 | Never locks your apps / One score for the balance of use and rest |
+| 1 | 대시보드 | 폰 사용을 점수 하나로 / 강제 잠금 없이, 사용과 휴식의 균형을 1~99점으로 | Your phone use in one score / No forced locks. Use and rest as one 1–99 index |
 | 2 | 통계 | 언제 많이 썼는지 한눈에 / 시간별·일별·요일별 지수와 사용 흐름 | See when you used it most / Hourly, daily and weekday views |
 | 3 | 오늘의 목표 | 목표는 세 가지만 / 지수 방어선 · 관리 앱 시간 · 잠금 해제 | Just three daily goals / Index floor · managed app time · unlocks |
 | 4 | 공유 카드 | 오늘의 지수를 나눠 보세요 / 도룡뇽과 함께 카드 한 장으로 공유 | Share today's index / One card with your salamander |
@@ -29,9 +29,9 @@ DigitsCore: 스크린타임·핸드폰 사용시간
 
 ### 짧은 설명
 
-스마트폰 사용과 휴식의 균형을 1~99점 코어 지수 하나로. 앱을 잠그지 않는 디지털 디톡스.
+스마트폰 사용과 휴식의 균형을 1~99점 코어 지수 하나로. 강제 잠금 없는 디지털 디톡스.
 
-(이전: 스마트폰 사용과 휴식의 균형을 1~99점 코어 지수 하나로. 앱을 잠그지 않습니다.)
+(이전: …앱을 잠그지 않는 디지털 디톡스. "잠그지 않는다"만 쓰면 아무 기능이 없는 것처럼 읽혀 1.0.0에서 "강제 잠금 없는"으로 바꿉니다. 스크린샷 1번 문구도 같은 이유로 바꿨습니다.)
 
 ### 자세한 설명
 
@@ -53,7 +53,7 @@ DigitsCore: 스크린타임·핸드폰 사용시간
 • 모두 같은 기준의 기본 등급으로 계산하고, 등급이 맞지 않으면 변경을 요청할 수 있습니다.
 
 ■ 오늘의 목표
-• 지수 방어선, 관리할 앱 시간, 잠금 해제 횟수 세 가지를 정합니다.
+• 지수 방어선, 관리할 앱 시간, 잠금 해제 횟수 세 가지를 앱이 매일 알아서 정합니다.
 • 한도에 닿아도 앱을 막지 않습니다. 조금 더 쓸지, 오늘은 그만할지 직접 고릅니다.
 
 ■ 연속 기록과 도룡뇽
@@ -96,9 +96,9 @@ DigitsCore Screen Time Tracker
 
 ### Short description
 
-One Core Index for phone usage and rest. A digital detox that never locks apps.
+One Core Index for phone usage and rest. A digital detox with no forced locks.
 
-(Previously: One Core Index for the balance of phone use and rest. Nothing is locked.)
+(Previously: …A digital detox that never locks apps. Changed for 1.0.0 together with screenshot caption 1.)
 
 ### Full description
 
@@ -120,7 +120,7 @@ The name carries two meanings: the Score of a digital detox, and the Core of you
 • Everyone shares the same default grades, and you can request a change if one looks wrong.
 
 ■ Daily goals
-• Set three goals: an index floor, managed app time and unlocks.
+• Three goals are set for you each day: an index floor, managed app time and unlocks.
 • Reaching a limit never blocks an app. You decide whether to keep going or stop for today.
 
 ■ Streaks and the salamander

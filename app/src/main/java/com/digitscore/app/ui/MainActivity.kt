@@ -125,11 +125,6 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) handleIntent(intent)
 
         val hasPermission = UsageStatsHelper.hasUsageStatsPermission(this)
-        val startDestination = if (hasPermission) {
-            Screen.Dashboard.route
-        } else {
-            Screen.Onboarding.route
-        }
 
         setContent {
             var themeMode by remember {
@@ -157,6 +152,15 @@ class MainActivity : ComponentActivity() {
                         )
                         DatabaseStartupState.Ready -> {
                             val navController = rememberNavController()
+                            // 권한만 있고 시작하기를 끝내지 않은 경우(설정 화면에서 허용한 뒤 앱이 다시 만들어진 경우)에도
+                            // 첫 화면으로 돌아가야 추적이 켜집니다.
+                            val startDestination = remember {
+                                if (hasPermission && com.digitscore.app.data.UsageHistoryImporter.isFirstTrackingStarted(applicationContext)) {
+                                    Screen.Dashboard.route
+                                } else {
+                                    Screen.Onboarding.route
+                                }
+                            }
                             NavHost(
                                 navController = navController,
                                 startDestination = startDestination
@@ -254,6 +258,8 @@ class MainActivity : ComponentActivity() {
             if (hasPermission) {
                 val settings = database.settingsDao().getSettings()
                 if (settings?.isTrackingEnabled == true) {
+                    // 시작 기록이 생기기 전(0.9.35 이전)에 설치한 사용자도 첫 화면을 다시 보지 않게 합니다.
+                    com.digitscore.app.data.UsageHistoryImporter.markFirstTrackingStarted(applicationContext)
                     TrackerForegroundService.start(applicationContext)
                 }
             }

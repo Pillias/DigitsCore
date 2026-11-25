@@ -334,7 +334,8 @@ class TrackerForegroundService : Service() {
         com.digitscore.app.data.CumulativeScoreStore.confirmWake(db, wakeStart, acknowledge = true)
 
         // 설치 첫날처럼 어제 기록이 없으면 빈 브리핑 대신 목표만 자동 지정합니다.
-        if (!DailyGoalStore.hasYesterdayBaseline(summary)) {
+        // 목표를 직접 고르지 않는 동안에는 브리핑 없이 자동 목표만 씁니다.
+        if (!com.digitscore.app.model.ProFeatures.GOAL_EDITING || !DailyGoalStore.hasYesterdayBaseline(summary)) {
             DailyGoalStore.markBriefingCompleted(applicationContext, todayDate)
             return
         }

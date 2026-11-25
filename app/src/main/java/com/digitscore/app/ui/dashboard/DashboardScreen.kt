@@ -217,18 +217,16 @@ fun DashboardScreen(
         kotlinx.coroutines.delay(1_500L)
         if (briefingShownThisRun || showMorningDialog) return@LaunchedEffect
         val version = com.digitscore.app.BuildConfig.VERSION_NAME
+        // 업데이트 소식은 팝업으로 띄우지 않습니다(설정 > 업데이트 기록과 스토어 출시 노트에서 봅니다).
         if (com.digitscore.app.data.release.WhatsNewStore.shouldShow(context, version)) {
-            val english = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
-            val note = com.digitscore.app.data.release.ReleaseNotes.find(context, english, version)
-            if (note != null && !note.quiet && note.items.isNotEmpty()) whatsNew = note
-            else com.digitscore.app.data.release.WhatsNewStore.markSeen(context, version)
+            com.digitscore.app.data.release.WhatsNewStore.markSeen(context, version)
         }
     }
     var showEditGoalsFromTopBar by remember { mutableStateOf(false) }
 
     // 외부 Intent(첫 잠금 해제 / 헤드업 탭)로부터 강제 호출 시 즉시 팝업 트리거
     LaunchedEffect(forceShowMorningBriefing) {
-        if (forceShowMorningBriefing) {
+        if (forceShowMorningBriefing && com.digitscore.app.model.ProFeatures.GOAL_EDITING) {
             showMorningDialog = true
         }
     }
@@ -239,7 +237,7 @@ fun DashboardScreen(
         val summary = yesterdaySummary
         val currentHour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
         // 설치 첫날처럼 어제 기록이 없으면 빈 브리핑을 띄우지 않습니다 (목표는 자동 지정).
-        if (currentGoal != null && currentHour in 5..11 &&
+        if (com.digitscore.app.model.ProFeatures.GOAL_EDITING && currentGoal != null && currentHour in 5..11 &&
             com.digitscore.app.data.DailyGoalStore.hasYesterdayBaseline(summary)
         ) {
             val isCompleted = com.digitscore.app.data.DailyGoalStore.isBriefingCompleted(context)
@@ -354,12 +352,14 @@ fun DashboardScreen(
                             contentDescription = if (isEn) "Statistics" else "상세 통계",
                             onClick = onNavigateToStatistics
                         )
-                        com.digitscore.app.ui.components.LabeledTopAction(
-                            icon = Icons.Rounded.Flag,
-                            label = if (isEn) "Goals" else "목표",
-                            contentDescription = if (isEn) "Today's goals" else "오늘의 목표",
-                            onClick = { showEditGoalsFromTopBar = true }
-                        )
+                        if (com.digitscore.app.model.ProFeatures.GOAL_EDITING) {
+                            com.digitscore.app.ui.components.LabeledTopAction(
+                                icon = Icons.Rounded.Flag,
+                                label = if (isEn) "Goals" else "목표",
+                                contentDescription = if (isEn) "Today's goals" else "오늘의 목표",
+                                onClick = { showEditGoalsFromTopBar = true }
+                            )
+                        }
                         com.digitscore.app.ui.components.LabeledTopAction(
                             icon = Icons.Rounded.Apps,
                             label = if (isEn) "Apps" else "앱",
@@ -937,7 +937,8 @@ private fun ThreeGoalsDashboardCard(
                             tint = tint
                         )
                         Spacer(modifier = Modifier.width(3.dp))
-                        val goalText = if (noAppTarget) androidx.compose.ui.text.AnnotatedString(if (isEn) "Pick app" else "앱 선택")
+                        val goalText = if (noAppTarget) androidx.compose.ui.text.AnnotatedString(
+                            if (!com.digitscore.app.model.ProFeatures.GOAL_EDITING) "—" else if (isEn) "Pick app" else "앱 선택")
                             else com.digitscore.app.i18n.formatGoalMinutesSmallUnit(appMins, appLimit)
                         com.digitscore.app.i18n.Text(
                             text = goalText,
@@ -1056,23 +1057,13 @@ private fun ThreeGoalsDashboardCard(
             text = {
                 Text(
                     if (isEn) {
-                        "Three goals for one day (05:00 to 05:00 the next morning).\n\n" +
-                        "1. Score floor: keep the day's last Core Index at or above the floor.\n" +
-                        "2. App limit: keep one chosen app within its time limit.\n" +
-                        "3. Unlock limit: keep the number of unlocks within the limit.\n\n" +
-                        "• Usage time and unlocks start from 0 at 05:00. The Core Index is not reset.\n" +
-                        "• Meeting all three earns a stamp; 3 stamps give a streak shield (max 2). A shield is used automatically to keep your streak on a missed day.\n" +
-                        "• Your salamander grows at 7, 14 and 30 streak days and shrinks one stage when the streak breaks.\n" +
-                        "• Tap each goal to see its criterion, tips and the last 7 days."
+                        "Three goals are set for you each day (05:00 to 05:00).\n\n" +
+                        "• Meet all three for a stamp; 3 stamps give a streak shield.\n" +
+                        "• Your salamander grows at 7, 14 and 30 days in a row."
                     } else {
-                        "하루(05:00부터 다음 날 05:00까지) 동안 지킬 목표 3가지입니다.\n\n" +
-                        "1. 지수 방어선: 하루 마지막 코어 지수를 방어선 이상으로 유지합니다.\n" +
-                        "2. 관리할 앱 한도: 고른 앱 1개의 사용 시간을 한도 안으로 유지합니다.\n" +
-                        "3. 잠금 해제 한도: 잠금 해제 횟수를 한도 안으로 유지합니다.\n\n" +
-                        "• 사용 시간과 잠금 해제 횟수는 05:00에 0부터 다시 셉니다. 코어 지수는 초기화되지 않습니다.\n" +
-                        "• 3가지를 모두 지키면 스탬프 1개, 스탬프 3개면 보호권 1장(최대 2장)을 받습니다. 연속 기록이 끊기는 날 보호권이 자동으로 쓰여 기록을 지켜 줍니다.\n" +
-                        "• 도룡뇽은 연속 7·14·30일에 한 단계씩 자라고, 보호권 없이 기록이 끊기면 한 단계 작아집니다.\n" +
-                        "• 각 목표를 누르면 기준, 달성 방법, 최근 7일 기록을 볼 수 있습니다."
+                        "매일(05:00~다음 날 05:00) 목표 3가지가 자동으로 정해집니다.\n\n" +
+                        "• 3가지를 다 지키면 스탬프, 스탬프 3개면 연속 기록 보호권을 받습니다.\n" +
+                        "• 도룡뇽은 연속 7·14·30일에 자랍니다."
                     },
                     fontSize = DigitsTextSize.body,
                     lineHeight = 20.sp
@@ -1425,18 +1416,20 @@ private fun ThreeGoalsDetailDialog(
             }
         },
         confirmButton = {
-            FilledTonalButton(
-                onClick = onEditGoals,
-                shape = DigitsShape.sm
-            ) {
-                Text(if (isEn) "Edit Goals" else "목표 수정", fontWeight = FontWeight.Bold, fontSize = DigitsTextSize.label)
+            if (com.digitscore.app.model.ProFeatures.GOAL_EDITING) {
+                FilledTonalButton(
+                    onClick = onEditGoals,
+                    shape = DigitsShape.sm
+                ) {
+                    Text(if (isEn) "Edit Goals" else "목표 수정", fontWeight = FontWeight.Bold, fontSize = DigitsTextSize.label)
+                }
+            } else {
+                TextButton(onClick = onDismiss) { Text(if (isEn) "Close" else "닫기") }
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(if (isEn) "Close" else "닫기")
-            }
-        }
+        dismissButton = if (com.digitscore.app.model.ProFeatures.GOAL_EDITING) {
+            { TextButton(onClick = onDismiss) { Text(if (isEn) "Close" else "닫기") } }
+        } else null
     )
 }
 
@@ -1867,6 +1860,8 @@ private fun CoreIndexHeroCard(
     val context = LocalContext.current
     val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(context) == com.digitscore.app.i18n.AppLocale.ENGLISH
     val gradeText = context.localizedGrade(grade)
+    // 서비스가 실제로 돌 때만 '실시간 추적'이라고 씁니다.
+    val isTrackingLive by com.digitscore.app.data.ScoreRepository.isServiceRunning.collectAsState()
     var showChartHelp by remember { mutableStateOf(false) }
     // 좌측 게이지 열의 실제 높이. 세로선과 우측 그래프를 이 높이에 맞춰 글자 크기·문구 길이가 달라도 위아래가 맞게 합니다.
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -2039,6 +2034,7 @@ private fun CoreIndexHeroCard(
                         currentScore = score,
                         samples = samples,
                         isEn = isEn,
+                        isTrackingLive = isTrackingLive,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -2104,21 +2100,13 @@ private fun CoreIndexHeroCard(
             text = {
                 Text(
                     text = if (isEn) {
-                        "What is the Core Index?\n" +
-                        "A score from 1 to 99 that shows your phone-use balance right now. It starts just below the Stable tier, goes down while you use the phone and goes up while the screen is off. It is not reset at midnight or 05:00; it keeps going from where it was.\n" +
-                        "• Managed apps lower it faster, and faster still after 30min in a row. Study and Tool apps do not lower it within their limits.\n" +
-                        "• Levels and colors: Stable 80+ (green), Fair 60–79 (yellow), Caution 40–59 (orange), Rest below 40 (red).\n\n" +
-                        "Reading the chart\n" +
-                        "• The line shows the last 24 hours. Thin vertical lines mark every 3 hours; the 05:00 line starts a new day.\n" +
-                        "• The highest and lowest points show the score and the time (HH:mm)."
+                        "Your phone-use balance from 1 to 99. It drops while you use the phone and recovers while the screen is off. It never resets at midnight.\n\n" +
+                        "• Managed apps lower it faster, more so after 30min in a row.\n" +
+                        "• Stable 80+ · Fair 60–79 · Caution 40–59 · Rest below 40"
                     } else {
-                        "코어 지수란?\n" +
-                        "지금의 스마트폰 사용 균형을 1~99로 나타낸 점수입니다. 처음에는 안정 등급 바로 아래에서 시작해 화면을 쓰는 동안 내려가고, 화면을 끄고 쉬는 동안 올라갑니다. 자정이나 05:00에 초기화되지 않고 이전 값에서 계속 이어집니다.\n" +
-                        "• 관리 앱은 더 빨리 내려가고, 30min 넘게 이어 쓰면 더 빨라집니다. 권장·필수 앱은 정해진 시간 안에서는 내려가지 않습니다.\n" +
-                        "• 지수 단계와 색: 안정 80 이상(초록), 보통 60~79(노랑), 주의 40~59(주황), 휴식 필요 40 미만(빨강).\n\n" +
-                        "차트 읽기\n" +
-                        "• 최근 24시간의 변화를 선으로 보여 줍니다. 가는 세로선은 3시간 간격, 05:00 선은 하루가 바뀌는 시점입니다.\n" +
-                        "• 가장 높은 점과 낮은 점에 점수와 시각(HH:mm)을 표시합니다."
+                        "폰 사용 균형을 1~99로 나타냅니다. 화면을 쓰면 내려가고, 끄고 쉬면 올라갑니다. 자정에 초기화되지 않습니다.\n\n" +
+                        "• 관리 앱은 더 빨리 내려가고, 30min 넘게 이어 쓰면 더 빨라집니다.\n" +
+                        "• 안정 80 이상 · 보통 60~79 · 주의 40~59 · 휴식 필요 40 미만"
                     },
                     fontSize = DigitsTextSize.body,
                     lineHeight = 20.sp
@@ -2138,6 +2126,7 @@ private fun CoreIndexSparklineContent(
     currentScore: Int,
     samples: List<CoreIndexSampleEntity>,
     isEn: Boolean,
+    isTrackingLive: Boolean,
     modifier: Modifier = Modifier
 ) {
     val tierColor = coreIndexTierColor(currentScore)
@@ -2170,13 +2159,21 @@ private fun CoreIndexSparklineContent(
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     Text(
-                        text = if (isEn) "Live tracking active" else "실시간 추적 진행 중",
+                        text = when {
+                            !isTrackingLive -> if (isEn) "Tracking is off" else "추적이 꺼져 있습니다"
+                            isEn -> "Live tracking active"
+                            else -> "실시간 추적 진행 중"
+                        },
                         fontSize = DigitsTextSize.caption,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = if (isEn) "Trend records every 5 minutes" else "5min마다 점수 추세가 기록됩니다",
+                        text = when {
+                            !isTrackingLive -> if (isEn) "Turn it on in Settings to keep the index moving" else "설정에서 켜면 지수가 다시 움직입니다"
+                            isEn -> "Trend records every 5 minutes"
+                            else -> "5min마다 점수 추세가 기록됩니다"
+                        },
                         fontSize = DigitsTextSize.tiny,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -3154,20 +3151,21 @@ fun ScreenTimeDetailDialog(
                         shape = DigitsShape.md
                     ) {
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(
-                                text = if (isEn) "Why this differs from Digital Wellbeing" else "디지털 웰빙과 숫자가 다른 이유",
-                                fontSize = DigitsTextSize.label,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                            Text(
-                                text = if (isEn)
-                                    "Digital Wellbeing counts from midnight and includes launcher time. DigitsCore counts from 05:00 and excludes launcher."
-                                else
-                                    "디지털 웰빙은 자정부터 세고 홈 화면 시간도 포함합니다. DigitsCore는 05:00부터 세고 홈 화면은 빼서 숫자가 다를 수 있습니다.",
-                                fontSize = DigitsTextSize.caption,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = if (isEn) "vs Digital Wellbeing" else "디지털 웰빙과 비교",
+                                    fontSize = DigitsTextSize.label,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                                InlineHelp(
+                                    title = if (isEn) "Why the numbers differ" else "숫자가 다른 이유",
+                                    body = if (isEn)
+                                        "Digital Wellbeing counts from midnight and includes home-screen time. DigitsCore counts from 05:00 and leaves the home screen out."
+                                    else
+                                        "디지털 웰빙은 자정부터 세고 홈 화면 시간도 넣습니다. DigitsCore는 05:00부터 세고 홈 화면은 뺍니다."
+                                )
+                            }
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text(
@@ -3397,6 +3395,11 @@ fun UnlockDetailDialog(
                                         fontSize = DigitsTextSize.caption,
                                         fontWeight = FontWeight.Medium
                                     )
+                                    InlineHelp(
+                                        title = if (isEn) "Quick glance" else "짧은 확인",
+                                        body = if (isEn) "Unlocks where the screen went off within 7 seconds without opening an app."
+                                        else "앱을 열지 않고 7초 안에 화면을 끈 잠금 해제입니다."
+                                    )
                                 }
                                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Box(modifier = Modifier.size(8.dp).background(ScoreGreen, CircleShape))
@@ -3409,12 +3412,6 @@ fun UnlockDetailDialog(
                                 }
                             }
 
-                            Text(
-                                text = if (isEn) "Detected quick checks where the screen was turned off within 7 seconds without opening apps. Calibrates gradually to your response speed."
-                                else "앱을 켜지 않고 7초 이내에 화면을 끈 짧은 확인을 감지했습니다. 개인 세션 반응 속도를 학습하여 점진적으로 보정합니다.",
-                                fontSize = DigitsTextSize.caption,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
                         }
                     }
 
@@ -3434,12 +3431,6 @@ fun UnlockDetailDialog(
                                     Text(if (isEn) "Daily Avg: ${value.past14DaysAverageUnlock}" else "일평균: ${value.past14DaysAverageUnlock}회", fontSize = DigitsTextSize.label, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
                                     Text(if (isEn) "Today: ${unlockCount}" else "오늘: ${unlockCount}회", fontSize = DigitsTextSize.label, fontWeight = FontWeight.Bold, color = ScoreYellowText)
                                 }
-                                Text(
-                                    text = if (isEn) "Use your lowest recent count (${value.past14DaysLowestUnlock} unlocks) as a benchmark to gradually reduce daily unlock goals."
-                                    else "과거 최저 기록(${value.past14DaysLowestUnlock}회)을 바닥선으로 삼아 일일 목표를 점진적으로 낮춰보세요.",
-                                    fontSize = DigitsTextSize.caption,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
                             }
                         }
                     }
@@ -3752,7 +3743,7 @@ fun DistractingDetailDialog(
                 item {
                     Text(
                         text = if (com.digitscore.app.model.AppCategoryPolicy.userGradesLocked) {
-                            if (isEn) "List of managed apps. Tap an app to request a grade change." else "관리 대상 앱 목록입니다. 등급이 맞지 않으면 앱을 눌러 변경을 요청할 수 있습니다."
+                            if (isEn) "Tap an app to request a grade change." else "앱을 누르면 등급 변경을 요청할 수 있습니다."
                         } else if (isEn) "List of managed apps. Tap an app to adjust its category." else "관리 대상 앱 목록입니다. 앱을 눌러 등급을 변경할 수 있습니다.",
                         fontSize = DigitsTextSize.label,
                         color = MaterialTheme.colorScheme.outline
@@ -4145,14 +4136,14 @@ private fun AppSessionInsight(insights: AppUsageInsights) {
             }
         }
         Text(
-            if (isEn) "${sessions.size} sessions · avg ${formatInsightDuration(average)} · max ${formatInsightDuration(longest)}"
+            if (isEn) "${sessions.size} ${if (sessions.size == 1) "session" else "sessions"} · avg ${formatInsightDuration(average)} · max ${formatInsightDuration(longest)}"
             else "${sessions.size}회 · 평균 ${formatInsightDuration(average)} · 최장 ${formatInsightDuration(longest)}",
             fontSize = DigitsTextSize.label,
             fontWeight = FontWeight.Medium
         )
         if (sessions.isNotEmpty()) {
             Text(
-                if (isEn) "Opened ${sessions.size} times today, including ${shortOpens} quick checks."
+                if (isEn) "Opened ${if (sessions.size == 1) "once" else "${sessions.size} times"} today, including $shortOpens ${if (shortOpens == 1) "quick check" else "quick checks"}."
                 else "오늘 ${sessions.size}회 열었고, 그중 짧은 확인은 ${shortOpens}회입니다.",
                 fontSize = DigitsTextSize.label,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -4508,3 +4499,27 @@ private fun TopNavActionItem(
     }
 }
 
+
+
+/** 설명을 본문에 늘어놓지 않고 "?"를 눌렀을 때만 보여 줍니다. */
+@Composable
+internal fun InlineHelp(title: String, body: String) {
+    var open by remember { mutableStateOf(false) }
+    val isEn = com.digitscore.app.i18n.AppLocale.currentLanguage(LocalContext.current) == com.digitscore.app.i18n.AppLocale.ENGLISH
+    IconButton(onClick = { open = true }, modifier = Modifier.size(24.dp)) {
+        Icon(
+            imageVector = Icons.Rounded.HelpOutline,
+            contentDescription = title,
+            modifier = Modifier.size(14.dp),
+            tint = MaterialTheme.colorScheme.outline
+        )
+    }
+    if (open) {
+        AlertDialog(
+            onDismissRequest = { open = false },
+            title = { Text(title, fontWeight = FontWeight.Bold, fontSize = DigitsTextSize.title) },
+            text = { Text(body, fontSize = DigitsTextSize.body, lineHeight = 20.sp) },
+            confirmButton = { TextButton(onClick = { open = false }) { Text(if (isEn) "OK" else "확인") } }
+        )
+    }
+}

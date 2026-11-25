@@ -295,13 +295,21 @@ fun AppWeightSettingsScreen(
                 }
 
                 if (gradesLocked) {
-                    Text(
-                        text = if (isEn) "App grades are the same for everyone. If one looks wrong, tap its grade to request a change."
-                        else "앱 등급은 모두에게 같은 기준입니다. 맞지 않으면 등급을 눌러 변경을 요청해 주세요.",
-                        fontSize = DigitsTextSize.caption,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 8.dp)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                    ) {
+                        Text(
+                            text = if (isEn) "Grades are the same for everyone" else "등급은 모두 같은 기준입니다",
+                            fontSize = DigitsTextSize.caption,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        com.digitscore.app.ui.dashboard.InlineHelp(
+                            title = if (isEn) "App grades" else "앱 등급",
+                            body = if (isEn) "Everyone uses the same grades so Core Index scores compare fairly. If one looks wrong, tap its grade to request a change."
+                            else "코어 지수를 같은 기준으로 비교할 수 있게 모두 같은 등급을 씁니다. 맞지 않으면 등급을 눌러 변경을 요청해 주세요."
+                        )
+                    }
                 }
 
                 // 검색창

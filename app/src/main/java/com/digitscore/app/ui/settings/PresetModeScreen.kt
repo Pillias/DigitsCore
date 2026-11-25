@@ -180,7 +180,6 @@ fun PresetModeScreen(
     var isWidgetBackgroundMenuExpanded by remember { mutableStateOf(false) }
     var showBackupPasswordDialog by remember { mutableStateOf(false) }
     var pendingEncryptedImport by remember { mutableStateOf<ByteArray?>(null) }
-    var pendingRestoreMode by remember { mutableStateOf<com.digitscore.app.data.backup.RestoreMode?>(null) }
     var showDeleteHistoryConfirmation by remember { mutableStateOf(false) }
     var showBugReport by remember { mutableStateOf(false) }
     var showDiagnosticsModal by remember { mutableStateOf(false) }
@@ -189,6 +188,9 @@ fun PresetModeScreen(
 
     val lifecycleOwner = LocalLifecycleOwner.current
     var hasOverlayPermission by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+    var isBatteryExempt by remember {
+        mutableStateOf(com.digitscore.app.ui.onboarding.isIgnoringBatteryOptimizations(context))
+    }
     var edgeLightingEnabled by remember { mutableStateOf(EdgeLightingOverlayManager.isEnabled(context)) }
     var managedTriggerMins by remember { mutableStateOf(EdgeLightingOverlayManager.getManagedTriggerMinutes(context)) }
     var studyTriggerMins by remember { mutableStateOf(EdgeLightingOverlayManager.getStudyTriggerMinutes(context)) }
@@ -203,6 +205,7 @@ fun PresetModeScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 hasOverlayPermission = Settings.canDrawOverlays(context)
+                isBatteryExempt = com.digitscore.app.ui.onboarding.isIgnoringBatteryOptimizations(context)
                 edgeLightingEnabled = EdgeLightingOverlayManager.isEnabled(context)
                 managedTriggerMins = EdgeLightingOverlayManager.getManagedTriggerMinutes(context)
                 studyTriggerMins = EdgeLightingOverlayManager.getStudyTriggerMinutes(context)
@@ -429,8 +432,7 @@ fun PresetModeScreen(
             if (selectedCategoryTab == 0) item {
                 // 다른 탭과 첫 줄을 맞추기 위한 제목
                 SectionHeading(
-                    title = if (isEn) "Display & tracking" else "화면과 추적",
-                    subtitle = if (isEn) "Language, theme, widget and app icon." else "언어, 화면 모드, 위젯, 앱 아이콘을 정합니다."
+                    title = if (isEn) "Display & tracking" else "화면과 추적"
                 )
             }
 
@@ -648,8 +650,8 @@ fun PresetModeScreen(
                                     fontSize = DigitsTextSize.body
                                 )
                                 Text(
-                                    if (isEn) "Changes the launcher icon color (green/yellow/orange/red) at most once a day while the screen is off. Some launchers may remove the home-screen shortcut when the icon changes."
-                                    else "화면이 꺼져 있을 때 하루 최대 1회 런처 아이콘 색(녹/노/주/빨)을 바꿉니다. 일부 런처는 아이콘이 바뀔 때 홈 화면 바로가기를 지울 수 있습니다.",
+                                    if (isEn) "Up to once a day, while the screen is off. Some launchers may drop the home-screen shortcut."
+                                    else "화면이 꺼졌을 때 하루 한 번까지 바꿉니다. 일부 런처는 바로가기가 지워질 수 있습니다.",
                                     fontSize = DigitsTextSize.label,
                                     color = MaterialTheme.colorScheme.outline,
                                     modifier = Modifier.padding(top = 3.dp)
@@ -669,8 +671,7 @@ fun PresetModeScreen(
 
             if (selectedCategoryTab == 1) item {
                 SectionHeading(
-                    title = if (isEn) "Core Index Preset" else "점수 모드",
-                    subtitle = if (isEn) "Select which signals matter most in your 24h usage pattern." else "최근 24시간 사용 흐름에서 중요하게 볼 항목을 선택합니다."
+                    title = if (isEn) "Core Index Preset" else "점수 모드"
                 )
             }
 
@@ -784,8 +785,7 @@ fun PresetModeScreen(
 
             if (selectedCategoryTab == 2) item {
                 SectionHeading(
-                    title = if (isEn) "Traffic Light & Rapid Alerts" else "화면 신호등 및 사용 흐름 알림",
-                    subtitle = if (isEn) "Sets threshold conditions for screen glow and unobtrusive alerts." else "게임이나 화면을 방해하지 않는 신호등 조명과 알림 조건을 정합니다."
+                    title = if (isEn) "Traffic Light & Rapid Alerts" else "화면 신호등 및 사용 흐름 알림"
                 )
             }
 
@@ -832,8 +832,8 @@ fun PresetModeScreen(
                                     }
                                 }
                                 Text(
-                                    text = if (isEn) "Gently pulses the phone bezel in green or red when continuous use limits are reached."
-                                    else "스마트폰 최외곽 베젤에서 초록불·빨간불 간접 조명으로 연속 사용 한도를 알려줍니다.",
+                                    text = if (isEn) "Lights the screen edge when you've used it too long in a row."
+                                    else "오래 이어 쓰면 화면 가장자리에 불이 들어옵니다.",
                                     fontSize = DigitsTextSize.label,
                                     lineHeight = 17.sp,
                                     color = MaterialTheme.colorScheme.outline
@@ -928,7 +928,7 @@ fun PresetModeScreen(
                                         fontWeight = FontWeight.Medium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    val managedOptions = listOf(1, 5, 15, 30, 45, 60)
+                                    val managedOptions = (listOf(15, 30, 45, 60) + managedTriggerMins).distinct().sorted()
                                     // 6개를 한 줄에 두면 칩 안 여백 때문에 "15min"이 "15n"처럼 잘립니다. 3개씩 두 줄로 둡니다.
                                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     managedOptions.chunked(3).forEach { rowOptions ->
@@ -970,7 +970,7 @@ fun PresetModeScreen(
                                         fontWeight = FontWeight.Medium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    val studyOptions = listOf(1, 5, 30, 50, 60, 90)
+                                    val studyOptions = (listOf(30, 50, 60, 90) + studyTriggerMins).distinct().sorted()
                                     // 6개를 한 줄에 두면 칩 안 여백 때문에 "15min"이 "15n"처럼 잘립니다. 3개씩 두 줄로 둡니다.
                                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     studyOptions.chunked(3).forEach { rowOptions ->
@@ -1003,8 +1003,8 @@ fun PresetModeScreen(
                                     }
                                     }
                                     Text(
-                                        text = if (isEn) "* 1min and 5min options are for testing.\n* Repeats every half-interval (${(managedTriggerMins / 2).coerceAtLeast(1)}min / ${(studyTriggerMins / 2).coerceAtLeast(1)}min) after the first alert."
-                                               else "* 1min·5min은 동작 테스트용 옵션입니다.\n* 첫 점등 이후에도 계속 사용 시 설정 시간의 절반 간격(${(managedTriggerMins / 2).coerceAtLeast(1)}min / ${(studyTriggerMins / 2).coerceAtLeast(1)}min)마다 다시 알려줍니다.",
+                                        text = if (isEn) "Repeats every half-interval while you keep using."
+                                               else "계속 쓰면 절반 간격으로 다시 알려 줍니다.",
                                         fontSize = DigitsTextSize.caption,
                                         color = MaterialTheme.colorScheme.outline
                                     )
@@ -1280,8 +1280,8 @@ fun PresetModeScreen(
                                 fontSize = DigitsTextSize.bodyLarge
                             )
                             Text(
-                                text = if (isEn) "Sends a summary of past week's Core Index and goal achievements every Monday morning."
-                                else "매주 월요일 아침 지난주 코어 지수 및 목표 달성 요약을 알림으로 받아봅니다.",
+                                text = if (isEn) "Last week's summary every Monday morning."
+                                else "매주 월요일 아침 지난주 요약을 보냅니다.",
                                 fontSize = DigitsTextSize.label,
                                 color = MaterialTheme.colorScheme.outline
                             )
@@ -1394,8 +1394,7 @@ fun PresetModeScreen(
             // 1. 점수 모드 선택
             if (selectedCategoryTab == 1 && SHOW_LEGACY_SCORE_SETTINGS) item {
                 SectionHeading(
-                    title = "점수 모드 선택",
-                    subtitle = "생활 패턴에 맞는 기본값을 선택하고 아래에서 세부 조정합니다."
+                    title = "점수 모드 선택"
                 )
             }
 
@@ -1486,8 +1485,8 @@ fun PresetModeScreen(
                                 fontSize = DigitsTextSize.bodyLarge
                             )
                             Text(
-                                text = if (isEn) "Turning this off stops background tracking and the status notification immediately."
-                                else "끄면 백그라운드 서비스와 상태바 점수 알림이 즉시 종료됩니다.",
+                                text = if (isEn) "Off stops tracking and the status notification."
+                                else "끄면 추적과 상태바 알림이 멈춥니다.",
                                 fontSize = DigitsTextSize.label,
                                 color = MaterialTheme.colorScheme.outline,
                                 modifier = Modifier.padding(top = 3.dp)
@@ -1514,12 +1513,49 @@ fun PresetModeScreen(
                 }
             }
 
+            // 첫 화면에서 뺀 배터리 예외 안내. 추적 중이고 예외가 아닐 때만 보입니다.
+            if (selectedCategoryTab == 0 && settings.isTrackingEnabled && !isBatteryExempt) item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = DigitsShape.lg,
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (isEn) "Keep tracking running" else "백그라운드 추적 유지",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = DigitsTextSize.bodyLarge
+                            )
+                            Text(
+                                text = if (isEn) "Exclude DigitsCore from battery optimization so the index keeps moving."
+                                else "배터리 최적화에서 빼 두면 지수가 끊기지 않습니다.",
+                                fontSize = DigitsTextSize.label,
+                                lineHeight = 17.sp,
+                                color = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.padding(top = 3.dp)
+                            )
+                        }
+                        androidx.compose.material3.FilledTonalButton(
+                            onClick = { com.digitscore.app.ui.onboarding.launchBatteryOptimizationSettings(context) }
+                        ) {
+                            Text(if (isEn) "Open" else "설정", maxLines = 1)
+                        }
+                    }
+                }
+            }
+
             // 2. 개인 목표 지수 방어선
 
             if (selectedCategoryTab == 1 && SHOW_LEGACY_SCORE_SETTINGS) item {
                 SectionHeading(
-                    title = "개인 목표 기준선",
-                    subtitle = "점수 안내와 잠금 해제 기준을 본인의 생활 패턴에 맞춥니다."
+                    title = "개인 목표 기준선"
                 )
             }
 
@@ -1593,131 +1629,11 @@ fun PresetModeScreen(
                 }
             }
 
-            // 3. 코어 지수 세부 규칙 (추후 지원 안내 카드)
-            if (selectedCategoryTab == 1) item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = DigitsShape.lg,
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Surface(
-                            shape = DigitsShape.xs,
-                            color = MaterialTheme.colorScheme.secondaryContainer
-                        ) {
-                            Text(
-                                text = if (isEn) "Later" else "추후 지원",
-                                fontSize = DigitsTextSize.tiny,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                maxLines = 1,
-                                softWrap = false
-                            )
-                        }
-                        Text(
-                            text = if (isEn) "Custom weight fine-tuning will be available in a future update."
-                            else "개인별 가중치 미세조정 기능은 데이터 축적 후 추후 업데이트에서 지원됩니다.",
-                            fontSize = DigitsTextSize.label,
-                            lineHeight = 16.sp,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                }
-            }
-
             // 4. 데이터 관리 및 백업
             if (selectedCategoryTab == 3) item {
                 SectionHeading(
-                    title = "데이터 관리 및 백업",
-                    subtitle = "기록 보존, 암호화 백업, 복원과 삭제를 관리합니다."
+                    title = "데이터 관리 및 백업"
                 )
-            }
-
-            if (selectedCategoryTab == 3) item {
-                var isImportingHistory by remember { mutableStateOf(false) }
-                var importResultDialogMessage by remember { mutableStateOf<String?>(null) }
-                val importScope = rememberCoroutineScope()
-
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = DigitsShape.lg,
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = if (isEn) "Import Past History" else "지난 기록 불러오기",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = DigitsTextSize.bodyLarge
-                        )
-                        Text(
-                            text = if (isEn) "Imports up to 7 days of recent app usage stored on your device. Past scores are not created; Core Index begins from today."
-                            else "기기에 남은 최근 최대 7일간의 앱 사용 기록을 가져옵니다. 과거 점수는 생성하지 않으며 코어 지수는 오늘부터 시작합니다.",
-                            fontSize = DigitsTextSize.label,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-
-                        Button(
-                            onClick = {
-                                if (!isImportingHistory) {
-                                    isImportingHistory = true
-                                    importScope.launch {
-                                        val result = com.digitscore.app.data.UsageHistoryImporter.importPastHistory(context, db)
-                                        importResultDialogMessage = result.message(isEn)
-                                        isImportingHistory = false
-                                    }
-                                }
-                            },
-                            enabled = !isImportingHistory,
-                            shape = DigitsShape.sm,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = if (isImportingHistory) (if (isEn) "Importing..." else "불러오는 중…") else (if (isEn) "Import Past Usage History" else "지난 사용 기록 불러오기"),
-                                fontSize = DigitsTextSize.body,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-
-                importResultDialogMessage?.let { msg ->
-                    AlertDialog(
-                        onDismissRequest = { importResultDialogMessage = null },
-                        title = {
-                            Text(
-                                text = if (isEn) "Import Result" else "기록 불러오기 결과",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = DigitsTextSize.headline
-                            )
-                        },
-                        text = {
-                            Text(
-                                text = msg,
-                                fontSize = DigitsTextSize.body
-                            )
-                        },
-                        confirmButton = {
-                            Button(
-                                onClick = { importResultDialogMessage = null },
-                                shape = DigitsShape.sm
-                            ) {
-                                Text(if (isEn) "OK" else "확인", fontSize = DigitsTextSize.body, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    )
-                }
             }
 
             if (selectedCategoryTab == 3) item {
@@ -1731,11 +1647,7 @@ fun PresetModeScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            text = if (databaseSecurityStatus.mode == DatabaseSecurityMode.ENCRYPTED) {
-                                "앱별 기록은 기기 내부 암호화 DB에 저장되며, 백업 파일도 사용자 비밀번호로 암호화됩니다."
-                            } else {
-                                "기존 기록을 보호하기 위해 이번 실행에서는 호환 모드로 열었습니다. 백업 파일은 계속 사용자 비밀번호로 암호화됩니다."
-                            },
+                            text = "기록은 이 기기에만 암호화해 저장합니다. 상세 기록은 30일, 집계는 365일 보관합니다.",
                             fontSize = DigitsTextSize.label,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1763,28 +1675,6 @@ fun PresetModeScreen(
                             }
                         }
 
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            shape = DigitsShape.md
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth().padding(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text("기록 보존 방식", fontWeight = FontWeight.Medium, fontSize = DigitsTextSize.body)
-                                Text(
-                                    "앱별 시작·종료 상세와 5분 단위 코어 지수 표본은 30일, 시간별·날짜별 집계는 365일 보관합니다.",
-                                    fontSize = DigitsTextSize.caption,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
-                                Text(
-                                    "30일을 넘겨 상세 기록을 보관하려면 만료 전에 암호화 백업을 저장하세요.",
-                                    fontSize = DigitsTextSize.caption,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1792,11 +1682,6 @@ fun PresetModeScreen(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text("잠금 화면에서 상세 정보 숨기기", fontWeight = FontWeight.Medium, fontSize = DigitsTextSize.body)
-                                Text(
-                                    "점수·화면 시간·잠금 해제 횟수를 잠금 해제 전에는 표시하지 않습니다.",
-                                    fontSize = DigitsTextSize.caption,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
                             }
                             androidx.compose.material3.Switch(
                                 checked = settings.hideSensitiveNotificationOnLockScreen,
@@ -1855,8 +1740,7 @@ fun PresetModeScreen(
 
             if (selectedCategoryTab == 3) item {
                 SectionHeading(
-                    title = "앱 정보",
-                    subtitle = "버전, 업데이트 기록, 개인정보 처리 정책을 확인합니다."
+                    title = "앱 정보"
                 )
             }
 
@@ -2030,46 +1914,15 @@ fun PresetModeScreen(
         )
     }
 
-    if (pendingEncryptedImport != null && pendingRestoreMode == null) {
-        // 복원 방식 선택: 기본은 백업 우선(이 기기 기록을 백업으로 바꿈)
-        AlertDialog(
-            onDismissRequest = { pendingEncryptedImport = null },
-            title = { Text("복원 방식을 고르세요", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        "백업으로 바꾸기(권장): 이 기기의 사용 기록과 코어 지수를 지우고 백업 기록으로 이어 갑니다. 새 기기로 옮길 때 고르세요.",
-                        fontSize = DigitsTextSize.label
-                    )
-                    Text(
-                        "이 기기 기록에 합치기: 이 기기 기록을 남기고 백업 기록을 더합니다. 같은 시간대 기록이 겹치면 그래프가 섞여 보일 수 있습니다.",
-                        fontSize = DigitsTextSize.label,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-            },
-            confirmButton = {
-                Button(onClick = { pendingRestoreMode = com.digitscore.app.data.backup.RestoreMode.OVERWRITE }) {
-                    Text("백업으로 바꾸기", maxLines = 1)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingRestoreMode = com.digitscore.app.data.backup.RestoreMode.MERGE }) {
-                    Text("합치기", maxLines = 1)
-                }
-            }
-        )
-    }
-
-    pendingEncryptedImport?.takeIf { pendingRestoreMode != null }?.let { encryptedBytes ->
-        val restoreMode = pendingRestoreMode ?: com.digitscore.app.data.backup.RestoreMode.OVERWRITE
+    // 복원은 묻지 않고 백업으로 바꿉니다(이 기기 기록은 백업 기록으로 대체).
+    pendingEncryptedImport?.let { encryptedBytes ->
+        val restoreMode = com.digitscore.app.data.backup.RestoreMode.OVERWRITE
         BackupPasswordDialog(
             title = "암호화 백업 복원",
             confirmPassword = false,
-            onDismiss = { pendingEncryptedImport = null; pendingRestoreMode = null },
+            onDismiss = { pendingEncryptedImport = null },
             onConfirm = { password ->
                 pendingEncryptedImport = null
-                pendingRestoreMode = null
                 scope.launch(Dispatchers.IO) {
                     val chars = password.toCharArray()
                     try {
@@ -2101,7 +1954,7 @@ fun PresetModeScreen(
             onDismissRequest = { showDeleteHistoryConfirmation = false },
             title = { Text("모든 사용 기록을 삭제할까요?", fontWeight = FontWeight.Bold) },
             text = {
-                Text("앱별 365일 기록, 점수 기록과 잠금 해제 통계가 삭제되고 추적이 중지됩니다. 앱 등급과 점수 설정은 유지되며 이 작업은 되돌릴 수 없습니다.")
+                Text("사용 기록과 점수가 모두 지워지고 추적이 멈춥니다. 설정은 그대로이며, 되돌릴 수 없습니다.")
             },
             confirmButton = {
                 Button(
@@ -2189,8 +2042,8 @@ private fun BackupPasswordDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    if (isEn) "Passwords are not stored in the app or server and are only used for backup encryption (PBKDF2 + AES-256-GCM). Data cannot be recovered if lost."
-                    else "비밀번호는 앱이나 서버에 저장되지 않고 백업 파일 암호화(PBKDF2 + AES-256-GCM)에만 사용됩니다. 분실하면 복원할 수 없습니다.",
+                    if (confirmPassword) (if (isEn) "Lost passwords can't be recovered." else "비밀번호를 잊으면 복원할 수 없습니다.")
+                    else (if (isEn) "This device's history will be replaced by the backup." else "이 기기 기록이 백업 기록으로 바뀝니다."),
                     fontSize = DigitsTextSize.label,
                     lineHeight = 16.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant

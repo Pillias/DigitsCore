@@ -69,12 +69,8 @@ fun GradeLockNotice(enabled: Boolean, onOpenAppSettings: () -> Unit) {
         },
         text = {
             Text(
-                if (english) "From this update, app grades are the same for every user, so Core Index values can be compared fairly. " +
-                    "Grades you changed are now counted with the default grade from today. Past records stay as they are. " +
-                    "If an app's grade looks wrong, tap its grade on the app grade screen to request a change."
-                else "이번 업데이트부터 앱 등급은 모든 사용자에게 같은 기준으로 계산됩니다. 그래야 코어 지수를 서로 같은 기준으로 볼 수 있습니다. " +
-                    "직접 바꿔 두신 등급은 오늘부터 기본 등급으로 계산되고, 지난 기록은 그대로입니다. " +
-                    "등급이 맞지 않는 앱은 앱 등급 화면에서 등급을 눌러 변경을 요청해 주세요."
+                if (english) "Grades you changed now use the default grade. Past records stay as they are."
+                else "직접 바꾼 등급은 오늘부터 기본 등급으로 계산됩니다. 지난 기록은 그대로입니다."
             )
         },
         confirmButton = {

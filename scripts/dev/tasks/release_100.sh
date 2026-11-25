@@ -15,20 +15,25 @@ if [ "$STEP" = "build" ]; then
   git commit -q -m "docs: v1.0.0 출시 노트, 릴리스 스크립트${TR:-}" || true
   echo "== 3. 단위 테스트"; ./gradlew :app:testDebugUnitTest --no-daemon -q
   echo "== 4. 디자인 점검"; STRICT=1 bash scripts/design_check.sh
+  echo "== 4b. 1.0.0 전환 (릴리스 빌드가 PATCH·VERSION_CODE를 1 올려 1.0.0 / 1000이 됨)"
+  grep -q '^MAJOR=0' version.properties || { echo "이미 1.x입니다. version.properties 확인"; exit 1; }
+  perl -pi -e 's/^MAJOR=.*/MAJOR=1/; s/^MINOR=.*/MINOR=0/; s/^PATCH=.*/PATCH=-1/; s/^VERSION_CODE=.*/VERSION_CODE=999/; s/^DEBUG_BUILD=.*/DEBUG_BUILD=0/' version.properties
   echo "== 5. 릴리스 빌드 (PATCH 자동 +1)"; ./gradlew :app:bundleRelease :app:assembleRelease --no-daemon -q
   V="$(grep '^MAJOR=' version.properties | cut -d= -f2).$(grep '^MINOR=' version.properties | cut -d= -f2).$(grep '^PATCH=' version.properties | cut -d= -f2)"
   echo "버전: $V (code $(grep '^VERSION_CODE=' version.properties | cut -d= -f2))"
+  test "$V" = "1.0.0" || { echo "버전이 1.0.0이 아닙니다: $V"; exit 1; }
   APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
   cp app/build/outputs/bundle/release/app-release.aab "DigitsCore-v${V}-release.aab"
   cp "$APK" "DigitsCore-v${V}-release.apk"
   echo "== 6. 서명 확인 (업로드 키 SHA1 A6:CD:47:42:...:6C:8A 여야 함)"
-  keytool -printcert -jarfile "DigitsCore-v${V}-release.aab" | grep -E "SHA1|Owner"
+  # keytool은 자체 서명 인증서 경고로 종료 코드 1을 돌려줘 set -e에서 멈추므로 실패를 무시
+  keytool -printcert -jarfile "DigitsCore-v${V}-release.aab" 2>&1 | grep -E "SHA1|Owner|소유자" || true
   BT=$(ls -d "$(grep '^sdk.dir=' local.properties | cut -d= -f2)"/build-tools/* | sort -V | tail -1)
   "$BT/apksigner" verify --print-certs "DigitsCore-v${V}-release.apk" | grep -E "SHA-1|Signer #1 certificate DN"
   ls -la "DigitsCore-v${V}-release.aab" "DigitsCore-v${V}-release.apk"
   echo "== 7. 버전 커밋"
   git add version.properties
-  git commit -m "release: v${V} (versionCode $(grep '^VERSION_CODE=' version.properties | cut -d= -f2)) - streak shields, salamander stages, personal records, first stable release${TR:-}"
+  git commit -m "release: v${V} (versionCode $(grep '^VERSION_CODE=' version.properties | cut -d= -f2)) - first stable release${TR:-}"
   git branch -f "release/v${V}"
   echo "BUILD_DONE v${V}"
 fi
@@ -36,8 +41,10 @@ fi
 if [ "$STEP" = "publish" ]; then
   V="$(grep '^MAJOR=' version.properties | cut -d= -f2).$(grep '^MINOR=' version.properties | cut -d= -f2).$(grep '^PATCH=' version.properties | cut -d= -f2)"
   git push origin feature/core-index-focus "release/v${V}"
+  # GitHub 노트에는 Play Console용 블록을 빼고 한국어·영어 부분만 담습니다.
+  NOTES="$(mktemp)"; awk '/^## Play Console/{exit} {print}' "docs/release-notes/v${V}.md" | perl -0pe 's/\s*---\s*\z/\n/' > "$NOTES"
   gh release create "v${V}" "DigitsCore-v${V}-release.apk" "DigitsCore-v${V}-release.aab" \
-    --target "release/v${V}" --title "DigitsCore v${V}" --notes-file "docs/release-notes/v${V}.md"
+    --target "release/v${V}" --title "DigitsCore v${V}" --notes-file "$NOTES"
   gh release view "v${V}" --json url,assets --jq '.url, (.assets[].name)'
   echo "PUBLISH_DONE"
 fi

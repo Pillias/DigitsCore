@@ -33,13 +33,13 @@ public class CaptionScreenshots {
 
     // 순서: 대시보드, 통계, 오늘의 목표, 공유 카드
     static final String[][] KO = {
-        {"앱을 잠그지 않습니다", "스마트폰 사용과 휴식의 균형을 점수 하나로"},
+        {"폰 사용을 점수 하나로", "강제 잠금 없이, 사용과 휴식의 균형을 1~99점으로"},
         {"언제 많이 썼는지 한눈에", "시간별·일별·요일별 지수와 사용 흐름"},
         {"목표는 세 가지만", "지수 방어선 · 관리 앱 시간 · 잠금 해제"},
         {"오늘의 지수를 나눠 보세요", "도룡뇽과 함께 카드 한 장으로 공유"},
     };
     static final String[][] EN = {
-        {"Never locks your apps", "One score for the balance of use and rest"},
+        {"Your phone use in one score", "No forced locks. Use and rest as one 1–99 index"},
         {"See when you used it most", "Hourly, daily and weekday views"},
         {"Just three daily goals", "Index floor · managed app time · unlocks"},
         {"Share today's index", "One card with your salamander"},
